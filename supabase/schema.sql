@@ -138,7 +138,9 @@ insert into public.students (mssv, name) values
   ('125000550', 'Nguyễn Duy Tiến'),
   ('123000432', 'Trần Thành Long'),
   ('123000375', 'Phạm Đinh Tài Lộc'),
-  ('123001394', 'Đỗ Văn Quyền')
+  ('123001394', 'Đỗ Văn Quyền'),
+  ('125000890', 'Lê Ngô Gia Bảo'),
+  ('125001087', 'Cao Anh Tú')
 on conflict (mssv) do update
 set name = excluded.name;
 
@@ -365,6 +367,7 @@ as $$
 declare
   s record;
   v_name text;
+  v_existing_status text;
   v_mssv text := btrim(coalesce(p_mssv, ''));
   v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_cycle bigint;
@@ -438,17 +441,37 @@ begin
     );
   end if;
 
-  if exists (
-    select 1
-    from public.attendance a
-    where a.session_id = s.id
-      and a.mssv = v_mssv
-  ) then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'ALREADY',
-      'message', 'Bạn đã điểm danh phiên này rồi.'
-    );
+  select status
+    into v_existing_status
+  from public.attendance a
+  where a.session_id = s.id
+    and a.mssv = v_mssv;
+
+  if found then
+    if v_existing_status in ('vắng có phép', 'vắng không phép') then
+      -- Sinh viên trước đó bị đánh dấu vắng nay quét QR hợp lệ -> cập nhật lại có mặt
+      update public.attendance
+      set status = 'có mặt',
+          category = left(btrim(p_category), 60),
+          note = left(btrim(coalesce(p_note, '')), 200),
+          device_id = p_device_id,
+          created_at = now()
+      where session_id = s.id
+        and mssv = v_mssv;
+
+      return jsonb_build_object(
+        'ok', true,
+        'code', 'OK',
+        'name', v_name,
+        'mssv', v_mssv
+      );
+    else
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'ALREADY',
+        'message', 'Bạn đã điểm danh phiên này rồi.'
+      );
+    end if;
   end if;
 
   if exists (
@@ -713,3 +736,278 @@ $$;
 
 revoke all on function public.admin_set_status(text, text, text) from public;
 grant execute on function public.admin_set_status(text, text, text) to authenticated;
+
+-- 4) RPC cập nhật trạng thái hàng loạt (Batch update - hiệu năng cao) ---
+create or replace function public.admin_batch_set_status(
+  p_session_id text,
+  p_mssv_list text[],
+  p_status text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  s record;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ admin mới được phép cập nhật trạng thái.');
+  end if;
+
+  if p_status is null or p_status not in ('có mặt', 'vắng có phép', 'vắng không phép') then
+    return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
+  end if;
+
+  select * into s from public.sessions where id::text = p_session_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
+  end if;
+
+  insert into public.attendance (session_id, mssv, full_name, status, category, note, device_id)
+  select s.id, st.mssv, st.name, p_status, 'Admin Batch Update', '', null
+  from public.students st
+  where st.mssv = any(p_mssv_list)
+  on conflict (session_id, mssv)
+  do update set status = excluded.status;
+
+  return jsonb_build_object('ok', true, 'count', cardinality(p_mssv_list));
+end;
+$$;
+
+revoke all on function public.admin_batch_set_status(text, text[], text) from public;
+grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
+
+-- 5) Cập nhật kiểm tra Admin mở rộng (public.admins, profiles, và metadata)
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+  select exists (
+    select 1
+    from public.admins
+    where user_id = auth.uid()
+  ) or exists (
+    select 1
+    from public.profiles
+    where user_id = auth.uid() and role = 'admin'
+  ) or exists (
+    select 1
+    from auth.users
+    where id = auth.uid() and raw_user_meta_data->>'app_role' = 'admin'
+  );
+$$;
+
+-- 6) RPC đóng phiên an toàn cho Admin
+create or replace function public.admin_close_session(p_session_id text default null)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ admin mới được phép đóng phiên.');
+  end if;
+
+  if p_session_id is not null and btrim(p_session_id) <> '' then
+    update public.sessions
+    set is_open = false
+    where id::text = p_session_id;
+  end if;
+
+  -- Luôn đảm bảo tất cả phiên đang mở đều được đóng
+  update public.sessions
+  set is_open = false
+  where is_open = true;
+
+  return jsonb_build_object('ok', true, 'message', 'Đã đóng phiên thành công.');
+end;
+$$;
+
+revoke all on function public.admin_close_session(text) from public;
+grant execute on function public.admin_close_session(text) to authenticated;
+
+-- 7) Tự động đồng bộ tài khoản mới đăng ký vào bảng profiles
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  insert into public.profiles (user_id, username, role, full_name, mssv)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'app_role', 'student'),
+    coalesce(new.raw_user_meta_data->>'name', ''),
+    coalesce(new.raw_user_meta_data->>'mssv', '')
+  )
+  on conflict (user_id) do update set
+    full_name = excluded.full_name,
+    mssv = excluded.mssv,
+    role = excluded.role;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- 8) RPC điểm danh cho Sinh viên đã đăng nhập (không cần quét QR)
+create or replace function public.submit_attendance_authenticated(
+  p_session_id text,
+  p_category text default 'Đi học',
+  p_note text default '',
+  p_device_id text default null
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  s record;
+  v_mssv text;
+  v_name text;
+  v_existing_status text;
+begin
+  if v_uid is null then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'UNAUTHORIZED',
+      'message', 'Bạn chưa đăng nhập.'
+    );
+  end if;
+
+  -- Lấy MSSV từ profiles hoặc auth metadata
+  select mssv into v_mssv from public.profiles where user_id = v_uid;
+  if v_mssv is null or btrim(v_mssv) = '' then
+    select raw_user_meta_data->>'mssv' into v_mssv from auth.users where id = v_uid;
+  end if;
+
+  v_mssv := btrim(coalesce(v_mssv, ''));
+  if v_mssv = '' then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'NO_MSSV',
+      'message', 'Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin.'
+    );
+  end if;
+
+  -- Kiểm tra phiên
+  select * into s from public.sessions where id::text = p_session_id;
+  if not found or not s.is_open or (
+    s.duration_min is not null and s.started_at + (s.duration_min * interval '1 minute') <= now()
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'SESSION_CLOSED',
+      'message', 'Phiên điểm danh đã đóng hoặc đã hết giờ.'
+    );
+  end if;
+
+  -- Lấy tên sinh viên từ danh sách lớp
+  select name into v_name from public.students where mssv = v_mssv;
+  if not found then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'NOT_IN_CLASS',
+      'message', 'MSSV không có trong danh sách lớp!'
+    );
+  end if;
+
+  -- Kiểm tra đã điểm danh chưa
+  select status into v_existing_status
+  from public.attendance
+  where session_id = s.id and mssv = v_mssv;
+
+  if found then
+    if v_existing_status in ('vắng có phép', 'vắng không phép') then
+      update public.attendance
+      set status = 'có mặt',
+          category = left(btrim(coalesce(p_category, 'Đi học')), 60),
+          note = left(btrim(coalesce(p_note, '')), 200),
+          device_id = p_device_id,
+          created_at = now()
+      where session_id = s.id and mssv = v_mssv;
+
+      return jsonb_build_object(
+        'ok', true,
+        'code', 'OK',
+        'name', v_name,
+        'mssv', v_mssv
+      );
+    else
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'ALREADY',
+        'message', 'Bạn đã điểm danh phiên này rồi.'
+      );
+    end if;
+  end if;
+
+  -- Kiểm tra thiết bị nếu có device_id
+  if p_device_id is not null and btrim(p_device_id) <> '' then
+    if exists (
+      select 1 from public.attendance
+      where session_id = s.id and device_id = p_device_id
+    ) then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'DEVICE_USED',
+        'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác trong phiên.'
+      );
+    end if;
+  end if;
+
+  -- Thêm bản ghi điểm danh
+  insert into public.attendance (
+    session_id,
+    mssv,
+    full_name,
+    status,
+    category,
+    note,
+    device_id
+  )
+  values (
+    s.id,
+    v_mssv,
+    v_name,
+    'có mặt',
+    left(btrim(coalesce(p_category, 'Đi học')), 60),
+    left(btrim(coalesce(p_note, '')), 200),
+    p_device_id
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'code', 'OK',
+    'name', v_name,
+    'mssv', v_mssv
+  );
+exception
+  when unique_violation then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'ALREADY',
+      'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.'
+    );
+end;
+$$;
+
+revoke all on function public.submit_attendance_authenticated(text, text, text, text) from public;
+grant execute on function public.submit_attendance_authenticated(text, text, text, text) to authenticated;
+
+

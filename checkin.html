@@ -28,10 +28,12 @@
     <p class="sub">Nhập MSSV và xác nhận để điểm danh</p>
 
     <div class="info-box" id="sessionInfo">Đang tải thông tin phiên...</div>
+    <div id="studentAuthBanner" style="display:none;background:var(--info-bg);color:var(--info);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;margin-bottom:16px;"></div>
 
     <div class="field">
       <label for="mssv">MSSV <span class="req">*</span></label>
-      <input type="text" id="mssv" placeholder="VD: 123001058" autocomplete="off" inputmode="numeric">
+      <input type="text" id="mssv" placeholder="Nhập mã số sinh viên" autocomplete="off" inputmode="numeric">
+      <span class="field-hint" id="mssvHint">✓ Hệ thống tự ghi nhớ MSSV cho các lần sau</span>
     </div>
     <div class="field">
       <label for="category">Lĩnh vực <span class="req">*</span></label>
@@ -41,7 +43,7 @@
     </div>
     <div class="field">
       <label for="note">Ghi chú (không bắt buộc)</label>
-      <input type="text" id="note" placeholder="VD: Đi trễ 5 phút" autocomplete="off" maxlength="200">
+      <input type="text" id="note" placeholder="Ghi chú nếu có" autocomplete="off" maxlength="200">
     </div>
 
     <div class="actions">

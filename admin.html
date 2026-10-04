@@ -33,6 +33,9 @@
       </div>
     </div>
     <div class="topbar-right">
+      <a href="lichhoc.html" class="nav-pill" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--border-strong);color:var(--text);margin-right:8px;">
+        📅 Thời khóa biểu
+      </a>
       <div id="statusIndicator" class="status-badge status-off"><span class="dot"></span><span>ĐÓNG</span></div>
       <button class="btn-logout" onclick="logout()">Đăng xuất</button>
     </div>
@@ -43,7 +46,7 @@
     <div class="form-grid">
       <div>
         <label class="input-label" for="sessionName">Tên phiên</label>
-        <input type="text" id="sessionName" placeholder="VD: Lập trình Web - Buổi 3">
+        <input type="text" id="sessionName" placeholder="Nhập tên phiên điểm danh...">
       </div>
       <div>
         <label class="input-label" for="qrRefreshTime">QR đổi mỗi (giây)</label>
@@ -91,8 +94,20 @@
       <div class="card-label">Vừa điểm danh gần đây</div>
       <div class="recent-list" id="recentList"><div class="recent-empty">Chưa có ai điểm danh</div></div>
       <div class="table-header">
-        <h3>Danh sách theo dõi realtime</h3>
-        <input type="text" id="searchStudent" placeholder="Tìm tên hoặc MSSV..." onkeyup="filterTable()">
+        <div>
+          <h3>Danh sách theo dõi realtime</h3>
+          <div class="filter-group">
+            <button class="filter-btn active" data-status="all" onclick="setFilter('all')">Tất cả</button>
+            <button class="filter-btn" data-status="present" onclick="setFilter('present')">Có mặt</button>
+            <button class="filter-btn" data-status="absent" onclick="setFilter('absent')">Vắng</button>
+            <button class="filter-btn" data-status="unmarked" onclick="setFilter('unmarked')">Chưa quét</button>
+          </div>
+        </div>
+        <div class="table-actions">
+          <input type="text" id="searchStudent" placeholder="Tìm tên hoặc MSSV..." onkeyup="filterTable()">
+          <button class="btn-action btn-action-warn" onclick="markAllAbsent()" title="Đánh dấu tất cả SV chưa quét là vắng">✗ Vắng tất cả chưa quét</button>
+          <button class="btn-action btn-action-ok" onclick="markAllPresent()" title="Đánh dấu tất cả SV là có mặt">✓ Có mặt tất cả</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -102,40 +117,6 @@
       </div>
     </section>
   </div>
-
-  <section class="card rise rise-4" style="margin-top: 24px;">
-    <div class="card-label">Quản lý Tài khoản (Sinh viên & Đội trưởng)</div>
-    <div class="form-grid">
-      <div>
-        <label class="input-label" for="newUsername">Tên đăng nhập (VD: 123000555 hoặc team_a)</label>
-        <input type="text" id="newUsername" placeholder="Nhập tên đăng nhập...">
-      </div>
-      <div>
-        <label class="input-label" for="newPassword">Mật khẩu</label>
-        <input type="password" id="newPassword" placeholder="Nhập mật khẩu...">
-      </div>
-      <div>
-        <label class="input-label" for="newRole">Loại tài khoản</label>
-        <select id="newRole" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);">
-          <option value="student">Sinh viên</option>
-          <option value="leader">Đội trưởng lĩnh vực</option>
-          <option value="admin">Quản trị viên (Admin)</option>
-        </select>
-      </div>
-      <div>
-        <label class="input-label" for="newFullName">Họ và tên</label>
-        <input type="text" id="newFullName" placeholder="VD: Nguyễn Văn A">
-      </div>
-      <div>
-        <label class="input-label" for="newMssv">MSSV (nếu là sinh viên)</label>
-        <input type="text" id="newMssv" placeholder="VD: 123000555">
-      </div>
-    </div>
-    <div class="btn-row" style="margin-top: 14px;">
-      <button class="btn-on" onclick="createAccount()" id="btnCreateAcc">Tạo tài khoản</button>
-      <span id="createAccMsg" style="margin-left: 14px; align-self: center; font-size: 13px; font-weight: 600;"></span>
-    </div>
-  </section>
 </div>
 
 <script src="js/admin.js"></script>

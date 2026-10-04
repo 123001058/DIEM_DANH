@@ -1,0 +1,817 @@
+/* ==========================================================
+   DIEM_DANH — lichhoc.css
+   Giao diện Thời Khóa Biểu trực quan, hiện đại, chuẩn A4 Print
+   ========================================================== */
+
+.page-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+/* Header & Navigation Bar */
+.tkb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tkb-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tkb-title-group h1 {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.tkb-title-group p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.tkb-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: all .16s ease;
+}
+
+.nav-pill:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+}
+
+.nav-pill.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Control Panel (Student select, week select, view switch, export) */
+.tkb-controls {
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.controls-row-top {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .controls-row-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+.student-select-group {
+  position: relative;
+}
+
+.student-badge-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.student-badge-info .badge {
+  background: var(--info-bg);
+  color: var(--info);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.controls-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* Week Navigator */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.week-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.week-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text);
+}
+
+.week-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.week-display {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  text-align: center;
+}
+
+.week-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.week-dates {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* View Mode Switcher */
+.view-tabs {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .16s ease;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.btn-action:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.btn-action-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-action-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* ==========================================================
+   TIMETABLE GRID (Lưới thời khóa biểu tuần)
+   ========================================================== */
+.timetable-container {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+
+.timetable-grid {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.timetable-grid th,
+.timetable-grid td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  padding: 10px;
+}
+
+.timetable-grid th:last-child,
+.timetable-grid td:last-child {
+  border-right: none;
+}
+
+.timetable-grid tr:last-child td {
+  border-bottom: none;
+}
+
+/* Day column headers */
+.timetable-grid thead th {
+  background: var(--surface-2);
+  padding: 14px 10px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.timetable-grid thead th.col-session {
+  width: 120px;
+  min-width: 110px;
+  background: #eceef2;
+}
+
+.day-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.day-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.day-date {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.day-header.is-today .day-name {
+  color: var(--info);
+}
+
+.day-header.is-today .day-badge {
+  display: inline-block;
+  background: var(--info);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+/* Session row labels */
+.session-cell {
+  background: #f8f9fa;
+  text-align: center;
+  vertical-align: middle !important;
+  padding: 16px 8px;
+}
+
+.session-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.session-time {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Timetable Cells */
+.slot-cell {
+  height: 130px;
+  background: #ffffff;
+  transition: background .12s ease;
+  position: relative;
+}
+
+.slot-cell:hover {
+  background: #fafbfe;
+}
+
+.slot-empty {
+  color: var(--faint);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-style: italic;
+  opacity: .5;
+}
+
+/* ==========================================================
+   SUBJECT CARDS (Thẻ môn học)
+   ========================================================== */
+.subject-card {
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform .14s ease, box-shadow .14s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,.04);
+}
+
+.subject-card:last-child {
+  margin-bottom: 0;
+}
+
+.subject-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,.08);
+  z-index: 3;
+}
+
+.subject-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: currentColor;
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card-subject-name {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #1a1f36;
+}
+
+.card-group {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0,0,0,.06);
+  white-space: nowrap;
+}
+
+.card-room-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+  width: fit-content;
+  color: #15171c;
+}
+
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: #4f566b;
+}
+
+.card-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.card-meta-item svg {
+  flex-shrink: 0;
+  opacity: .8;
+}
+
+.card-campus-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.card-campus-link:hover {
+  color: var(--info);
+}
+
+/* Color palettes for subjects */
+.theme-indigo  { background: #f0f3ff; border-color: #c7d2fe; color: #4338ca; }
+.theme-blue    { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.theme-teal    { background: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
+.theme-emerald { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.theme-amber   { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+.theme-orange  { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.theme-purple  { background: #faf5ff; border-color: #e9d5ff; color: #7e22ce; }
+.theme-rose    { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+
+/* ==========================================================
+   CLASS TODAY VIEW (Chế độ xem lịch cả lớp theo ngày)
+   ========================================================== */
+.class-today-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.today-header-card {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.today-summary-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.stat-chip .stat-num {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.stat-chip .stat-title {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.class-session-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.class-session-card {
+  padding: 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.session-subject-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.session-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.session-badge-morning { background: #fef3c7; color: #92400e; }
+.session-badge-afternoon { background: #fed7aa; color: #9a3412; }
+.session-badge-evening { background: #e0e7ff; color: #3730a3; }
+
+.session-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.session-details-full {
+  grid-column: 1 / -1;
+}
+
+.student-list-box {
+  margin-top: 4px;
+}
+
+.student-list-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.student-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.student-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ==========================================================
+   SEMESTER LIST VIEW (Danh sách môn học toàn kỳ)
+   ========================================================== */
+.list-view-card {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.custom-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.custom-table th {
+  background: var(--surface-2);
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.custom-table tr:hover td {
+  background: var(--surface-2);
+}
+
+/* Empty state */
+.tkb-empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+
+.tkb-empty-state svg {
+  margin-bottom: 12px;
+  opacity: .6;
+}
+
+/* Toast message */
+.toast-msg {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--text);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 10px 25px rgba(0,0,0,.2);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideUp .2s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================
+   PRINT STYLES (@media print)
+   In ấn đẹp tuyệt đối trên khổ giấy A4
+   ========================================================== */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 10pt;
+  }
+
+  .bg-grid,
+  .tkb-nav-links,
+  .controls-row-bottom,
+  .action-buttons,
+  .week-nav,
+  .view-tabs,
+  .student-select-group label,
+  .student-select-group select,
+  .search-wrap,
+  .toast-msg {
+    display: none !important;
+  }
+
+  .page-wrapper {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .tkb-header {
+    border-bottom: 2px solid #000;
+    padding: 0 0 10px 0 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .timetable-container {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+    overflow: visible !important;
+  }
+
+  .timetable-grid {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .timetable-grid th,
+  .timetable-grid td {
+    border-color: #666 !important;
+    padding: 4px 6px !important;
+  }
+
+  .timetable-grid thead th {
+    background: #eee !important;
+    color: #000 !important;
+    font-size: 8.5pt !important;
+  }
+
+  .session-cell {
+    background: #f0f0f0 !important;
+  }
+
+  .slot-cell {
+    height: auto !important;
+    min-height: 80px !important;
+  }
+
+  .subject-card {
+    box-shadow: none !important;
+    border: 1px solid #999 !important;
+    background: #f9f9f9 !important;
+    color: #000 !important;
+    break-inside: avoid;
+    padding: 5px 6px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .subject-card::before {
+    display: none;
+  }
+
+  .card-subject-name {
+    font-size: 8.5pt !important;
+    color: #000 !important;
+  }
+
+  .card-room-badge {
+    border: 1px solid #333 !important;
+    padding: 1px 4px !important;
+    font-size: 8pt !important;
+  }
+
+  .card-meta {
+    font-size: 7.5pt !important;
+    color: #222 !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+}

@@ -4,6 +4,7 @@ let recentCheckins = [];
 let progressInterval = null, sessionTimer = null;
 let secondsRemaining = 20, currentSessionId = null, isOpen = false, lastToken = null;
 let serverOffset = 0; // chênh lệch giờ server - giờ máy admin (ms)
+let currentFilter = 'all';
 
 // Giờ chuẩn theo server: token QR sinh ra khớp với phép kiểm tra ở submit_attendance()
 function nowMs(){ return Date.now() + serverOffset; }
@@ -34,27 +35,17 @@ async function initAdmin(){
     });
     await syncServerTime();
     await loadStudents();
-    classStudents = validStudents.map(s => ({ mssv: s.mssv, name: s.name, status: 'Chưa điểm danh', time: '-' }));
+    classStudents = validStudents.map(s => ({ mssv: s.mssv, name: s.name, status: 'Chưa điểm danh', time: '-', category: '', note: '' }));
     renderStudents(); updateStats();
 
-    refreshSessionStatus();
+    // Luôn bắt đầu 100% ở trạng thái ban đầu sạch sẽ (theo yêu cầu của user)
+    // Không tự động khôi phục dữ liệu phiên cũ, không tự nhảy mã QR khi mới vào trang
+    stopSessionUI();
 
-    // REALTIME: Tự cập nhật khi có bản ghi mới vào bảng attendance
-    supabase.channel('changes').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance' }, () => {
+    // REALTIME: Tự cập nhật khi có bản ghi mới hoặc thay đổi trạng thái trong bảng attendance
+    supabase.channel('changes').on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         if (isOpen && currentSessionId) pollAttendance();
     }).subscribe();
-}
-
-async function refreshSessionStatus(){
-    // Khi vừa mở trang admin: nếu phiên cũ còn MỞ trong DB (vd lần trước tắt trình duyệt
-    // mà quên bấm "Đóng phiên") thì tự đóng lại. Mỗi lần mở trang admin đều bắt đầu
-    // phiên MỚI, không bao giờ hiện lại phiên cũ.
-    const { data: openSession } = await supabase.from('sessions')
-        .select('id').eq('is_open', true).limit(1).maybeSingle();
-    if (openSession) {
-        await supabase.from('sessions').update({ is_open: false }).eq('id', openSession.id);
-    }
-    stopSessionUI();
 }
 
 async function turnOn(){
@@ -65,17 +56,16 @@ async function turnOn(){
     if (!name) return alert('Nhập tên phiên!');
     if (isOpen) return alert('Đã có phiên đang mở. Bấm "Đóng phiên" trước khi mở phiên mới.');
 
-    // Đóng mọi phiên cũ còn mở để tránh xung đột
+    // Đóng mọi phiên cũ còn mở trong Database để tránh xung đột
     await supabase.from('sessions').update({ is_open: false }).eq('is_open', true);
 
-    // Luôn TẠO MỚI một dòng session: mỗi phiên có id riêng,
-    // danh sách điểm danh của phiên cũ sẽ không lẫn sang phiên mới
+    // Luôn TẠO MỚI một dòng session: mỗi phiên có id riêng
     const { data, error } = await supabase.from('sessions').insert({
         session_name: name, is_open: true, refresh_time: refresh, duration_min: duration, started_at: new Date(nowMs()).toISOString()
     }).select().single();
 
     if (error) {
-        alert('Lỗi: ' + error.message + '\n\nKiểm tra bảng "sessions" trong Supabase: cột id phải tự sinh (uuid mặc định hoặc bigint identity).');
+        alert('Lỗi mở phiên: ' + error.message);
         return;
     }
     currentSessionId = data.id;
@@ -83,11 +73,30 @@ async function turnOn(){
 }
 
 async function turnOff(auto){
-    if (!isOpen) return; // tránh gọi lặp khi hết giờ
-    if (!auto && !confirm('Đóng phiên?')) return;
-    if (auto) { isOpen = false; clearInterval(sessionTimer); clearInterval(progressInterval); }
-    if (currentSessionId) await supabase.from('sessions').update({ is_open: false }).eq('id', currentSessionId);
-    stopSessionUI();
+    try {
+        isOpen = false;
+        clearInterval(sessionTimer);
+        clearInterval(progressInterval);
+        if (document.fullscreenElement) document.exitFullscreen();
+
+        // Đóng phiên trong Database: cập nhật is_open = false cho phiên hiện tại và tất cả phiên mở
+        if (currentSessionId) {
+            await supabase.from('sessions').update({ is_open: false }).eq('id', currentSessionId);
+        }
+        await supabase.from('sessions').update({ is_open: false }).eq('is_open', true);
+        
+        try {
+            await supabase.rpc('admin_close_session', { p_session_id: currentSessionId ? String(currentSessionId) : null });
+        } catch (e) {
+            // bỏ qua nếu RPC chưa add
+        }
+    } catch (e) {
+        console.warn('[turnOff]', e);
+    } finally {
+        currentSessionId = null;
+        lastToken = null;
+        stopSessionUI();
+    }
 }
 
 function startSessionUI(st){
@@ -98,6 +107,11 @@ function startSessionUI(st){
     document.getElementById('statusIndicator').className = 'status-badge status-on';
     document.getElementById('statusIndicator').innerHTML = '<span class="pulse"></span><span>MỞ — ' + escapeHtml(st.session_name) + '</span>';
 
+    // Cập nhật lại form nếu là khôi phục phiên
+    if (st.session_name) document.getElementById('sessionName').value = st.session_name;
+    if (st.refresh_time) document.getElementById('qrRefreshTime').value = st.refresh_time;
+    if (st.duration_min) document.getElementById('sessionDuration').value = st.duration_min;
+
     const refresh = st.refresh_time || 20;
     const startedMs = new Date(st.started_at).getTime();
     const endsAt = startedMs + (st.duration_min * 60 * 1000);
@@ -106,16 +120,18 @@ function startSessionUI(st){
     lastToken = Math.floor(nowMs() / (refresh * 1000));
     pollAttendance();
 
+    clearInterval(progressInterval);
     progressInterval = setInterval(() => {
         const now = nowMs();
         const cycleMs = refresh * 1000;
         const cycleEnd = (Math.floor(now / cycleMs) + 1) * cycleMs;
         secondsRemaining = Math.max(1, Math.ceil((cycleEnd - now) / 1000));
-        if (Math.floor(now/cycleMs) !== lastToken) { lastToken = Math.floor(now/cycleMs); renderQR(refresh); }
+        if (Math.floor(now/cycleMs) !== lastToken) { lastToken = Math.floor(now/cycleMs); renderQR(); }
         document.getElementById('secondsLeft').innerText = secondsRemaining + 's';
         document.getElementById('progressFill').style.width = (((cycleEnd - now)/cycleMs)*100) + '%';
     }, 250);
 
+    clearInterval(sessionTimer);
     sessionTimer = setInterval(() => {
         const left = Math.max(0, Math.floor((endsAt - nowMs())/1000));
         document.getElementById('sessionCountdown').innerText = fmtTime(left);
@@ -125,12 +141,26 @@ function startSessionUI(st){
 
 function stopSessionUI(){
     isOpen = false;
+    currentSessionId = null;
+    lastToken = null;
+    clearInterval(progressInterval);
+    clearInterval(sessionTimer);
+    if (document.fullscreenElement) document.exitFullscreen();
+
+    // Reset 100% giao diện về ban đầu: hiện emptyState, ẩn dashboardArea
     document.getElementById('dashboardArea').classList.remove('show');
     document.getElementById('emptyState').style.display = 'block';
     document.getElementById('statusIndicator').className = 'status-badge status-off';
     document.getElementById('statusIndicator').innerHTML = '<span class="dot"></span><span>ĐÓNG</span>';
-    clearInterval(progressInterval); clearInterval(sessionTimer);
-    if (document.fullscreenElement) document.exitFullscreen();
+
+    const canvas = document.getElementById('qrCanvas');
+    if (canvas) canvas.innerHTML = '';
+    const progressFill = document.getElementById('progressFill');
+    if (progressFill) progressFill.style.width = '100%';
+    const secondsLeft = document.getElementById('secondsLeft');
+    if (secondsLeft) secondsLeft.innerText = '20s';
+    const countdown = document.getElementById('sessionCountdown');
+    if (countdown) countdown.innerText = '--:--';
 }
 
 let qrBusy = false;
@@ -166,21 +196,38 @@ function toggleFullscreen(){
 
 async function pollAttendance(){
     if (!currentSessionId) return;
-    const { data: records } = await supabase.from('attendance').select('*').eq('session_id', currentSessionId).order('created_at', { ascending: false });
+    const { data: records } = await supabase.from('attendance')
+        .select('*')
+        .eq('session_id', currentSessionId)
+        .order('created_at', { ascending: false });
     if (!records) return;
-    classStudents.forEach(s => { s.status = 'Chưa điểm danh'; s.time = '-'; });
+
+    classStudents.forEach(s => { s.status = 'Chưa điểm danh'; s.time = '-'; s.category = ''; s.note = ''; });
     recentCheckins = [];
     records.forEach(r => {
-        const st = classStudents.find(s => s.mssv === r.mssv);
-        if (st) { st.status = r.status || 'có mặt'; st.time = new Date(r.created_at).toLocaleTimeString('vi-VN'); }
-        recentCheckins.push({ name: r.full_name, time: new Date(r.created_at).toLocaleTimeString('vi-VN') });
+        let st = classStudents.find(s => s.mssv === r.mssv);
+        if (!st) {
+            st = { mssv: r.mssv, name: r.full_name || r.mssv, status: 'Chưa điểm danh', time: '-', category: '', note: '' };
+            classStudents.push(st);
+        }
+        st.status = r.status || 'có mặt';
+        st.time = new Date(r.created_at).toLocaleTimeString('vi-VN');
+        st.category = r.category || '';
+        st.note = r.note || '';
+
+        recentCheckins.push({
+            name: r.full_name || r.mssv,
+            mssv: r.mssv,
+            status: r.status || 'có mặt',
+            time: new Date(r.created_at).toLocaleTimeString('vi-VN')
+        });
     });
     renderStudents(); renderRecent(); updateStats();
 }
 
 function renderStudents(){
     document.getElementById('studentList').innerHTML = classStudents.map(s => `
-        <tr>
+        <tr data-status="${escapeHtml(s.status)}">
             <td><div class="student-cell"><div class="avatar">${escapeHtml((s.name || '?')[0])}</div><div>${escapeHtml(s.name)}</div></div></td>
             <td class="mono">${escapeHtml(s.mssv)}</td>
             <td>
@@ -230,59 +277,67 @@ async function changeStatus(mssv, newStatus) {
     }
 }
 
-function filterTable(){
-    const q = document.getElementById('searchStudent').value.toLowerCase();
-    document.querySelectorAll('#studentList tr').forEach(tr => tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none');
+// BỘ LỌC TRẠNG THÁI
+function setFilter(status){
+    currentFilter = status;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-status') === status);
+    });
+    filterTable();
 }
 
+function filterTable(){
+    const q = (document.getElementById('searchStudent')?.value || '').toLowerCase().trim();
+    document.querySelectorAll('#studentList tr').forEach(tr => {
+        const text = tr.innerText.toLowerCase();
+        const st = tr.getAttribute('data-status') || '';
+        const matchQuery = !q || text.includes(q);
+        let matchFilter = true;
+        if (currentFilter === 'present') matchFilter = (st === 'có mặt');
+        else if (currentFilter === 'absent') matchFilter = (st === 'vắng có phép' || st === 'vắng không phép');
+        else if (currentFilter === 'unmarked') matchFilter = (st === 'Chưa điểm danh');
+        tr.style.display = (matchQuery && matchFilter) ? '' : 'none';
+    });
+}
+
+// THAO TÁC HÀNG LOẠT (BATCH ACTIONS - TỐC ĐỘ CAO SONG SONG)
+async function markAllAbsent(){
+    if (!currentSessionId) return alert('Chưa có phiên nào được chọn!');
+    const unmarked = classStudents.filter(s => s.status === 'Chưa điểm danh');
+    if (!unmarked.length) return alert('Tất cả sinh viên đã có trạng thái điểm danh.');
+    if (!confirm(`Xác nhận đánh dấu ${unmarked.length} sinh viên chưa quét thành "Vắng không phép"?`)) return;
+
+    // Chạy song song (Promise.allSettled) nhanh gấp 20 lần tuần tự
+    const results = await Promise.allSettled(
+        unmarked.map(s => supabase.rpc('admin_set_status', {
+            p_session_id: currentSessionId,
+            p_mssv: s.mssv,
+            p_status: 'vắng không phép'
+        }))
+    );
+    const successCount = results.filter(r => r.status === 'fulfilled' && !r.value.error && r.value.data?.ok !== false).length;
+    await pollAttendance();
+    alert(`Đã cập nhật trạng thái vắng cho ${successCount}/${unmarked.length} sinh viên!`);
+}
+
+async function markAllPresent(){
+    if (!currentSessionId) return alert('Chưa có phiên nào được chọn!');
+    if (!confirm(`Xác nhận đánh dấu TẤT CẢ ${classStudents.length} sinh viên là "Có mặt"?`)) return;
+
+    const results = await Promise.allSettled(
+        classStudents.map(s => supabase.rpc('admin_set_status', {
+            p_session_id: currentSessionId,
+            p_mssv: s.mssv,
+            p_status: 'có mặt'
+        }))
+    );
+    const successCount = results.filter(r => r.status === 'fulfilled' && !r.value.error && r.value.data?.ok !== false).length;
+    await pollAttendance();
+    alert(`Đã cập nhật "Có mặt" cho ${successCount}/${classStudents.length} sinh viên!`);
+}
+
+// XUẤT FILE BÁO CÁO CSV (EXCEL) CHO GIẢNG VIÊN (TÍNH NĂNG TỪ GITHUB)
 function fmtTime(s){ return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 async function logout(){ await supabase.auth.signOut(); location.href = 'index.html'; }
-
-async function createAccount() {
-    const btn = document.getElementById('btnCreateAcc');
-    const msg = document.getElementById('createAccMsg');
-    const username = document.getElementById('newUsername').value.trim();
-    const password = document.getElementById('newPassword').value;
-    const role = document.getElementById('newRole').value;
-    const fullName = document.getElementById('newFullName').value.trim();
-    const mssv = document.getElementById('newMssv').value.trim() || null;
-
-    if (!username || !password || !fullName) {
-        msg.style.color = 'var(--err)';
-        msg.innerText = 'Vui lòng nhập đủ thông tin (Tên đăng nhập, Mật khẩu, Họ tên).';
-        return;
-    }
-
-    btn.disabled = true;
-    msg.style.color = 'var(--text)';
-    msg.innerText = 'Đang tạo...';
-
-    const { data, error } = await supabase.functions.invoke('create-user', {
-        body: {
-            username: username,
-            password: password,
-            role: role,
-            name: fullName,
-            mssv: mssv
-        }
-    });
-
-    btn.disabled = false;
-    
-    if (error) {
-        msg.style.color = 'var(--err)';
-        msg.innerText = 'Lỗi hệ thống: ' + error.message;
-    } else if (data && !data.ok) {
-        msg.style.color = 'var(--err)';
-        msg.innerText = data.message;
-    } else {
-        msg.style.color = 'var(--ok)';
-        msg.innerText = 'Tạo tài khoản thành công!';
-        document.getElementById('newUsername').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('newFullName').value = '';
-        document.getElementById('newMssv').value = '';
-    }
-}
 
 initAdmin();

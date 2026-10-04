@@ -26,26 +26,61 @@
       <span class="chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Chống gian lận</span>
     </div>
     <div class="divider"></div>
-    <button class="btn btn-primary" id="btnOpenLogin" onclick="openLogin()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-      Đăng nhập quản lý
-    </button>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
+      <button class="btn btn-primary" id="btnOpenLogin" onclick="openLogin('login')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+        Đăng nhập hệ thống
+      </button>
+      <button class="btn btn-secondary" id="btnOpenRegister" onclick="openLogin('register')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        Tạo tài khoản
+      </button>
+      <a class="btn btn-secondary" href="lichhoc.html" style="text-decoration:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Tra cứu thời khóa biểu lớp
+      </a>
+    </div>
     <p class="footer">Khơi nguồn sáng tạo · Làm chủ tương lai</p>
   </main>
 
   <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeLogin()">
     <div class="card modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
-      <div class="modal-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" id="tabBtnLogin" onclick="switchAuthTab('login')">Đăng nhập</button>
+        <button class="modal-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')">Tạo tài khoản</button>
       </div>
-      <h2 id="loginTitle">Đăng nhập quản lý</h2>
-      <p>Nhập tên đăng nhập và mật khẩu</p>
-      <input type="text" id="userInput" placeholder="Tên đăng nhập" autocomplete="username">
-      <input type="password" id="pwdInput" placeholder="Mật khẩu" autocomplete="current-password">
-      <div id="errBox" role="alert"></div>
-      <div class="modal-actions">
-        <button onclick="closeLogin()">Huỷ</button>
-        <button class="btn-ok" id="btnLogin" onclick="submitLogin()">Đăng nhập</button>
+
+      <!-- Form Đăng nhập -->
+      <div id="loginFormArea">
+        <h2 id="loginTitle" style="font-size:18px;margin-bottom:6px;">Đăng nhập</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Admin vào trang quản lý · Sinh viên vào form điểm danh</p>
+        <input type="text" id="userInput" placeholder="Tên đăng nhập" autocomplete="username">
+        <input type="password" id="pwdInput" placeholder="Mật khẩu" autocomplete="current-password">
+        <div id="errBox" role="alert"></div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeLogin()">Huỷ</button>
+          <button type="button" class="btn-ok" id="btnLogin" onclick="submitLogin()">Đăng nhập</button>
+        </div>
+      </div>
+
+      <!-- Form Tạo tài khoản -->
+      <div id="registerFormArea" style="display:none;">
+        <h2 style="font-size:18px;margin-bottom:6px;">Tạo tài khoản</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Đăng ký tài khoản Sinh viên / Đội trưởng</p>
+        <input type="text" id="regUsername" placeholder="Tên đăng nhập" autocomplete="off">
+        <input type="password" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
+        <select id="regRole">
+          <option value="student">Sinh viên</option>
+          <option value="leader">Đội trưởng lĩnh vực</option>
+          <option value="admin">Quản trị viên</option>
+        </select>
+        <input type="text" id="regFullName" placeholder="Họ và tên" autocomplete="off">
+        <input type="text" id="regMssv" placeholder="Mã số sinh viên (MSSV)" autocomplete="off">
+        <div id="regMsg" role="alert" style="font-size:12.5px;font-weight:600;min-height:18px;margin:2px 0 6px;text-align:left;"></div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeLogin()">Huỷ</button>
+          <button type="button" class="btn-ok" id="btnRegister" onclick="submitRegister()">Tạo tài khoản</button>
+        </div>
       </div>
     </div>
   </div>

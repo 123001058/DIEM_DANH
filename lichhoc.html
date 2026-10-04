@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thời Khóa Biểu Lớp - Tra Cứu Trực Quan</title>
+<meta name="description" content="Tra cứu thời khóa biểu sinh viên LHU theo tuần trực quan, xem lịch cả lớp, đồng bộ Google Calendar và in ấn thuận tiện.">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/lichhoc.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <div class="page-wrapper">
+    <!-- Header -->
+    <header class="card tkb-header">
+      <div class="tkb-header-left">
+        <svg class="logo-sm" width="44" height="44" viewBox="0 0 120 120" aria-hidden="true">
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6c653"/><stop offset="1" stop-color="#c8951f"/></linearGradient></defs>
+          <circle cx="60" cy="60" r="56" fill="url(#lg)"/>
+          <path d="M30 52 L60 38 L90 52 L60 66 Z" fill="#fff"/>
+          <rect x="42" y="62" width="36" height="18" rx="2" fill="#fff" opacity="0.9"/>
+        </svg>
+        <div class="tkb-title-group">
+          <h1>Thời Khóa Biểu Sinh Viên LHU</h1>
+          <p>Học kỳ 1 · Lớp 23TD111 · Tra cứu thông minh</p>
+        </div>
+      </div>
+      <nav class="tkb-nav-links">
+        <a href="index.html" class="nav-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Trang chủ
+        </a>
+        <a href="admin.html" class="nav-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          Quản lý điểm danh
+        </a>
+      </nav>
+    </header>
+
+    <!-- Controls Panel -->
+    <section class="card tkb-controls">
+      <div class="controls-row-top">
+        <div class="student-select-group">
+          <label class="input-label" for="studentSelect">Chọn sinh viên tra cứu</label>
+          <select id="studentSelect" aria-label="Chọn sinh viên"></select>
+          <div class="student-badge-info" id="studentInfoBadge">
+            <!-- Dynamic info badge -->
+          </div>
+        </div>
+
+        <div>
+          <label class="input-label" for="studentSearch">Tìm nhanh tên hoặc MSSV</label>
+          <input type="text" id="studentSearch" placeholder="Gõ tên hoặc 4 số cuối MSSV..." autocomplete="off">
+        </div>
+
+        <div class="view-tabs">
+          <button class="tab-btn active" id="tabGrid" title="Xem dạng lưới tuần">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Lưới tuần
+          </button>
+          <button class="tab-btn" id="tabToday" title="Xem lịch cả lớp hôm nay">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Lịch cả lớp
+          </button>
+          <button class="tab-btn" id="tabList" title="Xem danh sách chi tiết">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Toàn kỳ
+          </button>
+        </div>
+      </div>
+
+      <div class="controls-row-bottom">
+        <div class="week-nav">
+          <button class="week-btn" id="btnPrevWeek" title="Tuần trước">◀</button>
+          <div class="week-display">
+            <span class="week-label" id="weekLabel">Tuần 1</span>
+            <span class="week-dates" id="weekDates">28/09/2026 – 04/10/2026</span>
+          </div>
+          <button class="week-btn" id="btnNextWeek" title="Tuần sau">▶</button>
+          <button class="btn-action" id="btnCurrentWeek" style="padding:6px 12px;font-size:12px;margin-left:6px;">Tuần này</button>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn-action" id="btnExportICal" title="Thêm lịch vào Google Calendar / Apple Calendar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            📲 Thêm vào Lịch (.ics)
+          </button>
+          <button class="btn-action" id="btnExportExcel" title="Xuất file Excel bảng ma trận tuần đẹp mắt">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            📊 Xuất Excel ma trận
+          </button>
+          <button class="btn-action btn-action-primary" id="btnPrintTKB" title="In hoặc Lưu PDF theo chuẩn khổ A4">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            🖨️ In / Lưu PDF (A4)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Views -->
+    <main>
+      <div id="timetableContainer" class="timetable-container">
+        <!-- Rendered by js/lichhoc.js -->
+      </div>
+
+      <div id="todayContainer" style="display:none;">
+        <!-- Rendered by js/lichhoc.js -->
+      </div>
+
+      <div id="listContainer" style="display:none;">
+        <!-- Rendered by js/lichhoc.js -->
+      </div>
+    </main>
+  </div>
+
+  <script src="js/lichhoc.js"></script>
+</body>
+</html>

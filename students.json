@@ -5,14 +5,14 @@
     { "mssv": "125001579", "name": "Nguyễn Thiện Nhân" },
     { "mssv": "124000534", "name": "Nguyễn Ngọc Bình An" },
     { "mssv": "125001875", "name": "Nguyễn Hoàng Phi Hùng" },
-    { "mssv": "124000737", "name": "Phạm tuấn phát" },
+    { "mssv": "124000737", "name": "Phạm Tuấn Phát" },
     { "mssv": "125001809", "name": "Nguyễn Thanh Thái" },
     { "mssv": "124001238", "name": "Nguyễn Đức Huy" },
     { "mssv": "124001851", "name": "Nguyễn Thị Thùy" },
     { "mssv": "124000354", "name": "Phan Công Thịnh" },
     { "mssv": "124001589", "name": "Nguyễn Hồng Hiệp" },
     { "mssv": "125000568", "name": "Phan Quốc Bảo" },
-    { "mssv": "125002381", "name": "Cao thế phi" },
+    { "mssv": "125002381", "name": "Cao Thế Phi" },
     { "mssv": "123000651", "name": "Cao Thanh Nghĩa" },
     { "mssv": "125001648", "name": "Nguyễn Thanh Tiến" },
     { "mssv": "125000372", "name": "Nguyễn Huỳnh Minh Thông" },
@@ -26,6 +26,8 @@
     { "mssv": "125000550", "name": "Nguyễn Duy Tiến" },
     { "mssv": "123000432", "name": "Trần Thành Long" },
     { "mssv": "123000375", "name": "Phạm Đinh Tài Lộc" },
-    { "mssv": "123001394", "name": "Đỗ Văn Quyền" }
+    { "mssv": "123001394", "name": "Đỗ Văn Quyền" },
+    { "mssv": "125000890", "name": "Lê Ngô Gia Bảo" },
+    { "mssv": "125001087", "name": "Cao Anh Tú" }
   ]
 }
