@@ -56,9 +56,16 @@
   const timetableContainer = document.getElementById('timetableContainer');
   const todayContainer = document.getElementById('todayContainer');
   const listContainer = document.getElementById('listContainer');
+  const freeTimeContainer = document.getElementById('freeTimeContainer');
   const tabGrid = document.getElementById('tabGrid');
   const tabToday = document.getElementById('tabToday');
+  const tabFreeTime = document.getElementById('tabFreeTime');
   const tabList = document.getElementById('tabList');
+
+  // Free Time Filter state
+  let freeFilterThu = 2; // default: Thứ Hai (2)
+  let freeFilterBuoi = 1; // default: Sáng (1)
+  let freeFilterWeek = 'week'; // 'week' | 'all'
 
   // Format Date helpers
   function formatDateVN(date) {
@@ -308,10 +315,11 @@
   // Switch View
   function setView(viewName) {
     currentView = viewName;
-    [tabGrid, tabToday, tabList].forEach(t => t && t.classList.remove('active'));
+    [tabGrid, tabToday, tabFreeTime, tabList].forEach(t => t && t.classList.remove('active'));
 
     timetableContainer.style.display = 'none';
     todayContainer.style.display = 'none';
+    if (freeTimeContainer) freeTimeContainer.style.display = 'none';
     listContainer.style.display = 'none';
 
     const weekNavBlock = document.querySelector('.week-nav');
@@ -326,6 +334,11 @@
       todayContainer.style.display = 'block';
       if (weekNavBlock) weekNavBlock.style.display = 'none';
       renderClassToday();
+    } else if (viewName === 'freetime') {
+      if (tabFreeTime) tabFreeTime.classList.add('active');
+      if (freeTimeContainer) freeTimeContainer.style.display = 'block';
+      if (weekNavBlock) weekNavBlock.style.display = 'none';
+      renderFreeTimeFilter();
     } else if (viewName === 'list') {
       if (tabList) tabList.classList.add('active');
       listContainer.style.display = 'block';
@@ -336,11 +349,13 @@
 
   if (tabGrid) tabGrid.addEventListener('click', () => setView('grid'));
   if (tabToday) tabToday.addEventListener('click', () => setView('today'));
+  if (tabFreeTime) tabFreeTime.addEventListener('click', () => setView('freetime'));
   if (tabList) tabList.addEventListener('click', () => setView('list'));
 
   function renderView() {
     if (currentView === 'grid') renderWeeklyGrid();
     else if (currentView === 'today') renderClassToday();
+    else if (currentView === 'freetime') renderFreeTimeFilter();
     else if (currentView === 'list') renderSemesterList();
   }
 
@@ -614,6 +629,315 @@
       btnToday.addEventListener('click', () => {
         todaySelectedDate = new Date();
         renderClassToday();
+      });
+    }
+  }
+
+  // ==========================================================
+  // RENDER 2b: LỌC TÌM BẠN RẢNH THEO THỨ & BUỔI (FREE TIME FILTER)
+  // ==========================================================
+  function renderFreeTimeFilter() {
+    if (!freeTimeContainer) return;
+
+    const curWeek = semesterWeeks[currentWeekIndex] || semesterWeeks[0];
+    const daysConfig = [
+      { thuNum: 2, label: 'Thứ Hai', short: 'T2', dayIndex: 0 },
+      { thuNum: 3, label: 'Thứ Ba', short: 'T3', dayIndex: 1 },
+      { thuNum: 4, label: 'Thứ Tư', short: 'T4', dayIndex: 2 },
+      { thuNum: 5, label: 'Thứ Năm', short: 'T5', dayIndex: 3 },
+      { thuNum: 6, label: 'Thứ Sáu', short: 'T6', dayIndex: 4 },
+      { thuNum: 7, label: 'Thứ Bảy', short: 'T7', dayIndex: 5 },
+      { thuNum: 8, label: 'Chủ Nhật', short: 'CN', dayIndex: 6 }
+    ];
+
+    const sessionsConfig = [
+      { buoi: 1, label: 'Sáng', time: '07:30 – 11:25', icon: '🌅' },
+      { buoi: 2, label: 'Chiều', time: '12:50 – 16:45', icon: '☀️' },
+      { buoi: 3, label: 'Tối', time: '17:30 – 20:50', icon: '🌙' },
+      { buoi: 'all', label: 'Cả ngày', time: 'Tất cả các ca', icon: '📅' }
+    ];
+
+    // Determine target date or semester mode
+    let targetDateStr = '';
+    let targetDateDisplay = '';
+    let scopeLabel = '';
+
+    if (freeFilterWeek !== 'all' && curWeek) {
+      const dayObj = daysConfig.find(d => d.thuNum === freeFilterThu);
+      if (dayObj) {
+        const d = curWeek.days[dayObj.dayIndex];
+        targetDateStr = toLocalDateStr(d);
+        targetDateDisplay = formatDateVN(d);
+        scopeLabel = `${curWeek.label} (${targetDateDisplay})`;
+      }
+    } else {
+      scopeLabel = 'Toàn bộ học kỳ';
+    }
+
+    // Filter students: free vs busy
+    const freeStudents = [];
+    const busyStudents = [];
+
+    allStudentsData.forEach(st => {
+      let isBusy = false;
+      let busyReason = null;
+
+      const schedule = st.schedule || [];
+
+      if (freeFilterWeek !== 'all') {
+        // Specific date in the selected week
+        const match = schedule.find(item => {
+          const itemDate = item.ThoiGianBD.split('T')[0];
+          if (itemDate !== targetDateStr) return false;
+          if (freeFilterBuoi === 'all') return true;
+          return item.Buoi === freeFilterBuoi;
+        });
+
+        if (match) {
+          isBusy = true;
+          busyReason = match;
+        }
+      } else {
+        // All semester on this Thu & Buoi
+        const match = schedule.find(item => {
+          if (item.Thu !== freeFilterThu) return false;
+          if (freeFilterBuoi === 'all') return true;
+          return item.Buoi === freeFilterBuoi;
+        });
+
+        if (match) {
+          isBusy = true;
+          busyReason = match;
+        }
+      }
+
+      if (isBusy) {
+        busyStudents.push({ student: st, busyItem: busyReason });
+      } else {
+        freeStudents.push(st);
+      }
+    });
+
+    const activeThuObj = daysConfig.find(d => d.thuNum === freeFilterThu) || daysConfig[0];
+    const activeBuoiObj = sessionsConfig.find(s => s.buoi === freeFilterBuoi) || sessionsConfig[0];
+
+    let html = `
+      <div class="freetime-wrapper">
+        <div class="card freetime-filter-card">
+          <div class="freetime-filter-header">
+            <div>
+              <h2>⚡ Tra cứu & Lọc người rảnh</h2>
+              <p style="color:var(--muted);font-size:13px;margin-top:2px;">
+                Chọn <b>Thứ</b> và <b>Buổi</b> để xem ngay những bạn không có lịch học (rảnh để họp / phân công).
+              </p>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label style="font-size:13px;font-weight:700;color:var(--muted);">Tuần:</label>
+              <select id="freeWeekSelect" style="padding:7px 12px;font-size:13px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface-2);color:var(--text);font-weight:600;">
+    `;
+
+    semesterWeeks.forEach((w, idx) => {
+      const isSel = (freeFilterWeek !== 'all' && currentWeekIndex === idx) ? 'selected' : '';
+      html += `<option value="${idx}" ${isSel}>${w.label} (${w.dateRangeText})</option>`;
+    });
+    html += `
+                <option value="all" ${freeFilterWeek === 'all' ? 'selected' : ''}>-- Toàn học kỳ --</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Bước 1: Chọn Thứ -->
+          <div class="freetime-section">
+            <div class="freetime-section-title">
+              <span>📅 BƯỚC 1: BẤM CHỌN THỨ</span>
+            </div>
+            <div class="freetime-pills" id="thuPillsGroup">
+    `;
+
+    daysConfig.forEach(d => {
+      const isActive = d.thuNum === freeFilterThu ? 'active' : '';
+      html += `
+        <button type="button" class="freetime-pill ${isActive}" data-thu="${d.thuNum}">
+          ${d.label}
+        </button>
+      `;
+    });
+
+    html += `
+            </div>
+          </div>
+
+          <!-- Bước 2: Chọn Buổi -->
+          <div class="freetime-section" style="margin-bottom:0;">
+            <div class="freetime-section-title">
+              <span>⏰ BƯỚC 2: CHỌN BUỔI (SÁNG / CHIỀU / TỐI)</span>
+            </div>
+            <div class="freetime-pills" id="buoiPillsGroup">
+    `;
+
+    sessionsConfig.forEach(s => {
+      const isActive = s.buoi === freeFilterBuoi ? 'active' : '';
+      html += `
+        <button type="button" class="freetime-pill ${isActive}" data-buoi="${s.buoi}">
+          ${s.icon} ${s.label} <span style="font-size:11px;opacity:0.8;">(${s.time})</span>
+        </button>
+      `;
+    });
+
+    html += `
+            </div>
+          </div>
+        </div>
+
+        <!-- Banner kết quả & Nút copy -->
+        <div class="freetime-stats-banner card">
+          <div class="freetime-counts">
+            <div class="freetime-badge-free">
+              <span>✓ RẢNH: <b>${freeStudents.length}</b> bạn</span>
+            </div>
+            <div class="freetime-badge-busy">
+              <span>✕ BẬN: <b>${busyStudents.length}</b> bạn</span>
+            </div>
+            <span style="font-size:13px;color:var(--muted);font-weight:600;">
+              Đang xem: <b>${activeBuoiObj.label} ${activeThuObj.label}</b> · ${scopeLabel}
+            </span>
+          </div>
+          <button type="button" class="btn-action" id="btnCopyFreeList" style="font-weight:700;">
+            📋 Sao chép danh sách rảnh (${freeStudents.length})
+          </button>
+        </div>
+
+        <!-- Kết quả 2 cột -->
+        <div class="freetime-columns">
+          <!-- Cột Bạn Rảnh -->
+          <div class="freetime-col-card col-free card">
+            <div class="freetime-col-header">
+              <div class="freetime-col-title" style="color:#059669;">
+                <span>🟢 DANH SÁCH BẠN RẢNH (${freeStudents.length})</span>
+              </div>
+              <span style="font-size:12px;color:var(--muted);font-weight:600;">Không có lịch học</span>
+            </div>
+            <div class="freetime-student-list">
+    `;
+
+    if (freeStudents.length === 0) {
+      html += `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13.5px;">Không có ai rảnh vào thời gian này.</div>`;
+    } else {
+      freeStudents.forEach((st, idx) => {
+        const initial = (st.name || 'S').trim().slice(-1).toUpperCase();
+        html += `
+          <div class="freetime-student-item">
+            <div class="freetime-student-left">
+              <div class="freetime-avatar" style="background:#ecfdf5;color:#059669;border-color:#a7f3d0;">${initial}</div>
+              <div>
+                <div class="freetime-student-name">${idx + 1}. ${st.name}</div>
+                <div class="freetime-student-mssv">MSSV: ${st.mssv}</div>
+              </div>
+            </div>
+            <span class="freetime-tag-free">✓ Rảnh</span>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+            </div>
+          </div>
+
+          <!-- Cột Bạn Bận -->
+          <div class="freetime-col-card col-busy card">
+            <div class="freetime-col-header">
+              <div class="freetime-col-title" style="color:#dc2626;">
+                <span>🔴 DANH SÁCH BẠN BẬN (${busyStudents.length})</span>
+              </div>
+              <span style="font-size:12px;color:var(--muted);font-weight:600;">Có lịch học tại trường</span>
+            </div>
+            <div class="freetime-student-list">
+    `;
+
+    if (busyStudents.length === 0) {
+      html += `<div style="text-align:center;padding:30px;color:var(--muted);font-size:13.5px;">Tất cả các bạn đều rảnh!</div>`;
+    } else {
+      busyStudents.forEach((item, idx) => {
+        const st = item.student;
+        const b = item.busyItem || {};
+        const initial = (st.name || 'S').trim().slice(-1).toUpperCase();
+        html += `
+          <div class="freetime-student-item">
+            <div class="freetime-student-left">
+              <div class="freetime-avatar" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;">${initial}</div>
+              <div>
+                <div class="freetime-student-name">${idx + 1}. ${st.name}</div>
+                <div class="freetime-student-mssv">MSSV: ${st.mssv}</div>
+              </div>
+            </div>
+            <div class="freetime-busy-info">
+              <div class="freetime-busy-subject" title="${b.TenMonHoc || 'Có lịch học'}">${b.TenMonHoc || 'Đang học'}</div>
+              <div class="freetime-busy-meta">Phòng ${b.TenPhong || '—'} · ${formatTimeFromISO(b.ThoiGianBD) || ''}</div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    freeTimeContainer.innerHTML = html;
+
+    // Attach event listeners for Pills & Buttons
+    const thuPills = freeTimeContainer.querySelectorAll('#thuPillsGroup .freetime-pill');
+    thuPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        freeFilterThu = parseInt(pill.getAttribute('data-thu'), 10);
+        renderFreeTimeFilter();
+      });
+    });
+
+    const buoiPills = freeTimeContainer.querySelectorAll('#buoiPillsGroup .freetime-pill');
+    buoiPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const v = pill.getAttribute('data-buoi');
+        freeFilterBuoi = v === 'all' ? 'all' : parseInt(v, 10);
+        renderFreeTimeFilter();
+      });
+    });
+
+    const weekSel = freeTimeContainer.querySelector('#freeWeekSelect');
+    if (weekSel) {
+      weekSel.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'all') {
+          freeFilterWeek = 'all';
+        } else {
+          freeFilterWeek = 'week';
+          currentWeekIndex = parseInt(val, 10);
+          updateWeekLabel();
+        }
+        renderFreeTimeFilter();
+      });
+    }
+
+    const btnCopy = freeTimeContainer.querySelector('#btnCopyFreeList');
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        const lines = [
+          `📋 DANH SÁCH BẠN RẢNH (${activeBuoiObj.label} ${activeThuObj.label} - ${scopeLabel}):`,
+          `----------------------------------`
+        ];
+        freeStudents.forEach((st, i) => {
+          lines.push(`${i + 1}. ${st.name} - MSSV: ${st.mssv}`);
+        });
+        lines.push(`\nTổng cộng: ${freeStudents.length} bạn rảnh.`);
+        navigator.clipboard.writeText(lines.join('\n')).then(() => {
+          showToast(`Đã sao chép danh sách ${freeStudents.length} bạn rảnh vào bộ nhớ tạm!`);
+        }).catch(() => {
+          showToast(`Đã chọn danh sách (vui lòng copy thủ công)`);
+        });
       });
     }
   }
