@@ -25,7 +25,20 @@ async function submitLogin(){
   });
   if (btn) btn.disabled = false;
 
-  if (error) { err.innerText = 'Sai tên đăng nhập hoặc mật khẩu!'; return; }
+  // Hiển thị lỗi THẬT từ Supabase (thay vì câu chung chung) để dễ debug
+  if (error) {
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('email logins are disabled')) {
+      err.innerText = 'Đăng nhập Email đang bị TẮT trong Supabase (Authentication → Providers → Email → Enable).';
+    } else if (m.includes('not confirmed')) {
+      err.innerText = 'Tài khoản chưa xác nhận email. Bật "Auto Confirm" cho user trong Supabase.';
+    } else if (m.includes('invalid login')) {
+      err.innerText = 'Sai tên đăng nhập hoặc mật khẩu!';
+    } else {
+      err.innerText = error.message || 'Đăng nhập thất bại!';
+    }
+    return;
+  }
   
   // Kiểm tra quyền (admin vào admin.html, sinh viên vào student.html hoặc báo thành công)
   const role = data.user?.user_metadata?.app_role;
