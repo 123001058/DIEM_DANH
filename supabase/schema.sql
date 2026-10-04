@@ -1,41 +1,47 @@
 -- =====================================================================
--- DIEM_DANH — bảo mật phía server (chạy 1 lần trong Supabase > SQL Editor)
--- Idempotent: chạy lại nhiều lần không sao. Không DROP bảng/dữ liệu.
+-- DIEM_DANH — bảo mật phía server
+-- Chạy trong Supabase > SQL Editor.
+-- Có thể chạy lại; không DROP bảng hoặc dữ liệu.
 --
--- Sau khi chạy:
---   * Sinh viên (anon) KHÔNG còn đọc/ghi trực tiếp bảng nào. Chỉ gọi 3 RPC:
---       get_open_session(), submit_attendance(...), server_now_ms()
---   * Token QR / phiên mở / hết giờ / MSSV hợp lệ / trùng MSSV / trùng thiết bị
---     đều được kiểm tra Ở SERVER bằng giờ server (không lệ thuộc đồng hồ điện thoại).
---   * Token QR được KÝ HMAC bằng secret riêng của từng phiên (chỉ server biết).
---     Chỉ admin (RPC issue_qr_token) mới lấy được token hợp lệ => không thể tự
---     tính token từ id phiên + giờ server mà không quét QR.
---   * Admin = user nằm trong bảng allowlist public.admins (KHÔNG phải mọi user
---     đăng nhập). Vẫn nên TẮT "Allow new users to sign up" ở Authentication >
---     Providers > Email như một lớp bảo vệ bổ sung.
+-- Sinh viên (anon) chỉ gọi:
+--   get_open_session(), submit_attendance(...), server_now_ms()
+-- Admin còn có thể gọi issue_qr_token(...) và admin_set_status(...).
 --
--- Giả định cột hiện có:
---   sessions  : id, session_name, is_open(bool), refresh_time(int), duration_min(int), started_at(timestamptz)
---   attendance: id, session_id, mssv, full_name, category, note, device_id, created_at(default now())
+-- Giả định các cột hiện có:
+--   sessions  : id, session_name, is_open, refresh_time, duration_min, started_at
+--   attendance: id, session_id, mssv, full_name, category, note, device_id, created_at
 -- =====================================================================
 
--- 0) Tạo bảng nếu chưa có (không đụng tới bảng/dữ liệu đã tồn tại) -------
+-- 0) Tạo bảng nếu chưa có ---------------------------------------------
+
 create table if not exists public.sessions (
   id           uuid primary key default gen_random_uuid(),
   session_name text not null,
   is_open      boolean not null default true,
   refresh_time int not null default 20,
-  duration_min int not null default 5,
+  duration_min int default 5, -- NULL = không giới hạn thời gian
   started_at   timestamptz not null default now()
 );
 
--- session_id lấy đúng kiểu của sessions.id (uuid hoặc bigint) để FK luôn khớp
+-- Cho phép NULL cả trên bảng đã tồn tại.
+alter table public.sessions
+  alter column duration_min drop not null;
+
+-- Dùng đúng kiểu public.sessions.id cho attendance.session_id.
 do $$
-declare v_type text;
+declare
+  v_type text;
 begin
-  select format_type(a.atttypid, a.atttypmod) into v_type
+  select format_type(a.atttypid, a.atttypmod)
+    into v_type
   from pg_attribute a
-  where a.attrelid = 'public.sessions'::regclass and a.attname = 'id';
+  where a.attrelid = 'public.sessions'::regclass
+    and a.attname = 'id'
+    and not a.attisdropped;
+
+  if v_type is null then
+    raise exception 'Không tìm thấy cột public.sessions.id';
+  end if;
 
   execute format($f$
     create table if not exists public.attendance (
@@ -47,22 +53,26 @@ begin
       note       text,
       device_id  text,
       created_at timestamptz not null default now()
-    )$f$, v_type);
+    )
+  $f$, v_type);
 end $$;
 
-create index if not exists attendance_session_idx on public.attendance (session_id, created_at desc);
+create index if not exists attendance_session_idx
+  on public.attendance (session_id, created_at desc);
 
--- Bật realtime cho bảng attendance (admin tự cập nhật khi có người điểm danh)
+-- Bật Realtime cho attendance.
 do $$
 begin
   alter publication supabase_realtime add table public.attendance;
-exception when duplicate_object then null;
+exception
+  when duplicate_object then null;
 end $$;
 
--- 0b) Allowlist admin + secret ký token QR cho mỗi phiên ----------------
+-- 0b) Allowlist admin + secret ký token QR -----------------------------
+
 create extension if not exists pgcrypto with schema extensions;
 
--- Mỗi phiên có 1 secret ngẫu nhiên; không bao giờ trả ra cho sinh viên.
+-- Mỗi phiên có secret riêng; không trả secret ra client.
 alter table public.sessions
   add column if not exists qr_secret text not null
   default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
@@ -70,24 +80,32 @@ alter table public.sessions
 create table if not exists public.admins (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
-alter table public.admins enable row level security;  -- không policy => chỉ hàm security definer đọc được
+
+alter table public.admins enable row level security;
 revoke all on public.admins from anon, authenticated;
 
 create or replace function public.is_admin()
 returns boolean
-language sql stable security definer
+language sql
+stable
+security definer
 set search_path = public, extensions, pg_temp
-as $$ select exists (select 1 from public.admins where user_id = auth.uid()) $$;
+as $$
+  select exists (
+    select 1
+    from public.admins
+    where user_id = auth.uid()
+  )
+$$;
 
--- >>> BOOTSTRAP ADMIN <<<
--- ĐỂ AN TOÀN: Bạn NÊN chủ động chèn UUID của admin bằng tay vào bảng public.admins.
--- Vd: insert into public.admins (user_id) values ('uuid-cua-ban') on conflict (user_id) do nothing;
--- (Đoạn mã tự động quét %diemdanh.admin dưới đây đã bị comment lại để tránh add nhầm user)
+-- Thêm UUID admin vào allowlist bằng thao tác quản trị riêng.
+-- Ví dụ:
 -- insert into public.admins (user_id)
---   select id from auth.users where email like '%@diemdanh.admin'
---   on conflict do nothing;
+-- values ('uuid-cua-ban')
+-- on conflict (user_id) do nothing;
 
--- 1) Bảng danh sách lớp (nguồn sự thật cho MSSV hợp lệ) ----------------
+-- 1) Danh sách lớp -----------------------------------------------------
+
 create table if not exists public.students (
   mssv text primary key,
   name text not null
@@ -121,223 +139,384 @@ insert into public.students (mssv, name) values
   ('123000432', 'Trần Thành Long'),
   ('123000375', 'Phạm Đinh Tài Lộc'),
   ('123001394', 'Đỗ Văn Quyền')
-on conflict (mssv) do update set name = excluded.name;
+on conflict (mssv) do update
+set name = excluded.name;
 
--- 2) Ràng buộc chống trùng ngay tại DB ---------------------------------
--- (Nếu lệnh lỗi vì đã có dữ liệu trùng, xoá bản ghi trùng rồi chạy lại.)
+-- Chống trùng MSSV trong một phiên.
 create unique index if not exists attendance_session_mssv_uq
   on public.attendance (session_id, mssv);
-create unique index if not exists attendance_session_device_uq
-  on public.attendance (session_id, device_id);
 
--- 3) RLS: xoá policy cũ rồi tạo lại chặt chẽ ----------------------------
-alter table public.sessions   enable row level security;
+-- 2) RLS và các constraint --------------------------------------------
+
+alter table public.sessions enable row level security;
 alter table public.attendance enable row level security;
-alter table public.students   enable row level security;
+alter table public.students enable row level security;
 
+-- Chỉ thêm refresh_time constraint nếu chưa có.
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'sessions_refresh_time_check' and conrelid = 'public.sessions'::regclass) then
-    alter table public.sessions add constraint sessions_refresh_time_check check (refresh_time is not null and refresh_time > 0 and refresh_time <= 86400) not valid;
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'sessions_refresh_time_check'
+      and conrelid = 'public.sessions'::regclass
+  ) then
+    alter table public.sessions
+      add constraint sessions_refresh_time_check
+      check (
+        refresh_time is not null
+        and refresh_time > 0
+        and refresh_time <= 86400
+      ) not valid;
   end if;
 end $$;
 
+-- duration_min có thể NULL. Nâng cấp constraint cũ nếu nó cấm NULL;
+-- nếu constraint đúng đã được validate, trạng thái đó được giữ nguyên.
 do $$
+declare
+  v_def text;
 begin
-  if not exists (select 1 from pg_constraint where conname = 'sessions_duration_min_check' and conrelid = 'public.sessions'::regclass) then
-    -- duration_min có thể NULL (không giới hạn thời gian)
-    alter table public.sessions add constraint sessions_duration_min_check check (duration_min > 0 and duration_min <= 10080) not valid;
+  select upper(pg_get_constraintdef(oid))
+    into v_def
+  from pg_constraint
+  where conrelid = 'public.sessions'::regclass
+    and conname = 'sessions_duration_min_check';
+
+  if not found then
+    alter table public.sessions
+      add constraint sessions_duration_min_check
+      check (
+        duration_min is null
+        or (duration_min > 0 and duration_min <= 10080)
+      ) not valid;
+
+  elsif position('DURATION_MIN IS NOT NULL' in v_def) > 0 then
+    alter table public.sessions
+      drop constraint sessions_duration_min_check;
+
+    alter table public.sessions
+      add constraint sessions_duration_min_check
+      check (
+        duration_min is null
+        or (duration_min > 0 and duration_min <= 10080)
+      ) not valid;
   end if;
 end $$;
 
+-- Xóa policy cũ trên các bảng này rồi tạo lại policy chặt chẽ bên dưới.
 do $$
-declare p record;
+declare
+  p record;
 begin
   for p in
-    select policyname, tablename from pg_policies
-    where schemaname = 'public' and tablename in ('sessions', 'attendance', 'students')
+    select policyname, tablename
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in ('sessions', 'attendance', 'students')
   loop
-    execute format('drop policy if exists %I on public.%I', p.policyname, p.tablename);
+    execute format(
+      'drop policy if exists %I on public.%I',
+      p.policyname,
+      p.tablename
+    );
   end loop;
 end $$;
 
-create policy sessions_admin_all   on public.sessions
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy attendance_admin_all on public.attendance
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy students_admin_read  on public.students
-  for select to authenticated using (public.is_admin());
+create policy sessions_admin_all
+  on public.sessions
+  for all to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create policy attendance_admin_all
+  on public.attendance
+  for all to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create policy students_admin_read
+  on public.students
+  for select to authenticated
+  using (public.is_admin());
 
 revoke all on public.sessions, public.attendance, public.students from anon;
 
--- 4) RPC ---------------------------------------------------------------
+-- 3) RPC ---------------------------------------------------------------
 
--- Giờ server (ms). Admin dùng để đồng bộ đồng hồ khi sinh token QR.
 create or replace function public.server_now_ms()
 returns bigint
-language sql volatile
-as $$ select (extract(epoch from clock_timestamp()) * 1000)::bigint $$;
+language sql
+volatile
+as $$
+  select (extract(epoch from clock_timestamp()) * 1000)::bigint
+$$;
 
--- Phiên đang mở và CHƯA hết giờ (mới nhất). Trả null nếu không có.
 create or replace function public.get_open_session()
 returns jsonb
-language sql volatile security definer
+language sql
+volatile
+security definer
 set search_path = public, extensions, pg_temp
 as $$
   select jsonb_build_object(
-    'id',            s.id,
-    'session_name',  s.session_name,
-    'refresh_time',  coalesce(s.refresh_time, 20),
-    'duration_min',  s.duration_min,
-    'started_at',    s.started_at,
+    'id', s.id,
+    'session_name', s.session_name,
+    'refresh_time', coalesce(s.refresh_time, 20),
+    'duration_min', s.duration_min,
+    'started_at', s.started_at,
     'server_now_ms', (extract(epoch from clock_timestamp()) * 1000)::bigint
   )
   from public.sessions s
   where s.is_open
-    and (s.duration_min is null
-         or s.started_at + (s.duration_min * interval '1 minute') > now())
+    and (
+      s.duration_min is null
+      or s.started_at + (s.duration_min * interval '1 minute') > now()
+    )
   order by s.started_at desc
   limit 1
 $$;
 
--- Chữ ký HMAC của (phiên, cửa sổ thời gian). Hàm nội bộ, không cấp quyền gọi.
-create or replace function public._qr_sig(p_secret text, p_session text, p_win bigint)
+create or replace function public._qr_sig(
+  p_secret text,
+  p_session text,
+  p_win bigint
+)
 returns text
-language sql immutable
+language sql
+immutable
 as $$
-  select left(encode(hmac(p_session || ':' || p_win::text, p_secret, 'sha256'), 'hex'), 24)
+  select left(
+    encode(
+      hmac(p_session || ':' || p_win::text, p_secret, 'sha256'),
+      'hex'
+    ),
+    24
+  )
 $$;
-revoke all on function public._qr_sig(text, text, bigint) from public, anon, authenticated;
 
--- Admin xin token QR hiện tại. Token = "<cửa_sổ>.<chữ_ký>"
+revoke all on function public._qr_sig(text, text, bigint)
+  from public, anon, authenticated;
+
 create or replace function public.issue_qr_token(p_session_id text)
 returns jsonb
-language plpgsql volatile security definer
+language plpgsql
+volatile
+security definer
 set search_path = public, extensions, pg_temp
 as $$
 declare
-  s     record;
+  s record;
   v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_win bigint;
 begin
   if not public.is_admin() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  select * into s from public.sessions where id::text = p_session_id and is_open;
+
+  select *
+    into s
+  from public.sessions
+  where id::text = p_session_id
+    and is_open;
+
   if not found then
     raise exception 'session not open' using errcode = 'P0002';
   end if;
-  if coalesce(s.refresh_time, 20) <= 0 or coalesce(s.refresh_time, 20) > 86400 then
+
+  if coalesce(s.refresh_time, 20) <= 0
+     or coalesce(s.refresh_time, 20) > 86400 then
     raise exception 'invalid refresh_time' using errcode = 'P0003';
   end if;
-  if s.duration_min is not null and s.started_at + (s.duration_min * interval '1 minute') <= now() then
+
+  if s.duration_min is not null
+     and s.started_at + (s.duration_min * interval '1 minute') <= now() then
     raise exception 'session expired' using errcode = 'P0004';
   end if;
+
   v_win := v_now / (coalesce(s.refresh_time, 20) * 1000);
+
   return jsonb_build_object(
-    'token', v_win::text || '.' || public._qr_sig(s.qr_secret, s.id::text, v_win),
-    'server_now_ms', v_now
+    'token',
+    v_win::text || '.' || public._qr_sig(s.qr_secret, s.id::text, v_win),
+    'server_now_ms',
+    v_now
   );
 end;
 $$;
 
--- Bản cũ nhận token số (có thể tự tính) => gỡ bỏ
+-- Gỡ RPC cũ nhận token số.
 drop function if exists public.submit_attendance(text, bigint, text, text, text, text);
 
--- Điểm danh: toàn bộ kiểm tra nằm ở đây.
 create or replace function public.submit_attendance(
   p_session_id text,
-  p_token      text,
-  p_mssv       text,
-  p_category   text,
-  p_note       text,
-  p_device_id  text
+  p_token text,
+  p_mssv text,
+  p_category text,
+  p_note text,
+  p_device_id text
 )
 returns jsonb
-language plpgsql volatile security definer
+language plpgsql
+volatile
+security definer
 set search_path = public, extensions, pg_temp
 as $$
 declare
-  s       record;
-  v_name  text;
-  v_mssv  text := btrim(coalesce(p_mssv, ''));
-  v_now   bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  s record;
+  v_name text;
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_cycle bigint;
   v_start bigint;
-  v_win   bigint;
-  v_tol   constant bigint := 3000; -- dung sai 3s (vẫn có khe hở nhỏ cho replay attack nội trong 3s)
+  v_win bigint;
+  v_tol constant bigint := 3000; -- dung sai 3 giây
 begin
-  if v_mssv = '' or coalesce(btrim(p_category), '') = ''
-     or coalesce(btrim(p_device_id), '') = '' or p_token is null
+  if v_mssv = ''
+     or coalesce(btrim(p_category), '') = ''
+     or coalesce(btrim(p_device_id), '') = ''
+     or p_token is null
      or p_token !~ '^[0-9]{1,12}\.[0-9a-f]{24}$' then
-    return jsonb_build_object('ok', false, 'code', 'BAD_INPUT', 'message', 'Thiếu thông tin điểm danh.');
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'BAD_INPUT',
+      'message', 'Thiếu thông tin điểm danh.'
+    );
   end if;
 
-  select * into s from public.sessions where id::text = p_session_id;
-  if not found or not s.is_open
-     or (s.duration_min is not null
-         and s.started_at + (s.duration_min * interval '1 minute') <= now()) then
-    return jsonb_build_object('ok', false, 'code', 'SESSION_CLOSED',
-                              'message', 'Phiên điểm danh đã đóng hoặc đã hết giờ.');
+  select *
+    into s
+  from public.sessions
+  where id::text = p_session_id;
+
+  if not found
+     or not s.is_open
+     or (
+       s.duration_min is not null
+       and s.started_at + (s.duration_min * interval '1 minute') <= now()
+     ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'SESSION_CLOSED',
+      'message', 'Phiên điểm danh đã đóng hoặc đã hết giờ.'
+    );
   end if;
 
-  -- 1) Chữ ký phải khớp secret của phiên (không giả được nếu không có secret)
   v_win := split_part(p_token, '.', 1)::bigint;
-  if split_part(p_token, '.', 2) <> public._qr_sig(s.qr_secret, s.id::text, v_win) then
-    return jsonb_build_object('ok', false, 'code', 'TOKEN_INVALID',
-                              'message', 'Mã QR không hợp lệ, vui lòng quét lại mã trên màn hình.');
+
+  if split_part(p_token, '.', 2)
+     <> public._qr_sig(s.qr_secret, s.id::text, v_win) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'TOKEN_INVALID',
+      'message', 'Mã QR không hợp lệ, vui lòng quét lại mã trên màn hình.'
+    );
   end if;
 
-  -- 2) Cửa sổ thời gian còn hạn (giờ server, dung sai 3s)
   v_cycle := coalesce(s.refresh_time, 20) * 1000;
   v_start := v_win * v_cycle;
-  if v_now < v_start - v_tol or v_now > v_start + v_cycle + v_tol then
-    return jsonb_build_object('ok', false, 'code', 'TOKEN_EXPIRED',
-                              'message', 'Mã QR đã hết hạn, vui lòng quét lại mã mới nhất.');
+
+  if v_now < v_start - v_tol
+     or v_now > v_start + v_cycle + v_tol then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'TOKEN_EXPIRED',
+      'message', 'Mã QR đã hết hạn, vui lòng quét lại mã mới nhất.'
+    );
   end if;
 
-  select name into v_name from public.students where mssv = v_mssv;
+  select name
+    into v_name
+  from public.students
+  where mssv = v_mssv;
+
   if not found then
-    return jsonb_build_object('ok', false, 'code', 'NOT_IN_CLASS',
-                              'message', 'MSSV không có trong danh sách lớp!');
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'NOT_IN_CLASS',
+      'message', 'MSSV không có trong danh sách lớp!'
+    );
   end if;
 
-  if exists (select 1 from public.attendance a where a.session_id = s.id and a.mssv = v_mssv) then
-    return jsonb_build_object('ok', false, 'code', 'ALREADY',
-                              'message', 'Bạn đã điểm danh phiên này rồi.');
+  if exists (
+    select 1
+    from public.attendance a
+    where a.session_id = s.id
+      and a.mssv = v_mssv
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'ALREADY',
+      'message', 'Bạn đã điểm danh phiên này rồi.'
+    );
   end if;
 
-  if exists (select 1 from public.attendance a where a.session_id = s.id and a.device_id = p_device_id) then
-    return jsonb_build_object('ok', false, 'code', 'DEVICE_USED',
-                              'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác.');
+  if exists (
+    select 1
+    from public.attendance a
+    where a.session_id = s.id
+      and a.device_id = p_device_id
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'DEVICE_USED',
+      'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác.'
+    );
   end if;
 
-  insert into public.attendance (session_id, mssv, full_name, category, note, device_id)
-  values (s.id, v_mssv, v_name, left(btrim(p_category), 60), left(btrim(coalesce(p_note, '')), 200), p_device_id);
+  insert into public.attendance (
+    session_id,
+    mssv,
+    full_name,
+    category,
+    note,
+    device_id
+  )
+  values (
+    s.id,
+    v_mssv,
+    v_name,
+    left(btrim(p_category), 60),
+    left(btrim(coalesce(p_note, '')), 200),
+    p_device_id
+  );
 
-  return jsonb_build_object('ok', true, 'code', 'OK', 'name', v_name, 'mssv', v_mssv);
-exception when unique_violation then
-  return jsonb_build_object('ok', false, 'code', 'ALREADY',
-                            'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.');
+  return jsonb_build_object(
+    'ok', true,
+    'code', 'OK',
+    'name', v_name,
+    'mssv', v_mssv
+  );
+
+exception
+  when unique_violation then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'ALREADY',
+      'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.'
+    );
 end;
 $$;
 
-revoke all on function public.server_now_ms()      from public;
-revoke all on function public.get_open_session()   from public;
+revoke all on function public.server_now_ms() from public;
+revoke all on function public.get_open_session() from public;
 revoke all on function public.submit_attendance(text, text, text, text, text, text) from public;
 revoke all on function public.issue_qr_token(text) from public;
-revoke all on function public.is_admin()           from public;
-grant execute on function public.server_now_ms()      to anon, authenticated;
-grant execute on function public.get_open_session()   to anon, authenticated;
-grant execute on function public.submit_attendance(text, text, text, text, text, text) to anon, authenticated;
+revoke all on function public.is_admin() from public;
+
+grant execute on function public.server_now_ms() to anon, authenticated;
+grant execute on function public.get_open_session() to anon, authenticated;
+grant execute on function public.submit_attendance(text, text, text, text, text, text)
+  to anon, authenticated;
 grant execute on function public.issue_qr_token(text) to authenticated;
-grant execute on function public.is_admin()           to authenticated;
+grant execute on function public.is_admin() to authenticated;
 
 -- =====================================================================
--- PHẦN CẬP NHẬT: TÀI KHOẢN SINH VIÊN, ĐỘI TRƯỞNG & TRẠNG THÁI ĐIỂM DANH
+-- TÀI KHOẢN SINH VIÊN, ĐỘI TRƯỞNG & TRẠNG THÁI ĐIỂM DANH
 -- =====================================================================
 
--- 1) Bảng Profiles lưu trữ thông tin role và username (ánh xạ với auth.users)
+-- 1) Profiles ----------------------------------------------------------
+
 create table if not exists public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   username text unique not null,
@@ -345,6 +524,7 @@ create table if not exists public.profiles (
   full_name text,
   mssv text
 );
+
 alter table public.profiles enable row level security;
 
 do $$
@@ -354,42 +534,113 @@ begin
   drop policy if exists profiles_read_all on public.profiles;
 end $$;
 
--- Fix bảo mật: Chỉ cho phép tự đọc hồ sơ của mình, hoặc admin đọc toàn bộ
-create policy profiles_read_self on public.profiles for select to authenticated using (auth.uid() = user_id);
-create policy profiles_admin_all on public.profiles for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy profiles_read_self
+  on public.profiles
+  for select to authenticated
+  using (auth.uid() = user_id);
 
--- 2) Cập nhật bảng attendance cho phép chỉnh sửa trạng thái
--- Trạng thái hợp lệ: 'có mặt', 'vắng có phép', 'vắng không phép'
-do $$
-begin
-  alter table public.attendance add column if not exists status text not null default 'có mặt';
-end $$;
+create policy profiles_admin_all
+  on public.profiles
+  for all to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
 
+-- 2) Trạng thái điểm danh ---------------------------------------------
+
+alter table public.attendance
+  add column if not exists status text not null default 'có mặt';
+
+-- Nâng cấp constraint cũ nếu nó chưa cấm NULL.
 do $$
+declare
+  v_def text;
 begin
-  if not exists (select 1 from pg_constraint where conname = 'attendance_status_check' and conrelid = 'public.attendance'::regclass) then
-    -- Bắt buộc status phải NOT NULL ở cấp constraint nếu cột cũ chưa set NOT NULL
-    alter table public.attendance add constraint attendance_status_check check (status is not null and status in ('có mặt', 'vắng có phép', 'vắng không phép')) not valid;
+  select upper(pg_get_constraintdef(oid))
+    into v_def
+  from pg_constraint
+  where conrelid = 'public.attendance'::regclass
+    and conname = 'attendance_status_check';
+
+  if not found then
+    alter table public.attendance
+      add constraint attendance_status_check
+      check (
+        status is not null
+        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
+      ) not valid;
+
+  elsif position('STATUS IS NOT NULL' in v_def) = 0 then
+    alter table public.attendance
+      drop constraint attendance_status_check;
+
+    alter table public.attendance
+      add constraint attendance_status_check
+      check (
+        status is not null
+        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
+      ) not valid;
   end if;
 end $$;
 
-alter table public.attendance alter column device_id drop not null;
+alter table public.attendance
+  alter column device_id drop not null;
 
+-- Chuyển index cũ sang partial index một lần.
+-- Các lần chạy sau giữ nguyên index partial hiện có.
 do $$
+declare
+  v_index_oid oid;
+  v_is_partial boolean;
+  v_constraint_name text;
 begin
-  alter table public.attendance drop constraint if exists attendance_session_device_uq;
-  drop index if exists attendance_session_device_uq;
-end $$;
--- Tạo lại index unique device_id nhưng bỏ qua null
-create unique index if not exists attendance_session_device_uq on public.attendance (session_id, device_id) where device_id is not null;
+  select i.indexrelid, i.indpred is not null
+    into v_index_oid, v_is_partial
+  from pg_index i
+  join pg_class ic on ic.oid = i.indexrelid
+  join pg_namespace ns on ns.oid = ic.relnamespace
+  where ns.nspname = 'public'
+    and ic.relname = 'attendance_session_device_uq'
+    and i.indrelid = 'public.attendance'::regclass;
 
--- 3) Hàm RPC cho phép Admin set trạng thái sinh viên
+  if v_index_oid is null then
+    create unique index attendance_session_device_uq
+      on public.attendance (session_id, device_id)
+      where device_id is not null;
+
+  elsif not v_is_partial then
+    select conname
+      into v_constraint_name
+    from pg_constraint
+    where conrelid = 'public.attendance'::regclass
+      and conindid = v_index_oid
+      and contype = 'u';
+
+    if v_constraint_name is not null then
+      execute format(
+        'alter table public.attendance drop constraint %I',
+        v_constraint_name
+      );
+    else
+      drop index public.attendance_session_device_uq;
+    end if;
+
+    create unique index attendance_session_device_uq
+      on public.attendance (session_id, device_id)
+      where device_id is not null;
+  end if;
+end $$;
+
+-- 3) RPC cập nhật trạng thái: chỉ admin -------------------------------
+
 create or replace function public.admin_set_status(
   p_session_id text,
   p_mssv text,
   p_status text
-) returns jsonb
-language plpgsql volatile security definer
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
 set search_path = public, extensions, pg_temp
 as $$
 declare
@@ -397,26 +648,64 @@ declare
   v_name text;
 begin
   if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ admin mới được phép cập nhật trạng thái.');
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'Chỉ admin mới được phép cập nhật trạng thái.'
+    );
   end if;
 
-  if p_status is null or p_status not in ('có mặt', 'vắng có phép', 'vắng không phép') then
-    return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
+  if p_status is null
+     or p_status not in ('có mặt', 'vắng có phép', 'vắng không phép') then
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'Trạng thái không hợp lệ.'
+    );
   end if;
 
-  select * into s from public.sessions where id::text = p_session_id;
+  select *
+    into s
+  from public.sessions
+  where id::text = p_session_id;
+
   if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'Không tìm thấy phiên.'
+    );
   end if;
 
-  select name into v_name from public.students where mssv = p_mssv;
+  select name
+    into v_name
+  from public.students
+  where mssv = p_mssv;
+
   if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên.');
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'Không tìm thấy sinh viên.'
+    );
   end if;
 
-  insert into public.attendance (session_id, mssv, full_name, status, category, note, device_id)
-  values (s.id, p_mssv, v_name, p_status, 'Admin Update', '', null)
-  on conflict (session_id, mssv) do update set status = p_status;
+  insert into public.attendance (
+    session_id,
+    mssv,
+    full_name,
+    status,
+    category,
+    note,
+    device_id
+  )
+  values (
+    s.id,
+    p_mssv,
+    v_name,
+    p_status,
+    'Admin Update',
+    '',
+    null
+  )
+  on conflict (session_id, mssv)
+  do update set status = excluded.status;
 
   return jsonb_build_object('ok', true);
 end;
@@ -424,4 +713,3 @@ $$;
 
 revoke all on function public.admin_set_status(text, text, text) from public;
 grant execute on function public.admin_set_status(text, text, text) to authenticated;
--- (Hàm admin_create_account bằng RPC đã bị xoá theo nguyên tắc an toàn, thay vào đó sử dụng Supabase Edge Functions / Auth Admin API)
