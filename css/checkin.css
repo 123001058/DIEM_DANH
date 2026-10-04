@@ -1,35 +1,45 @@
-/* Trang điểm danh SV — theme "Vibrant Modern" (012) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f7f9fb;color:#191c1e;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.wrap{max-width:460px;width:100%}
-.card{background:#fff;border:1px solid rgba(199,196,216,.4);border-radius:16px;padding:32px 28px;box-shadow:0 1px 8px rgba(0,0,0,.02)}
-h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px;text-align:center}
-.sub{color:#464555;font-size:12.5px;text-align:center;margin-bottom:24px;line-height:1.5}
-.divider{width:40px;height:3px;background:#4f46e5;border-radius:99px;margin:0 auto 24px}
+/* Trang điểm danh sinh viên — mobile first */
+body{display:flex;align-items:center;justify-content:center;padding:20px}
+.wrap{max-width:440px;width:100%}
+.wrap .card{padding:32px 26px 24px}
+.brand{display:flex;justify-content:center;margin-bottom:14px}
+.brand-mark{
+  width:56px;height:56px;border-radius:16px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+}
+h1{font-size:23px;text-align:center;margin-bottom:6px}
+.sub{color:var(--muted);font-size:13.5px;text-align:center;margin-bottom:20px}
+
+/* Trạng thái phiên */
+.info-box{
+  display:flex;align-items:flex-start;gap:10px;padding:12px 14px;margin-bottom:20px;
+  border-radius:var(--radius-sm);font-size:13px;color:var(--muted);line-height:1.6;
+  background:var(--surface-2);border:1px solid var(--border);
+}
+.info-box::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px;background:var(--faint)}
+.info-box b{color:var(--text)}
+.info-box.on{background:var(--ok-bg);border-color:rgba(15,122,74,.25)}
+.info-box.on::before{background:var(--ok)}
+.info-box.warn{background:var(--err-bg);border-color:rgba(194,56,46,.25)}
+.info-box.warn::before{background:var(--err)}
+
 .field{margin-bottom:14px}
-label{font-size:11px;font-weight:600;letter-spacing:.02em;color:#464555;display:block;margin-bottom:6px}
-label .req{color:#ba1a1a}
-input,select{width:100%;padding:13px 14px;border:1px solid rgba(199,196,216,.6);border-radius:12px;background:#f2f4f6;color:#191c1e;font-family:inherit;font-size:14px;outline:none;transition:.2s}
-input::placeholder{color:#777587}
-input:focus,select:focus{border-color:#4f46e5;background:#fff;box-shadow:0 0 0 3px rgba(79,70,229,.15)}
-.btn{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;font-weight:600;font-size:14px;font-family:inherit;transition:.2s;margin-top:8px}
-.btn-primary{background:#3525cd;color:#fff;box-shadow:0 8px 24px rgba(53,37,205,.2)}
-.btn-primary:hover{filter:brightness(1.12)}
-.btn-primary:active{transform:scale(.98)}
-.btn-primary:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
-.btn-secondary{background:#e6e8ea;color:#191c1e}
-.btn-secondary:hover{filter:brightness(.96)}
-.badge{padding:14px;border-radius:12px;text-align:center;font-size:13.5px;font-weight:600;margin-top:16px;line-height:1.6;display:none}
-.badge.show{display:block}
-.badge.ok{background:rgba(0,110,76,.12);color:#005339;border:1px solid rgba(0,110,76,.25)}
-.badge.err{background:#ffdad6;color:#93000a;border:1px solid rgba(186,26,26,.25)}
-.badge.info{background:#e2dfff;color:#0f0069;border:1px solid rgba(79,70,229,.25)}
-.info-box{background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.15);border-radius:12px;padding:12px;margin-top:16px;font-size:12.5px;color:#464555;line-height:1.6}
-.info-box b{color:#3525cd}
-.back{display:block;text-align:center;margin-top:16px;font-size:12.5px;color:#464555;text-decoration:none;font-weight:500}
-.back:hover{color:#3525cd}
-.loader{display:none;text-align:center;padding:16px;font-size:13px;color:#464555;font-weight:500}
+#mssv{font-size:17px;font-weight:700;letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:18px}
+
+.badge{
+  padding:14px 16px;border-radius:var(--radius-sm);text-align:center;font-size:14px;font-weight:600;
+  margin-top:14px;line-height:1.6;display:none;border:1px solid transparent;
+}
+.badge.show{display:block;animation:rise .35s var(--ease) both}
+.badge.ok{background:var(--ok-bg);color:var(--ok);border-color:rgba(15,122,74,.2)}
+.badge.err{background:var(--err-bg);color:var(--err);border-color:rgba(194,56,46,.2)}
+.badge.info{background:var(--info-bg);color:var(--info);border-color:rgba(42,91,215,.2)}
+
+.back{display:block;text-align:center;margin-top:18px;font-size:13px;color:var(--faint);text-decoration:none;font-weight:600;transition:color .2s}
+.back:hover{color:var(--text)}
+
+.loader{display:none;text-align:center;padding:14px;font-size:13px;color:var(--muted);font-weight:600}
 .loader.show{display:block}
-.spin{display:inline-block;width:16px;height:16px;border:2px solid #c7c4d8;border-top-color:#3525cd;border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes sp{to{transform:rotate(360deg)}}

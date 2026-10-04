@@ -10,6 +10,9 @@ const CONFIG = {
     SUPABASE_URL: 'https://nhjkpknhybenkxwadvzv.supabase.co',
     SUPABASE_KEY: 'sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8',
     CATEGORIES: ['Thiết kế', 'Cơ khí', 'Điện', 'Lập trình'],
+    // Supabase Auth đăng nhập bằng email. Form chỉ hiện "Tên đăng nhập",
+    // app tự ghép hậu tố này -> email nội bộ.
+    AUTH_EMAIL_SUFFIX: '@diemdanh.local',
 };
 
 // 2. Khởi tạo client Supabase (Sử dụng thư viện từ CDN)

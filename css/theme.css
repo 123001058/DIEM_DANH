@@ -1,0 +1,109 @@
+/* ==========================================================
+   DIEM_DANH — Design system (Light · tối giản · hiện đại)
+   Nền sáng, mực đậm (ink), ít màu, dùng chung index/checkin/admin
+   ========================================================== */
+:root{
+  --bg:#f5f6f8;
+  --surface:#ffffff;
+  --surface-2:#f4f5f8;
+  --border:#e7e9ee;
+  --border-strong:#d6d9e0;
+  --text:#15171c;
+  --muted:#5f6673;
+  --faint:#98a0ae;
+  --accent:#15171c;          /* mực — màu nhấn chính */
+  --accent-hover:#2b2f37;
+  --accent-soft:#eceef2;     /* viền focus */
+  --ok:#0f7a4a;
+  --ok-bg:#e8f6ee;
+  --err:#c2382e;
+  --err-bg:#fdecea;
+  --info:#2a5bd7;
+  --info-bg:#eef3fd;
+  --radius:16px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(20,24,32,.05), 0 12px 32px -20px rgba(20,24,32,.25);
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+body{
+  font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;line-height:1.55;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+/* Lưới chấm mờ phía sau (rất nhẹ) */
+.bg-grid{
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:radial-gradient(rgba(21,23,28,.05) 1px,transparent 1px);
+  background-size:26px 26px;
+  -webkit-mask-image:radial-gradient(ellipse at 50% 0%,#000,transparent 72%);
+  mask-image:radial-gradient(ellipse at 50% 0%,#000,transparent 72%);
+}
+
+/* Card */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+h1{font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.gradient-text{color:var(--text)}
+.divider{width:44px;height:4px;border-radius:99px;margin:0 auto 26px;background:var(--text)}
+
+/* Form */
+label,.input-label{
+  display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:7px;
+}
+label .req{color:var(--err)}
+input,select{
+  width:100%;padding:12px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-strong);background:var(--surface);
+  color:var(--text);font-size:14.5px;font-weight:500;font-family:inherit;outline:none;
+  transition:border-color .18s,box-shadow .18s,background .18s;
+}
+input::placeholder{color:var(--faint)}
+input:hover,select:hover{border-color:var(--faint)}
+input:focus,select:focus{border-color:var(--text);box-shadow:0 0 0 4px var(--accent-soft)}
+select{
+  appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:38px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235f6673' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;
+}
+
+/* Buttons */
+button,.btn{font-family:inherit;cursor:pointer;border:none;
+  transition:transform .16s var(--ease),background .18s,box-shadow .18s,color .18s,border-color .18s}
+button:active,.btn:active{transform:scale(.985)}
+button:focus-visible,.btn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--text);outline-offset:2px}
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:13px 18px;border-radius:var(--radius-sm);
+  font-weight:700;font-size:14.5px;text-decoration:none;
+}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 6px 18px -10px rgba(21,23,28,.7)}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border-strong)}
+.btn-secondary:hover{background:var(--surface-2)}
+
+/* Scrollbar */
+*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:99px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--faint)}
+
+/* Hiệu ứng vào trang */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.rise{animation:rise .6s var(--ease) both}
+.rise-2{animation-delay:.07s}
+.rise-3{animation-delay:.14s}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}

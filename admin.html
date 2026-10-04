@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi"> 
+<html lang="vi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quản Lý Điểm Danh - Supabase</title>
+<title>Quản Lý Điểm Danh</title>
+<meta name="description" content="Bảng điều khiển điểm danh realtime: mở phiên, QR động, theo dõi sinh viên.">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/admin.css">
 <!-- BẮT BUỘC: qrcode và Supabase CDN phải nằm trước js/config.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -12,56 +17,57 @@
 <script src="js/config.js"></script>
 </head>
 <body>
+<div class="bg-grid"></div>
 <div class="wrapper">
-  <div class="topbar">
+  <header class="card topbar rise">
     <div class="topbar-left">
-      <svg width="44" height="44" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="56" fill="#D4A537"/>
+      <svg class="logo-sm" width="46" height="46" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6c653"/><stop offset="1" stop-color="#c8951f"/></linearGradient></defs>
+        <circle cx="60" cy="60" r="56" fill="url(#lg)"/>
         <path d="M30 52 L60 38 L90 52 L60 66 Z" fill="#fff"/>
         <rect x="42" y="62" width="36" height="18" rx="2" fill="#fff" opacity="0.9"/>
       </svg>
       <div>
-        <h1>Quản lý điểm danh</h1>
-        <p>Hệ thống Realtime Supabase</p>
+        <h1 class="gradient-text">Quản lý điểm danh</h1>
+        <p>Theo dõi realtime · QR động</p>
       </div>
     </div>
     <div class="topbar-right">
-      <div id="statusIndicator" class="status-badge status-off"><span>Trạng thái: ĐÓNG</span></div>
+      <div id="statusIndicator" class="status-badge status-off"><span class="dot"></span><span>ĐÓNG</span></div>
       <button class="btn-logout" onclick="logout()">Đăng xuất</button>
     </div>
-  </div>
+  </header>
 
-  <div class="card">
+  <section class="card rise rise-2">
     <div class="card-label">Cấu hình phiên điểm danh</div>
     <div class="form-grid">
       <div>
-        <label class="input-label">Tên phiên</label>
+        <label class="input-label" for="sessionName">Tên phiên</label>
         <input type="text" id="sessionName" placeholder="VD: Lập trình Web - Buổi 3">
       </div>
       <div>
-        <label class="input-label">QR đổi mỗi (giây)</label>
-        <input type="number" id="qrRefreshTime" value="20">
+        <label class="input-label" for="qrRefreshTime">QR đổi mỗi (giây)</label>
+        <input type="number" id="qrRefreshTime" value="20" min="5">
       </div>
       <div>
-        <label class="input-label">Mở trong (phút)</label>
-        <input type="number" id="sessionDuration" value="5">
+        <label class="input-label" for="sessionDuration">Mở trong (phút)</label>
+        <input type="number" id="sessionDuration" value="5" min="1">
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn-on" onclick="turnOn()">Mở phiên</button>
-      <button class="btn-off" onclick="turnOff()">Đóng phiên</button>
-      <button class="btn-export" onclick="exportToExcel()">Export Excel</button>
+      <button class="btn-on" onclick="turnOn()">▶ Mở phiên</button>
+      <button class="btn-off" onclick="turnOff()">■ Đóng phiên</button>
     </div>
-  </div>
+  </section>
 
-  <div class="empty-state" id="emptyState">
-    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#D4A537" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+  <section class="empty-state rise rise-3" id="emptyState">
+    <svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#f6c653" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
     <h3>Chưa có phiên điểm danh nào đang mở</h3>
-    <p>Nhập tên phiên, thời gian và bấm <b>"Mở phiên"</b>.</p>
-  </div>
+    <p>Nhập tên phiên, thời gian và bấm <b>"Mở phiên"</b> để sinh mã QR.</p>
+  </section>
 
   <div class="main-layout dashboard-area" id="dashboardArea">
-    <div class="card qr-section">
+    <aside class="card qr-section" id="qrSection">
       <div class="qr-title">Mã QR động trực tiếp</div>
       <div id="qrWrapper"><div id="qrCanvas"></div></div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:100%"></div></div>
@@ -69,10 +75,10 @@
         <span>Đổi mã sau <b id="secondsLeft">20s</b></span>
         <span class="warn">Còn lại <b id="sessionCountdown">--:--</b></span>
       </div>
-      <button class="btn-full" onclick="alert('Hãy phóng to trình duyệt hoặc dùng chế độ F11')">Phóng to màn hình</button>
-    </div>
+      <button class="btn-full" onclick="toggleFullscreen()">⛶ Phóng to toàn màn hình</button>
+    </aside>
 
-    <div class="card">
+    <section class="card">
       <div class="stats-grid">
         <div class="stat-box"><div class="stat-label">Tổng SV</div><div class="stat-number" id="totalCount">0</div></div>
         <div class="stat-box"><div class="stat-label stat-green">Đã điểm danh</div><div class="stat-number stat-green" id="presentCount">0</div></div>
@@ -86,16 +92,50 @@
       <div class="recent-list" id="recentList"><div class="recent-empty">Chưa có ai điểm danh</div></div>
       <div class="table-header">
         <h3>Danh sách theo dõi realtime</h3>
-        <input type="text" id="searchStudent" placeholder="Tìm MSSV..." onkeyup="filterTable()">
+        <input type="text" id="searchStudent" placeholder="Tìm tên hoặc MSSV..." onkeyup="filterTable()">
       </div>
-      <div style="overflow-x:auto;max-height:440px">
+      <div class="table-wrap">
         <table>
           <thead><tr><th>Sinh viên</th><th>MSSV</th><th>Trạng thái</th><th>Thời gian</th></tr></thead>
           <tbody id="studentList"></tbody>
         </table>
       </div>
-    </div>
+    </section>
   </div>
+
+  <section class="card rise rise-4" style="margin-top: 24px;">
+    <div class="card-label">Quản lý Tài khoản (Sinh viên & Đội trưởng)</div>
+    <div class="form-grid">
+      <div>
+        <label class="input-label" for="newUsername">Tên đăng nhập (VD: 123000555 hoặc team_a)</label>
+        <input type="text" id="newUsername" placeholder="Nhập tên đăng nhập...">
+      </div>
+      <div>
+        <label class="input-label" for="newPassword">Mật khẩu</label>
+        <input type="password" id="newPassword" placeholder="Nhập mật khẩu...">
+      </div>
+      <div>
+        <label class="input-label" for="newRole">Loại tài khoản</label>
+        <select id="newRole" style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);">
+          <option value="student">Sinh viên</option>
+          <option value="leader">Đội trưởng lĩnh vực</option>
+          <option value="admin">Quản trị viên (Admin)</option>
+        </select>
+      </div>
+      <div>
+        <label class="input-label" for="newFullName">Họ và tên</label>
+        <input type="text" id="newFullName" placeholder="VD: Nguyễn Văn A">
+      </div>
+      <div>
+        <label class="input-label" for="newMssv">MSSV (nếu là sinh viên)</label>
+        <input type="text" id="newMssv" placeholder="VD: 123000555">
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top: 14px;">
+      <button class="btn-on" onclick="createAccount()" id="btnCreateAcc">Tạo tài khoản</button>
+      <span id="createAccMsg" style="margin-left: 14px; align-self: center; font-size: 13px; font-weight: 600;"></span>
+    </div>
+  </section>
 </div>
 
 <script src="js/admin.js"></script>

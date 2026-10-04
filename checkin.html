@@ -3,41 +3,56 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Điểm Danh Sinh Viên - Supabase</title>
+<title>Điểm Danh Sinh Viên</title>
+<meta name="description" content="Nhập MSSV để điểm danh sau khi quét mã QR.">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/checkin.css">
 <!-- BẮT BUỘC: Supabase CDN phải nằm trước js/config.js -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <h1>Điểm danh sinh viên</h1>
-    <p class="sub">Vui lòng nhập MSSV và xác nhận để điểm danh</p>
-    <div class="divider"></div>
+<div class="bg-grid"></div>
+<main class="wrap">
+  <div class="card rise">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+    </div>
+    <h1 class="gradient-text">Điểm danh sinh viên</h1>
+    <p class="sub">Nhập MSSV và xác nhận để điểm danh</p>
+
+    <div class="info-box" id="sessionInfo">Đang tải thông tin phiên...</div>
+
     <div class="field">
-      <label>MSSV <span class="req">*</span></label>
-      <input type="text" id="mssv" placeholder="VD: 123001058" autocomplete="off">
+      <label for="mssv">MSSV <span class="req">*</span></label>
+      <input type="text" id="mssv" placeholder="VD: 123001058" autocomplete="off" inputmode="numeric">
     </div>
     <div class="field">
-      <label>Lĩnh vực <span class="req">*</span></label>
+      <label for="category">Lĩnh vực <span class="req">*</span></label>
       <select id="category" required>
         <option value="">-- Chọn lĩnh vực --</option>
       </select>
     </div>
     <div class="field">
-      <label>Ghi chú (không bắt buộc)</label>
-      <input type="text" id="note" placeholder="VD: Đi trễ 5 phút" autocomplete="off">
+      <label for="note">Ghi chú (không bắt buộc)</label>
+      <input type="text" id="note" placeholder="VD: Đi trễ 5 phút" autocomplete="off" maxlength="200">
     </div>
-    <button class="btn btn-primary" id="btnCheckin" onclick="doCheckin()">Xác nhận điểm danh</button>
-    <button class="btn btn-secondary" onclick="location.reload()">Làm mới</button>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnCheckin" onclick="doCheckin()">Xác nhận điểm danh</button>
+      <button class="btn btn-secondary" onclick="location.reload()">Làm mới</button>
+    </div>
     <div class="loader" id="loader"><span class="spin"></span>Đang xử lý...</div>
-    <div class="badge" id="badge"></div>
-    <div class="info-box" id="sessionInfo">Đang tải thông tin phiên...</div>
+    <div class="badge" id="badge" role="status"></div>
     <a class="back" href="index.html">← Về trang chủ</a>
   </div>
-</div>
+</main>
 <script src="js/checkin.js"></script>
 </body>
 </html>

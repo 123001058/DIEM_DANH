@@ -1,4 +1,6 @@
 // Chức năng trang điểm danh sinh viên (checkin.html)
+// Mọi kiểm tra (token QR, phiên mở/hết giờ, MSSV, trùng MSSV/thiết bị) do SERVER xử lý
+// qua RPC get_open_session() và submit_attendance() — xem supabase/schema.sql.
 let currentSessionId = '';
 let currentRefresh = 20;
 let sessionToken = null;
@@ -21,6 +23,11 @@ function showBadge(type, text){
 function hideBadge(){ document.getElementById('badge').className = 'badge'; }
 function showLoader(v){ document.getElementById('loader').classList.toggle('show', !!v); }
 function setBtnDisabled(v){ document.getElementById('btnCheckin').disabled = !!v; }
+function setSessionBox(state, html){
+  const box = document.getElementById('sessionInfo');
+  box.className = 'info-box ' + state;
+  box.innerHTML = html;
+}
 
 async function init(){
   deviceId = getDeviceId();
@@ -36,40 +43,36 @@ async function init(){
   const qrSession = url.searchParams.get('s');
   const qrToken = url.searchParams.get('t');
 
-  if (qrToken) sessionToken = Number(qrToken);
+  if (qrToken) sessionToken = qrToken; // chuỗi ký bởi server, không parse ở client
   if (qrSession) currentSessionId = qrSession;
 
-  await loadStudents();
   await refreshStatus();
   setInterval(refreshStatus, 10000);
 }
 
 async function refreshStatus(){
-  // Chỉ lấy phiên ĐANG MỞ mới nhất, bỏ qua mọi phiên cũ đã đóng
-  const { data, error } = await supabase.from('sessions')
-      .select('*').eq('is_open', true)
-      .order('started_at', { ascending: false }).limit(1).maybeSingle();
-  const box = document.getElementById('sessionInfo');
+  // Server chỉ trả về phiên ĐANG MỞ và CHƯA HẾT GIỜ mới nhất
+  const { data, error } = await supabase.rpc('get_open_session');
   if (error) {
       console.error('[refreshStatus]', error);
-      box.innerHTML = 'Lỗi kết nối server: ' + error.message;
+      setSessionBox('warn', 'Lỗi kết nối server: ' + escapeHtml(error.message));
       return;
   }
   if (!data) {
       sessionStatus = { is_open: false };
-      box.innerHTML = '<b>Chưa có phiên điểm danh nào đang mở.</b>';
+      setSessionBox('off', '<b>Chưa có phiên điểm danh nào đang mở.</b>');
       return;
   }
   // Nếu sinh viên mở bằng mã QR của phiên cũ (đã đóng) => từ chối
   if (currentSessionId && String(data.id) !== String(currentSessionId)) {
       sessionStatus = { is_open: false };
-      box.innerHTML = '<b>Phiên trong mã QR đã kết thúc.</b><br>Vui lòng quét lại mã mới nhất.';
+      setSessionBox('warn', '<b>Phiên trong mã QR đã kết thúc.</b><br>Vui lòng quét lại mã mới nhất.');
       return;
   }
   currentSessionId = String(data.id);
-  sessionStatus = data;
+  sessionStatus = { ...data, is_open: true };
   currentRefresh = data.refresh_time || 20;
-  box.innerHTML = `<b>Phiên đang mở:</b> ${escapeHtml(data.session_name)}<br>QR đổi mỗi <b>${currentRefresh}s</b>`;
+  setSessionBox('on', `<b>Phiên đang mở:</b> ${escapeHtml(data.session_name)}<br>QR đổi mỗi <b>${currentRefresh}s</b>`);
 }
 
 async function doCheckin(){
@@ -94,28 +97,10 @@ async function doCheckin(){
     return;
   }
 
-  const stu = validStudents.find(s => String(s.mssv).trim() === mssv);
-  if (!stu){
-    showBadge('err', 'MSSV không có trong danh sách lớp!');
-    return;
-  }
-
   // Bắt buộc vào bằng mã QR (có đủ tham số s và t), không cho mở thẳng checkin.html
   const qs = new URLSearchParams(location.search);
-  if (!qs.get('s') || !qs.get('t') || isNaN(sessionToken)){
+  if (!qs.get('s') || !qs.get('t') || !sessionToken){
     showBadge('err', 'Vui lòng quét mã QR để điểm danh');
-    return;
-  }
-
-  // Check token chống gian lận
-  const cycleMs = currentRefresh * 1000;
-  const nowMs = Date.now();
-  const tokenStartMs = sessionToken * cycleMs;
-  const tokenEndMs = tokenStartMs + cycleMs;
-  const TOL = 15000; // 15s dung sai (càng nhỏ càng khó gian lận)
-
-  if (nowMs < tokenStartMs - TOL || nowMs > tokenEndMs + TOL){
-    showBadge('err', 'Mã QR đã hết hạn, vui lòng quét lại mã mới nhất');
     return;
   }
 
@@ -123,66 +108,30 @@ async function doCheckin(){
   showLoader(true);
 
   try {
-    // 1. Kiểm tra trùng MSSV trong phiên này
-    const { data: existing } = await supabase
-        .from('attendance')
-        .select('id')
-        .eq('session_id', currentSessionId)
-        .eq('mssv', mssv)
-        .maybeSingle();
+    const { data, error } = await supabase.rpc('submit_attendance', {
+      p_session_id: currentSessionId,
+      p_token: sessionToken,
+      p_mssv: mssv,
+      p_category: category,
+      p_note: document.getElementById('note').value.trim(),
+      p_device_id: deviceId,
+    });
 
-    if (existing) {
-        showLoader(false);
-        setBtnDisabled(false);
-        showBadge('info', 'Bạn đã điểm danh phiên này rồi.');
-        return;
-    }
-
-    // 2. Kiểm tra trùng thiết bị (Anti-cheat)
-    const { data: deviceUsed } = await supabase
-        .from('attendance')
-        .select('mssv')
-        .eq('session_id', currentSessionId)
-        .eq('device_id', deviceId)
-        .maybeSingle();
-
-    if (deviceUsed) {
-        showLoader(false);
-        setBtnDisabled(false);
-        showBadge('err', `Thiết bị này đã được dùng để điểm danh cho MSSV ${escapeHtml(deviceUsed.mssv)}`);
-        return;
-    }
-
-    // 3. Lưu vào Supabase
-    const { error: insertError } = await supabase
-        .from('attendance')
-        .insert([
-            {
-                session_id: currentSessionId,
-                mssv: mssv,
-                full_name: stu.name,
-                category: category,
-                note: document.getElementById('note').value.trim(),
-                device_id: deviceId
-            }
-        ]);
-
-    showLoader(false);
-    setBtnDisabled(false);
-
-    if (insertError) {
-        // 23505 = vi phạm UNIQUE(session_id, mssv) / UNIQUE(session_id, device_id) trên DB
-        showBadge('err', insertError.code === '23505' ? 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.' : 'Lỗi: ' + escapeHtml(insertError.message));
+    if (error) {
+      showBadge('err', 'Lỗi: ' + escapeHtml(error.message));
+    } else if (!data || !data.ok) {
+      const type = data && data.code === 'ALREADY' ? 'info' : 'err';
+      showBadge(type, escapeHtml((data && data.message) || 'Điểm danh thất bại.'));
     } else {
-        showBadge('ok', `✓ Điểm danh thành công!<br>${stu.name} — ${mssv}`);
-        document.getElementById('mssv').value = '';
-        document.getElementById('note').value = '';
+      showBadge('ok', `✓ Điểm danh thành công!<br>${escapeHtml(data.name)} — ${escapeHtml(data.mssv)}`);
+      document.getElementById('mssv').value = '';
+      document.getElementById('note').value = '';
     }
-
   } catch (e){
+    showBadge('err', 'Lỗi kết nối: ' + escapeHtml(e.message));
+  } finally {
     showLoader(false);
     setBtnDisabled(false);
-    showBadge('err', 'Lỗi kết nối: ' + e.message);
   }
 }
 
