@@ -105,7 +105,7 @@ async function submitRegister(){
   const username = uInput.value.trim().toLowerCase().replace(/\s+/g, '');
   const password = pInput.value;
   const role = 'student';
-  const fullName = nameInput.value.trim();
+  const fullName = nameInput ? nameInput.value.trim() : '';
   const mssv = mssvInput ? mssvInput.value.trim() : '';
 
   if (!username) {
@@ -129,17 +129,10 @@ async function submitRegister(){
     return;
   }
 
-  if (!fullName) {
+  if (!mssv) {
     msg.style.color = 'var(--err)';
-    msg.innerText = 'Vui lòng nhập họ và tên!';
-    nameInput.focus();
-    return;
-  }
-
-  if (role === 'student' && !mssv) {
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Sinh viên bắt buộc phải nhập MSSV để điểm danh!';
-    mssvInput.focus();
+    msg.innerText = 'Vui lòng nhập Mã số sinh viên (MSSV)!';
+    if (mssvInput) mssvInput.focus();
     return;
   }
 
@@ -219,7 +212,7 @@ async function submitRegister(){
 
     uInput.value = '';
     pInput.value = '';
-    nameInput.value = '';
+    if (nameInput) nameInput.value = '';
     if (mssvInput) mssvInput.value = '';
   } catch (err) {
     console.error('[submitRegister]', err);
