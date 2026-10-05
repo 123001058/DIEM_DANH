@@ -59,6 +59,162 @@ function playSuccessSound(){
   } catch (e) {}
 }
 
+// ==========================================
+// CAMERA SCANNER QUÉT MÃ QR TRỰC TIẾP
+// ==========================================
+let html5QrScanner = null;
+let isScanning = false;
+
+function parseQrData(text){
+  let s = null, t = null;
+  if (!text) return { s, t };
+  try {
+    if (text.startsWith('http://') || text.startsWith('https://')) {
+      const u = new URL(text);
+      s = u.searchParams.get('s');
+      t = u.searchParams.get('t');
+    }
+  } catch (e) {}
+
+  if (!t) {
+    const matchT = text.match(/[?&]t=([^&]+)/);
+    const matchS = text.match(/[?&]s=([^&]+)/);
+    if (matchT) t = decodeURIComponent(matchT[1]);
+    if (matchS) s = decodeURIComponent(matchS[1]);
+  }
+
+  if (!t) {
+    try {
+      const obj = JSON.parse(text);
+      if (obj.t) t = obj.t;
+      if (obj.s) s = obj.s;
+    } catch (e) {}
+  }
+
+  // Token thuần [win].[hash]
+  if (!t && /^[0-9]{1,12}\.[0-9a-f]{24}$/.test(text.trim())) {
+    t = text.trim();
+  }
+
+  return { s, t };
+}
+
+async function startCameraScanner(){
+  const wrapper = document.getElementById('scannerWrapper');
+  const btnText = document.getElementById('scannerBtnText');
+  if (wrapper) wrapper.style.display = 'block';
+  if (btnText) btnText.innerHTML = '⏹ Dừng Camera quét mã';
+
+  if (!window.Html5Qrcode) {
+    showBadge('err', 'Chưa tải được thư viện quét mã QR. Vui lòng tải lại trang.');
+    return;
+  }
+
+  if (!html5QrScanner) {
+    html5QrScanner = new Html5Qrcode("qrReader");
+  }
+
+  const config = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    aspectRatio: 1.0
+  };
+
+  try {
+    isScanning = true;
+    await html5QrScanner.start(
+      { facingMode: "environment" },
+      config,
+      onScanSuccess,
+      () => {}
+    );
+  } catch (err) {
+    console.warn('[Camera environment failed, trying user camera]', err);
+    try {
+      await html5QrScanner.start(
+        { facingMode: "user" },
+        config,
+        onScanSuccess,
+        () => {}
+      );
+    } catch (fallbackErr) {
+      console.error('[Camera fallback failed]', fallbackErr);
+      isScanning = false;
+      stopCameraScanner();
+      showBadge('err', 'Không thể mở Camera: ' + (err.message || 'Hãy cấp quyền truy cập Camera cho trình duyệt'));
+    }
+  }
+}
+
+async function stopCameraScanner(){
+  const wrapper = document.getElementById('scannerWrapper');
+  const btnText = document.getElementById('scannerBtnText');
+  if (wrapper) wrapper.style.display = 'none';
+  if (btnText) {
+    btnText.innerHTML = sessionToken
+      ? '✓ Đã có mã QR (Bấm nếu muốn quét lại)'
+      : '📷 Bật Camera quét mã QR trực tiếp';
+  }
+
+  if (html5QrScanner && isScanning) {
+    try {
+      await html5QrScanner.stop();
+    } catch (e) {
+      console.warn('[stopCameraScanner]', e);
+    } finally {
+      isScanning = false;
+    }
+  }
+}
+
+function toggleCameraScanner(){
+  if (isScanning) {
+    stopCameraScanner();
+  } else {
+    startCameraScanner();
+  }
+}
+
+async function onScanSuccess(decodedText){
+  const { s, t } = parseQrData(decodedText);
+  if (!t) {
+    showBadge('warn', 'Mã QR không đúng định dạng điểm danh. Hãy hướng camera vào mã QR trên màn hình Admin.');
+    return;
+  }
+
+  sessionToken = t;
+  if (s) {
+    qrSessionId = s;
+    currentSessionId = s;
+  }
+
+  await stopCameraScanner();
+  playSuccessSound();
+
+  const mssv = document.getElementById('mssv').value.trim();
+  const category = document.getElementById('category').value;
+
+  if (!loggedInUser) {
+    showBadge('err', '✓ Đã nhận mã QR! Tuy nhiên bạn chưa đăng nhập tài khoản sinh viên. Vui lòng đăng nhập để điểm danh.');
+    return;
+  }
+
+  if (!mssv) {
+    showBadge('info', '✓ Đã quét mã QR thành công! Vui lòng nhập MSSV rồi bấm Xác nhận.');
+    document.getElementById('mssv').focus();
+    return;
+  }
+
+  if (!category) {
+    showBadge('info', '✓ Đã quét mã QR thành công! Vui lòng chọn Lĩnh vực rồi bấm Xác nhận.');
+    document.getElementById('category').focus();
+    return;
+  }
+
+  showBadge('info', '✓ Đã nhận mã QR! Đang gửi điểm danh...');
+  await doCheckin();
+}
+
 async function logoutStudent(){
   await supabase.auth.signOut();
   location.href = 'index.html';
@@ -164,7 +320,11 @@ async function init(){
   qrSessionId = url.searchParams.get('s');
   const qrToken = url.searchParams.get('t');
 
-  if (qrToken) sessionToken = qrToken;
+  if (qrToken) {
+    sessionToken = qrToken;
+    const btnText = document.getElementById('scannerBtnText');
+    if (btnText) btnText.innerHTML = '✓ Đã nhận mã QR (Bấm nếu muốn quét lại qua Camera)';
+  }
   if (qrSessionId) currentSessionId = qrSessionId;
 
   await refreshStatus();

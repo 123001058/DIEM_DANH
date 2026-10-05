@@ -112,23 +112,38 @@ function startSessionUI(st){
     if (st.refresh_time) document.getElementById('qrRefreshTime').value = st.refresh_time;
     if (st.duration_min) document.getElementById('sessionDuration').value = st.duration_min;
 
-    const refresh = st.refresh_time || 20;
+    const refresh = Math.max(5, Number(st.refresh_time) || 20);
     const startedMs = new Date(st.started_at).getTime();
+    const cycleMs = refresh * 1000;
     const endsAt = startedMs + (st.duration_min * 60 * 1000);
 
+    const calcCycle = () => {
+        const now = nowMs();
+        const elapsed = Math.max(0, now - startedMs);
+        const win = Math.floor(elapsed / cycleMs);
+        const cycleEnd = startedMs + (win + 1) * cycleMs;
+        const remaining = Math.max(1, Math.ceil((cycleEnd - now) / 1000));
+        const pct = Math.max(0, Math.min(100, ((cycleEnd - now) / cycleMs) * 100));
+        return { win, remaining, pct };
+    };
+
+    const { win: initialWin, remaining: initialRemaining, pct: initialPct } = calcCycle();
+    lastToken = initialWin;
     renderQR();
-    lastToken = Math.floor(nowMs() / (refresh * 1000));
     pollAttendance();
+
+    document.getElementById('secondsLeft').innerText = initialRemaining + 's';
+    document.getElementById('progressFill').style.width = initialPct + '%';
 
     clearInterval(progressInterval);
     progressInterval = setInterval(() => {
-        const now = nowMs();
-        const cycleMs = refresh * 1000;
-        const cycleEnd = (Math.floor(now / cycleMs) + 1) * cycleMs;
-        secondsRemaining = Math.max(1, Math.ceil((cycleEnd - now) / 1000));
-        if (Math.floor(now/cycleMs) !== lastToken) { lastToken = Math.floor(now/cycleMs); renderQR(); }
-        document.getElementById('secondsLeft').innerText = secondsRemaining + 's';
-        document.getElementById('progressFill').style.width = (((cycleEnd - now)/cycleMs)*100) + '%';
+        const { win, remaining, pct } = calcCycle();
+        if (win !== lastToken) {
+            lastToken = win;
+            renderQR();
+        }
+        document.getElementById('secondsLeft').innerText = remaining + 's';
+        document.getElementById('progressFill').style.width = pct + '%';
     }, 250);
 
     clearInterval(sessionTimer);
@@ -157,8 +172,9 @@ function stopSessionUI(){
     if (canvas) canvas.innerHTML = '';
     const progressFill = document.getElementById('progressFill');
     if (progressFill) progressFill.style.width = '100%';
+    const defaultRefresh = Math.max(5, Number(document.getElementById('qrRefreshTime')?.value) || 20);
     const secondsLeft = document.getElementById('secondsLeft');
-    if (secondsLeft) secondsLeft.innerText = '20s';
+    if (secondsLeft) secondsLeft.innerText = defaultRefresh + 's';
     const countdown = document.getElementById('sessionCountdown');
     if (countdown) countdown.innerText = '--:--';
 }

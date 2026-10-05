@@ -436,6 +436,8 @@ as $$
 declare
   s record;
   v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  v_started_ms bigint;
+  v_cycle bigint;
   v_win bigint;
 begin
   if not public.is_admin() then
@@ -462,7 +464,9 @@ begin
     raise exception 'session expired' using errcode = 'P0004';
   end if;
 
-  v_win := v_now / (coalesce(s.refresh_time, 20) * 1000);
+  v_started_ms := (extract(epoch from s.started_at) * 1000)::bigint;
+  v_cycle := coalesce(s.refresh_time, 20) * 1000;
+  v_win := greatest(0::bigint, (v_now - v_started_ms) / v_cycle);
 
   return jsonb_build_object(
     'token',
@@ -504,7 +508,8 @@ declare
   v_cycle bigint;
   v_start bigint;
   v_win bigint;
-  v_tol constant bigint := 3000; -- dung sai 3 giây
+  v_started_ms bigint;
+  v_tol bigint;
   v_clean_device text := btrim(coalesce(p_device_id, ''));
   v_clean_cat text := btrim(coalesce(p_category, ''));
   v_clean_session text := btrim(coalesce(p_session_id, ''));
@@ -616,10 +621,13 @@ begin
   end if;
 
   -- 6. KIỂM TRA THỜI GIAN HIỆU LỰC TOKEN QR
+  v_started_ms := (extract(epoch from s.started_at) * 1000)::bigint;
   v_cycle := coalesce(s.refresh_time, 20) * 1000;
-  v_start := v_win * v_cycle;
+  v_start := v_started_ms + (v_win * v_cycle);
+  -- Cho phép dung sai ít nhất 30 giây (hoặc 1 chu kỳ) để học sinh quét không bị trễ hạn
+  v_tol := greatest(30000::bigint, v_cycle);
 
-  if v_now < v_start - v_tol
+  if v_now < v_start - 5000
      or v_now > v_start + v_cycle + v_tol then
     return jsonb_build_object(
       'ok', false,

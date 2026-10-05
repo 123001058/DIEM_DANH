@@ -44,3 +44,5 @@ h1{font-size:23px;text-align:center;margin-bottom:6px}
 .loader.show{display:block}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
+#qrReader video { width: 100% !important; height: auto !important; border-radius: 8px; object-fit: cover; }
+
