@@ -80,7 +80,7 @@ async function init(){
     catSel.value = savedCat;
   }
 
-  // 1. Kiểm tra tài khoản sinh viên đăng nhập và truy vấn profiles.mssv
+  // 1. Kiểm tra tài khoản sinh viên đăng nhập và tự động nhận diện MSSV
   try {
     const { data: authData } = await supabase.auth.getSession();
     const user = authData?.session?.user;
@@ -98,31 +98,22 @@ async function init(){
         console.warn('[init profiles query]', profErr);
       }
 
-      const stName = profile?.full_name || user.user_metadata?.name || profile?.username || user.email;
-      const stMssv = profile?.mssv ? profile.mssv.trim() : '';
+      // Ưu tiên MSSV từ profiles, nếu chưa có thì lấy từ metadata lúc đăng ký
+      const meta = user.user_metadata || {};
+      const stMssv = (profile?.mssv || meta.mssv || '').trim();
+      const stName = profile?.full_name || meta.name || profile?.username || user.email;
 
       const banner = document.getElementById('studentAuthBanner');
       if (banner) {
         banner.style.display = 'block';
-        if (stMssv) {
-          banner.style.background = 'var(--info-bg, rgba(59, 130, 246, 0.1))';
-          banner.style.color = 'var(--info, #2563eb)';
-          banner.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-              <span>👋 Xin chào: <b>${escapeHtml(stName)}</b> (MSSV: <b>${escapeHtml(stMssv)}</b>)</span>
-              <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đăng xuất</button>
-            </div>
-          `;
-        } else {
-          banner.style.background = 'var(--warn-bg, #fff3cd)';
-          banner.style.color = 'var(--warn-text, #856404)';
-          banner.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-              <span>👋 Xin chào: <b>${escapeHtml(stName)}</b> — ⚠️ Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin.</span>
-              <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đăng xuất</button>
-            </div>
-          `;
-        }
+        banner.style.background = 'var(--info-bg, rgba(59, 130, 246, 0.1))';
+        banner.style.color = 'var(--info, #2563eb)';
+        banner.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <span>👋 Xin chào: <b>${escapeHtml(stName)}</b>${stMssv ? ' (MSSV: <b>' + escapeHtml(stMssv) + '</b>)' : ''}</span>
+            <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đăng xuất</button>
+          </div>
+        `;
       }
 
       const m = document.getElementById('mssv');
@@ -134,18 +125,18 @@ async function init(){
           m.style.background = 'var(--surface-2)';
         }
         if (hint) {
-          hint.innerText = '🔒 Đã tự động điền và khóa theo tài khoản sinh viên đã xác minh';
+          hint.style.color = 'var(--text-muted)';
+          hint.innerText = '🔒 Đã tự động điền và khóa theo tài khoản sinh viên';
         }
       } else {
         if (m) {
-          m.value = '';
-          m.placeholder = 'Chưa liên kết MSSV (liên hệ Admin)';
-          m.readOnly = true;
-          m.style.background = 'var(--surface-2)';
+          m.readOnly = false;
+          m.placeholder = 'Nhập mã số sinh viên';
+          m.style.background = '';
         }
         if (hint) {
-          hint.style.color = 'var(--err, #ef4444)';
-          hint.innerText = '⚠️ Tài khoản chưa được Admin liên kết MSSV. Không thể tự nhập.';
+          hint.style.color = '';
+          hint.innerText = 'Nhập đúng MSSV của bạn trong danh sách lớp';
         }
       }
     } else {
@@ -245,7 +236,8 @@ async function doCheckin(){
   const category = document.getElementById('category').value;
 
   if (!mssv){
-    showBadge('err', 'Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin để được cấp quyền trước khi điểm danh.');
+    showBadge('err', 'Vui lòng nhập MSSV!');
+    document.getElementById('mssv').focus();
     return;
   }
   if (!category){
@@ -263,8 +255,6 @@ async function doCheckin(){
   showLoader(true);
 
   try {
-    // So khớp chính xác với chữ ký RPC submit_attendance:
-    // (p_session_id, p_token, p_mssv, p_category, p_note, p_device_id)
     const { data, error } = await supabase.rpc('submit_attendance', {
       p_session_id: currentSessionId,
       p_token: sessionToken,
