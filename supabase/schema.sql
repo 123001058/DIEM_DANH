@@ -181,7 +181,6 @@ insert into public.students (mssv, name) values
   ('125001648', 'Nguyễn Thanh Tiến'),
   ('125000372', 'Nguyễn Huỳnh Minh Thông'),
   ('123000722', 'Bùi Trần Thanh Sang'),
-  ('125000287', 'Nguyễn Duy Phúc'),
   ('123001058', 'Nguyễn Khánh Hoà'),
   ('123000185', 'Lê Văn Minh'),
   ('123000872', 'Nguyễn Đình Hậu'),
@@ -195,6 +194,10 @@ insert into public.students (mssv, name) values
   ('125001087', 'Cao Anh Tú')
 on conflict (mssv) do update
 set name = excluded.name;
+
+-- Xóa sinh viên đã nghỉ (Nguyễn Duy Phúc - 125000287)
+delete from public.students where mssv = '125000287';
+update public.profiles set mssv = null where mssv = '125000287';
 
 -- Chống trùng MSSV trong một phiên
 create unique index if not exists attendance_session_mssv_uq
