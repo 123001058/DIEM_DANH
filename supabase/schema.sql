@@ -68,7 +68,9 @@ create extension if not exists pgcrypto with schema extensions;
 -- Mỗi phiên có secret riêng dùng cho HMAC token QR; không trả secret ra client
 alter table public.sessions
   add column if not exists qr_secret text not null
-  default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+  default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  add column if not exists is_paused boolean not null default false,
+  add column if not exists paused_at timestamptz;
 
 create table if not exists public.admins (
   user_id uuid primary key references auth.users(id) on delete cascade
@@ -390,6 +392,8 @@ as $$
     'refresh_time', coalesce(s.refresh_time, 20),
     'duration_min', s.duration_min,
     'started_at', s.started_at,
+    'is_paused', coalesce(s.is_paused, false),
+    'paused_at', s.paused_at,
     'server_now_ms', (extract(epoch from clock_timestamp()) * 1000)::bigint
   )
   from public.sessions s
@@ -464,6 +468,11 @@ begin
     raise exception 'session expired' using errcode = 'P0004';
   end if;
 
+  -- Nếu phiên đang tạm dừng, lấy thời gian lúc tạm dừng
+  if coalesce(s.is_paused, false) and s.paused_at is not null then
+    v_now := (extract(epoch from s.paused_at) * 1000)::bigint;
+  end if;
+
   v_started_ms := (extract(epoch from s.started_at) * 1000)::bigint;
   v_cycle := coalesce(s.refresh_time, 20) * 1000;
   v_win := greatest(0::bigint, (v_now - v_started_ms) / v_cycle);
@@ -471,6 +480,7 @@ begin
   return jsonb_build_object(
     'token',
     v_win::text || '.' || public._qr_sig(s.qr_secret, s.id::text, v_win),
+    'is_paused', coalesce(s.is_paused, false),
     'server_now_ms',
     v_now
   );
@@ -479,6 +489,62 @@ $$;
 
 revoke all on function public.issue_qr_token(text) from public, anon;
 grant execute on function public.issue_qr_token(text) to authenticated;
+
+-- 4b) RPC admin_toggle_pause: Tạm dừng / Tiếp tục đếm ngược QR
+create or replace function public.admin_toggle_pause(p_session_id text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  s record;
+  v_is_paused boolean;
+  v_now timestamptz := clock_timestamp();
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  select *
+    into s
+  from public.sessions
+  where id::text = p_session_id
+    and is_open;
+
+  if not found then
+    raise exception 'session not open' using errcode = 'P0002';
+  end if;
+
+  if coalesce(s.is_paused, false) then
+    -- Đang tạm dừng -> TIẾP TỤC (RESUME)
+    -- Đẩy lùi started_at theo khoảng thời gian đã pause để giữ nguyên chu kỳ countdown
+    update public.sessions
+    set is_paused = false,
+        started_at = started_at + (v_now - s.paused_at),
+        paused_at = null
+    where id = s.id;
+    v_is_paused := false;
+  else
+    -- Đang chạy -> TẠM DỪNG (PAUSE)
+    update public.sessions
+    set is_paused = true,
+        paused_at = v_now
+    where id = s.id;
+    v_is_paused := true;
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'is_paused', v_is_paused
+  );
+end;
+$$;
+
+revoke all on function public.admin_toggle_pause(text) from public, anon;
+grant execute on function public.admin_toggle_pause(text) to authenticated;
+
 
 -- 5) RPC submit_attendance (Đăng nhập + Quét QR) -----------------------
 drop function if exists public.submit_attendance(text, bigint, text, text, text, text);
@@ -515,68 +581,72 @@ declare
   v_clean_session text := btrim(coalesce(p_session_id, ''));
   v_raw_meta_mssv text;
 begin
-  -- 1. BẮT BUỘC ĐÃ ĐĂNG NHẬP
-  if v_uid is null then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'UNAUTHORIZED',
-      'message', 'Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản để điểm danh.'
-    );
-  end if;
+  -- 1. XÁC THỰC MSSV (Ưu tiên tài khoản đăng nhập, hoặc MSSV sinh viên cung cấp)
+  if v_uid is not null then
+    -- 1a. Người dùng có phiên đăng nhập
+    select p.mssv into v_profile_mssv
+    from public.profiles p
+    where p.user_id = v_uid;
 
-  -- 2. LẤY MSSV TỪ PROFILES
-  select p.mssv into v_profile_mssv
-  from public.profiles p
-  where p.user_id = v_uid;
+    v_profile_mssv := btrim(coalesce(v_profile_mssv, ''));
 
-  v_profile_mssv := btrim(coalesce(v_profile_mssv, ''));
+    -- TỰ ĐỘNG LIÊN KẾT NẾU PROFILES CHƯA CÓ NHƯNG METADATA ĐĂNG KÝ CÓ MSSV TRONG DANH SÁCH LỚP
+    if v_profile_mssv = '' then
+      select coalesce(
+        nullif(btrim(u.raw_user_meta_data->>'mssv'), ''),
+        nullif(btrim(u.raw_user_meta_data->>'username'), '')
+      ) into v_raw_meta_mssv
+      from auth.users u
+      where u.id = v_uid;
 
-  -- TỰ ĐỘNG LIÊN KẾT NẾU PROFILES CHƯA CÓ NHƯNG METADATA ĐĂNG KÝ CÓ MSSV TRONG DANH SÁCH LỚP
-  if v_profile_mssv = '' then
-    select coalesce(
-      nullif(btrim(u.raw_user_meta_data->>'mssv'), ''),
-      nullif(btrim(u.raw_user_meta_data->>'username'), '')
-    ) into v_raw_meta_mssv
-    from auth.users u
-    where u.id = v_uid;
-
-    if v_raw_meta_mssv is not null and exists (
-      select 1 from public.students where mssv = v_raw_meta_mssv
-    ) and not exists (
-      select 1 from public.profiles where mssv = v_raw_meta_mssv and user_id <> v_uid
-    ) then
-      v_profile_mssv := v_raw_meta_mssv;
-      update public.profiles
-      set mssv = v_profile_mssv
-      where user_id = v_uid;
+      if v_raw_meta_mssv is not null and exists (
+        select 1 from public.students where mssv = v_raw_meta_mssv
+      ) and not exists (
+        select 1 from public.profiles where mssv = v_raw_meta_mssv and user_id <> v_uid
+      ) then
+        v_profile_mssv := v_raw_meta_mssv;
+        update public.profiles
+        set mssv = v_profile_mssv
+        where user_id = v_uid;
+      end if;
     end if;
-  end if;
 
-  -- Nếu vẫn chưa có MSSV thì dùng p_mssv nếu p_mssv hợp lệ trong danh sách lớp và chưa ai nhận
-  if v_profile_mssv = '' and p_mssv is not null and btrim(p_mssv) <> '' then
-    if exists (
-      select 1 from public.students where mssv = btrim(p_mssv)
-    ) and not exists (
-      select 1 from public.profiles where mssv = btrim(p_mssv) and user_id <> v_uid
-    ) then
-      v_profile_mssv := btrim(p_mssv);
-      update public.profiles
-      set mssv = v_profile_mssv
-      where user_id = v_uid;
+    -- Nếu vẫn chưa có MSSV thì dùng p_mssv nếu p_mssv hợp lệ trong danh sách lớp và chưa ai nhận
+    if v_profile_mssv = '' and p_mssv is not null and btrim(p_mssv) <> '' then
+      if exists (
+        select 1 from public.students where mssv = btrim(p_mssv)
+      ) and not exists (
+        select 1 from public.profiles where mssv = btrim(p_mssv) and user_id <> v_uid
+      ) then
+        v_profile_mssv := btrim(p_mssv);
+        update public.profiles
+        set mssv = v_profile_mssv
+        where user_id = v_uid;
+      end if;
     end if;
+
+    if v_profile_mssv = '' then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'NO_MSSV',
+        'message', 'Tài khoản chưa có MSSV hợp lệ trong danh sách lớp.'
+      );
+    end if;
+
+    v_mssv := v_profile_mssv;
+  else
+    -- 1b. Sinh viên đã đăng nhập lần trước trên máy / quét qua app ngoài, không bắt đăng nhập lại
+    if p_mssv is null or btrim(p_mssv) = '' then
+      return jsonb_build_object(
+        'ok', false,
+        'code', 'NO_MSSV',
+        'message', 'Vui lòng cung cấp MSSV của bạn để điểm danh.'
+      );
+    end if;
+    v_mssv := btrim(p_mssv);
   end if;
 
-  if v_profile_mssv = '' then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'NO_MSSV',
-      'message', 'Tài khoản chưa có MSSV hợp lệ trong danh sách lớp.'
-    );
-  end if;
-
-  v_mssv := v_profile_mssv;
-
-  -- 3. KIỂM TRA THÔNG TIN ĐẦU VÀO & REGEX TOKEN QR
+  -- 2. KIỂM TRA THÔNG TIN ĐẦU VÀO & REGEX TOKEN QR
   if v_clean_session = ''
      or v_clean_cat = ''
      or v_clean_device = ''
@@ -589,7 +659,7 @@ begin
     );
   end if;
 
-  -- 4. KIỂM TRA PHIÊN ĐIỂM DANH
+  -- 3. KIỂM TRA PHIÊN ĐIỂM DANH
   select *
     into s
   from public.sessions
@@ -608,7 +678,7 @@ begin
     );
   end if;
 
-  -- 5. XÁC THỰC CHỮ KÝ TOKEN QR
+  -- 4. XÁC THỰC CHỮ KÝ TOKEN QR
   v_win := split_part(p_token, '.', 1)::bigint;
 
   if split_part(p_token, '.', 2)
@@ -620,7 +690,11 @@ begin
     );
   end if;
 
-  -- 6. KIỂM TRA THỜI GIAN HIỆU LỰC TOKEN QR
+  -- 5. KIỂM TRA THỜI GIAN HIỆU LỰC TOKEN QR (Hỗ trợ tạm dừng)
+  if coalesce(s.is_paused, false) and s.paused_at is not null then
+    v_now := (extract(epoch from s.paused_at) * 1000)::bigint;
+  end if;
+
   v_started_ms := (extract(epoch from s.started_at) * 1000)::bigint;
   v_cycle := coalesce(s.refresh_time, 20) * 1000;
   v_start := v_started_ms + (v_win * v_cycle);
@@ -736,9 +810,9 @@ exception
 end;
 $$;
 
--- Chỉ cấp quyền gọi submit_attendance cho authenticated, cấm tuyệt đối anon
-revoke all on function public.submit_attendance(text, text, text, text, text, text) from public, anon;
-grant execute on function public.submit_attendance(text, text, text, text, text, text) to authenticated;
+-- Cấp quyền gọi submit_attendance cho authenticated và anon (học sinh quét link ngoài không cần đăng nhập lại)
+revoke all on function public.submit_attendance(text, text, text, text, text, text) from public;
+grant execute on function public.submit_attendance(text, text, text, text, text, text) to anon, authenticated;
 
 -- XÓA RPC CŨ KHÔNG DÙNG QR ĐỂ TRÁNH GIAN LẬN
 drop function if exists public.submit_attendance_authenticated(text, text, text, text);

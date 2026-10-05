@@ -194,11 +194,6 @@ async function onScanSuccess(decodedText){
   const mssv = document.getElementById('mssv').value.trim();
   const category = document.getElementById('category').value;
 
-  if (!loggedInUser) {
-    showBadge('err', '✓ Đã nhận mã QR! Tuy nhiên bạn chưa đăng nhập tài khoản sinh viên. Vui lòng đăng nhập để điểm danh.');
-    return;
-  }
-
   if (!mssv) {
     showBadge('info', '✓ Đã quét mã QR thành công! Vui lòng nhập MSSV rồi bấm Xác nhận.');
     document.getElementById('mssv').focus();
@@ -215,7 +210,15 @@ async function onScanSuccess(decodedText){
   await doCheckin();
 }
 
+function clearSavedStudent(){
+  localStorage.removeItem('saved_mssv');
+  localStorage.removeItem('saved_student_creds');
+  location.reload();
+}
+
 async function logoutStudent(){
+  localStorage.removeItem('saved_mssv');
+  localStorage.removeItem('saved_student_creds');
   await supabase.auth.signOut();
   location.href = 'index.html';
 }
@@ -236,10 +239,33 @@ async function init(){
     catSel.value = savedCat;
   }
 
-  // 1. Kiểm tra tài khoản sinh viên đăng nhập và tự động nhận diện MSSV
+  // 1. Kiểm tra tài khoản sinh viên đăng nhập / tự động nhận diện từ lần đăng nhập trước
   try {
-    const { data: authData } = await supabase.auth.getSession();
-    const user = authData?.session?.user;
+    let { data: authData } = await supabase.auth.getSession();
+    let user = authData?.session?.user;
+
+    // NẾU CHƯA CÓ PHIÊN AUTH, TỰ ĐỘNG ĐĂNG NHẬP NGẦM BẰNG THÔNG TIN ĐÃ LƯU
+    if (!user) {
+      const rawCreds = localStorage.getItem('saved_student_creds');
+      if (rawCreds) {
+        try {
+          const creds = JSON.parse(rawCreds);
+          if (creds.email && creds.pwd) {
+            const { data: loginData } = await supabase.auth.signInWithPassword({
+              email: creds.email,
+              password: creds.pwd
+            });
+            user = loginData?.user || null;
+          }
+        } catch (e) {}
+      }
+    }
+
+    const savedMssv = (localStorage.getItem('saved_mssv') || '').trim();
+    const m = document.getElementById('mssv');
+    const hint = document.getElementById('mssvHint');
+    const banner = document.getElementById('studentAuthBanner');
+
     if (user) {
       loggedInUser = user;
 
@@ -254,27 +280,13 @@ async function init(){
         console.warn('[init profiles query]', profErr);
       }
 
-      // Ưu tiên MSSV từ profiles, nếu chưa có thì lấy từ metadata lúc đăng ký
+      // Ưu tiên MSSV từ profiles, nếu chưa có thì lấy từ metadata lúc đăng ký hoặc saved_mssv
       const meta = user.user_metadata || {};
-      const stMssv = (profile?.mssv || meta.mssv || '').trim();
+      const stMssv = (profile?.mssv || meta.mssv || savedMssv || '').trim();
       const stName = profile?.full_name || meta.name || profile?.username || user.email;
 
-      const banner = document.getElementById('studentAuthBanner');
-      if (banner) {
-        banner.style.display = 'block';
-        banner.style.background = 'var(--info-bg, rgba(59, 130, 246, 0.1))';
-        banner.style.color = 'var(--info, #2563eb)';
-        banner.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <span>👋 Xin chào: <b>${escapeHtml(stName)}</b>${stMssv ? ' (MSSV: <b>' + escapeHtml(stMssv) + '</b>)' : ''}</span>
-            <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đăng xuất</button>
-          </div>
-        `;
-      }
-
-      const m = document.getElementById('mssv');
-      const hint = document.getElementById('mssvHint');
       if (stMssv) {
+        localStorage.setItem('saved_mssv', stMssv);
         if (m) {
           m.value = stMssv;
           m.readOnly = true;
@@ -282,34 +294,59 @@ async function init(){
         }
         if (hint) {
           hint.style.color = 'var(--text-muted)';
-          hint.innerText = '🔒 Đã tự động điền và khóa theo tài khoản sinh viên';
-        }
-      } else {
-        if (m) {
-          m.readOnly = false;
-          m.placeholder = 'Nhập mã số sinh viên';
-          m.style.background = '';
-        }
-        if (hint) {
-          hint.style.color = '';
-          hint.innerText = 'Nhập đúng MSSV của bạn trong danh sách lớp';
+          hint.innerText = '🔒 Đã tự động nhận diện và khóa theo tài khoản sinh viên';
         }
       }
-    } else {
-      // Chưa đăng nhập
-      const banner = document.getElementById('studentAuthBanner');
+
       if (banner) {
         banner.style.display = 'block';
-        banner.style.background = 'var(--err-bg, #f8d7da)';
-        banner.style.color = 'var(--err, #721c24)';
+        banner.style.background = 'var(--info-bg, rgba(59, 130, 246, 0.1))';
+        banner.style.color = 'var(--info, #2563eb)';
         banner.innerHTML = `
-          <span>⚠️ Bạn chưa đăng nhập. Vui lòng <a href="index.html" style="color:var(--primary, #3b82f6);font-weight:700;text-decoration:underline;">Đăng nhập tài khoản sinh viên</a> trước khi điểm danh.</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <span>👋 Xin chào: <b>${escapeHtml(stName)}</b>${stMssv ? ' (MSSV: <b>' + escapeHtml(stMssv) + '</b>)' : ''}</span>
+            <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đổi tài khoản</button>
+          </div>
         `;
       }
-      const hint = document.getElementById('mssvHint');
+    } else if (savedMssv) {
+      // Trường hợp không có session auth (quét từ Zalo / app ngoài), nhưng máy đã nhớ MSSV từ lần trước
+      if (m) {
+        m.value = savedMssv;
+        m.readOnly = true;
+        m.style.background = 'var(--surface-2)';
+      }
       if (hint) {
-        hint.style.color = 'var(--err, #ef4444)';
-        hint.innerText = '⚠️ Bắt buộc đăng nhập tài khoản sinh viên để điểm danh';
+        hint.style.color = 'var(--ok, #059669)';
+        hint.innerText = '✓ Đã tự động nhớ MSSV của bạn từ lần đăng nhập trước';
+      }
+      if (banner) {
+        banner.style.display = 'block';
+        banner.style.background = 'var(--ok-bg, rgba(16, 185, 129, 0.1))';
+        banner.style.color = 'var(--ok, #059669)';
+        banner.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <span>✓ Đã nhận diện sinh viên MSSV: <b>${escapeHtml(savedMssv)}</b> (Lần trước đã đăng nhập)</span>
+            <button type="button" onclick="clearSavedStudent()" style="background:none;border:none;color:var(--muted, #64748b);font-weight:600;cursor:pointer;font-size:11.5px;text-decoration:underline;">Đổi MSSV</button>
+          </div>
+        `;
+      }
+    } else {
+      // Chưa từng đăng nhập hay nhập MSSV
+      if (banner) {
+        banner.style.display = 'block';
+        banner.style.background = 'var(--surface-2, #f1f5f9)';
+        banner.style.color = 'var(--muted, #475569)';
+        banner.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <span>💡 Nhập MSSV của bạn (hệ thống sẽ tự ghi nhớ cho các lần quét sau).</span>
+            <a href="index.html" style="color:var(--primary, #3b82f6);font-weight:700;font-size:12px;text-decoration:underline;">Đăng nhập</a>
+          </div>
+        `;
+      }
+      if (hint) {
+        hint.style.color = '';
+        hint.innerText = '✓ Hệ thống tự ghi nhớ MSSV cho các lần sau';
       }
     }
   } catch (e) {
@@ -380,29 +417,23 @@ async function doCheckin(){
     return;
   }
 
-  // 1. Kiểm tra đăng nhập
-  if (!loggedInUser) {
-    showBadge('err', 'Bạn chưa đăng nhập! Vui lòng <a href="index.html" style="color:inherit;font-weight:700;text-decoration:underline;">Đăng nhập tài khoản sinh viên</a> để điểm danh.');
-    return;
-  }
-
-  // 2. Kiểm tra mã QR
-  if (!sessionToken) {
-    showBadge('err', 'Thiếu mã QR điểm danh. Vui lòng quét mã QR đang hiển thị trên màn hình.');
-    return;
-  }
-
   const mssv = document.getElementById('mssv').value.trim();
   const category = document.getElementById('category').value;
 
   if (!mssv){
-    showBadge('err', 'Vui lòng nhập MSSV!');
+    showBadge('err', 'Vui lòng nhập MSSV của bạn!');
     document.getElementById('mssv').focus();
     return;
   }
   if (!category){
     showBadge('err', 'Vui lòng chọn Lĩnh vực!');
     document.getElementById('category').focus();
+    return;
+  }
+
+  // Kiểm tra mã QR
+  if (!sessionToken) {
+    showBadge('err', 'Thiếu mã QR điểm danh. Vui lòng bấm nút mở Camera để quét mã trên màn hình.');
     return;
   }
 

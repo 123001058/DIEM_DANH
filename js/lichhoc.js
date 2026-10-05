@@ -166,7 +166,8 @@
 
   // Fetch data
   async function loadData() {
-    // 1. Kiểm tra quyền Admin: Chỉ Admin mới được phép tra cứu thời khóa biểu
+    // 1. Kiểm tra quyền: Admin và Đội trưởng được tra cứu thời khóa biểu
+    //    (Đội trưởng cần lịch học để xác định lịch rảnh và giao nhiệm vụ)
     try {
       if (typeof supabase === 'undefined') {
         alert('Lỗi khởi tạo hệ thống! Vui lòng tải lại trang.');
@@ -175,13 +176,19 @@
 
       const { data: authData } = await supabase.auth.getSession();
       if (!authData?.session) {
-        alert('Vui lòng đăng nhập bằng tài khoản Quản trị viên (Admin) để tra cứu thời khóa biểu!');
+        alert('Vui lòng đăng nhập để tra cứu thời khóa biểu!');
         return location.replace('index.html');
       }
 
-      const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
-      if (adminErr || !isAdmin) {
-        alert('Từ chối truy cập! Chỉ Admin mới có quyền tra cứu thời khóa biểu.');
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', authData.session.user.id)
+        .maybeSingle();
+      const role = prof?.role || 'student';
+
+      if (role !== 'admin' && role !== 'leader') {
+        alert('Từ chối truy cập! Chỉ Admin và Đội trưởng có quyền tra cứu thời khóa biểu.');
         return location.replace('index.html');
       }
     } catch (e) {

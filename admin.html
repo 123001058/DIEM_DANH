@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/admin.css">
+<link rel="stylesheet" href="css/roles.css">
 <!-- BẮT BUỘC: qrcode và Supabase CDN phải nằm trước js/config.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -36,10 +37,47 @@
       <a href="lichhoc.html" class="nav-pill" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--border-strong);color:var(--text);margin-right:8px;">
         📅 Thời khóa biểu
       </a>
+      <button class="btn-logout" onclick="showRolesPanel()">👥 Nhóm &amp; Phân quyền</button>
       <div id="statusIndicator" class="status-badge status-off"><span class="dot"></span><span>ĐÓNG</span></div>
       <button class="btn-logout" onclick="logout()">Đăng xuất</button>
     </div>
   </header>
+
+  <!-- ============ PANEL NHÓM & PHÂN QUYỀN (chỉ Admin) ============ -->
+  <section class="card" id="rolesPanel" style="display:none;padding:20px 22px;margin-bottom:20px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <div>
+        <div class="card-label" style="margin-bottom:3px;">Quản lý &amp; Cấp quyền</div>
+        <p class="rk-muted" style="margin:0;">Tạo nhóm, thêm thành viên và cấp quyền Đội trưởng.</p>
+      </div>
+      <button class="rk-btn rk-btn-sm" onclick="hideRolesPanel()">✕ Đóng</button>
+    </div>
+
+    <div class="rk-alert" id="adminRolesAlert"></div>
+
+    <!-- Tạo nhóm -->
+    <div class="rk-grid rk-grid-2" style="margin-bottom:20px;">
+      <div class="rk-field">
+        <label class="input-label" for="newTeamName">Tên nhóm / đội <span class="req">*</span></label>
+        <input type="text" id="newTeamName" placeholder="VD: Đội Thiết kế">
+      </div>
+      <div class="rk-field">
+        <label class="input-label" for="newTeamDesc">Mô tả</label>
+        <input type="text" id="newTeamDesc" placeholder="VD: Phụ trách môn Thết kế AI">
+      </div>
+    </div>
+    <div style="margin-bottom:22px;">
+      <button class="rk-btn rk-btn-primary" onclick="adminCreateTeam()">＋ Tạo nhóm</button>
+    </div>
+
+    <!-- Danh sách nhóm -->
+    <div class="rk-card-title" style="margin-bottom:10px;">Các nhóm đang có</div>
+    <div id="adminTeamList"><div class="rk-empty">Đang tải...</div></div>
+
+    <!-- Danh sách tài khoản -->
+    <div class="rk-card-title" style="margin:22px 0 10px;">Tài khoản &amp; quyền</div>
+    <div id="adminUserList"><div class="rk-empty">Đang tải...</div></div>
+  </section>
 
   <section class="card rise rise-2">
     <div class="card-label">Cấu hình phiên điểm danh</div>
@@ -78,7 +116,14 @@
         <span>Đổi mã sau <b id="secondsLeft">20s</b></span>
         <span class="warn">Còn lại <b id="sessionCountdown">--:--</b></span>
       </div>
-      <button class="btn-full" onclick="toggleFullscreen()">⛶ Phóng to toàn màn hình</button>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button type="button" class="btn-full" id="btnPauseResume" onclick="togglePauseQR()" style="margin-top:0;background:var(--warn-bg,#fef3c7);color:var(--warn,#d97706);border:1px solid rgba(217,119,6,0.3);cursor:pointer;" title="Tạm dừng / Tiếp tục đếm ngược QR">
+          ⏸ Tạm dừng QR
+        </button>
+        <button type="button" class="btn-full" onclick="toggleFullscreen()" style="margin-top:0;cursor:pointer;">
+          ⛶ Toàn màn hình
+        </button>
+      </div>
     </aside>
 
     <section class="card">
@@ -119,6 +164,8 @@
   </div>
 </div>
 
+<script src="js/roles.js?v=1"></script>
+<script src="js/admin-roles.js?v=1"></script>
 <script src="js/admin.js"></script>
 </body>
 </html>

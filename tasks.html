@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nhiệm Vụ Của Tôi</title>
+<meta name="description" content="Xem và cập nhật tiến độ các nhiệm vụ được giao.">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/roles.css">
+<!-- BẮT BUỘC: Supabase CDN phải nằm trước js/config.js -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=4"></script>
+<script src="js/roles.js?v=1"></script>
+<script src="js/availability.js?v=1"></script>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="page-wrapper">
+
+  <header class="card rk-topbar rise">
+    <div class="rk-topbar-left">
+      <svg class="logo-sm" width="44" height="44" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6c653"/><stop offset="1" stop-color="#c8951f"/></linearGradient></defs>
+        <circle cx="60" cy="60" r="56" fill="url(#lg)"/>
+        <path d="M30 52 L60 38 L90 52 L60 66 Z" fill="#fff"/>
+        <rect x="42" y="62" width="36" height="18" rx="2" fill="#fff" opacity="0.9"/>
+      </svg>
+      <div>
+        <h1>Nhiệm Vụ Của Tôi</h1>
+        <p id="mySubtitle">Đang tải...</p>
+      </div>
+    </div>
+    <div class="rk-topbar-right">
+      <span class="rk-role-chip chip-student" id="roleChip">Thành viên</span>
+      <a href="checkin.html" class="rk-btn">📷 Điểm danh</a>
+      <a href="lichhoc.html" class="rk-btn">📅 Lịch học</a>
+      <button class="rk-btn" onclick="roleLogout()">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div id="pageAlert" class="rk-alert"></div>
+
+  <section class="rk-stats rise rise-2">
+    <div class="rk-stat"><div class="rk-stat-label">Chưa bắt đầu</div><div class="rk-stat-value" id="statTodo">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Đang thực hiện</div><div class="rk-stat-value info" id="statDoing">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Hoàn thành</div><div class="rk-stat-value ok" id="statDone">0</div></div>
+  </section>
+
+  <!-- ============ NHIỆM VỤ ĐƯỢC GIAO ============ -->
+  <section class="card rk-card rise rise-2">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div class="rk-card-title">Nhiệm vụ được giao</div>
+        <p class="rk-card-sub" style="margin-bottom:0;">Cập nhật tiến độ để Đội trưởng nắm được tình hình.</p>
+      </div>
+      <select id="filterStatus" style="width:auto;min-width:150px;">
+        <option value="all">Tất cả trạng thái</option>
+        <option value="todo">Chưa bắt đầu</option>
+        <option value="doing">Đang thực hiện</option>
+        <option value="done">Hoàn thành</option>
+        <option value="cancelled">Đã huỷ</option>
+      </select>
+    </div>
+    <div id="myTaskList" style="margin-top:16px;">
+      <div class="rk-empty">Đang tải nhiệm vụ...</div>
+    </div>
+  </section>
+
+  <!-- ============ KHAI BÁO LỊCH RẢNH RIÊNG ============ -->
+  <section class="card rk-card rise rise-3">
+    <div class="rk-card-title">Khai báo thời gian bận</div>
+    <p class="rk-card-sub">
+      Đánh dấu những khung giờ bạn <b>không thể</b> tham gia để Đội trưởng tránh giao nhiệm vụ cho bạn vào lúc đó.
+      (Lịch học đã được hệ thống tự động nhận biết.)
+    </p>
+    <div id="myAvailabilityBox">
+      <div class="rk-empty">Đang tải lịch rảnh...</div>
+    </div>
+    <div id="blockReasonBox" style="display:none;margin-top:14px;">
+      <label class="input-label" for="blockReason">Lý do bận (không bắt buộc)</label>
+      <input type="text" id="blockReason" placeholder="VD: Đi làm thêm, thi, đi công tác...">
+    </div>
+  </section>
+
+</div>
+
+<script src="js/tasks.js?v=1"></script>
+</body>
+</html>

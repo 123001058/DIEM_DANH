@@ -99,9 +99,75 @@ async function turnOff(auto){
     }
 }
 
+let isPaused = false;
+let sessionStartedMs = 0;
+let sessionEndsAt = 0;
+let pauseStartMs = 0;
+let sessionCycleMs = 20000;
+
+async function togglePauseQR(){
+    if (!currentSessionId || !isOpen) return;
+    const btn = document.getElementById('btnPauseResume');
+    if (btn) btn.disabled = true;
+    try {
+        const { data, error } = await supabase.rpc('admin_toggle_pause', { p_session_id: String(currentSessionId) });
+        if (error) throw error;
+        isPaused = !!(data && data.is_paused);
+        if (isPaused) {
+            pauseStartMs = nowMs();
+        } else {
+            if (pauseStartMs) {
+                const diff = Math.max(0, nowMs() - pauseStartMs);
+                sessionStartedMs += diff;
+                sessionEndsAt += diff;
+                pauseStartMs = 0;
+            }
+        }
+        updatePauseUI();
+    } catch (e) {
+        console.error('[togglePauseQR]', e);
+        alert('Lỗi tạm dừng/tiếp tục: ' + (e.message || e));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function updatePauseUI(){
+    const btn = document.getElementById('btnPauseResume');
+    const badge = document.getElementById('statusIndicator');
+    const name = document.getElementById('sessionName')?.value || '';
+    if (isPaused) {
+        if (btn) {
+            btn.innerHTML = '▶ Tiếp tục QR';
+            btn.style.background = 'var(--ok-bg, #dcfce7)';
+            btn.style.color = 'var(--ok, #16a34a)';
+            btn.style.borderColor = 'rgba(22,163,74,0.3)';
+            btn.title = 'Bấm để tiếp tục chạy đếm ngược QR';
+        }
+        if (badge) {
+            badge.className = 'status-badge status-warn';
+            badge.innerHTML = '<span class="dot" style="background:#f59e0b"></span><span>TẠM DỪNG QR</span>';
+        }
+    } else {
+        if (btn) {
+            btn.innerHTML = '⏸ Tạm dừng QR';
+            btn.style.background = 'var(--warn-bg, #fef3c7)';
+            btn.style.color = 'var(--warn, #d97706)';
+            btn.style.borderColor = 'rgba(217,119,6,0.3)';
+            btn.title = 'Bấm để tạm dừng đếm ngược QR';
+        }
+        if (badge && isOpen) {
+            badge.className = 'status-badge status-on';
+            badge.innerHTML = '<span class="pulse"></span><span>MỞ — ' + escapeHtml(name) + '</span>';
+        }
+    }
+}
+
 function startSessionUI(st){
     isOpen = true;
     lastToken = null;
+    isPaused = !!st.is_paused;
+    pauseStartMs = isPaused ? nowMs() : 0;
     document.getElementById('dashboardArea').classList.add('show');
     document.getElementById('emptyState').style.display = 'none';
     document.getElementById('statusIndicator').className = 'status-badge status-on';
@@ -113,17 +179,19 @@ function startSessionUI(st){
     if (st.duration_min) document.getElementById('sessionDuration').value = st.duration_min;
 
     const refresh = Math.max(5, Number(st.refresh_time) || 20);
-    const startedMs = new Date(st.started_at).getTime();
-    const cycleMs = refresh * 1000;
-    const endsAt = startedMs + (st.duration_min * 60 * 1000);
+    sessionCycleMs = refresh * 1000;
+    sessionStartedMs = new Date(st.started_at).getTime();
+    sessionEndsAt = sessionStartedMs + (st.duration_min * 60 * 1000);
+
+    updatePauseUI();
 
     const calcCycle = () => {
         const now = nowMs();
-        const elapsed = Math.max(0, now - startedMs);
-        const win = Math.floor(elapsed / cycleMs);
-        const cycleEnd = startedMs + (win + 1) * cycleMs;
+        const elapsed = Math.max(0, now - sessionStartedMs);
+        const win = Math.floor(elapsed / sessionCycleMs);
+        const cycleEnd = sessionStartedMs + (win + 1) * sessionCycleMs;
         const remaining = Math.max(1, Math.ceil((cycleEnd - now) / 1000));
-        const pct = Math.max(0, Math.min(100, ((cycleEnd - now) / cycleMs) * 100));
+        const pct = Math.max(0, Math.min(100, ((cycleEnd - now) / sessionCycleMs) * 100));
         return { win, remaining, pct };
     };
 
@@ -137,6 +205,7 @@ function startSessionUI(st){
 
     clearInterval(progressInterval);
     progressInterval = setInterval(() => {
+        if (isPaused) return; // Đóng băng đếm ngược và thanh progress khi tạm dừng
         const { win, remaining, pct } = calcCycle();
         if (win !== lastToken) {
             lastToken = win;
@@ -148,7 +217,8 @@ function startSessionUI(st){
 
     clearInterval(sessionTimer);
     sessionTimer = setInterval(() => {
-        const left = Math.max(0, Math.floor((endsAt - nowMs())/1000));
+        if (isPaused) return; // Đóng băng thời gian tổng của phiên khi tạm dừng
+        const left = Math.max(0, Math.floor((sessionEndsAt - nowMs())/1000));
         document.getElementById('sessionCountdown').innerText = fmtTime(left);
         if (left <= 0) turnOff(true);
     }, 1000);
@@ -158,9 +228,13 @@ function stopSessionUI(){
     isOpen = false;
     currentSessionId = null;
     lastToken = null;
+    isPaused = false;
+    pauseStartMs = 0;
     clearInterval(progressInterval);
     clearInterval(sessionTimer);
     if (document.fullscreenElement) document.exitFullscreen();
+
+    updatePauseUI();
 
     // Reset 100% giao diện về ban đầu: hiện emptyState, ẩn dashboardArea
     document.getElementById('dashboardArea').classList.remove('show');

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bảng Điều Khiển Đội Trưởng</title>
+<meta name="description" content="Quản lý nhóm, xem lịch rảnh thành viên và giao nhiệm vụ.">
+<meta name="theme-color" content="#f5f6f8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/roles.css">
+<!-- BẮT BUỘC: Supabase CDN phải nằm trước js/config.js -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=4"></script>
+<script src="js/roles.js?v=1"></script>
+<script src="js/availability.js?v=1"></script>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="page-wrapper">
+
+  <header class="card rk-topbar rise">
+    <div class="rk-topbar-left">
+      <svg class="logo-sm" width="44" height="44" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6c653"/><stop offset="1" stop-color="#c8951f"/></linearGradient></defs>
+        <circle cx="60" cy="60" r="56" fill="url(#lg)"/>
+        <path d="M30 52 L60 38 L90 52 L60 66 Z" fill="#fff"/>
+        <rect x="42" y="62" width="36" height="18" rx="2" fill="#fff" opacity="0.9"/>
+      </svg>
+      <div>
+        <h1>Bảng Điều Khiển Đội Trưởng</h1>
+        <p id="teamSubtitle">Đang tải thông tin nhóm...</p>
+      </div>
+    </div>
+    <div class="rk-topbar-right">
+      <span class="rk-role-chip chip-leader" id="roleChip">Đội trưởng</span>
+      <select id="teamSelect" style="width:auto;min-width:190px;display:none;"></select>
+      <a href="lichhoc.html" class="rk-btn">📅 Thời khóa biểu</a>
+      <a href="checkin.html" class="rk-btn">📷 Điểm danh</a>
+      <button class="rk-btn" onclick="roleLogout()">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div id="pageAlert" class="rk-alert"></div>
+
+  <section class="rk-stats rise rise-2">
+    <div class="rk-stat"><div class="rk-stat-label">Thành viên</div><div class="rk-stat-value" id="statMembers">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Nhiệm vụ đang mở</div><div class="rk-stat-value info" id="statOpenTasks">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Đã hoàn thành</div><div class="rk-stat-value ok" id="statDoneTasks">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Rảnh tuần này</div><div class="rk-stat-value" id="statFreeNow">—</div></div>
+  </section>
+
+  <!-- ============ TẠO + GIAO NHIỆM VỤ ============ -->
+  <section class="card rk-card rise rise-2" id="createSection">
+    <div class="rk-card-title">Giao nhiệm vụ mới</div>
+    <p class="rk-card-sub">Chọn khung giờ dự kiến, hệ thống sẽ chỉ ra thành viên đang rảnh để bạn ưu tiên phân công.</p>
+
+    <div class="rk-alert" id="assignAlert"></div>
+
+    <div class="rk-grid rk-grid-2">
+      <div class="rk-field">
+        <label class="input-label" for="taskTitle">Tiêu đề nhiệm vụ <span class="req">*</span></label>
+        <input type="text" id="taskTitle" placeholder="VD: Kiểm tra thiết bị phòng C503 trước buổi học">
+      </div>
+      <div class="rk-field">
+        <label class="input-label" for="taskPriority">Mức độ ưu tiên</label>
+        <select id="taskPriority">
+          <option value="low">Thấp</option>
+          <option value="normal" selected>Thường</option>
+          <option value="high">Cao</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="rk-field">
+      <label class="input-label" for="taskDesc">Mô tả chi tiết</label>
+      <textarea id="taskDesc" rows="2" placeholder="Hướng dẫn cụ thể cho người nhận việc..."></textarea>
+    </div>
+
+    <div class="rk-grid rk-grid-3">
+      <div class="rk-field">
+        <label class="input-label" for="taskThu">Thứ dự kiến</label>
+        <select id="taskThu">
+          <option value="">— Không chọn —</option>
+          <option value="2">Thứ Hai</option>
+          <option value="3">Thứ Ba</option>
+          <option value="4">Thứ Tư</option>
+          <option value="5">Thứ Năm</option>
+          <option value="6">Thứ Sáu</option>
+          <option value="7">Thứ Bảy</option>
+          <option value="8">Chủ Nhật</option>
+        </select>
+      </div>
+      <div class="rk-field">
+        <label class="input-label" for="taskBuoi">Buổi dự kiến</label>
+        <select id="taskBuoi">
+          <option value="">— Không chọn —</option>
+          <option value="1">Sáng (07:30 – 11:25)</option>
+          <option value="2">Chiều (12:50 – 16:45)</option>
+          <option value="3">Tối (17:30 – 20:50)</option>
+        </select>
+      </div>
+      <div class="rk-field">
+        <label class="input-label" for="taskDue">Hạn hoàn thành</label>
+        <input type="datetime-local" id="taskDue">
+      </div>
+    </div>
+
+    <div class="rk-field">
+      <label class="input-label">Phân công cho <span id="pickHint" class="rk-muted" style="text-transform:none;letter-spacing:0">— chọn khung giờ để xem ai rảnh</span></label>
+      <div class="rk-member-picker" id="memberPicker">
+        <div class="rk-empty">Đang tải thành viên nhóm...</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="rk-btn rk-btn-primary" id="btnCreateTask" onclick="createAndAssign()">＋ Tạo & giao nhiệm vụ</button>
+      <button class="rk-btn" onclick="resetTaskForm()">Xoá form</button>
+    </div>
+  </section>
+
+  <!-- ============ LỊCH RẢNH THÀNH VIÊN ============ -->
+  <section class="card rk-card rise rise-3">
+    <div class="rk-card-title">Lịch rảnh thành viên</div>
+    <p class="rk-card-sub">
+      <span style="color:#b45309;font-weight:700;">🟨 Có lớp</span> ·
+      <span style="color:var(--err);font-weight:700;">✕ Đã báo bận</span> ·
+      <span style="color:var(--ok);font-weight:700;">✓ Rảnh</span>
+    </p>
+    <div id="availabilityBox">
+      <div class="rk-empty">Đang tải lịch rảnh...</div>
+    </div>
+  </section>
+
+  <!-- ============ DANH SÁCH NHIỆM VỤ NHÓM ============ -->
+  <section class="card rk-card rise rise-3">
+    <div class="rk-card-title">Nhiệm vụ trong nhóm</div>
+    <p class="rk-card-sub">Theo dõi tiến độ của từng nhiệm vụ đã giao.</p>
+    <div id="taskBoard">
+      <div class="rk-empty">Đang tải nhiệm vụ...</div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/leader.js?v=1"></script>
+</body>
+</html>

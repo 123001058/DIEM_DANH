@@ -76,15 +76,31 @@ async function submitLogin(){
     return;
   }
 
-  // Kiểm tra quyền người dùng:
-  // Admin -> vào trang quản lý (admin.html)
-  // Sinh viên & Đội trưởng -> mở trực tiếp form điền điểm danh (checkin.html)
+  // Lưu thông tin đăng nhập sinh viên vào localStorage để nhớ vĩnh viễn trên thiết bị này
   try {
-    const { data: isAdmin } = await supabase.rpc('is_admin');
-    const role = data.user?.user_metadata?.app_role;
+    const loginEmail = username.includes('@') ? username : username + CONFIG.AUTH_EMAIL_SUFFIX;
+    localStorage.setItem('saved_student_creds', JSON.stringify({ email: loginEmail, pwd }));
+    const metaMssv = data?.user?.user_metadata?.mssv;
+    if (metaMssv) localStorage.setItem('saved_mssv', metaMssv);
+  } catch (e) {}
 
-    if (isAdmin || role === 'admin') {
+  // Điều hướng theo vai trò (đọc từ bảng profiles — nguồn sự thật duy nhất):
+  //   admin   -> admin.html   (Bảng điều khiển quản trị + Nhóm & Phân quyền)
+  //   leader  -> leader.html  (Quản lý nhóm, xem lịch rảnh, giao nhiệm vụ)
+  //   student -> checkin.html (Điểm danh)
+  try {
+    let role = null;
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', data.user.id)
+      .maybeSingle();
+    role = prof?.role || data.user?.user_metadata?.app_role || null;
+
+    if (role === 'admin') {
       location.href = 'admin.html';
+    } else if (role === 'leader') {
+      location.href = 'leader.html';
     } else {
       location.href = 'checkin.html';
     }
@@ -182,6 +198,11 @@ async function submitRegister(){
     });
 
     if (!loginError && loginData?.session) {
+      try {
+        localStorage.setItem('saved_student_creds', JSON.stringify({ email: email, pwd: password }));
+        if (mssv) localStorage.setItem('saved_mssv', mssv);
+      } catch (e) {}
+
       setTimeout(async () => {
         try {
           const { data: isAdmin } = await supabase.rpc('is_admin');
@@ -223,21 +244,36 @@ async function submitRegister(){
   }
 }
 
-// Kiểm tra phiên hiện hành để đổi nút Trang chủ
+// Kiểm tra phiên hiện hành để đổi nút Trang chủ theo vai trò
 async function checkCurrentSession(){
   try {
     const { data } = await supabase.auth.getSession();
     if (data?.session) {
-      const { data: ok } = await supabase.rpc('is_admin');
+      const user = data.session.user;
+
+      // Đọc vai trò từ bảng profiles (nguồn sự thật)
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const role = prof?.role || user.user_metadata?.app_role || 'student';
+
       const btn = document.getElementById('btnOpenLogin');
-      if (btn) {
-        if (ok) {
-          btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg> Vào bảng quản trị →`;
-          btn.onclick = () => { location.href = 'admin.html'; };
-        } else {
-          btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg> Vào form điểm danh →`;
-          btn.onclick = () => { location.href = 'checkin.html'; };
-        }
+      if (!btn) return;
+
+      // Mỗi vai trò đi tới trang tương ứng
+      const ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>`;
+
+      if (role === 'admin') {
+        btn.innerHTML = ICON + ' Vào bảng quản trị →';
+        btn.onclick = () => { location.href = 'admin.html'; };
+      } else if (role === 'leader') {
+        btn.innerHTML = ICON + ' Vào bảng đội trưởng →';
+        btn.onclick = () => { location.href = 'leader.html'; };
+      } else {
+        btn.innerHTML = ICON + ' Vào nhiệm vụ của tôi →';
+        btn.onclick = () => { location.href = 'tasks.html'; };
       }
     }
   } catch (e) {
