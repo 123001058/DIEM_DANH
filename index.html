@@ -66,14 +66,9 @@
       <!-- Form Tạo tài khoản -->
       <div id="registerFormArea" style="display:none;">
         <h2 style="font-size:18px;margin-bottom:6px;">Tạo tài khoản</h2>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Đăng ký tài khoản Sinh viên / Đội trưởng</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Đăng ký tài khoản Sinh viên vào hệ thống</p>
         <input type="text" id="regUsername" placeholder="Tên đăng nhập" autocomplete="off">
         <input type="password" id="regPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
-        <select id="regRole">
-          <option value="student">Sinh viên</option>
-          <option value="leader">Đội trưởng lĩnh vực</option>
-          <option value="admin">Quản trị viên</option>
-        </select>
         <input type="text" id="regFullName" placeholder="Họ và tên" autocomplete="off">
         <input type="text" id="regMssv" placeholder="Mã số sinh viên (MSSV)" autocomplete="off">
         <div id="regMsg" role="alert" style="font-size:12.5px;font-weight:600;min-height:18px;margin:2px 0 6px;text-align:left;"></div>
@@ -86,7 +81,7 @@
   </div>
 <!-- BẮT BUỘC: Supabase CDN + config.js phải nằm trước js/auth.js -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js?v=2"></script>
-<script src="js/auth.js?v=2"></script>
+<script src="js/config.js?v=3"></script>
+<script src="js/auth.js?v=3"></script>
 </body>
 </html>

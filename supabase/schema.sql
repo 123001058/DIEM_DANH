@@ -779,7 +779,7 @@ $$;
 revoke all on function public.admin_batch_set_status(text, text[], text) from public;
 grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
 
--- 5) Cập nhật kiểm tra Admin mở rộng (public.admins, profiles, và metadata)
+-- 5) Kiểm tra Admin: chỉ dựa vào allowlist bảo mật public.admins
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -791,16 +791,11 @@ as $$
     select 1
     from public.admins
     where user_id = auth.uid()
-  ) or exists (
-    select 1
-    from public.profiles
-    where user_id = auth.uid() and role = 'admin'
-  ) or exists (
-    select 1
-    from auth.users
-    where id = auth.uid() and raw_user_meta_data->>'app_role' = 'admin'
   );
 $$;
+
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
 
 -- 6) RPC đóng phiên an toàn cho Admin
 create or replace function public.admin_close_session(p_session_id text default null)
@@ -833,7 +828,7 @@ $$;
 revoke all on function public.admin_close_session(text) from public;
 grant execute on function public.admin_close_session(text) to authenticated;
 
--- 7) Tự động đồng bộ tài khoản mới đăng ký vào bảng profiles
+-- 7) Tự động đồng bộ tài khoản mới đăng ký vào bảng profiles (Bảo mật - Chống leo thang quyền)
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -845,39 +840,29 @@ declare
   v_role     text;
   v_name     text;
   v_mssv     text;
+  v_verified_name text;
 begin
+  -- 1. Username an toàn
   v_username := coalesce(
     nullif(btrim(new.raw_user_meta_data->>'username'), ''),
     nullif(btrim(split_part(new.email, '@', 1)), ''),
     'user_' || substr(replace(new.id::text, '-', ''), 1, 8)
   );
 
-  v_role := coalesce(nullif(btrim(new.raw_user_meta_data->>'app_role'), ''), 'student');
-  if v_role not in ('admin', 'leader', 'student') then
-    v_role := 'student';
-  end if;
-
-  v_mssv := nullif(btrim(new.raw_user_meta_data->>'mssv'), '');
+  -- 2. BẢO MẬT ZERO-TRUST:
+  -- Mọi tài khoản tự đăng ký MẶC ĐỊNH là student.
+  -- Quyền Leader / Admin và liên kết MSSV chỉ do Admin cấp sau khi đối soát danh tính.
+  v_role := 'student';
+  v_mssv := null;
   v_name := coalesce(nullif(btrim(new.raw_user_meta_data->>'name'), ''), v_username);
 
-  -- Tự lấy họ tên từ danh sách lớp nếu có MSSV
-  if v_mssv is not null and (v_name = v_username or v_name is null) then
-    select name into v_name from public.students where mssv = v_mssv;
-    if v_name is null then v_name := v_username; end if;
-  end if;
-
+  -- 3. Ghi vào public.profiles
   insert into public.profiles (user_id, username, role, full_name, mssv)
   values (new.id, v_username, v_role, v_name, v_mssv)
   on conflict (user_id) do update set
     username  = excluded.username,
-    role      = excluded.role,
-    full_name = excluded.full_name,
-    mssv      = coalesce(excluded.mssv, public.profiles.mssv);
-
-  -- Nếu là admin, tự động đưa vào bảng public.admins
-  if v_role = 'admin' then
-    insert into public.admins (user_id) values (new.id) on conflict do nothing;
-  end if;
+    role      = case when public.profiles.role = 'admin' then 'admin' else public.profiles.role end,
+    full_name = coalesce(excluded.full_name, public.profiles.full_name);
 
   return new;
 end;

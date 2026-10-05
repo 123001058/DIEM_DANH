@@ -104,7 +104,7 @@ async function submitRegister(){
 
   const username = uInput.value.trim().toLowerCase().replace(/\s+/g, '');
   const password = pInput.value;
-  const role = roleInput ? roleInput.value : 'student';
+  const role = 'student';
   const fullName = nameInput.value.trim();
   const mssv = mssvInput ? mssvInput.value.trim() : '';
 
