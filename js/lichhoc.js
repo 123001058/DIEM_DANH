@@ -166,6 +166,29 @@
 
   // Fetch data
   async function loadData() {
+    // 1. Kiểm tra quyền Admin: Chỉ Admin mới được phép tra cứu thời khóa biểu
+    try {
+      if (typeof supabase === 'undefined') {
+        alert('Lỗi khởi tạo hệ thống! Vui lòng tải lại trang.');
+        return location.replace('index.html');
+      }
+
+      const { data: authData } = await supabase.auth.getSession();
+      if (!authData?.session) {
+        alert('Vui lòng đăng nhập bằng tài khoản Quản trị viên (Admin) để tra cứu thời khóa biểu!');
+        return location.replace('index.html');
+      }
+
+      const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin');
+      if (adminErr || !isAdmin) {
+        alert('Từ chối truy cập! Chỉ Admin mới có quyền tra cứu thời khóa biểu.');
+        return location.replace('index.html');
+      }
+    } catch (e) {
+      console.error('[auth check lichhoc]', e);
+      return location.replace('index.html');
+    }
+
     try {
       const res = await fetch('lich_hoc_tong_hop.json?t=' + Date.now());
       if (!res.ok) throw new Error('Không thể tải file lich_hoc_tong_hop.json');
