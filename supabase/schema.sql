@@ -1,18 +1,11 @@
 -- =====================================================================
--- DIEM_DANH — bảo mật phía server
+-- DIEM_DANH — Migration bảo mật & hoàn thiện hệ thống điểm danh
 -- Chạy trong Supabase > SQL Editor.
--- Có thể chạy lại; không DROP bảng hoặc dữ liệu.
---
--- Sinh viên (anon) chỉ gọi:
---   get_open_session(), submit_attendance(...), server_now_ms()
--- Admin còn có thể gọi issue_qr_token(...) và admin_set_status(...).
---
--- Giả định các cột hiện có:
---   sessions  : id, session_name, is_open, refresh_time, duration_min, started_at
---   attendance: id, session_id, mssv, full_name, category, note, device_id, created_at
+-- An toàn, có thể chạy lại nhiều lần (idempotent).
+-- TUYỆT ĐỐI KHÔNG DROP bảng hoặc xóa dữ liệu lịch sử điểm danh.
 -- =====================================================================
 
--- 0) Tạo bảng nếu chưa có ---------------------------------------------
+-- 0) Tạo bảng cơ sở nếu chưa có ---------------------------------------
 
 create table if not exists public.sessions (
   id           uuid primary key default gen_random_uuid(),
@@ -23,12 +16,12 @@ create table if not exists public.sessions (
   started_at   timestamptz not null default now()
 );
 
--- Cho phép NULL cả trên bảng đã tồn tại.
+-- Cho phép NULL cả trên bảng đã tồn tại
 alter table public.sessions
   alter column duration_min drop not null;
 
--- Dùng đúng kiểu public.sessions.id cho attendance.session_id.
-do $$
+-- Dùng đúng kiểu public.sessions.id cho attendance.session_id
+do 
 declare
   v_type text;
 begin
@@ -43,7 +36,7 @@ begin
     raise exception 'Không tìm thấy cột public.sessions.id';
   end if;
 
-  execute format($f$
+  execute format($
     create table if not exists public.attendance (
       id         uuid primary key default gen_random_uuid(),
       session_id %s not null references public.sessions(id) on delete cascade,
@@ -54,25 +47,25 @@ begin
       device_id  text,
       created_at timestamptz not null default now()
     )
-  $f$, v_type);
-end $$;
+  $, v_type);
+end ;
 
 create index if not exists attendance_session_idx
   on public.attendance (session_id, created_at desc);
 
--- Bật Realtime cho attendance.
-do $$
+-- Bật Realtime cho attendance
+do 
 begin
   alter publication supabase_realtime add table public.attendance;
 exception
   when duplicate_object then null;
-end $$;
+end ;
 
--- 0b) Allowlist admin + secret ký token QR -----------------------------
+-- 0b) Bảng Allowlist admin + secret ký token QR -----------------------
 
 create extension if not exists pgcrypto with schema extensions;
 
--- Mỗi phiên có secret riêng; không trả secret ra client.
+-- Mỗi phiên có secret riêng dùng cho HMAC token QR; không trả secret ra client
 alter table public.sessions
   add column if not exists qr_secret text not null
   default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
@@ -84,27 +77,86 @@ create table if not exists public.admins (
 alter table public.admins enable row level security;
 revoke all on public.admins from anon, authenticated;
 
+-- 1) Bảng Profiles người dùng & RLS -----------------------------------
+
+create table if not exists public.profiles (
+  user_id   uuid primary key references auth.users(id) on delete cascade,
+  username  text unique not null,
+  role      text not null default 'student' check (role in ('admin', 'leader', 'student')),
+  full_name text,
+  mssv      text
+);
+
+alter table public.profiles enable row level security;
+
+-- Hàm kiểm tra quyền Admin: kiểm tra public.admins hoặc role admin trong profiles
 create or replace function public.is_admin()
 returns boolean
 language sql
 stable
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
   select exists (
     select 1
     from public.admins
     where user_id = auth.uid()
-  )
-$$;
+  ) or exists (
+    select 1
+    from public.profiles
+    where user_id = auth.uid()
+      and role = 'admin'
+  );
+;
 
--- Thêm UUID admin vào allowlist bằng thao tác quản trị riêng.
--- Ví dụ:
--- insert into public.admins (user_id)
--- values ('uuid-cua-ban')
--- on conflict (user_id) do nothing;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
 
--- 1) Danh sách lớp -----------------------------------------------------
+-- Xử lý làm sạch nếu dữ liệu cũ có trùng MSSV trước khi tạo Unique Index:
+-- Giữ lại profile đầu tiên, gán NULL cho các profile trùng sau để Admin xác minh và liên kết lại
+update public.profiles p
+set mssv = null
+where p.mssv is not null
+  and btrim(p.mssv) <> ''
+  and p.user_id in (
+    select user_id
+    from (
+      select user_id,
+             row_number() over (partition by btrim(mssv) order by user_id) as rn
+      from public.profiles
+      where mssv is not null and btrim(mssv) <> ''
+    ) t
+    where t.rn > 1
+  );
+
+-- Đảm bảo không MSSV nào bị gán cho nhiều hơn 1 profile
+create unique index if not exists profiles_mssv_unique_idx
+  on public.profiles (mssv)
+  where mssv is not null and btrim(mssv) <> '';
+
+-- Drop và tạo lại các policy cụ thể cho profiles do migration quản lý
+drop policy if exists profiles_read_self on public.profiles;
+drop policy if exists profiles_admin_all on public.profiles;
+drop policy if exists profiles_read_all on public.profiles;
+
+-- Mỗi sinh viên chỉ đọc được profile của chính mình
+create policy profiles_read_self
+  on public.profiles
+  for select to authenticated
+  using (auth.uid() = user_id);
+
+-- Admin toàn quyền xem, thêm, sửa, xóa profiles
+create policy profiles_admin_all
+  on public.profiles
+  for all to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- Phân quyền bảng profiles: anon bị thu hồi, authenticated có quyền qua RLS
+revoke all on public.profiles from anon;
+grant select, insert, update, delete on public.profiles to authenticated;
+
+-- 2) Danh sách lớp sinh viên -------------------------------------------
 
 create table if not exists public.students (
   mssv text primary key,
@@ -144,18 +196,98 @@ insert into public.students (mssv, name) values
 on conflict (mssv) do update
 set name = excluded.name;
 
--- Chống trùng MSSV trong một phiên.
+-- Chống trùng MSSV trong một phiên
 create unique index if not exists attendance_session_mssv_uq
   on public.attendance (session_id, mssv);
 
--- 2) RLS và các constraint --------------------------------------------
+-- 3) RLS và Constraints bảng sessions, attendance, students ------------
 
 alter table public.sessions enable row level security;
 alter table public.attendance enable row level security;
 alter table public.students enable row level security;
 
--- Chỉ thêm refresh_time constraint nếu chưa có.
-do $$
+-- Cột status cho attendance
+alter table public.attendance
+  add column if not exists status text not null default 'có mặt';
+
+do 
+declare
+  v_def text;
+begin
+  select upper(pg_get_constraintdef(oid))
+    into v_def
+  from pg_constraint
+  where conrelid = 'public.attendance'::regclass
+    and conname = 'attendance_status_check';
+
+  if not found then
+    alter table public.attendance
+      add constraint attendance_status_check
+      check (
+        status is not null
+        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
+      ) not valid;
+  elsif position('STATUS IS NOT NULL' in v_def) = 0 then
+    alter table public.attendance
+      drop constraint attendance_status_check;
+
+    alter table public.attendance
+      add constraint attendance_status_check
+      check (
+        status is not null
+        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
+      ) not valid;
+  end if;
+end ;
+
+alter table public.attendance
+  alter column device_id drop not null;
+
+-- Partial unique index cho device_id: mỗi thiết bị chỉ được điểm danh 1 MSSV trong 1 phiên
+do 
+declare
+  v_index_oid oid;
+  v_is_partial boolean;
+  v_constraint_name text;
+begin
+  select i.indexrelid, i.indpred is not null
+    into v_index_oid, v_is_partial
+  from pg_index i
+  join pg_class ic on ic.oid = i.indexrelid
+  join pg_namespace ns on ns.oid = ic.relnamespace
+  where ns.nspname = 'public'
+    and ic.relname = 'attendance_session_device_uq'
+    and i.indrelid = 'public.attendance'::regclass;
+
+  if v_index_oid is null then
+    create unique index attendance_session_device_uq
+      on public.attendance (session_id, device_id)
+      where device_id is not null;
+  elsif not v_is_partial then
+    select conname
+      into v_constraint_name
+    from pg_constraint
+    where conrelid = 'public.attendance'::regclass
+      and conindid = v_index_oid
+      and contype = 'u';
+
+    if v_constraint_name is not null then
+      execute format(
+        'alter table public.attendance drop constraint %I',
+        v_constraint_name
+      );
+    else
+      drop index public.attendance_session_device_uq;
+    end if;
+
+    create unique index attendance_session_device_uq
+      on public.attendance (session_id, device_id)
+      where device_id is not null;
+  end if;
+end ;
+
+-- Ràng buộc refresh_time
+do 
 begin
   if not exists (
     select 1
@@ -171,11 +303,10 @@ begin
         and refresh_time <= 86400
       ) not valid;
   end if;
-end $$;
+end ;
 
--- duration_min có thể NULL. Nâng cấp constraint cũ nếu nó cấm NULL;
--- nếu constraint đúng đã được validate, trạng thái đó được giữ nguyên.
-do $$
+-- Ràng buộc duration_min
+do 
 declare
   v_def text;
 begin
@@ -192,7 +323,6 @@ begin
         duration_min is null
         or (duration_min > 0 and duration_min <= 10080)
       ) not valid;
-
   elsif position('DURATION_MIN IS NOT NULL' in v_def) > 0 then
     alter table public.sessions
       drop constraint sessions_duration_min_check;
@@ -204,26 +334,12 @@ begin
         or (duration_min > 0 and duration_min <= 10080)
       ) not valid;
   end if;
-end $$;
+end ;
 
--- Xóa policy cũ trên các bảng này rồi tạo lại policy chặt chẽ bên dưới.
-do $$
-declare
-  p record;
-begin
-  for p in
-    select policyname, tablename
-    from pg_policies
-    where schemaname = 'public'
-      and tablename in ('sessions', 'attendance', 'students')
-  loop
-    execute format(
-      'drop policy if exists %I on public.%I',
-      p.policyname,
-      p.tablename
-    );
-  end loop;
-end $$;
+-- Xóa các policy cụ thể của migration này (không lặp qua pg_policies)
+drop policy if exists sessions_admin_all on public.sessions;
+drop policy if exists attendance_admin_all on public.attendance;
+drop policy if exists students_admin_read on public.students;
 
 create policy sessions_admin_all
   on public.sessions
@@ -243,16 +359,20 @@ create policy students_admin_read
   using (public.is_admin());
 
 revoke all on public.sessions, public.attendance, public.students from anon;
+grant select, insert, update, delete on public.sessions, public.attendance, public.students to authenticated;
 
--- 3) RPC ---------------------------------------------------------------
+-- 4) RPC tiện ích & QR Token ------------------------------------------
 
 create or replace function public.server_now_ms()
 returns bigint
 language sql
 volatile
-as $$
+as 
   select (extract(epoch from clock_timestamp()) * 1000)::bigint
-$$;
+;
+
+revoke all on function public.server_now_ms() from public;
+grant execute on function public.server_now_ms() to anon, authenticated;
 
 create or replace function public.get_open_session()
 returns jsonb
@@ -260,7 +380,7 @@ language sql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
   select jsonb_build_object(
     'id', s.id,
     'session_name', s.session_name,
@@ -277,7 +397,10 @@ as $$
     )
   order by s.started_at desc
   limit 1
-$$;
+;
+
+revoke all on function public.get_open_session() from public;
+grant execute on function public.get_open_session() to anon, authenticated;
 
 create or replace function public._qr_sig(
   p_secret text,
@@ -287,7 +410,7 @@ create or replace function public._qr_sig(
 returns text
 language sql
 immutable
-as $$
+as 
   select left(
     encode(
       hmac(p_session || ':' || p_win::text, p_secret, 'sha256'),
@@ -295,7 +418,7 @@ as $$
     ),
     24
   )
-$$;
+;
 
 revoke all on function public._qr_sig(text, text, bigint)
   from public, anon, authenticated;
@@ -306,7 +429,7 @@ language plpgsql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
 declare
   s record;
   v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
@@ -345,9 +468,13 @@ begin
     v_now
   );
 end;
-$$;
+;
 
--- Gỡ RPC cũ nhận token số.
+revoke all on function public.issue_qr_token(text) from public, anon;
+grant execute on function public.issue_qr_token(text) to authenticated;
+
+-- 5) RPC submit_attendance (Bắt buộc Đăng nhập + Quét QR) -------------
+-- Xóa các signature cũ nếu có
 drop function if exists public.submit_attendance(text, bigint, text, text, text, text);
 
 create or replace function public.submit_attendance(
@@ -363,34 +490,77 @@ language plpgsql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
 declare
+  v_uid uuid := auth.uid();
   s record;
+  v_profile_mssv text;
+  v_mssv text;
   v_name text;
   v_existing_status text;
-  v_mssv text := btrim(coalesce(p_mssv, ''));
   v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_cycle bigint;
   v_start bigint;
   v_win bigint;
   v_tol constant bigint := 3000; -- dung sai 3 giây
+  v_clean_device text := btrim(coalesce(p_device_id, ''));
+  v_clean_cat text := btrim(coalesce(p_category, ''));
+  v_clean_session text := btrim(coalesce(p_session_id, ''));
 begin
-  if v_mssv = ''
-     or coalesce(btrim(p_category), '') = ''
-     or coalesce(btrim(p_device_id), '') = ''
-     or p_token is null
-     or p_token !~ '^[0-9]{1,12}\.[0-9a-f]{24}$' then
+  -- 1. BẮT BUỘC ĐÃ ĐĂNG NHẬP
+  if v_uid is null then
     return jsonb_build_object(
       'ok', false,
-      'code', 'BAD_INPUT',
-      'message', 'Thiếu thông tin điểm danh.'
+      'code', 'UNAUTHORIZED',
+      'message', 'Bạn chưa đăng nhập. Vui lòng đăng nhập tài khoản để điểm danh.'
     );
   end if;
 
+  -- 2. LẤY MSSV TỪ PROFILES ĐƯỢC ADMIN LIÊN KẾT (KHÔNG TIN CLIENT)
+  select p.mssv into v_profile_mssv
+  from public.profiles p
+  where p.user_id = v_uid;
+
+  v_profile_mssv := btrim(coalesce(v_profile_mssv, ''));
+
+  if v_profile_mssv = '' then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'NO_MSSV',
+      'message', 'Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin để được cấp quyền.'
+    );
+  end if;
+
+  -- Nếu client có gửi p_mssv thì phải khớp với profiles.mssv
+  if p_mssv is not null and btrim(p_mssv) <> '' and btrim(p_mssv) <> v_profile_mssv then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'MSSV_MISMATCH',
+      'message', 'MSSV gửi lên không khớp với MSSV tài khoản đã được xác minh.'
+    );
+  end if;
+
+  v_mssv := v_profile_mssv;
+
+  -- 3. KIỂM TRA THÔNG TIN ĐẦU VÀO & REGEX TOKEN QR
+  -- Chú ý: dùng [.] để match chính xác dấu chấm, không dùng escape \.
+  if v_clean_session = ''
+     or v_clean_cat = ''
+     or v_clean_device = ''
+     or p_token is null
+     or p_token !~ '^[0-9]{1,12}[.][0-9a-f]{24}$' then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'BAD_INPUT',
+      'message', 'Thiếu hoặc sai định dạng thông tin điểm danh.'
+    );
+  end if;
+
+  -- 4. KIỂM TRA PHIÊN ĐIỂM DANH
   select *
     into s
   from public.sessions
-  where id::text = p_session_id;
+  where id::text = v_clean_session;
 
   if not found
      or not s.is_open
@@ -405,6 +575,7 @@ begin
     );
   end if;
 
+  -- 5. XÁC THỰC CHỮ KÝ TOKEN QR
   v_win := split_part(p_token, '.', 1)::bigint;
 
   if split_part(p_token, '.', 2)
@@ -416,6 +587,7 @@ begin
     );
   end if;
 
+  -- 6. KIỂM TRA THỜI GIAN HIỆU LỰC TOKEN QR
   v_cycle := coalesce(s.refresh_time, 20) * 1000;
   v_start := v_win * v_cycle;
 
@@ -428,6 +600,7 @@ begin
     );
   end if;
 
+  -- 7. KIỂM TRA MSSV TRONG DANH SÁCH LỚP
   select name
     into v_name
   from public.students
@@ -441,6 +614,7 @@ begin
     );
   end if;
 
+  -- 8. KIỂM TRA TRẠNG THÁI ĐIỂM DANH
   select status
     into v_existing_status
   from public.attendance a
@@ -449,12 +623,12 @@ begin
 
   if found then
     if v_existing_status in ('vắng có phép', 'vắng không phép') then
-      -- Sinh viên trước đó bị đánh dấu vắng nay quét QR hợp lệ -> cập nhật lại có mặt
+      -- Sinh viên trước đó bị đánh dấu vắng, nay quét QR hợp lệ -> cập nhật có mặt
       update public.attendance
       set status = 'có mặt',
-          category = left(btrim(p_category), 60),
+          category = left(v_clean_cat, 60),
           note = left(btrim(coalesce(p_note, '')), 200),
-          device_id = p_device_id,
+          device_id = v_clean_device,
           created_at = now()
       where session_id = s.id
         and mssv = v_mssv;
@@ -474,23 +648,27 @@ begin
     end if;
   end if;
 
+  -- 9. KIỂM TRA THIẾT BỊ: Không cho 1 thiết bị điểm danh cho 2 MSSV khác nhau
   if exists (
     select 1
     from public.attendance a
     where a.session_id = s.id
-      and a.device_id = p_device_id
+      and a.device_id = v_clean_device
+      and a.mssv <> v_mssv
   ) then
     return jsonb_build_object(
       'ok', false,
       'code', 'DEVICE_USED',
-      'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác.'
+      'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác trong phiên.'
     );
   end if;
 
+  -- 10. GHI NHẬN ĐIỂM DANH
   insert into public.attendance (
     session_id,
     mssv,
     full_name,
+    status,
     category,
     note,
     device_id
@@ -499,9 +677,10 @@ begin
     s.id,
     v_mssv,
     v_name,
-    left(btrim(p_category), 60),
+    'có mặt',
+    left(v_clean_cat, 60),
     left(btrim(coalesce(p_note, '')), 200),
-    p_device_id
+    v_clean_device
   );
 
   return jsonb_build_object(
@@ -519,141 +698,16 @@ exception
       'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.'
     );
 end;
-$$;
+;
 
-revoke all on function public.server_now_ms() from public;
-revoke all on function public.get_open_session() from public;
-revoke all on function public.submit_attendance(text, text, text, text, text, text) from public;
-revoke all on function public.issue_qr_token(text) from public;
-revoke all on function public.is_admin() from public;
+-- Chỉ cấp quyền gọi submit_attendance cho authenticated, cấm tuyệt đối anon
+revoke all on function public.submit_attendance(text, text, text, text, text, text) from public, anon;
+grant execute on function public.submit_attendance(text, text, text, text, text, text) to authenticated;
 
-grant execute on function public.server_now_ms() to anon, authenticated;
-grant execute on function public.get_open_session() to anon, authenticated;
-grant execute on function public.submit_attendance(text, text, text, text, text, text)
-  to anon, authenticated;
-grant execute on function public.issue_qr_token(text) to authenticated;
-grant execute on function public.is_admin() to authenticated;
+-- XÓA RPC CŨ KHÔNG DÙNG QR ĐỂ TRÁNH GIAN LẬN
+drop function if exists public.submit_attendance_authenticated(text, text, text, text);
 
--- =====================================================================
--- TÀI KHOẢN SINH VIÊN, ĐỘI TRƯỞNG & TRẠNG THÁI ĐIỂM DANH
--- =====================================================================
-
--- 1) Profiles ----------------------------------------------------------
-
-create table if not exists public.profiles (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  username text unique not null,
-  role text not null check (role in ('admin', 'leader', 'student')),
-  full_name text,
-  mssv text
-);
-
-alter table public.profiles enable row level security;
-
-do $$
-begin
-  drop policy if exists profiles_read_self on public.profiles;
-  drop policy if exists profiles_admin_all on public.profiles;
-  drop policy if exists profiles_read_all on public.profiles;
-end $$;
-
-create policy profiles_read_self
-  on public.profiles
-  for select to authenticated
-  using (auth.uid() = user_id);
-
-create policy profiles_admin_all
-  on public.profiles
-  for all to authenticated
-  using (public.is_admin())
-  with check (public.is_admin());
-
--- 2) Trạng thái điểm danh ---------------------------------------------
-
-alter table public.attendance
-  add column if not exists status text not null default 'có mặt';
-
--- Nâng cấp constraint cũ nếu nó chưa cấm NULL.
-do $$
-declare
-  v_def text;
-begin
-  select upper(pg_get_constraintdef(oid))
-    into v_def
-  from pg_constraint
-  where conrelid = 'public.attendance'::regclass
-    and conname = 'attendance_status_check';
-
-  if not found then
-    alter table public.attendance
-      add constraint attendance_status_check
-      check (
-        status is not null
-        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
-      ) not valid;
-
-  elsif position('STATUS IS NOT NULL' in v_def) = 0 then
-    alter table public.attendance
-      drop constraint attendance_status_check;
-
-    alter table public.attendance
-      add constraint attendance_status_check
-      check (
-        status is not null
-        and status in ('có mặt', 'vắng có phép', 'vắng không phép')
-      ) not valid;
-  end if;
-end $$;
-
-alter table public.attendance
-  alter column device_id drop not null;
-
--- Chuyển index cũ sang partial index một lần.
--- Các lần chạy sau giữ nguyên index partial hiện có.
-do $$
-declare
-  v_index_oid oid;
-  v_is_partial boolean;
-  v_constraint_name text;
-begin
-  select i.indexrelid, i.indpred is not null
-    into v_index_oid, v_is_partial
-  from pg_index i
-  join pg_class ic on ic.oid = i.indexrelid
-  join pg_namespace ns on ns.oid = ic.relnamespace
-  where ns.nspname = 'public'
-    and ic.relname = 'attendance_session_device_uq'
-    and i.indrelid = 'public.attendance'::regclass;
-
-  if v_index_oid is null then
-    create unique index attendance_session_device_uq
-      on public.attendance (session_id, device_id)
-      where device_id is not null;
-
-  elsif not v_is_partial then
-    select conname
-      into v_constraint_name
-    from pg_constraint
-    where conrelid = 'public.attendance'::regclass
-      and conindid = v_index_oid
-      and contype = 'u';
-
-    if v_constraint_name is not null then
-      execute format(
-        'alter table public.attendance drop constraint %I',
-        v_constraint_name
-      );
-    else
-      drop index public.attendance_session_device_uq;
-    end if;
-
-    create unique index attendance_session_device_uq
-      on public.attendance (session_id, device_id)
-      where device_id is not null;
-  end if;
-end $$;
-
--- 3) RPC cập nhật trạng thái: chỉ admin -------------------------------
+-- 6) RPC Quản trị viên (Chỉ Admin) ------------------------------------
 
 create or replace function public.admin_set_status(
   p_session_id text,
@@ -665,7 +719,7 @@ language plpgsql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
 declare
   s record;
   v_name text;
@@ -732,12 +786,11 @@ begin
 
   return jsonb_build_object('ok', true);
 end;
-$$;
+;
 
-revoke all on function public.admin_set_status(text, text, text) from public;
+revoke all on function public.admin_set_status(text, text, text) from public, anon;
 grant execute on function public.admin_set_status(text, text, text) to authenticated;
 
--- 4) RPC cập nhật trạng thái hàng loạt (Batch update - hiệu năng cao) ---
 create or replace function public.admin_batch_set_status(
   p_session_id text,
   p_mssv_list text[],
@@ -748,7 +801,7 @@ language plpgsql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
 declare
   s record;
 begin
@@ -774,70 +827,161 @@ begin
 
   return jsonb_build_object('ok', true, 'count', cardinality(p_mssv_list));
 end;
-$$;
+;
 
-revoke all on function public.admin_batch_set_status(text, text[], text) from public;
+revoke all on function public.admin_batch_set_status(text, text[], text) from public, anon;
 grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
 
-
--- 6) RPC đóng phiên an toàn cho Admin
-create or replace function public.admin_close_session(p_session_id text default null)
+-- RPC Đóng phiên: Chỉ đóng đúng phiên có p_session_id, không đóng toàn bộ phiên
+create or replace function public.admin_close_session(p_session_id text)
 returns jsonb
 language plpgsql
 volatile
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
+declare
+  v_count int;
+  v_sid text := btrim(coalesce(p_session_id, ''));
 begin
   if not public.is_admin() then
     return jsonb_build_object('ok', false, 'message', 'Chỉ admin mới được phép đóng phiên.');
   end if;
 
-  if p_session_id is not null and btrim(p_session_id) <> '' then
-    update public.sessions
-    set is_open = false
-    where id::text = p_session_id;
+  if v_sid = '' then
+    return jsonb_build_object('ok', false, 'message', 'Mã phiên không được để trống.');
   end if;
 
-  -- Luôn đảm bảo tất cả phiên đang mở đều được đóng
   update public.sessions
   set is_open = false
-  where is_open = true;
+  where id::text = v_sid
+    and is_open = true;
+
+  get diagnostics v_count = row_count;
+
+  if v_count = 0 then
+    if not exists (select 1 from public.sessions where id::text = v_sid) then
+      return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên với ID đã cung cấp.');
+    else
+      return jsonb_build_object('ok', true, 'message', 'Phiên này đã ở trạng thái đóng trước đó.');
+    end if;
+  end if;
 
   return jsonb_build_object('ok', true, 'message', 'Đã đóng phiên thành công.');
 end;
-$$;
+;
 
-revoke all on function public.admin_close_session(text) from public;
+revoke all on function public.admin_close_session(text) from public, anon;
 grant execute on function public.admin_close_session(text) to authenticated;
 
--- 7) Tự động đồng bộ tài khoản mới đăng ký vào bảng profiles (Bảo mật - Chống leo thang quyền)
+-- RPC Liên kết MSSV cho sinh viên (Chỉ Admin)
+create or replace function public.admin_link_student_mssv(
+  p_target_user_id uuid,
+  p_mssv text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as 
+declare
+  v_clean_mssv text := btrim(coalesce(p_mssv, ''));
+  v_student_name text;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ admin mới được phép liên kết MSSV.');
+  end if;
+
+  if v_clean_mssv = '' then
+    update public.profiles
+    set mssv = null
+    where user_id = p_target_user_id;
+
+    return jsonb_build_object('ok', true, 'message', 'Đã gỡ liên kết MSSV của tài khoản.');
+  end if;
+
+  -- Kiểm tra MSSV trong danh sách sinh viên
+  select name into v_student_name
+  from public.students
+  where mssv = v_clean_mssv;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'MSSV không có trong danh sách lớp.');
+  end if;
+
+  -- Kiểm tra xem MSSV đã được gắn cho profile khác chưa
+  if exists (
+    select 1 from public.profiles
+    where mssv = v_clean_mssv and user_id <> p_target_user_id
+  ) then
+    return jsonb_build_object('ok', false, 'message', 'MSSV này đã được liên kết với một tài khoản khác.');
+  end if;
+
+  update public.profiles
+  set mssv = v_clean_mssv,
+      full_name = coalesce(v_student_name, full_name)
+  where user_id = p_target_user_id;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy hồ sơ người dùng.');
+  end if;
+
+  return jsonb_build_object('ok', true, 'message', 'Đã liên kết MSSV thành công.', 'name', v_student_name);
+end;
+;
+
+revoke all on function public.admin_link_student_mssv(uuid, text) from public, anon;
+grant execute on function public.admin_link_student_mssv(uuid, text) to authenticated;
+
+-- 7) Trigger đồng bộ tài khoản mới đăng ký vào bảng profiles -------------
+-- Xử lý trùng username để đăng ký mới không lỗi trigger
+-- Không tự đoán/gán MSSV (MSSV để Admin liên kết sau khi xác minh)
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public, extensions, pg_temp
-as $$
+as 
 declare
-  v_username text;
-  v_role     text;
-  v_name     text;
-  v_mssv     text;
-  v_verified_name text;
+  v_base_username text;
+  v_username      text;
+  v_role          text;
+  v_name          text;
+  v_mssv          text;
 begin
-  -- 1. Username an toàn
-  v_username := coalesce(
+  -- 1. Base username an toàn từ metadata hoặc email
+  v_base_username := coalesce(
     nullif(btrim(new.raw_user_meta_data->>'username'), ''),
     nullif(btrim(split_part(new.email, '@', 1)), ''),
-    'user_' || substr(replace(new.id::text, '-', ''), 1, 8)
+    'user'
   );
+  v_username := v_base_username;
+
+  -- Xử lý trùng username: nếu v_username đã tồn tại cho tài khoản khác, thêm hậu tố phân biệt
+  if exists (
+    select 1 from public.profiles
+    where username = v_username and user_id <> new.id
+  ) then
+    v_username := v_base_username || '_' || substr(replace(new.id::text, '-', ''), 1, 6);
+    if exists (
+      select 1 from public.profiles
+      where username = v_username and user_id <> new.id
+    ) then
+      v_username := v_base_username || '_' || substr(replace(new.id::text, '-', ''), 1, 12);
+    end if;
+  end if;
 
   -- 2. BẢO MẬT ZERO-TRUST:
   -- Mọi tài khoản tự đăng ký MẶC ĐỊNH là student.
-  -- Quyền Leader / Admin và liên kết MSSV chỉ do Admin cấp sau khi đối soát danh tính.
+  -- Không tự đoán/gán MSSV. MSSV để Admin liên kết sau khi xác minh.
   v_role := 'student';
   v_mssv := null;
-  v_name := coalesce(nullif(btrim(new.raw_user_meta_data->>'name'), ''), v_username);
+  v_name := coalesce(
+    nullif(btrim(new.raw_user_meta_data->>'name'), ''),
+    nullif(btrim(new.raw_user_meta_data->>'username'), ''),
+    v_base_username
+  );
 
   -- 3. Ghi vào public.profiles
   insert into public.profiles (user_id, username, role, full_name, mssv)
@@ -846,162 +990,65 @@ begin
     username  = excluded.username,
     role      = case when public.profiles.role = 'admin' then 'admin' else public.profiles.role end,
     full_name = coalesce(excluded.full_name, public.profiles.full_name);
+    -- Giữ nguyên mssv nếu đã được Admin liên kết trước đó
 
   return new;
 end;
-$$;
+;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- 8) RPC điểm danh cho Sinh viên đã đăng nhập (không cần quét QR)
-create or replace function public.submit_attendance_authenticated(
-  p_session_id text,
-  p_category text default 'Đi học',
-  p_note text default '',
-  p_device_id text default null
-)
-returns jsonb
-language plpgsql
-volatile
-security definer
-set search_path = public, extensions, pg_temp
-as $$
+-- 8) Xử lý tài khoản đã tồn tại trong auth.users nhưng thiếu profile -------
+-- Tạo profile thiếu nhưng KHÔNG tự đoán/gán MSSV
+-- Xử lý chống trùng username để không lỗi unique_violation
+do 
 declare
-  v_uid uuid := auth.uid();
-  s record;
-  v_mssv text;
-  v_name text;
-  v_existing_status text;
+  r record;
+  v_base text;
+  v_uname text;
 begin
-  if v_uid is null then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'UNAUTHORIZED',
-      'message', 'Bạn chưa đăng nhập.'
+  for r in
+    select u.id, u.email, u.raw_user_meta_data
+    from auth.users u
+    where not exists (
+      select 1 from public.profiles p where p.user_id = u.id
+    )
+  loop
+    v_base := coalesce(
+      nullif(btrim(r.raw_user_meta_data->>'username'), ''),
+      nullif(btrim(split_part(r.email, '@', 1)), ''),
+      'user'
     );
-  end if;
+    v_uname := v_base;
 
-  -- Lấy MSSV từ profiles hoặc auth metadata
-  select mssv into v_mssv from public.profiles where user_id = v_uid;
-  if v_mssv is null or btrim(v_mssv) = '' then
-    select raw_user_meta_data->>'mssv' into v_mssv from auth.users where id = v_uid;
-  end if;
-
-  v_mssv := btrim(coalesce(v_mssv, ''));
-  if v_mssv = '' then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'NO_MSSV',
-      'message', 'Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin.'
-    );
-  end if;
-
-  -- Kiểm tra phiên
-  select * into s from public.sessions where id::text = p_session_id;
-  if not found or not s.is_open or (
-    s.duration_min is not null and s.started_at + (s.duration_min * interval '1 minute') <= now()
-  ) then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'SESSION_CLOSED',
-      'message', 'Phiên điểm danh đã đóng hoặc đã hết giờ.'
-    );
-  end if;
-
-  -- Lấy tên sinh viên từ danh sách lớp
-  select name into v_name from public.students where mssv = v_mssv;
-  if not found then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'NOT_IN_CLASS',
-      'message', 'MSSV không có trong danh sách lớp!'
-    );
-  end if;
-
-  -- Kiểm tra đã điểm danh chưa
-  select status into v_existing_status
-  from public.attendance
-  where session_id = s.id and mssv = v_mssv;
-
-  if found then
-    if v_existing_status in ('vắng có phép', 'vắng không phép') then
-      update public.attendance
-      set status = 'có mặt',
-          category = left(btrim(coalesce(p_category, 'Đi học')), 60),
-          note = left(btrim(coalesce(p_note, '')), 200),
-          device_id = p_device_id,
-          created_at = now()
-      where session_id = s.id and mssv = v_mssv;
-
-      return jsonb_build_object(
-        'ok', true,
-        'code', 'OK',
-        'name', v_name,
-        'mssv', v_mssv
-      );
-    else
-      return jsonb_build_object(
-        'ok', false,
-        'code', 'ALREADY',
-        'message', 'Bạn đã điểm danh phiên này rồi.'
-      );
-    end if;
-  end if;
-
-  -- Kiểm tra thiết bị nếu có device_id
-  if p_device_id is not null and btrim(p_device_id) <> '' then
     if exists (
-      select 1 from public.attendance
-      where session_id = s.id and device_id = p_device_id
+      select 1 from public.profiles
+      where username = v_uname and user_id <> r.id
     ) then
-      return jsonb_build_object(
-        'ok', false,
-        'code', 'DEVICE_USED',
-        'message', 'Thiết bị này đã được dùng để điểm danh cho MSSV khác trong phiên.'
-      );
+      v_uname := v_base || '_' || substr(replace(r.id::text, '-', ''), 1, 6);
+      if exists (
+        select 1 from public.profiles
+        where username = v_uname and user_id <> r.id
+      ) then
+        v_uname := v_base || '_' || substr(replace(r.id::text, '-', ''), 1, 12);
+      end if;
     end if;
-  end if;
 
-  -- Thêm bản ghi điểm danh
-  insert into public.attendance (
-    session_id,
-    mssv,
-    full_name,
-    status,
-    category,
-    note,
-    device_id
-  )
-  values (
-    s.id,
-    v_mssv,
-    v_name,
-    'có mặt',
-    left(btrim(coalesce(p_category, 'Đi học')), 60),
-    left(btrim(coalesce(p_note, '')), 200),
-    p_device_id
-  );
-
-  return jsonb_build_object(
-    'ok', true,
-    'code', 'OK',
-    'name', v_name,
-    'mssv', v_mssv
-  );
-exception
-  when unique_violation then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'ALREADY',
-      'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.'
-    );
-end;
-$$;
-
-revoke all on function public.submit_attendance_authenticated(text, text, text, text) from public;
-grant execute on function public.submit_attendance_authenticated(text, text, text, text) to authenticated;
-
-
+    insert into public.profiles (user_id, username, role, full_name, mssv)
+    values (
+      r.id,
+      v_uname,
+      'student',
+      coalesce(
+        nullif(btrim(r.raw_user_meta_data->>'name'), ''),
+        nullif(btrim(r.raw_user_meta_data->>'username'), ''),
+        v_uname
+      ),
+      null -- Không tự đoán/gán MSSV. MSSV để Admin liên kết sau khi xác minh.
+    )
+    on conflict (user_id) do nothing;
+  end loop;
+end ;
