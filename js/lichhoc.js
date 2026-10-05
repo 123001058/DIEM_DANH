@@ -167,7 +167,7 @@
   // Fetch data
   async function loadData() {
     try {
-      const res = await fetch('lich_hoc_tong_hop.json');
+      const res = await fetch('lich_hoc_tong_hop.json?t=' + Date.now());
       if (!res.ok) throw new Error('Không thể tải file lich_hoc_tong_hop.json');
       allStudentsData = await res.json();
 
