@@ -840,19 +840,45 @@ language plpgsql
 security definer
 set search_path = public, extensions, pg_temp
 as $$
+declare
+  v_username text;
+  v_role     text;
+  v_name     text;
+  v_mssv     text;
 begin
+  v_username := coalesce(
+    nullif(btrim(new.raw_user_meta_data->>'username'), ''),
+    nullif(btrim(split_part(new.email, '@', 1)), ''),
+    'user_' || substr(replace(new.id::text, '-', ''), 1, 8)
+  );
+
+  v_role := coalesce(nullif(btrim(new.raw_user_meta_data->>'app_role'), ''), 'student');
+  if v_role not in ('admin', 'leader', 'student') then
+    v_role := 'student';
+  end if;
+
+  v_mssv := nullif(btrim(new.raw_user_meta_data->>'mssv'), '');
+  v_name := coalesce(nullif(btrim(new.raw_user_meta_data->>'name'), ''), v_username);
+
+  -- Tự lấy họ tên từ danh sách lớp nếu có MSSV
+  if v_mssv is not null and (v_name = v_username or v_name is null) then
+    select name into v_name from public.students where mssv = v_mssv;
+    if v_name is null then v_name := v_username; end if;
+  end if;
+
   insert into public.profiles (user_id, username, role, full_name, mssv)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'app_role', 'student'),
-    coalesce(new.raw_user_meta_data->>'name', ''),
-    coalesce(new.raw_user_meta_data->>'mssv', '')
-  )
+  values (new.id, v_username, v_role, v_name, v_mssv)
   on conflict (user_id) do update set
+    username  = excluded.username,
+    role      = excluded.role,
     full_name = excluded.full_name,
-    mssv = excluded.mssv,
-    role = excluded.role;
+    mssv      = coalesce(excluded.mssv, public.profiles.mssv);
+
+  -- Nếu là admin, tự động đưa vào bảng public.admins
+  if v_role = 'admin' then
+    insert into public.admins (user_id) values (new.id) on conflict do nothing;
+  end if;
+
   return new;
 end;
 $$;
