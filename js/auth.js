@@ -63,10 +63,13 @@ async function submitLogin(){
 
   if (btn) btn.disabled = false;
 
+  // Hiển thị lỗi rõ ràng nếu có
   if (error) {
     const m = (error.message || '').toLowerCase();
     if (m.includes('invalid login')) {
       err.innerText = 'Sai tên đăng nhập hoặc mật khẩu!';
+    } else if (m.includes('email not confirmed')) {
+      err.innerText = 'Tài khoản chưa được xác nhận email trên hệ thống!';
     } else {
       err.innerText = error.message || 'Đăng nhập không thành công!';
     }
@@ -86,7 +89,6 @@ async function submitLogin(){
       location.href = 'checkin.html';
     }
   } catch (e) {
-    // Dự phòng
     location.href = 'checkin.html';
   }
 }
@@ -102,19 +104,42 @@ async function submitRegister(){
 
   const username = uInput.value.trim().toLowerCase().replace(/\s+/g, '');
   const password = pInput.value;
-  const role = roleInput.value;
+  const role = roleInput ? roleInput.value : 'student';
   const fullName = nameInput.value.trim();
-  const mssv = mssvInput.value.trim() || null;
+  const mssv = mssvInput ? mssvInput.value.trim() : '';
 
-  if (!username || !password || !fullName) {
+  if (!username) {
     msg.style.color = 'var(--err)';
-    msg.innerText = 'Vui lòng điền đủ tên đăng nhập, mật khẩu và họ tên!';
+    msg.innerText = 'Vui lòng nhập tên đăng nhập!';
+    uInput.focus();
     return;
   }
 
-  if (password.length < 6) {
+  if (!/^[a-z0-9_-]+$/.test(username)) {
+    msg.style.color = 'var(--err)';
+    msg.innerText = 'Tên đăng nhập chỉ chứa chữ cái, số và dấu gạch (_ -)!';
+    uInput.focus();
+    return;
+  }
+
+  if (!password || password.length < 6) {
     msg.style.color = 'var(--err)';
     msg.innerText = 'Mật khẩu phải có từ 6 ký tự trở lên!';
+    pInput.focus();
+    return;
+  }
+
+  if (!fullName) {
+    msg.style.color = 'var(--err)';
+    msg.innerText = 'Vui lòng nhập họ và tên!';
+    nameInput.focus();
+    return;
+  }
+
+  if (role === 'student' && !mssv) {
+    msg.style.color = 'var(--err)';
+    msg.innerText = 'Sinh viên bắt buộc phải nhập MSSV để điểm danh!';
+    mssvInput.focus();
     return;
   }
 
@@ -124,8 +149,9 @@ async function submitRegister(){
   msg.innerText = 'Đang xử lý tạo tài khoản...';
 
   try {
-    // Dùng isolated client để không ảnh hưởng phiên hiện hành
-    const tempClient = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
+    // Dùng client độc lập để không ảnh hưởng phiên hiện hành
+    const sdk = window.supabaseSDK || window.supabase;
+    const tempClient = sdk.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
 
@@ -136,20 +162,49 @@ async function submitRegister(){
       password: password,
       options: {
         data: {
+          username: username,
           name: fullName,
-          mssv: mssv,
+          mssv: mssv || null,
           app_role: role
         }
       }
     });
 
-    if (signUpError) throw signUpError;
+    if (signUpError) {
+      const em = (signUpError.message || '').toLowerCase();
+      if (em.includes('already registered') || em.includes('user already exists')) {
+        throw new Error('Tên đăng nhập này đã được sử dụng!');
+      }
+      throw signUpError;
+    }
     if (!signUpData?.user) throw new Error('Không tạo được tài khoản Auth');
 
     msg.style.color = 'var(--ok)';
-    msg.innerText = `✓ Tạo tài khoản thành công! Đang chuyển sang đăng nhập...`;
+    msg.innerText = `✓ Tạo tài khoản thành công! Đang tự động đăng nhập...`;
 
-    // Điền sẵn tên đăng nhập sang tab Login
+    // Tự động đăng nhập vào hệ thống
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (!loginError && loginData?.session) {
+      setTimeout(async () => {
+        try {
+          const { data: isAdmin } = await supabase.rpc('is_admin');
+          if (isAdmin || role === 'admin') {
+            location.href = 'admin.html';
+          } else {
+            location.href = 'checkin.html';
+          }
+        } catch (e) {
+          location.href = 'checkin.html';
+        }
+      }, 700);
+      return;
+    }
+
+    // Nếu không tự đăng nhập được thì chuyển sang tab Đăng nhập
     document.getElementById('userInput').value = username;
     document.getElementById('pwdInput').value = password;
 
@@ -160,12 +215,12 @@ async function submitRegister(){
         err.style.color = 'var(--ok)';
         err.innerText = `Đã tạo tài khoản "${username}". Nhấn Đăng nhập để tiếp tục!`;
       }
-    }, 1200);
+    }, 1000);
 
     uInput.value = '';
     pInput.value = '';
     nameInput.value = '';
-    mssvInput.value = '';
+    if (mssvInput) mssvInput.value = '';
   } catch (err) {
     console.error('[submitRegister]', err);
     msg.style.color = 'var(--err)';
@@ -197,8 +252,28 @@ async function checkCurrentSession(){
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   checkCurrentSession();
+  if (typeof loadStudents === 'function') {
+    loadStudents();
+  }
+
+  // Tự động điền họ tên khi gõ MSSV (nếu có trong danh sách sinh viên)
+  const regMssv = document.getElementById('regMssv');
+  const regName = document.getElementById('regFullName');
+  if (regMssv && regName) {
+    regMssv.addEventListener('input', () => {
+      const m = regMssv.value.trim();
+      if (m && Array.isArray(validStudents) && validStudents.length > 0) {
+        const found = validStudents.find(s => s.mssv === m);
+        if (found && !regName.value) {
+          regName.value = found.name;
+        }
+      }
+    });
+  }
+
+  // Xử lý phím Enter ở các ô nhập
   const user = document.getElementById('userInput');
   const pwd = document.getElementById('pwdInput');
   if (user) {
@@ -210,4 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
+
+  ['regUsername', 'regPassword', 'regFullName', 'regMssv'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitRegister();
+      });
+    }
+  });
 });
