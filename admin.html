@@ -74,6 +74,18 @@
     <div id="adminUserList"><div class="rk-empty">Đang tải...</div></div>
   </section>
 
+  <!-- ============ LỊCH SỬ ĐIỂM DANH TRONG NGÀY ============ -->
+  <section class="card" id="todayHistorySection" style="display:none;padding:20px 22px;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div class="card-label">Lịch sử điểm danh hôm nay</div>
+        <p style="font-size:12.5px;color:var(--muted);margin:2px 0 0;">Các phiên đã đóng trong ngày. Qua ngày mới sẽ không hiển thị.</p>
+      </div>
+      <button class="rk-btn rk-btn-sm" onclick="loadTodayHistory()">↻ Làm mới</button>
+    </div>
+    <div id="todayHistoryBox"></div>
+  </section>
+
   <section class="card rise rise-2">
     <div class="card-label">Cấu hình phiên điểm danh</div>
     <div class="form-grid">

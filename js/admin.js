@@ -42,6 +42,9 @@ async function initAdmin(){
     // Không tự động khôi phục dữ liệu phiên cũ, không tự nhảy mã QR khi mới vào trang
     stopSessionUI();
 
+    // Tải lịch sử điểm danh trong ngày ngay khi vào trang
+    loadTodayHistory();
+
     // REALTIME: Tự cập nhật khi có bản ghi mới hoặc thay đổi trạng thái trong bảng attendance
     supabase.channel('changes').on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         if (isOpen && currentSessionId) pollAttendance();
@@ -96,6 +99,8 @@ async function turnOff(auto){
         currentSessionId = null;
         lastToken = null;
         stopSessionUI();
+        // Reload lịch sử sau khi đóng phiên để hiển thị phiên vừa đóng
+        loadTodayHistory();
     }
 }
 
@@ -112,17 +117,32 @@ async function togglePauseQR(){
     try {
         const { data, error } = await supabase.rpc('admin_toggle_pause', { p_session_id: String(currentSessionId) });
         if (error) throw error;
+
+        const waspaused = isPaused;
         isPaused = !!(data && data.is_paused);
+
         if (isPaused) {
+            // Vừa dừng: ghi nhớ thời điểm bắt đầu dừng
             pauseStartMs = nowMs();
-        } else {
-            if (pauseStartMs) {
-                const diff = Math.max(0, nowMs() - pauseStartMs);
-                sessionStartedMs += diff;
-                sessionEndsAt += diff;
-                pauseStartMs = 0;
+        } else if (waspaused) {
+            // Vừa resume: server đã shift started_at, cần re-sync để client đồng bộ
+            // Lấy lại thông tin phiên từ server để cập nhật sessionStartedMs chính xác
+            const { data: sess } = await supabase
+                .from('sessions')
+                .select('started_at, duration_min, refresh_time')
+                .eq('id', currentSessionId)
+                .single();
+            if (sess) {
+                sessionStartedMs = new Date(sess.started_at).getTime();
+                sessionEndsAt = sessionStartedMs + (sess.duration_min * 60 * 1000);
+                sessionCycleMs = Math.max(5, Number(sess.refresh_time) || 20) * 1000;
             }
+            pauseStartMs = 0;
+            // Render lại QR ngay vì window có thể đã đổi
+            lastToken = null;
+            renderQR();
         }
+
         updatePauseUI();
     } catch (e) {
         console.error('[togglePauseQR]', e);
@@ -429,5 +449,88 @@ async function markAllPresent(){
 // XUẤT FILE BÁO CÁO CSV (EXCEL) CHO GIẢNG VIÊN (TÍNH NĂNG TỪ GITHUB)
 function fmtTime(s){ return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 async function logout(){ await supabase.auth.signOut(); location.href = 'index.html'; }
+
+// ============================================================
+// LỊCH SỬ ĐIỂM DANH TRONG NGÀY
+// ============================================================
+async function loadTodayHistory() {
+    const box = document.getElementById('todayHistoryBox');
+    const section = document.getElementById('todayHistorySection');
+    if (!box || !section) return;
+
+    // Lấy đầu ngày và cuối ngày theo giờ máy admin
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    // Lấy tất cả phiên đã đóng TRONG HÔM NAY
+    const { data: sessions, error: sessErr } = await supabase
+        .from('sessions')
+        .select('id, session_name, started_at, is_open')
+        .gte('started_at', startOfDay.toISOString())
+        .lte('started_at', endOfDay.toISOString())
+        .eq('is_open', false)
+        .order('started_at', { ascending: false });
+
+    if (sessErr || !sessions || sessions.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+
+    let html = '';
+    for (const sess of sessions) {
+        const { data: records } = await supabase
+            .from('attendance')
+            .select('mssv, full_name, status, category, created_at')
+            .eq('session_id', sess.id)
+            .order('created_at', { ascending: true });
+
+        const list = records || [];
+        const present = list.filter(r => r.status === 'có mặt').length;
+        const absent  = list.filter(r => r.status !== 'có mặt').length;
+        const startTime = new Date(sess.started_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+        html += `
+        <div class="hist-session">
+          <div class="hist-session-header" onclick="toggleHistSession(this)">
+            <div>
+              <b>${escapeHtml(sess.session_name)}</b>
+              <span class="hist-meta">Bắt đầu ${startTime} · ${list.length} SV · <span style="color:var(--ok);">${present} có mặt</span> · <span style="color:var(--err);">${absent} vắng</span></span>
+            </div>
+            <span class="hist-chevron">▼</span>
+          </div>
+          <div class="hist-session-body" style="display:none;">
+            <table class="hist-table">
+              <thead><tr><th>Họ tên</th><th>MSSV</th><th>Trạng thái</th><th>Lĩnh vực</th><th>Thời gian</th></tr></thead>
+              <tbody>
+                ${list.map(r => {
+                    const sc = r.status === 'có mặt' ? 'st-ok' : 'st-no';
+                    const t  = new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                    return `<tr>
+                      <td>${escapeHtml(r.full_name || r.mssv)}</td>
+                      <td class="mono">${escapeHtml(r.mssv)}</td>
+                      <td><span class="status-chip ${sc}">${escapeHtml(r.status)}</span></td>
+                      <td class="mono">${escapeHtml(r.category || '—')}</td>
+                      <td class="mono">${t}</td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    box.innerHTML = html;
+}
+
+function toggleHistSession(header) {
+    const body    = header.nextElementSibling;
+    const chevron = header.querySelector('.hist-chevron');
+    const open    = body.style.display !== 'none';
+    body.style.display    = open ? 'none' : 'block';
+    chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
 
 initAdmin();
