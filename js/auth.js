@@ -1,4 +1,4 @@
-// js/auth.js — Đăng nhập bằng MSSV hoặc Email
+// js/auth.js — Đăng nhập đơn giản hóa
 const AUTH_SUFFIX = '@sv.local';
 
 function openLogin() {
@@ -16,85 +16,90 @@ async function submitLogin() {
   const err = document.getElementById('errBox');
   err.innerText = '';
 
-  if (!accountInput || !pwd) {
-    err.innerText = 'Vui lòng nhập tài khoản và mật khẩu.';
+  if (!accountInput) {
+    err.innerText = 'Vui lòng nhập MSSV hoặc tài khoản.';
     return;
   }
 
   const btn = document.getElementById('btnLogin');
   btn.disabled = true;
-  btn.innerText = 'Đang đăng nhập...';
-
-  // Xác định email đăng nhập:
-  // 1. Nếu người dùng nhập đầy đủ email (có '@') -> dùng trực tiếp
-  // 2. Nếu chỉ nhập MSSV / username -> ghép hậu tố mặc định
-  let email = accountInput.toLowerCase();
-  if (!email.includes('@')) {
-    email += AUTH_SUFFIX;
-  }
-
-  let { data, error } = await supabase.auth.signInWithPassword({ email, password: pwd });
-
-  // Fallback: nếu đăng nhập bằng @sv.local thất bại và trong config có AUTH_EMAIL_SUFFIX khác (vd: @diemdanh.local)
-  if (error && !accountInput.includes('@')) {
-    const altSuffix = window.CONFIG?.AUTH_EMAIL_SUFFIX;
-    if (altSuffix && altSuffix !== AUTH_SUFFIX) {
-      const altEmail = accountInput.toLowerCase() + altSuffix;
-      const altRes = await supabase.auth.signInWithPassword({ email: altEmail, password: pwd });
-      if (!altRes.error) {
-        data = altRes.data;
-        error = null;
-        email = altEmail;
-      }
-    }
-  }
-
-  btn.disabled = false;
-  btn.innerText = 'Đăng nhập';
-
-  if (error) {
-    const m = (error.message || '').toLowerCase();
-    if (m.includes('email not confirmed')) {
-      err.innerText = 'Email chưa xác nhận trên Supabase (bật Auto Confirm User trong Dashboard).';
-    } else if (m.includes('invalid') || m.includes('credentials')) {
-      err.innerText = 'Sai tài khoản hoặc mật khẩu.';
-    } else {
-      err.innerText = error.message || 'Đăng nhập thất bại.';
-    }
-    return;
-  }
+  btn.innerText = 'Đang kiểm tra...';
 
   try {
-    localStorage.setItem('saved_creds', JSON.stringify({ email, pwd, accountInput }));
-  } catch (e) {}
+    // 1. THỬ KIỂM TRA XEM LÀ ADMIN (Có mật khẩu)
+    if (pwd) {
+      let email = accountInput.toLowerCase();
+      if (!email.includes('@')) email += AUTH_SUFFIX;
 
-  const { data: isAdm } = await supabase.rpc('is_admin');
-  location.href = isAdm ? 'admin.html' : 'checkin.html';
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password: pwd });
+
+      if (!authError && authData.session) {
+        // Kiểm tra quyền admin trong bảng profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('mssv', accountInput)
+          .single();
+
+        if (profile?.is_admin) {
+          location.href = 'admin.html';
+          return;
+        }
+      }
+    }
+
+    // 2. LUỒNG SINH VIÊN (Không cần mật khẩu, chỉ cần MSSV tồn tại trong bảng profiles)
+    const { data: student, error: studentError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('mssv', accountInput)
+      .single();
+
+    if (studentError || !student) {
+      err.innerText = 'MSSV không tồn tại trong hệ thống. Vui lòng liên hệ Admin.';
+    } else {
+      // Lưu thông tin sinh viên vào localStorage để dùng ở trang checkin.html
+      localStorage.setItem('student_profile', JSON.stringify(student));
+      location.href = 'checkin.html';
+    }
+
+  } catch (e) {
+    err.innerText = 'Có lỗi xảy ra: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Đăng nhập';
+  }
 }
 
 async function autoLogin() {
   try {
+    // Check xem có session admin không
     const { data } = await supabase.auth.getSession();
     if (data?.session) {
-      const { data: isAdm } = await supabase.rpc('is_admin');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('mssv', (await supabase.auth.getUser()).data.user.email.split('@')[0])
+        .single();
+
+      if (profile?.is_admin) {
+        const btn = document.getElementById('btnOpenLogin');
+        if (btn) {
+          btn.innerHTML = '🛠️ Vào trang quản trị →';
+          btn.onclick = () => { location.href = 'admin.html'; };
+        }
+        return;
+      }
+    }
+
+    // Check xem có profile sinh viên đã lưu không
+    const savedProfile = localStorage.getItem('student_profile');
+    if (savedProfile) {
       const btn = document.getElementById('btnOpenLogin');
       if (btn) {
-        btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
-        btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
+        btn.innerHTML = '📷 Vào trang điểm danh →';
+        btn.onclick = () => { location.href = 'checkin.html'; };
       }
-      return;
-    }
-    const raw = localStorage.getItem('saved_creds');
-    if (!raw) return;
-    const c = JSON.parse(raw);
-    if (!c?.email || !c?.pwd) return;
-    const { data: loginData } = await supabase.auth.signInWithPassword({
-      email: c.email,
-      password: c.pwd
-    });
-    if (loginData?.session) {
-      const { data: isAdm } = await supabase.rpc('is_admin');
-      location.href = isAdm ? 'admin.html' : 'checkin.html';
     }
   } catch (e) {
     console.warn('[autoLogin]', e);

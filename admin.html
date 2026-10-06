@@ -406,7 +406,9 @@ let currentSearch = '';
 let currentPage = 1;
 let pageSize = 20;
 let countdownTimer = null;
-let autoClosed = false;
+let pollTimer = null;
+let realtimeChannel = null;
+let _closingSession = false;   // chặn gọi đóng phiên 2 lần
 let _lastMssvSet = new Set();
 
 function fmtTime(sec){ return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
@@ -442,8 +444,13 @@ async function checkAuth(){
 }
 async function logout(){
   if (!confirm('Đăng xuất khỏi hệ thống?')) return;
+  // Dừng hết tác vụ nền trước khi thoát
+  clearInterval(countdownTimer);
+  clearInterval(pollTimer);
+  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+  localStorage.removeItem('saved_creds');
   await supabase.auth.signOut();
-  location.href = 'index.html';
+  location.replace('index.html');
 }
 async function loadStudents(){
   const { data, error } = await supabase.from('students').select('mssv, name').order('mssv');
@@ -556,7 +563,7 @@ function renderTable(){
         '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div class="td-name">' + escapeHtml(s.name) + '</div></div></td>' +
         '<td class="td-mono">' + s.mssv + '</td>' +
         '<td><select class="status-select ' + selClass + '" onchange="changeStatus(\'' + s.mssv + '\', this.value)">' +
-          '<option value="unmarked" ' + (status==='unmarked'?'selected':'') + ' disabled>Chưa quét</option>' +
+          (status==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
           '<option value="có mặt" ' + (status==='có mặt'?'selected':'') + '>Có mặt</option>' +
           '<option value="vắng có phép" ' + (status==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
           '<option value="vắng không phép" ' + (status==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
@@ -595,7 +602,7 @@ async function openSession(){
   await refreshAll();
 }
 async function changeStatus(mssv, newStatus){
-  if (newStatus === 'unmarked'){ toast('warn', 'Không thể đặt "Chưa quét"', 'Chọn "Vắng" hoặc "Có mặt".'); renderTable(); return; }
+  if (!newStatus) return;
   const { data, error } = await supabase.rpc('admin_set_status', { p_session_id: String(currentSession.id), p_mssv: mssv, p_status: newStatus });
   if (error || !data?.ok){ toast('err', 'Cập nhật thất bại', data?.message || error?.message); return; }
   const s = students.find(x => x.mssv === mssv);
@@ -650,12 +657,28 @@ function openCloseModal(){
   document.getElementById('closeModal').classList.add('show');
 }
 function closeModalFn(){ document.getElementById('closeModal').classList.remove('show'); }
-async function confirmCloseSession(){
-  closeModalFn();
+
+// Đóng phiên TỰ ĐỘNG khi hết giờ (không cần confirm)
+async function autoCloseSession(){
+  clearInterval(countdownTimer);
   const { data, error } = await supabase.rpc('admin_close_session');
-  if (error || !data?.ok) return toast('err', 'Đóng phiên thất bại', data?.message || error?.message);
+  if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
+  currentSession = null;
+  showEmpty();
+  await loadTodayHistory();
+}
+
+// Đóng phiên THỦ CÔNG qua modal xác nhận
+async function confirmCloseSession(){
+  if (_closingSession) return;
+  _closingSession = true;
+  closeModalFn();
+  clearInterval(countdownTimer);
+  const { data, error } = await supabase.rpc('admin_close_session');
+  if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
   toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử hôm nay".');
-  currentSession = null; showEmpty();
+  currentSession = null;
+  showEmpty();
   await loadTodayHistory();
 }
 async function loadTodayHistory(){
@@ -688,7 +711,7 @@ function tickCountdown(){
   const warn = (currentSession.warn_before_min || 5) * 60;
   if (left === 0){
     txt.textContent = '00:00'; chip.className = 'countdown-chip danger'; warnEl.classList.add('show');
-    if (!autoClosed){ autoClosed = true; toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.'); confirmCloseSession(); }
+    if (!_closingSession){ _closingSession = true; toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.'); autoCloseSession(); }
     return;
   }
   txt.textContent = fmtTime(left);
@@ -697,7 +720,8 @@ function tickCountdown(){
   else { chip.className = 'countdown-chip'; warnEl.classList.remove('show'); }
 }
 function setupRealtime(){
-  supabase.channel('admin-changes')
+  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); }
+  realtimeChannel = supabase.channel('admin-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async payload => {
       if (!currentSession) return;
       if (payload.new && payload.new.session_id !== currentSession.id) return;
@@ -722,7 +746,7 @@ async function refreshAll(){
   await loadAttendance();
   Object.keys(attendanceMap).forEach(m => _lastMssvSet.add(m));
   renderQR(); renderAll(); startCountdown();
-  autoClosed = false;
+  _closingSession = false;
 }
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await checkAuth();
@@ -765,7 +789,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('offlineBanner').classList.add('show');
   });
 
-  setInterval(() => { if (currentSession) loadAttendance().then(renderAll); }, 30000);
+  pollTimer = setInterval(() => { if (currentSession) loadAttendance().then(renderAll); }, 30000);
+
+  // Cleanup khi tab bị đóng/navigate đi
+  window.addEventListener('beforeunload', () => {
+    clearInterval(countdownTimer);
+    clearInterval(pollTimer);
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  });
 });
 </script>
 </body>

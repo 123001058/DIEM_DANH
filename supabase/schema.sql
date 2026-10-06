@@ -65,7 +65,8 @@ insert into public.students (mssv, name) values
   ('125000798','Nguyễn Minh Khang'),('123001188','Phạm Anh Tuấn'),
   ('125000550','Nguyễn Duy Tiến'),('123000432','Trần Thành Long'),
   ('123000375','Phạm Đinh Tài Lộc'),('123001394','Đỗ Văn Quyền'),
-  ('125000890','Lê Ngô Gia Bảo'),('125001087','Cao Anh Tú')
+  ('125000890','Lê Ngô Gia Bảo'),('125001087','Cao Anh Tú'),
+  ('124001273','Vũ Tiến Dũng'),('122000426','Nguyễn Văn Hậu')
 on conflict (mssv) do update set name = excluded.name;
 
 create table if not exists public.profiles (
