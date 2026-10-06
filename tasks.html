@@ -1,19 +1,21 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LH-NaviX — Nhiệm Vụ Của Tôi</title>
-<meta name="description" content="Xem và cập nhật tiến độ các nhiệm vụ được giao.">
+<title>LH-NaviX ΓÇö Nhiß╗çm Vß╗Ñ Cß╗ºa T├┤i</title>
+<meta name="description" content="Xem v├á cß║¡p nhß║¡t tiß║┐n ─æß╗Ö c├íc nhiß╗çm vß╗Ñ ─æ╞░ß╗úc giao.">
 <meta name="theme-color" content="#f5f6f8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/roles.css">
+<!-- Bß║«T BUß╗ÿC: Supabase CDN phß║úi nß║▒m tr╞░ß╗¢c js/config.js -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=4"></script>
 <script src="js/roles.js?v=1"></script>
+<script src="js/availability.js?v=1"></script>
 </head>
 <body>
 <div class="bg-grid"></div>
@@ -24,53 +26,63 @@
       <img src="images/logo.png" alt="LH-NaviX" class="logo-sm" width="44" height="44" style="object-fit:contain;border-radius:10px;">
       <div>
         <h1>LH-NaviX</h1>
-        <p id="mySubtitle">Đang tải...</p>
+        <p id="mySubtitle">─Éang tß║úi...</p>
       </div>
     </div>
     <div class="rk-topbar-right">
-      <span class="rk-role-chip chip-student" id="roleChip">Thành viên</span>
-      <a href="checkin.html" class="rk-btn">📷 Điểm danh</a>
-      <button class="rk-btn" onclick="roleLogout()">Đăng xuất</button>
+      <span class="rk-role-chip chip-student" id="roleChip">Th├ánh vi├¬n</span>
+      <a href="checkin.html" class="rk-btn">≡ƒô╖ ─Éiß╗âm danh</a>
+      <a href="lichhoc.html" class="rk-btn">≡ƒôà Lß╗ïch hß╗ìc</a>
+      <button class="rk-btn" onclick="roleLogout()">─É─âng xuß║Ñt</button>
     </div>
   </header>
 
   <div id="pageAlert" class="rk-alert"></div>
 
   <section class="rk-stats rise rise-2">
-    <div class="rk-stat"><div class="rk-stat-label">Chưa bắt đầu</div><div class="rk-stat-value" id="statTodo">0</div></div>
-    <div class="rk-stat"><div class="rk-stat-label">Đang thực hiện</div><div class="rk-stat-value info" id="statDoing">0</div></div>
-    <div class="rk-stat"><div class="rk-stat-label">Hoàn thành</div><div class="rk-stat-value ok" id="statDone">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Ch╞░a bß║»t ─æß║ºu</div><div class="rk-stat-value" id="statTodo">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">─Éang thß╗▒c hiß╗çn</div><div class="rk-stat-value info" id="statDoing">0</div></div>
+    <div class="rk-stat"><div class="rk-stat-label">Ho├án th├ánh</div><div class="rk-stat-value ok" id="statDone">0</div></div>
   </section>
 
-  <!-- ============ NHIỆM VỤ ĐANG MỞ ============ -->
+  <!-- ============ NHIß╗åM Vß╗ñ ─É╞»ß╗óC GIAO ============ -->
   <section class="card rk-card rise rise-2">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div>
-        <div class="rk-card-title">Nhiệm vụ được giao</div>
-        <p class="rk-card-sub" style="margin:0;">Bấm <b>✓ Hoàn thành</b> khi xong việc.</p>
+        <div class="rk-card-title">Nhiß╗çm vß╗Ñ ─æ╞░ß╗úc giao</div>
+        <p class="rk-card-sub" style="margin-bottom:0;">Cß║¡p nhß║¡t tiß║┐n ─æß╗Ö ─æß╗â ─Éß╗Öi tr╞░ß╗ƒng nß║»m ─æ╞░ß╗úc t├¼nh h├¼nh.</p>
       </div>
-      <button class="rk-btn rk-btn-sm" id="btnToggleHistory" onclick="toggleHistory()" style="display:none;">
-        📋 Lịch sử
-      </button>
+      <select id="filterStatus" style="width:auto;min-width:150px;">
+        <option value="all">Tß║Ñt cß║ú trß║íng th├íi</option>
+        <option value="todo">Ch╞░a bß║»t ─æß║ºu</option>
+        <option value="doing">─Éang thß╗▒c hiß╗çn</option>
+        <option value="done">Ho├án th├ánh</option>
+        <option value="cancelled">─É├ú huß╗╖</option>
+      </select>
     </div>
-    <div id="myTaskList">
-      <div class="rk-empty">Đang tải nhiệm vụ...</div>
+    <div id="myTaskList" style="margin-top:16px;">
+      <div class="rk-empty">─Éang tß║úi nhiß╗çm vß╗Ñ...</div>
     </div>
   </section>
 
-  <!-- ============ LỊCH SỬ (ẩn mặc định) ============ -->
-  <section class="card rk-card rise rise-3" id="historySection" style="display:none;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-      <div class="rk-card-title">📋 Lịch sử giao việc &amp; hoàn thành</div>
-      <button class="rk-btn rk-btn-sm" onclick="toggleHistory()">✕ Đóng</button>
+  <!-- ============ KHAI B├üO Lß╗èCH Rß║óNH RI├èNG ============ -->
+  <section class="card rk-card rise rise-3">
+    <div class="rk-card-title">Khai b├ío thß╗¥i gian bß║¡n</div>
+    <p class="rk-card-sub">
+      ─É├ính dß║Ñu nhß╗»ng khung giß╗¥ bß║ín <b>kh├┤ng thß╗â</b> tham gia ─æß╗â ─Éß╗Öi tr╞░ß╗ƒng tr├ính giao nhiß╗çm vß╗Ñ cho bß║ín v├áo l├║c ─æ├│.
+      (Lß╗ïch hß╗ìc ─æ├ú ─æ╞░ß╗úc hß╗ç thß╗æng tß╗▒ ─æß╗Öng nhß║¡n biß║┐t.)
+    </p>
+    <div id="myAvailabilityBox">
+      <div class="rk-empty">─Éang tß║úi lß╗ïch rß║únh...</div>
     </div>
-    <div id="myHistoryList">
-      <div class="rk-empty">Đang tải...</div>
+    <div id="blockReasonBox" style="display:none;margin-top:14px;">
+      <label class="input-label" for="blockReason">L├╜ do bß║¡n (kh├┤ng bß║»t buß╗Öc)</label>
+      <input type="text" id="blockReason" placeholder="VD: ─Éi l├ám th├¬m, thi, ─æi c├┤ng t├íc...">
     </div>
   </section>
 
 </div>
 
-<script src="js/tasks.js?v=2"></script>
+<script src="js/tasks.js?v=1"></script>
 </body>
 </html>

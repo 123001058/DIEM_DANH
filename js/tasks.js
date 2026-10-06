@@ -1,63 +1,74 @@
-/**
- * DIEM_DANH — js/tasks.js  (v2)
- * Trang nhiệm vụ cho THÀNH VIÊN.
- * - Hiển thị nhiệm vụ đang mở với nút ✓ Hoàn thành to, rõ ràng
- * - Tab lịch sử: xem toàn bộ nhiệm vụ đã giao (kể cả done)
+﻿/**
+ * DIEM_DANH ΓÇö js/tasks.js
+ * Trang nhiß╗çm vß╗Ñ cho TH├ÇNH VI├èN (v├á ─Éß╗Öi tr╞░ß╗ƒng xem tiß║┐n ─æß╗Ö cß╗ºa m├¼nh).
+ * Th├ánh vi├¬n CHß╗ê thß║Ñy & cß║¡p nhß║¡t ─æ╞░ß╗úc nhß╗»ng nhiß╗çm vß╗Ñ ─æ╞░ß╗úc giao cho m├¼nh
+ * (─æ╞░ß╗úc bß║úo ─æß║úm bß╗ƒi RLS + RPC update_task_status).
  */
 
 let myAuth = null;
 let myTeam = null;
-let myTasks = [];        // tất cả nhiệm vụ được giao cho mình
-let _historyOpen = false;
+let myTasks = [];
+let myBlocks = [];       // c├íc khoß║úng bß║¡n ─æ├ú khai b├ío
+let myMatrix = {};       // lß╗ïch rß║únh cß╗ºa ch├¡nh m├¼nh
 
 // ============================================================
-// KHỞI TẠO
+// KHß╗₧I Tß║áO
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  myAuth = await requireRoles([], 'trang nhiệm vụ');
+  myAuth = await requireRoles([], 'trang nhiß╗çm vß╗Ñ');
   if (!myAuth) return;
 
-  // Chip vai trò
   const chip = document.getElementById('roleChip');
   if (myAuth.isLeader) {
-    chip.textContent = 'Đội trưởng';
+    chip.textContent = '─Éß╗Öi tr╞░ß╗ƒng';
     chip.className = 'rk-role-chip chip-leader';
   } else if (myAuth.isDeputy) {
-    chip.textContent = 'Đội phó';
+    chip.textContent = '─Éß╗Öi ph├│';
     chip.className = 'rk-role-chip chip-deputy';
   } else if (myAuth.isAdmin) {
-    chip.textContent = 'Quản trị viên';
+    chip.textContent = 'Quß║ún trß╗ï vi├¬n';
     chip.className = 'rk-role-chip chip-admin';
   }
 
   const sub = document.getElementById('mySubtitle');
-  if (sub) sub.textContent = `Xin chào, ${myAuth.displayName}`;
+  if (sub) sub.textContent = `Xin ch├áo, ${myAuth.displayName}`;
+
+  const filter = document.getElementById('filterStatus');
+  if (filter) filter.addEventListener('change', renderMyTasks);
 
   await loadMyTeam();
   await loadMyTasks();
+  await loadMyAvailability();
+
   renderMyTasks();
+  renderMyAvailability();
   updateStats();
 });
 
-// ============================================================
-// NHÓM & NHIỆM VỤ
-// ============================================================
 async function loadMyTeam() {
   const { teams } = await fetchMyTeams();
   if (!teams.length) {
-    showAlert('Bạn chưa được phân vào nhóm nào. Nhiệm vụ sẽ xuất hiện khi Đội trưởng giao.', 'info');
+    showAlert('Bß║ín ch╞░a ─æ╞░ß╗úc ph├ón v├áo nh├│m n├áo. Nhiß╗çm vß╗Ñ sß║╜ xuß║Ñt hiß╗çn khi ─Éß╗Öi tr╞░ß╗ƒng giao.', 'info');
     return;
   }
+  // ╞»u ti├¬n nh├│m m├¼nh l├ám ─æß╗Öi tr╞░ß╗ƒng (nß║┐u c├│)
   myTeam = teams.find((t) => t.leader_id === myAuth.user.id) || teams[0];
 }
 
+// ============================================================
+// NHIß╗åM Vß╗ñ
+// ============================================================
 async function loadMyTasks() {
-  if (!myTeam) { myTasks = []; return; }
+  if (!myTeam) {
+    myTasks = [];
+    return;
+  }
   try {
     const { data, error } = await supabase.rpc('get_team_board', { p_team_id: myTeam.id });
     if (error) throw error;
+
     const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-    // Gắn phần công của chính mình vào từng task
+    // Th├ánh vi├¬n chß╗ë thß║Ñy phß║ºn c├┤ng cß╗ºa m├¼nh
     myTasks = tasks
       .map((t) => ({
         ...t,
@@ -70,77 +81,74 @@ async function loadMyTasks() {
   }
 }
 
-// ============================================================
-// RENDER NHIỆM VỤ ĐANG MỞ
-// ============================================================
+function fmtDue(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  } catch (e) {
+    return null;
+  }
+}
+
 function renderMyTasks() {
   const box = document.getElementById('myTaskList');
-  const btnHistory = document.getElementById('btnToggleHistory');
   if (!box) return;
 
-  // Hiện nút lịch sử nếu có ít nhất 1 task done
-  const hasDone = myTasks.some((t) => t.my_assignment?.status === 'done');
-  if (btnHistory) btnHistory.style.display = hasDone ? 'inline-flex' : 'none';
+  const filterVal = document.getElementById('filterStatus')?.value || 'all';
+  const list = myTasks.filter((t) => filterVal === 'all' || t.my_assignment.status === filterVal);
 
-  // Chỉ hiện nhiệm vụ chưa hoàn thành / chưa huỷ
-  const active = myTasks.filter(
-    (t) => t.my_assignment?.status !== 'done' && t.my_assignment?.status !== 'cancelled'
-  );
-
-  if (!active.length) {
+  if (!list.length) {
     box.innerHTML = myTasks.length
-      ? '<div class="rk-empty">🎉 Bạn đã hoàn thành tất cả nhiệm vụ!</div>'
-      : '<div class="rk-empty">Bạn chưa được giao nhiệm vụ nào.</div>';
+      ? '<div class="rk-empty">Kh├┤ng c├│ nhiß╗çm vß╗Ñ n├áo ß╗ƒ trß║íng th├íi n├áy.</div>'
+      : '<div class="rk-empty">Bß║ín ch╞░a ─æ╞░ß╗úc giao nhiß╗çm vß╗Ñ n├áo. H├úy kiß╗âm tra lß║íi sau.</div>';
     return;
   }
 
   let html = '<div class="rk-task-list">';
-  active.forEach((t) => {
+
+  list.forEach((t) => {
     const a = t.my_assignment;
+    const slot = (t.slot_thu && t.slot_buoi)
+      ? `${THU_SHORT[t.slot_thu]} ┬╖ ${BUOI_SHORT[t.slot_buoi]}` : null;
     const due = fmtDue(t.due_at);
-    const isDoing = a.status === 'doing';
 
-    html += `<div class="rk-task" style="border-left:3px solid ${isDoing ? 'var(--accent)' : 'var(--border)'}">`;
+    html += '<div class="rk-task">';
+    html += '<div class="rk-task-head"><div class="rk-task-title">' + escapeHtml(t.title) + '</div>' +
+      `<span class="rk-badge ${escapeHtml(a.status)}">${TASK_STATUS_LABELS[a.status] || a.status}</span></div>`;
 
-    // Tiêu đề + trạng thái
-    html += '<div class="rk-task-head">' +
-      `<div class="rk-task-title">${escapeHtml(t.title)}</div>` +
-      `<span class="rk-badge ${escapeHtml(a.status)}">${TASK_STATUS_LABELS[a.status] || a.status}</span>` +
-      '</div>';
-
-    if (t.description) html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
-
-    // Meta
-    html += '<div class="rk-task-meta">';
-    if (due) html += `<span>⏳ Hạn: ${escapeHtml(due)}</span>`;
-    if (a.note) html += `${due ? '<span class="rk-dot"></span>' : ''}<span>📝 ${escapeHtml(a.note)}</span>`;
-    html += '</div>';
-
-    // Nút hành động
-    html += '<div class="rk-task-foot">';
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
-
-    // Nút chính: ✓ Hoàn thành — to, nổi bật
-    html += `<button class="rk-btn rk-btn-ok" style="font-size:14px;padding:10px 18px;"
-      onclick="setDone('${t.id}')">✓ Hoàn thành</button>`;
-
-    // Nút phụ: đang thực hiện (nếu chưa)
-    if (!isDoing) {
-      html += `<button class="rk-btn rk-btn-sm" onclick="setStatus('${t.id}','doing')">▶ Bắt đầu</button>`;
+    if (t.description) {
+      html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
     }
 
-    html += '</div></div></div>';
+    if (t.priority === 'high') {
+      html += '<div class="rk-task-meta"><span class="rk-badge high">╞»u ti├¬n cao</span></div>';
+    }
+
+    html += '<div class="rk-task-meta" style="margin-top:8px;">';
+    if (slot) html += `<span>≡ƒòÉ Khung dß╗▒ kiß║┐n: ${escapeHtml(slot)}</span><span class="rk-dot"></span>`;
+    if (due) html += `<span>ΓÅ│ Hß║ín: ${escapeHtml(due)}</span>`;
+    html += '</div>';
+
+    // N├║t cß║¡p nhß║¡t tiß║┐n ─æß╗Ö
+    html += '<div class="rk-task-foot"><div class="rk-assignee-list">' +
+      '<span class="rk-muted">Cß║¡p nhß║¡t tiß║┐n ─æß╗Ö:</span>';
+    ['todo', 'doing', 'done'].forEach((s) => {
+      const active = a.status === s;
+      html += `<button class="rk-btn rk-btn-sm${active ? ' rk-btn-primary' : ''}" ` +
+        `onclick="setStatus('${t.id}','${s}')">${TASK_STATUS_LABELS[s]}</button>`;
+    });
+    html += '</div>';
+
+    if (a.note) {
+      html += `<div class="rk-muted" style="margin-top:10px;">≡ƒô¥ Ghi ch├║ ─Éß╗Öi tr╞░ß╗ƒng: ${escapeHtml(a.note)}</div>`;
+    }
+    html += '</div></div>';
   });
 
   html += '</div>';
   box.innerHTML = html;
-}
-
-// ============================================================
-// CẬP NHẬT TRẠNG THÁI
-// ============================================================
-async function setDone(taskId) {
-  await setStatus(taskId, 'done');
 }
 
 async function setStatus(taskId, status) {
@@ -151,112 +159,144 @@ async function setStatus(taskId, status) {
   });
 
   if (error || !data?.ok) {
-    return showAlert(data?.message || error?.message || 'Không cập nhật được.', 'err');
+    return showAlert(data?.message || error?.message || 'Kh├┤ng cß║¡p nhß║¡t ─æ╞░ß╗úc.', 'err');
   }
 
-  showAlert(status === 'done' ? '🎉 Đã đánh dấu hoàn thành!' : '✓ Đã cập nhật tiến độ.', 'ok');
+  showAlert('Γ£ô ' + (data.message || '─É├ú cß║¡p nhß║¡t tiß║┐n ─æß╗Ö.'), 'ok');
   await loadMyTasks();
   renderMyTasks();
   updateStats();
-  // Nếu đang mở lịch sử thì cập nhật luôn
-  if (_historyOpen) renderHistory();
 }
 
 // ============================================================
-// LỊCH SỬ GIAO VIỆC & HOÀN THÀNH
+// KHAI B├üO Lß╗èCH Rß║óNH
 // ============================================================
-function toggleHistory() {
-  _historyOpen = !_historyOpen;
-  const section = document.getElementById('historySection');
-  const btn = document.getElementById('btnToggleHistory');
-  if (section) section.style.display = _historyOpen ? 'block' : 'none';
-  if (btn) btn.textContent = _historyOpen ? '✕ Đóng lịch sử' : '📋 Lịch sử';
-  if (_historyOpen) {
-    renderHistory();
-    section?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+async function loadMyAvailability() {
+  try {
+    // Khoß║úng bß║¡n ─æ├ú khai b├ío (chß╗ë ─æß╗ìc ─æ╞░ß╗úc ch├¡nh m├¼nh qua RLS)
+    const { data: blocks, error: bErr } = await supabase
+      .from('availability_blocks')
+      .select('slot_thu, slot_buoi, reason')
+      .eq('user_id', myAuth.user.id);
+
+    if (bErr) throw bErr;
+    myBlocks = Array.isArray(blocks) ? blocks : [];
+
+    // T├¡nh lß╗ïch rß║únh (kß║┐t hß╗úp lß╗ïch hß╗ìc + khoß║úng bß║¡n)
+    myMatrix = await buildAvailabilityMatrix([{
+      user_id: myAuth.user.id,
+      mssv: myAuth.profile?.mssv,
+      blocks: myBlocks,
+    }]);
+  } catch (e) {
+    console.error('[loadMyAvailability]', e);
+    myBlocks = [];
   }
 }
 
-function renderHistory() {
-  const box = document.getElementById('myHistoryList');
+function renderMyAvailability() {
+  const box = document.getElementById('myAvailabilityBox');
   if (!box) return;
 
-  if (!myTasks.length) {
-    box.innerHTML = '<div class="rk-empty">Chưa có nhiệm vụ nào.</div>';
-    return;
+  const thuList = [2, 3, 4, 5, 6, 7, 8];
+  const buoiList = [1, 2, 3];
+  const uid = myAuth.user.id;
+
+  let html = '<div class="rk-grid-week"><table class="rk-week-table"><thead><tr>' +
+    '<th class="rk-week-corner">Khung giß╗¥</th>';
+  for (const th of thuList) html += `<th>${THU_SHORT[th]}</th>`;
+  html += '</tr></thead><tbody>';
+
+  for (const bu of buoiList) {
+    html += `<tr><td class="rk-week-rowhead">${BUOI_SHORT[bu]}</td>`;
+    for (const th of thuList) {
+      const info = myMatrix[`${uid}|${th}|${bu}`] || { free: true, reason: 'Rß║únh' };
+      // ├ö c├│ lß╗¢p th├¼ kh├┤ng cho ─æ├ính dß║Ñu (─æ├ú biß║┐t l├á bß║¡n)
+      const isClass = info.reason && info.reason.startsWith('C├│ lß╗¢p');
+      const lb = freeLabel(info.free, info.reason);
+      const cls = isClass ? 'is-busy-class' : lb.cls;
+      const cursor = isClass ? '' : ' is-clickable';
+      const title = isClass
+        ? `${THU_LABELS[th]} ┬╖ ${BUOI_SHORT[bu]} ΓÇö ${info.reason} (kh├┤ng thß╗â thay ─æß╗òi)`
+        : `${THU_LABELS[th]} ┬╖ ${BUOI_SHORT[bu]} ΓÇö bß║Ñm ─æß╗â ─æ├ính dß║Ñu ${info.free ? 'Bß║¼N' : 'Rß║óNH'}`;
+
+      html += `<td><div class="rk-slot ${cls}${cursor}" title="${escapeHtml(title)}" ` +
+        `onclick="${isClass ? '' : `toggleBlock(${th},${bu},${info.free ? 'true' : 'false'})`}">` +
+        `<span class="rk-slot-mark">${isClass ? '≡ƒôÜ' : (info.free ? 'Γ£ô' : 'Γ£ò')}</span>` +
+        `<span class="rk-slot-text">${isClass ? 'C├│ lß╗¢p' : (info.free ? 'Rß║únh' : 'Bß║¡n')}</span></div></td>`;
+    }
+    html += '</tr>';
   }
 
-  // Sắp xếp: done trước, rồi mới nhất
-  const sorted = [...myTasks].sort((a, b) => {
-    const aDone = a.my_assignment?.status === 'done' ? 0 : 1;
-    const bDone = b.my_assignment?.status === 'done' ? 0 : 1;
-    if (aDone !== bDone) return aDone - bDone;
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
+  html += '</tbody></table></div>';
+  html += '<p class="rk-muted" style="margin-top:10px;">≡ƒƒ¿ ├ö c├│ lß╗¢p kh├┤ng thß╗â thay ─æß╗òi. ' +
+    'Bß║Ñm v├áo ├┤ xanh (Rß║únh) ─æß╗â ─æ├ính dß║Ñu l├á Bß║¡n, bß║Ñm ├┤ ─æß╗Å ─æß╗â gß╗í.</p>';
 
-  let html = '<div class="rk-task-list">';
-  sorted.forEach((t) => {
-    const a = t.my_assignment;
-    const due = fmtDue(t.due_at);
-    const created = fmtDue(t.created_at);
-    const isDone = a.status === 'done';
-
-    html += `<div class="rk-task" style="opacity:${isDone ? '0.72' : '1'};` +
-      `border-left:3px solid ${isDone ? 'var(--ok)' : 'var(--border)'}">`;
-
-    html += '<div class="rk-task-head">' +
-      `<div class="rk-task-title">${isDone ? '✅ ' : ''}${escapeHtml(t.title)}</div>` +
-      `<span class="rk-badge ${escapeHtml(a.status)}">${TASK_STATUS_LABELS[a.status] || a.status}</span>` +
-      '</div>';
-
-    if (t.description) html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
-
-    html += '<div class="rk-task-meta">';
-    if (created) html += `<span>📅 Được giao: ${escapeHtml(created)}</span>`;
-    if (due) html += `<span class="rk-dot"></span><span>⏳ Hạn: ${escapeHtml(due)}</span>`;
-    html += '</div>';
-
-    // Nếu chưa done thì vẫn cho hoàn thành từ lịch sử
-    if (!isDone) {
-      html += `<div class="rk-task-foot"><button class="rk-btn rk-btn-ok rk-btn-sm"
-        onclick="setDone('${t.id}')">✓ Hoàn thành</button></div>`;
-    }
-
-    html += '</div>';
-  });
-
-  html += '</div>';
   box.innerHTML = html;
 }
 
+/** Bß║¡t/tß║»t khoß║úng bß║¡n cho ch├¡nh m├¼nh */
+async function toggleBlock(thu, buoi, currentlyFree) {
+  const willBeBusy = currentlyFree === true;
+  const reasonBox = document.getElementById('blockReasonBox');
+  const reasonInput = document.getElementById('blockReason');
+
+  let reason = null;
+  if (willBeBusy) {
+    // Hß╗Åi l├╜ do (kh├┤ng bß║»t buß╗Öc)
+    reason = prompt(
+      `Khai b├ío Bß║¼N v├áo ${THU_LABELS[thu]} ┬╖ ${BUOI_SHORT[buoi]}.\n\n` +
+      'L├╜ do (kh├┤ng bß║»t buß╗Öc):',
+      ''
+    );
+    if (reason === null) return; // huß╗╖
+  } else {
+    if (!confirm(`Gß╗í ─æ├ính dß║Ñu bß║¡n ${THU_LABELS[thu]} ┬╖ ${BUOI_SHORT[buoi]}?`)) return;
+  }
+
+  const { data, error } = await supabase.rpc('set_availability_block', {
+    p_slot_thu: thu,
+    p_slot_buoi: buoi,
+    p_busy: willBeBusy,
+    p_reason: reason || null,
+  });
+
+  if (error || !data?.ok) {
+    return showAlert(data?.message || error?.message || 'Kh├┤ng cß║¡p nhß║¡t ─æ╞░ß╗úc.', 'err');
+  }
+
+  if (reasonInput) reasonInput.value = '';
+  if (reasonBox) reasonBox.style.display = 'none';
+
+  showAlert('Γ£ô ' + (data.message || '─É├ú cß║¡p nhß║¡t lß╗ïch rß║únh.'), 'ok');
+  await loadMyAvailability();
+  renderMyAvailability();
+  updateStats();
+}
+
 // ============================================================
-// THỐNG KÊ & TIỆN ÍCH
+// THß╗ÉNG K├è & TIß╗åN ├ìCH
 // ============================================================
 function updateStats() {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
   const counts = { todo: 0, doing: 0, done: 0 };
   myTasks.forEach((t) => {
     const s = t.my_assignment?.status;
-    if (s && counts[s] !== undefined) counts[s]++;
+    if (counts[s] !== undefined) counts[s]++;
   });
-  ['todo', 'doing', 'done'].forEach((s) => {
-    const el = document.getElementById('stat' + s.charAt(0).toUpperCase() + s.slice(1));
-    if (el) el.textContent = counts[s];
-  });
-}
 
-function fmtDue(iso) {
-  if (!iso) return null;
-  try {
-    const d = new Date(iso);
-    const p = (n) => String(n).padStart(2, '0');
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-  } catch (_) { return null; }
+  set('statTodo', counts.todo);
+  set('statDoing', counts.doing);
+  set('statDone', counts.done);
 }
 
 function showAlert(msg, type = 'info') {
   const el = document.getElementById('pageAlert');
-  if (!el) return;
+  if (!el) return alert(msg);
   el.className = 'rk-alert show rk-alert-' + type;
   el.innerText = msg;
-  setTimeout(() => { el.className = 'rk-alert'; }, 5000);
 }
