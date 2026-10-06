@@ -1,7 +1,9 @@
 // js/auth.js — Đăng nhập bằng MSSV
+const AUTH_SUFFIX = '@sv.local';
+
 function openLogin(){
   document.getElementById('modalBg').classList.add('show');
-  setTimeout(()=>document.getElementById('mssvInput')?.focus(), 100);
+  setTimeout(() => document.getElementById('mssvInput')?.focus(), 100);
 }
 function closeLogin(){
   document.getElementById('modalBg').classList.remove('show');
@@ -20,7 +22,7 @@ async function submitLogin(){
   btn.disabled = true;
   btn.innerText = 'Đang đăng nhập...';
 
-  const email = mssv + '@sv.local';
+  const email = mssv + AUTH_SUFFIX;
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: pwd });
   btn.disabled = false;
   btn.innerText = 'Đăng nhập';

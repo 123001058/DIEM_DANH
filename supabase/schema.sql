@@ -1,11 +1,10 @@
 -- =====================================================================
--- LH-NaviX — Schema gọn v2.0
+-- LH-NaviX — Schema v2.0
 -- Chạy lại nhiều lần an toàn
 -- =====================================================================
 
 create extension if not exists pgcrypto with schema extensions;
 
--- Bảng sessions
 create table if not exists public.sessions (
   id              uuid primary key default gen_random_uuid(),
   session_name    text not null,
@@ -27,7 +26,6 @@ update public.sessions
 
 alter table public.sessions alter column qr_token set not null;
 
--- Bảng attendance
 create table if not exists public.attendance (
   id         uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
@@ -48,7 +46,6 @@ create unique index if not exists attendance_session_device_uq
 create index if not exists attendance_session_idx
   on public.attendance (session_id, created_at desc);
 
--- Bảng students
 create table if not exists public.students (
   mssv text primary key,
   name text not null
@@ -71,7 +68,6 @@ insert into public.students (mssv, name) values
   ('125000890','Lê Ngô Gia Bảo'),('125001087','Cao Anh Tú')
 on conflict (mssv) do update set name = excluded.name;
 
--- Bảng profiles
 create table if not exists public.profiles (
   user_id   uuid primary key references auth.users(id) on delete cascade,
   username  text unique,
@@ -79,25 +75,20 @@ create table if not exists public.profiles (
   mssv      text unique
 );
 
--- Bảng admin whitelist
 create table if not exists public.admin_mssv (
   mssv text primary key,
   added_at timestamptz not null default now()
 );
 
--- ⚠️ SỬA THÀNH MSSV CỦA BẠN
+-- ⚠️ SỬA MSSV CỦA BẠN
 insert into public.admin_mssv (mssv) values ('123001058')
 on conflict (mssv) do nothing;
 
--- Trigger tạo profile khi có user mới
 create or replace function public.handle_new_user()
-returns trigger
-language plpgsql security definer
+returns trigger language plpgsql security definer
 set search_path = public, extensions, pg_temp
 as $$
-declare
-  v_mssv text;
-  v_name text;
+declare v_mssv text; v_name text;
 begin
   v_mssv := coalesce(
     nullif(btrim(new.raw_user_meta_data->>'mssv'), ''),
@@ -122,7 +113,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Đồng bộ profile cho user đã có
 do $$
 declare r record;
 begin
@@ -144,10 +134,8 @@ begin
   end loop;
 end $$;
 
--- Hàm kiểm tra admin
 create or replace function public.is_admin()
-returns boolean
-language sql stable security definer
+returns boolean language sql stable security definer
 set search_path = public, extensions, pg_temp
 as $$
   select exists (
@@ -157,10 +145,9 @@ as $$
   );
 $$;
 
-revoke all   on function public.is_admin() from public, anon;
+revoke all on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
--- RLS
 alter table public.sessions   enable row level security;
 alter table public.attendance enable row level security;
 alter table public.students   enable row level security;
@@ -191,10 +178,8 @@ revoke all on public.sessions, public.attendance, public.students,
 grant select on public.students to authenticated;
 grant select on public.profiles to authenticated;
 
--- RPC: lấy phiên đang mở
 create or replace function public.get_open_session()
-returns jsonb
-language sql volatile security definer
+returns jsonb language sql volatile security definer
 set search_path = public, extensions, pg_temp
 as $$
   select jsonb_build_object(
@@ -212,16 +197,13 @@ $$;
 revoke all on function public.get_open_session() from public;
 grant execute on function public.get_open_session() to authenticated;
 
--- RPC: admin mở phiên
 create or replace function public.admin_open_session(
   p_name text, p_duration_min int, p_warn_before_min int default 5
 )
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
 as $$
-declare
-  v_name text := btrim(coalesce(p_name, ''));
-  v_new_id uuid; v_token text;
+declare v_name text := btrim(coalesce(p_name, '')); v_new_id uuid; v_token text;
 begin
   if not public.is_admin() then
     return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
@@ -241,7 +223,6 @@ $$;
 revoke all on function public.admin_open_session(text, int, int) from public, anon;
 grant execute on function public.admin_open_session(text, int, int) to authenticated;
 
--- RPC: admin đóng phiên
 create or replace function public.admin_close_session()
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -258,7 +239,6 @@ $$;
 revoke all on function public.admin_close_session() from public, anon;
 grant execute on function public.admin_close_session() to authenticated;
 
--- RPC: admin đổi QR
 create or replace function public.admin_regenerate_qr()
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -281,7 +261,6 @@ $$;
 revoke all on function public.admin_regenerate_qr() from public, anon;
 grant execute on function public.admin_regenerate_qr() to authenticated;
 
--- RPC: admin đổi trạng thái 1 SV
 create or replace function public.admin_set_status(
   p_session_id text, p_mssv text, p_status text
 )
@@ -314,7 +293,6 @@ $$;
 revoke all on function public.admin_set_status(text, text, text) from public, anon;
 grant execute on function public.admin_set_status(text, text, text) to authenticated;
 
--- RPC: admin đổi trạng thái nhiều SV
 create or replace function public.admin_batch_set_status(
   p_session_id text, p_mssv_list text[], p_status text
 )
@@ -344,7 +322,6 @@ $$;
 revoke all on function public.admin_batch_set_status(text, text[], text) from public, anon;
 grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
 
--- RPC: SV điểm danh
 create or replace function public.submit_attendance(
   p_session_id text, p_token text, p_mssv text,
   p_category text, p_note text, p_device_id text
@@ -423,7 +400,6 @@ $$;
 revoke all on function public.submit_attendance(text,text,text,text,text,text) from public, anon;
 grant execute on function public.submit_attendance(text,text,text,text,text,text) to authenticated;
 
--- RPC: tổng kết phiên
 create or replace function public.get_session_summary(p_session_id text)
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -449,7 +425,6 @@ $$;
 revoke all on function public.get_session_summary(text) from public, anon;
 grant execute on function public.get_session_summary(text) to authenticated;
 
--- RPC: lịch sử điểm danh của SV
 create or replace function public.get_my_attendance_history(p_mssv text)
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -479,7 +454,6 @@ $$;
 revoke all on function public.get_my_attendance_history(text) from public, anon;
 grant execute on function public.get_my_attendance_history(text) to authenticated;
 
--- RPC: lịch sử phiên hôm nay (admin)
 create or replace function public.admin_today_sessions()
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -509,7 +483,6 @@ $$;
 revoke all on function public.admin_today_sessions() from public, anon;
 grant execute on function public.admin_today_sessions() to authenticated;
 
--- Realtime
 do $$ begin
   alter publication supabase_realtime add table public.attendance;
 exception when duplicate_object then null; end $$;

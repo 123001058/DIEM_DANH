@@ -166,29 +166,15 @@
 
   // Fetch data
   async function loadData() {
-    // 1. Kiểm tra quyền: Admin và Đội trưởng được tra cứu thời khóa biểu
-    //    (Đội trưởng cần lịch học để xác định lịch rảnh và giao nhiệm vụ)
+    // 1. Kiểm tra đăng nhập — ai đăng nhập đều xem được lịch học
     try {
       if (typeof supabase === 'undefined') {
         alert('Lỗi khởi tạo hệ thống! Vui lòng tải lại trang.');
         return location.replace('index.html');
       }
-
       const { data: authData } = await supabase.auth.getSession();
       if (!authData?.session) {
         alert('Vui lòng đăng nhập để tra cứu thời khóa biểu!');
-        return location.replace('index.html');
-      }
-
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', authData.session.user.id)
-        .maybeSingle();
-      const role = prof?.role || 'student';
-
-      if (role !== 'admin' && role !== 'leader' && role !== 'deputy') {
-        alert('Từ chối truy cập! Chỉ Admin, Đội trưởng và Đội phó có quyền tra cứu thời khóa biểu.');
         return location.replace('index.html');
       }
     } catch (e) {
