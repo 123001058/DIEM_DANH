@@ -1,327 +1,72 @@
-// DIEM_DANH — js/auth.js
-// Xác thực người dùng (Đăng nhập / Đăng ký) tại index.html
-
-function openLogin(tab = 'login'){
+// js/auth.js — Đăng nhập bằng MSSV
+function openLogin(){
   document.getElementById('modalBg').classList.add('show');
-  switchAuthTab(tab);
+  setTimeout(()=>document.getElementById('mssvInput')?.focus(), 100);
 }
-
 function closeLogin(){
   document.getElementById('modalBg').classList.remove('show');
 }
 
-function switchAuthTab(tab){
-  const btnLogin = document.getElementById('tabBtnLogin');
-  const btnReg = document.getElementById('tabBtnRegister');
-  const loginArea = document.getElementById('loginFormArea');
-  const regArea = document.getElementById('registerFormArea');
-  const err = document.getElementById('errBox');
-  const regMsg = document.getElementById('regMsg');
-
-  if (err) err.innerText = '';
-  if (regMsg) regMsg.innerText = '';
-
-  if (tab === 'login') {
-    if (btnLogin) btnLogin.classList.add('active');
-    if (btnReg) btnReg.classList.remove('active');
-    if (loginArea) loginArea.style.display = 'block';
-    if (regArea) regArea.style.display = 'none';
-    setTimeout(() => {
-      const u = document.getElementById('userInput');
-      if (u) u.focus();
-    }, 100);
-  } else {
-    if (btnLogin) btnLogin.classList.remove('active');
-    if (btnReg) btnReg.classList.add('active');
-    if (loginArea) loginArea.style.display = 'none';
-    if (regArea) regArea.style.display = 'block';
-    setTimeout(() => {
-      const u = document.getElementById('regUsername');
-      if (u) u.focus();
-    }, 100);
-  }
-}
-
-// Xử lý Đăng nhập
 async function submitLogin(){
-  const username = document.getElementById('userInput').value.trim().toLowerCase().replace(/\s+/g, '');
-  const pwd = document.getElementById('pwdInput').value;
-  const err = document.getElementById('errBox');
+  const mssv = document.getElementById('mssvInput').value.trim();
+  const pwd  = document.getElementById('pwdInput').value;
+  const err  = document.getElementById('errBox');
   err.innerText = '';
-  if (!username || !pwd) {
-    err.innerText = 'Vui lòng nhập tên đăng nhập và mật khẩu!';
-    return;
-  }
+
+  if (!mssv || !pwd){ err.innerText = 'Vui lòng nhập MSSV và mật khẩu.'; return; }
+  if (!/^\d{6,12}$/.test(mssv)){ err.innerText = 'MSSV phải là dãy số (6–12 ký tự).'; return; }
 
   const btn = document.getElementById('btnLogin');
-  if (btn) btn.disabled = true;
+  btn.disabled = true;
+  btn.innerText = 'Đang đăng nhập...';
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: username.includes('@') ? username : username + CONFIG.AUTH_EMAIL_SUFFIX,
-    password: pwd,
-  });
+  const email = mssv + '@sv.local';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pwd });
+  btn.disabled = false;
+  btn.innerText = 'Đăng nhập';
 
-  if (btn) btn.disabled = false;
-
-  // Hiển thị lỗi rõ ràng nếu có
-  if (error) {
+  if (error){
     const m = (error.message || '').toLowerCase();
-    if (m.includes('invalid login')) {
-      err.innerText = 'Sai tên đăng nhập hoặc mật khẩu!';
-    } else if (m.includes('email not confirmed')) {
-      err.innerText = 'Tài khoản chưa được xác nhận email trên hệ thống!';
-    } else {
-      err.innerText = error.message || 'Đăng nhập không thành công!';
-    }
+    err.innerText = m.includes('invalid') ? 'Sai MSSV hoặc mật khẩu.' :
+                    error.message || 'Đăng nhập thất bại.';
     return;
   }
 
-  // Lưu thông tin đăng nhập sinh viên vào localStorage để nhớ vĩnh viễn trên thiết bị này
-  try {
-    const loginEmail = username.includes('@') ? username : username + CONFIG.AUTH_EMAIL_SUFFIX;
-    localStorage.setItem('saved_student_creds', JSON.stringify({ email: loginEmail, pwd }));
-    const metaMssv = data?.user?.user_metadata?.mssv;
-    if (metaMssv) localStorage.setItem('saved_mssv', metaMssv);
-  } catch (e) {}
+  try { localStorage.setItem('saved_creds', JSON.stringify({ email, pwd, mssv })); } catch(e){}
 
-  // Điều hướng theo vai trò (đọc từ bảng profiles — nguồn sự thật duy nhất):
-  //   admin   -> admin.html   (Bảng điều khiển quản trị + Nhóm & Phân quyền)
-  //   leader  -> leader.html  (Quản lý nhóm, xem lịch rảnh, giao nhiệm vụ)
-  //   student -> checkin.html (Điểm danh)
-  try {
-    let role = null;
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('user_id', data.user.id)
-      .maybeSingle();
-    role = prof?.role || data.user?.user_metadata?.app_role || null;
-
-    if (role === 'admin') {
-      location.href = 'admin.html';
-    } else if (role === 'leader' || role === 'deputy') {
-      // Đội phó vào cùng bảng điều khiển (quyền ngang đội trưởng)
-      location.href = 'leader.html';
-    } else {
-      location.href = 'checkin.html';
-    }
-  } catch (e) {
-    location.href = 'checkin.html';
-  }
+  const { data: isAdm } = await supabase.rpc('is_admin');
+  location.href = isAdm ? 'admin.html' : 'checkin.html';
 }
 
-// Xử lý Tạo tài khoản
-async function submitRegister(){
-  const uInput = document.getElementById('regUsername');
-  const pInput = document.getElementById('regPassword');
-  const roleInput = document.getElementById('regRole');
-  const nameInput = document.getElementById('regFullName');
-  const mssvInput = document.getElementById('regMssv');
-  const msg = document.getElementById('regMsg');
-
-  const username = uInput.value.trim().toLowerCase().replace(/\s+/g, '');
-  const password = pInput.value;
-  const role = 'student';
-  const fullName = nameInput ? nameInput.value.trim() : '';
-  const mssv = mssvInput ? mssvInput.value.trim() : '';
-
-  if (!username) {
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Vui lòng nhập tên đăng nhập!';
-    uInput.focus();
-    return;
-  }
-
-  if (!/^[a-z0-9_-]+$/.test(username)) {
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Tên đăng nhập chỉ chứa chữ cái, số và dấu gạch (_ -)!';
-    uInput.focus();
-    return;
-  }
-
-  if (!password || password.length < 6) {
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Mật khẩu phải có từ 6 ký tự trở lên!';
-    pInput.focus();
-    return;
-  }
-
-  if (!mssv) {
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Vui lòng nhập Mã số sinh viên (MSSV)!';
-    if (mssvInput) mssvInput.focus();
-    return;
-  }
-
-  const btn = document.getElementById('btnRegister');
-  if (btn) btn.disabled = true;
-  msg.style.color = 'var(--text)';
-  msg.innerText = 'Đang xử lý tạo tài khoản...';
-
-  try {
-    // Dùng client độc lập để không ảnh hưởng phiên hiện hành
-    const sdk = window.supabaseSDK || window.supabase;
-    const tempClient = sdk.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
-
-    const email = username.includes('@') ? username : username + CONFIG.AUTH_EMAIL_SUFFIX;
-
-    const { data: signUpData, error: signUpError } = await tempClient.auth.signUp({
-      email: email,
-      password: password,
-      options: {
-        data: {
-          username: username,
-          name: fullName,
-          mssv: mssv || null,
-          app_role: role
-        }
-      }
-    });
-
-    if (signUpError) {
-      const em = (signUpError.message || '').toLowerCase();
-      if (em.includes('already registered') || em.includes('user already exists')) {
-        throw new Error('Tên đăng nhập này đã được sử dụng!');
-      }
-      throw signUpError;
-    }
-    if (!signUpData?.user) throw new Error('Không tạo được tài khoản Auth');
-
-    msg.style.color = 'var(--ok)';
-    msg.innerText = `✓ Tạo tài khoản thành công! Đang tự động đăng nhập...`;
-
-    // Tự động đăng nhập vào hệ thống
-    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-
-    if (!loginError && loginData?.session) {
-      try {
-        localStorage.setItem('saved_student_creds', JSON.stringify({ email: email, pwd: password }));
-        if (mssv) localStorage.setItem('saved_mssv', mssv);
-      } catch (e) {}
-
-      setTimeout(async () => {
-        try {
-          const { data: isAdmin } = await supabase.rpc('is_admin');
-          if (isAdmin || role === 'admin') {
-            location.href = 'admin.html';
-          } else {
-            location.href = 'checkin.html';
-          }
-        } catch (e) {
-          location.href = 'checkin.html';
-        }
-      }, 700);
-      return;
-    }
-
-    // Nếu không tự đăng nhập được thì chuyển sang tab Đăng nhập
-    document.getElementById('userInput').value = username;
-    document.getElementById('pwdInput').value = password;
-
-    setTimeout(() => {
-      switchAuthTab('login');
-      const err = document.getElementById('errBox');
-      if (err) {
-        err.style.color = 'var(--ok)';
-        err.innerText = `Đã tạo tài khoản "${username}". Nhấn Đăng nhập để tiếp tục!`;
-      }
-    }, 1000);
-
-    uInput.value = '';
-    pInput.value = '';
-    if (nameInput) nameInput.value = '';
-    if (mssvInput) mssvInput.value = '';
-  } catch (err) {
-    console.error('[submitRegister]', err);
-    msg.style.color = 'var(--err)';
-    msg.innerText = 'Lỗi: ' + (err.message || 'Không thể tạo tài khoản');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-// Kiểm tra phiên hiện hành để đổi nút Trang chủ theo vai trò
-async function checkCurrentSession(){
+async function autoLogin(){
   try {
     const { data } = await supabase.auth.getSession();
-    if (data?.session) {
-      const user = data.session.user;
-
-      // Đọc vai trò từ bảng profiles (nguồn sự thật)
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      const role = prof?.role || user.user_metadata?.app_role || 'student';
-
+    if (data?.session){
+      const { data: isAdm } = await supabase.rpc('is_admin');
       const btn = document.getElementById('btnOpenLogin');
-      if (!btn) return;
-
-      // Mỗi vai trò đi tới trang tương ứng
-      const ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>`;
-
-      if (role === 'admin') {
-        btn.innerHTML = ICON + ' Vào bảng quản trị →';
-        btn.onclick = () => { location.href = 'admin.html'; };
-      } else if (role === 'leader' || role === 'deputy') {
-        btn.innerHTML = ICON + ' Vào bảng đội trưởng →';
-        btn.onclick = () => { location.href = 'leader.html'; };
-      } else {
-        btn.innerHTML = ICON + ' Vào nhiệm vụ của tôi →';
-        btn.onclick = () => { location.href = 'tasks.html'; };
+      if (btn){
+        btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
+        btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
       }
+      return;
     }
-  } catch (e) {
-    console.warn('[checkCurrentSession]', e);
-  }
+    const raw = localStorage.getItem('saved_creds');
+    if (!raw) return;
+    const c = JSON.parse(raw);
+    const { data: loginData } = await supabase.auth.signInWithPassword({
+      email: c.email, password: c.pwd
+    });
+    if (loginData?.session){
+      const { data: isAdm } = await supabase.rpc('is_admin');
+      location.href = isAdm ? 'admin.html' : 'checkin.html';
+    }
+  } catch(e){ console.warn('[autoLogin]', e); }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  checkCurrentSession();
-  if (typeof loadStudents === 'function') {
-    loadStudents();
-  }
-
-  // Tự động điền họ tên khi gõ MSSV (nếu có trong danh sách sinh viên)
-  const regMssv = document.getElementById('regMssv');
-  const regName = document.getElementById('regFullName');
-  if (regMssv && regName) {
-    regMssv.addEventListener('input', () => {
-      const m = regMssv.value.trim();
-      if (m && Array.isArray(validStudents) && validStudents.length > 0) {
-        const found = validStudents.find(s => s.mssv === m);
-        if (found && !regName.value) {
-          regName.value = found.name;
-        }
-      }
-    });
-  }
-
-  // Xử lý phím Enter ở các ô nhập
-  const user = document.getElementById('userInput');
-  const pwd = document.getElementById('pwdInput');
-  if (user) {
-    user.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        if (pwd && !pwd.value) pwd.focus();
-        else submitLogin();
-      }
-    });
-  }
-  if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
-
-  ['regUsername', 'regPassword', 'regFullName', 'regMssv'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Enter') submitRegister();
-      });
-    }
-  });
+document.addEventListener('DOMContentLoaded', () => {
+  autoLogin();
+  const m = document.getElementById('mssvInput');
+  const p = document.getElementById('pwdInput');
+  m?.addEventListener('keydown', e => { if (e.key === 'Enter') p?.focus(); });
+  p?.addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
 });

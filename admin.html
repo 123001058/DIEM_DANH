@@ -4,175 +4,289 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LH-NaviX — Quản Lý Điểm Danh</title>
-<meta name="description" content="LH-NaviX — Bảng điều khiển điểm danh realtime: mở phiên, QR động, theo dõi sinh viên.">
 <meta name="theme-color" content="#f5f6f8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/admin.css">
-<link rel="stylesheet" href="css/roles.css">
-<!-- BẮT BUỘC: qrcode và Supabase CDN phải nằm trước js/config.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js"></script>
+<script src="js/config.js?v=5"></script>
 </head>
 <body>
-<div class="bg-grid"></div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
 <div class="wrapper">
-  <header class="card topbar rise">
+
+  <!-- TOPBAR -->
+  <header class="card topbar">
     <div class="topbar-left">
-      <img src="images/logo.png" alt="LH-NaviX" class="logo-sm" width="46" height="46" style="object-fit:contain;border-radius:10px;">
+      <img src="images/logo.png" alt="" class="topbar-logo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'topbar-logo',textContent:'LH'}))">
       <div>
-        <h1 class="gradient-text">LH-NaviX</h1>
-        <p>Quản lý điểm danh · QR động</p>
+        <h1>Quản Lý Điểm Danh</h1>
+        <div class="sub">Admin: <b id="adminName">—</b> (<span id="adminMssv">—</span>)</div>
       </div>
     </div>
     <div class="topbar-right">
-      <a href="lichhoc.html" class="nav-pill" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;font-size:13px;font-weight:600;background:var(--surface);border:1px solid var(--border-strong);color:var(--text);margin-right:8px;">
-        📅 Thời khóa biểu
-      </a>
-      <button class="btn-logout" onclick="showRolesPanel()">👥 Nhóm &amp; Phân quyền</button>
-      <div id="statusIndicator" class="status-badge status-off"><span class="dot"></span><span>ĐÓNG</span></div>
-      <button class="btn-logout" onclick="logout()">Đăng xuất</button>
+      <span class="net-badge net-online" id="netBadge">
+        <span class="net-dot"></span><span>Online</span>
+      </span>
+      <span class="session-pill pill-off" id="topbarSessionPill">
+        <span class="net-dot"></span><span>Đã đóng</span>
+      </span>
+      <button class="btn btn-danger" onclick="logout()">Đăng xuất</button>
     </div>
   </header>
 
-  <!-- ============ PANEL NHÓM & PHÂN QUYỀN (chỉ Admin) ============ -->
-  <section class="card" id="rolesPanel" style="display:none;padding:20px 22px;margin-bottom:20px;">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
-      <div>
-        <div class="card-label" style="margin-bottom:3px;">Quản lý &amp; Cấp quyền</div>
-        <p class="rk-muted" style="margin:0;">Tạo nhóm, thêm thành viên và cấp quyền Đội trưởng.</p>
-      </div>
-      <button class="rk-btn rk-btn-sm" onclick="hideRolesPanel()">✕ Đóng</button>
+  <!-- OFFLINE BANNER -->
+  <div class="offline-banner" id="offlineBanner">
+    <span>⚠️</span>
+    <span><b>Mất kết nối mạng.</b> Đang thử kết nối lại...</span>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <section class="card empty-state" id="emptyState" style="display:none">
+    <div class="empty-icon">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/>
+      </svg>
     </div>
-
-    <div class="rk-alert" id="adminRolesAlert"></div>
-
-    <!-- Tạo nhóm -->
-    <div class="rk-grid rk-grid-2" style="margin-bottom:20px;">
-      <div class="rk-field">
-        <label class="input-label" for="newTeamName">Tên nhóm / đội <span class="req">*</span></label>
-        <input type="text" id="newTeamName" placeholder="VD: Đội Thiết kế">
+    <h2>Chưa có phiên điểm danh nào</h2>
+    <p>Tạo phiên mới để bắt đầu điểm danh. QR sẽ đứng yên — chiếu lên máy chiếu cả buổi.</p>
+    <div class="quick-form">
+      <div class="quick-field">
+        <label>Tên phiên *</label>
+        <input type="text" id="quickName" placeholder="VD: Kiểm tra thiết bị C503">
       </div>
-      <div class="rk-field">
-        <label class="input-label" for="newTeamDesc">Mô tả</label>
-        <input type="text" id="newTeamDesc" placeholder="VD: Phụ trách môn Thết kế AI">
+      <div class="quick-field">
+        <label>Thời gian (phút)</label>
+        <input type="number" id="quickDuration" value="90" min="1">
       </div>
-    </div>
-    <div style="margin-bottom:22px;">
-      <button class="rk-btn rk-btn-primary" onclick="adminCreateTeam()">＋ Tạo nhóm</button>
-    </div>
-
-    <!-- Danh sách nhóm -->
-    <div class="rk-card-title" style="margin-bottom:10px;">Các nhóm đang có</div>
-    <div id="adminTeamList"><div class="rk-empty">Đang tải...</div></div>
-
-    <!-- Danh sách tài khoản -->
-    <div class="rk-card-title" style="margin:22px 0 10px;">Tài khoản &amp; quyền</div>
-    <div id="adminUserList"><div class="rk-empty">Đang tải...</div></div>
-  </section>
-
-  <!-- ============ LỊCH SỬ ĐIỂM DANH TRONG NGÀY ============ -->
-  <section class="card" id="todayHistorySection" style="display:none;padding:20px 22px;margin-bottom:20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div>
-        <div class="card-label">Lịch sử điểm danh hôm nay</div>
-        <p style="font-size:12.5px;color:var(--muted);margin:2px 0 0;">Các phiên đã đóng trong ngày. Qua ngày mới sẽ không hiển thị.</p>
-      </div>
-      <button class="rk-btn rk-btn-sm" onclick="loadTodayHistory()">↻ Làm mới</button>
-    </div>
-    <div id="todayHistoryBox"></div>
-  </section>
-
-  <section class="card rise rise-2">
-    <div class="card-label">Cấu hình phiên điểm danh</div>
-    <div class="form-grid">
-      <div>
-        <label class="input-label" for="sessionName">Tên phiên</label>
-        <input type="text" id="sessionName" placeholder="Nhập tên phiên điểm danh...">
-      </div>
-      <div>
-        <label class="input-label" for="qrRefreshTime">QR đổi mỗi (giây)</label>
-        <input type="number" id="qrRefreshTime" value="20" min="5">
-      </div>
-      <div>
-        <label class="input-label" for="sessionDuration">Mở trong (phút)</label>
-        <input type="number" id="sessionDuration" value="5" min="1">
-      </div>
-    </div>
-    <div class="btn-row">
-      <button class="btn-on" onclick="turnOn()">▶ Mở phiên</button>
-      <button class="btn-off" onclick="turnOff()">■ Đóng phiên</button>
+      <button class="btn btn-primary" style="padding:11px 18px;height:42px" onclick="openSession()">
+        ▶ Mở phiên
+      </button>
     </div>
   </section>
 
-  <section class="empty-state rise rise-3" id="emptyState">
-    <svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#f6c653" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
-    <h3>Chưa có phiên điểm danh nào đang mở</h3>
-    <p>Nhập tên phiên, thời gian và bấm <b>"Mở phiên"</b> để sinh mã QR.</p>
-  </section>
+  <!-- DASHBOARD -->
+  <div class="dashboard" id="dashboard" style="display:none">
 
-  <div class="main-layout dashboard-area" id="dashboardArea">
-    <aside class="card qr-section" id="qrSection">
-      <div class="qr-title">Mã QR động trực tiếp</div>
-      <div id="qrWrapper"><div id="qrCanvas"></div></div>
-      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:100%"></div></div>
-      <div class="timer-info">
-        <span>Đổi mã sau <b id="secondsLeft">20s</b></span>
-        <span class="warn">Còn lại <b id="sessionCountdown">--:--</b></span>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button type="button" class="btn-full" id="btnPauseResume" onclick="togglePauseQR()" style="margin-top:0;background:var(--warn-bg,#fef3c7);color:var(--warn,#d97706);border:1px solid rgba(217,119,6,0.3);cursor:pointer;" title="Tạm dừng / Tiếp tục đếm ngược QR">
-          ⏸ Tạm dừng QR
-        </button>
-        <button type="button" class="btn-full" onclick="toggleFullscreen()" style="margin-top:0;cursor:pointer;">
-          ⛶ Toàn màn hình
-        </button>
-      </div>
-    </aside>
-
-    <section class="card">
-      <div class="stats-grid">
-        <div class="stat-box"><div class="stat-label">Tổng SV</div><div class="stat-number" id="totalCount">0</div></div>
-        <div class="stat-box"><div class="stat-label stat-green">Đã điểm danh</div><div class="stat-number stat-green" id="presentCount">0</div></div>
-        <div class="stat-box"><div class="stat-label stat-red">Vắng</div><div class="stat-number stat-red" id="absentCount">0</div></div>
-      </div>
-      <div class="progress-section">
-        <div class="label-row"><span>Tỉ lệ điểm danh</span><span class="pct" id="ratePercent">0%</span></div>
-        <div class="big-bar"><div class="big-bar-fill" id="rateBar" style="width:0%"></div></div>
-      </div>
-      <div class="card-label">Vừa điểm danh gần đây</div>
-      <div class="recent-list" id="recentList"><div class="recent-empty">Chưa có ai điểm danh</div></div>
-      <div class="table-header">
-        <div>
-          <h3>Danh sách theo dõi realtime</h3>
-          <div class="filter-group">
-            <button class="filter-btn active" data-status="all" onclick="setFilter('all')">Tất cả</button>
-            <button class="filter-btn" data-status="present" onclick="setFilter('present')">Có mặt</button>
-            <button class="filter-btn" data-status="absent" onclick="setFilter('absent')">Vắng</button>
-            <button class="filter-btn" data-status="unmarked" onclick="setFilter('unmarked')">Chưa quét</button>
+    <!-- SESSION BAR -->
+    <div class="card session-bar">
+      <div class="session-bar-left">
+        <span class="session-pill pill-on" id="sessionBarPill"><span class="net-dot"></span>Đang mở</span>
+        <div style="min-width:0">
+          <div class="session-bar-name" id="sessionBarName">—</div>
+          <div class="session-bar-meta">
+            <span>📅 <span id="sessionStartTime">—</span></span>
+            <span>🔑 ID: <code id="sessionIdDisplay">—</code></span>
+            <span>⏱ <span id="sessionDurationDisplay">—</span></span>
           </div>
         </div>
-        <div class="table-actions">
-          <input type="text" id="searchStudent" placeholder="Tìm tên hoặc MSSV..." onkeyup="filterTable()">
-          <button class="btn-action btn-action-warn" onclick="markAllAbsent()" title="Đánh dấu tất cả SV chưa quét là vắng">✗ Vắng tất cả chưa quét</button>
-          <button class="btn-action btn-action-ok" onclick="markAllPresent()" title="Đánh dấu tất cả SV là có mặt">✓ Có mặt tất cả</button>
+        <div class="countdown-chip" id="countdownChip">
+          ⏱ <span id="countdownText">--:--</span>
         </div>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Sinh viên</th><th>MSSV</th><th>Trạng thái</th><th>Thời gian</th></tr></thead>
-          <tbody id="studentList"></tbody>
-        </table>
+      <div class="session-bar-actions">
+        <button class="btn btn-danger" onclick="openCloseModal()">■ Đóng phiên</button>
       </div>
-    </section>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="main-grid">
+
+      <!-- QR PANEL -->
+      <aside class="card qr-panel" id="qrPanel">
+        <div class="qr-panel-title">Mã QR điểm danh</div>
+        <div class="qr-frame">
+          <div id="qrCanvas" class="qr-canvas"></div>
+        </div>
+        <div class="qr-timestamp">
+          🔒 Sinh lúc <b id="qrBorn">—</b>
+        </div>
+        <div class="qr-actions">
+          <button class="btn btn-refresh" id="btnRefreshQr" onclick="regenerateQR()">🔄 Đổi mã QR</button>
+          <button class="btn" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
+        </div>
+        <div class="qr-hint">
+          💡 QR này <b>đứng yên</b> cho đến khi bạn bấm "Đổi mã QR". Phù hợp chiếu lên máy chiếu.
+        </div>
+        <div class="qr-warning" id="qrWarning">
+          <span>⚠️</span>
+          <span><b>Phiên sắp kết thúc.</b> Hãy nhắc sinh viên khẩn trương quét mã.</span>
+        </div>
+      </aside>
+
+      <!-- MAIN PANEL -->
+      <section class="card main-panel">
+
+        <!-- STATS -->
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-label">Tổng SV</div>
+            <div class="stat-num blue" id="statTotal">0</div>
+          </div>
+          <div class="stat" id="statPresentBox">
+            <div class="stat-label">Đã ĐD</div>
+            <div class="stat-num green" id="statPresent">0</div>
+          </div>
+          <div class="stat" id="statAbsentBox">
+            <div class="stat-label">Vắng</div>
+            <div class="stat-num red" id="statAbsent">0</div>
+          </div>
+          <div class="stat" id="statUnmarkedBox">
+            <div class="stat-label">Chưa quét</div>
+            <div class="stat-num gray" id="statUnmarked">0</div>
+          </div>
+        </div>
+
+        <!-- PROGRESS -->
+        <div class="progress-wrap">
+          <div class="progress-row">
+            <span class="progress-lbl">Tỉ lệ điểm danh</span>
+            <span class="progress-pct" id="progressPct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- LIVE FEED -->
+        <div class="feed-wrap">
+          <div class="feed-header">
+            <div class="feed-title">
+              <span class="feed-live-dot"></span><span>Vừa điểm danh</span>
+            </div>
+          </div>
+          <div class="feed-list" id="feedList">
+            <div class="feed-empty">Chưa có ai điểm danh</div>
+          </div>
+        </div>
+
+        <!-- TABLE HEADER -->
+        <div class="thead-block">
+          <div class="thead-top">
+            <div>
+              <div class="thead-title">Danh sách sinh viên</div>
+              <div class="filters" id="filters">
+                <button class="filter active" data-status="all">Tất cả <span class="count">0</span></button>
+                <button class="filter" data-status="present">Có mặt <span class="count">0</span></button>
+                <button class="filter" data-status="absent">Vắng <span class="count">0</span></button>
+                <button class="filter" data-status="unmarked">Chưa quét <span class="count">0</span></button>
+              </div>
+            </div>
+            <div class="thead-actions">
+              <div class="search-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
+              </div>
+              <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả chưa quét</button>
+              <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="tbl-wrap">
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:42%">Sinh viên</th>
+                  <th style="width:18%">MSSV</th>
+                  <th style="width:22%">Trạng thái</th>
+                  <th style="width:18%">Thời gian</th>
+                </tr>
+              </thead>
+              <tbody id="studentTbody"></tbody>
+            </table>
+          </div>
+
+          <!-- PAGINATION -->
+          <div class="pager">
+            <div class="pager-info" id="pagerInfo">—</div>
+            <div class="pager-ctrl">
+              <select id="pagerSize">
+                <option value="10">10 / trang</option>
+                <option value="20" selected>20 / trang</option>
+                <option value="50">50 / trang</option>
+                <option value="100">100 / trang</option>
+              </select>
+              <button class="pager-btn" id="pagerPrev">‹ Trước</button>
+              <span class="pager-info" style="padding:0 4px" id="pagerNum"><b>1</b>/1</span>
+              <button class="pager-btn" id="pagerNext">Sau ›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TODAY HISTORY -->
+        <div class="today-history" id="todayHistoryWrap" style="display:none">
+          <div class="today-history-head">
+            <div>
+              <div class="thead-title">Lịch sử phiên hôm nay</div>
+              <p style="font-size:12px;color:var(--muted);margin-top:2px">Qua ngày mới danh sách sẽ tự ẩn</p>
+            </div>
+            <button class="btn btn-icon" onclick="loadTodayHistory()" title="Làm mới">↻</button>
+          </div>
+          <div id="todayHistoryList"></div>
+        </div>
+
+        <!-- DANGER -->
+        <div class="danger-zone">
+          <div class="danger-zone-txt">
+            <b>⚠️ Đóng phiên điểm danh</b>
+            <p>Sau khi đóng, sinh viên không thể điểm danh được nữa.</p>
+          </div>
+          <button class="btn btn-danger" style="padding:11px 20px;font-size:13.5px" onclick="openCloseModal()">
+            ■ Đóng phiên
+          </button>
+        </div>
+
+      </section>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL CLOSE -->
+<div class="modal-bg" id="closeModal">
+  <div class="modal">
+    <div class="modal-ic err">⚠</div>
+    <h3>Đóng phiên điểm danh?</h3>
+    <p>Sinh viên sẽ không thể điểm danh được nữa. Bạn vẫn xem được lịch sử trong mục "Lịch sử hôm nay".</p>
+    <div class="modal-stats">
+      <div class="modal-stat"><b class="stat-num green" style="font-size:22px" id="modalPresent">0</b><span>Đã ĐD</span></div>
+      <div class="modal-stat"><b class="stat-num red" style="font-size:22px" id="modalAbsent">0</b><span>Vắng</span></div>
+      <div class="modal-stat"><b class="stat-num gray" style="font-size:22px" id="modalUnmarked">0</b><span>Chưa quét</span></div>
+    </div>
+    <p id="modalWarnText" style="font-size:12.5px;color:var(--err);background:var(--err-bg);padding:10px 12px;border-radius:8px;border:1px solid rgba(194,56,46,.18);display:none"></p>
+    <div class="modal-actions" style="margin-top:16px">
+      <button onclick="closeModalFn()">Huỷ</button>
+      <button class="danger" onclick="confirmCloseSession()">■ Đóng phiên</button>
+    </div>
   </div>
 </div>
 
-<script src="js/roles.js?v=1"></script>
-<script src="js/admin-roles.js?v=1"></script>
-<script src="js/admin.js"></script>
+<!-- MODAL BULK CONFIRM -->
+<div class="modal-bg" id="bulkModal">
+  <div class="modal">
+    <div class="modal-ic warn">⚠</div>
+    <h3 id="bulkTitle">Xác nhận</h3>
+    <p id="bulkText">Bạn có chắc không?</p>
+    <div class="modal-actions" style="margin-top:20px">
+      <button onclick="closeBulkModal()">Huỷ</button>
+      <button class="danger" id="bulkConfirmBtn">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/admin.js?v=5"></script>
 </body>
 </html>

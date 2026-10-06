@@ -1,540 +1,566 @@
-// Chức năng trang quản lý (admin.html)
-let classStudents = [];
-let recentCheckins = [];
-let progressInterval = null, sessionTimer = null;
-let secondsRemaining = 20, currentSessionId = null, isOpen = false, lastToken = null;
-let serverOffset = 0; // chênh lệch giờ server - giờ máy admin (ms)
+// js/admin.js
+let currentSession = null;     // { id, session_name, duration_min, warn_before_min, started_at, qr_token, qr_born_at }
+let students = [];             // [{mssv,name}]
+let attendanceMap = {};        // { mssv: {status, time, category, note} }
 let currentFilter = 'all';
+let currentSearch = '';
+let currentPage = 1;
+let pageSize = 20;
+let countdownTimer = null;
+let autoClosed = false;
 
-// Giờ chuẩn theo server: token QR sinh ra khớp với phép kiểm tra ở submit_attendance()
-function nowMs(){ return Date.now() + serverOffset; }
+const STATUS_LABEL = {
+  'có mặt': 'có mặt',
+  'vắng có phép': 'vắng có phép',
+  'vắng không phép': 'vắng không phép'
+};
 
-async function syncServerTime(){
-    try {
-        const t0 = Date.now();
-        const { data, error } = await supabase.rpc('server_now_ms');
-        const t1 = Date.now();
-        if (!error && data != null) serverOffset = Number(data) - Math.round((t0 + t1) / 2);
-    } catch (e) { console.warn('[syncServerTime]', e); }
+// ============ UTILS ============
+function showResult(){}
+function fmtTime(sec){
+  const m = Math.floor(sec/60), s = sec%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+function fmtClock(d){
+  return d.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 }
 
-async function initAdmin(){
-    // Cho phép admin, leader và deputy vào trang này
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) return location.replace('index.html');
-
-    // Kiểm tra quyền: admin HOẶC leader/deputy
-    const { data: isAdminOk } = await supabase.rpc('is_admin');
-    const { data: isLeaderOk } = await supabase.rpc('is_leader');
-    if (!isAdminOk && !isLeaderOk) {
-        alert('Tài khoản này không có quyền truy cập trang quản lý.');
-        await supabase.auth.signOut();
-        return location.replace('index.html');
-    }
-
-    // Ẩn nút "Nhóm & Phân quyền" nếu không phải admin (leader có trang leader.html riêng cho việc đó)
-    // Nhưng vẫn giữ để leader có thể dùng nếu muốn
-    supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_OUT') location.replace('index.html');
-    });
-    await syncServerTime();
-    await loadStudents();
-    classStudents = validStudents.map(s => ({ mssv: s.mssv, name: s.name, status: 'Chưa điểm danh', time: '-', category: '', note: '' }));
-    renderStudents(); updateStats();
-
-    // Luôn bắt đầu 100% ở trạng thái ban đầu sạch sẽ (theo yêu cầu của user)
-    // Không tự động khôi phục dữ liệu phiên cũ, không tự nhảy mã QR khi mới vào trang
-    stopSessionUI();
-
-    // Tải lịch sử điểm danh trong ngày ngay khi vào trang
-    loadTodayHistory();
-
-    // REALTIME: Tự cập nhật khi có bản ghi mới hoặc thay đổi trạng thái trong bảng attendance
-    supabase.channel('changes').on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
-        if (isOpen && currentSessionId) pollAttendance();
-    }).subscribe();
+function toast(type, title, text, duration = 4500){
+  const wrap = document.getElementById('toastWrap');
+  const icons = { ok:'✓', err:'✕', warn:'⚠', info:'ℹ' };
+  const el = document.createElement('div');
+  el.className = `toast t-${type}`;
+  el.innerHTML = `
+    <div class="toast-ic">${icons[type] || 'ℹ'}</div>
+    <div class="toast-body">
+      <div class="toast-title">${title}</div>
+      ${text ? `<div class="toast-text">${text}</div>` : ''}
+    </div>
+  `;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 300);
+  }, duration);
 }
 
-async function turnOn(){
-    await syncServerTime();
-    const name = document.getElementById('sessionName').value.trim();
-    const refresh = Math.max(5, Number(document.getElementById('qrRefreshTime').value) || 20);
-    const duration = Math.max(1, Number(document.getElementById('sessionDuration').value) || 5);
-    if (!name) return alert('Nhập tên phiên!');
-    if (isOpen) return alert('Đã có phiên đang mở. Bấm "Đóng phiên" trước khi mở phiên mới.');
+// ============ AUTH ============
+async function checkAuth(){
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth?.session){ location.href = 'index.html'; return null; }
 
-    // Đóng mọi phiên cũ còn mở trong Database để tránh xung đột
-    await supabase.from('sessions').update({ is_open: false }).eq('is_open', true);
+  const { data: isAdm } = await supabase.rpc('is_admin');
+  if (!isAdm){
+    alert('Tài khoản này không có quyền truy cập trang quản lý.');
+    await supabase.auth.signOut();
+    location.href = 'index.html';
+    return null;
+  }
 
-    // Luôn TẠO MỚI một dòng session: mỗi phiên có id riêng
-    const { data, error } = await supabase.from('sessions').insert({
-        session_name: name, is_open: true, refresh_time: refresh, duration_min: duration, started_at: new Date(nowMs()).toISOString()
-    }).select().single();
+  const { data: prof } = await supabase
+    .from('profiles').select('full_name, mssv').eq('user_id', auth.session.user.id).maybeSingle();
 
-    if (error) {
-        alert('Lỗi mở phiên: ' + error.message);
-        return;
-    }
-    currentSessionId = data.id;
-    startSessionUI(data);
+  document.getElementById('adminName').textContent = prof?.full_name || '—';
+  document.getElementById('adminMssv').textContent = prof?.mssv || '—';
+
+  supabase.auth.onAuthStateChange(e => {
+    if (e === 'SIGNED_OUT') location.href = 'index.html';
+  });
+  return auth.session.user;
 }
 
-async function turnOff(auto){
-    try {
-        isOpen = false;
-        clearInterval(sessionTimer);
-        clearInterval(progressInterval);
-        if (document.fullscreenElement) document.exitFullscreen();
-
-        // Đóng phiên trong Database: cập nhật is_open = false cho phiên hiện tại và tất cả phiên mở
-        if (currentSessionId) {
-            await supabase.from('sessions').update({ is_open: false }).eq('id', currentSessionId);
-        }
-        await supabase.from('sessions').update({ is_open: false }).eq('is_open', true);
-        
-        try {
-            await supabase.rpc('admin_close_session', { p_session_id: currentSessionId ? String(currentSessionId) : null });
-        } catch (e) {
-            // bỏ qua nếu RPC chưa add
-        }
-    } catch (e) {
-        console.warn('[turnOff]', e);
-    } finally {
-        currentSessionId = null;
-        lastToken = null;
-        stopSessionUI();
-        // Reload lịch sử sau khi đóng phiên để hiển thị phiên vừa đóng
-        loadTodayHistory();
-    }
+async function logout(){
+  if (!confirm('Đăng xuất khỏi hệ thống?')) return;
+  await supabase.auth.signOut();
+  location.href = 'index.html';
 }
 
-let isPaused = false;
-let sessionStartedMs = 0;
-let sessionEndsAt = 0;
-let pauseStartMs = 0;
-let sessionCycleMs = 20000;
-
-async function togglePauseQR(){
-    if (!currentSessionId || !isOpen) return;
-    const btn = document.getElementById('btnPauseResume');
-    if (btn) btn.disabled = true;
-    try {
-        const { data, error } = await supabase.rpc('admin_toggle_pause', { p_session_id: String(currentSessionId) });
-        if (error) throw error;
-
-        const waspaused = isPaused;
-        isPaused = !!(data && data.is_paused);
-
-        if (isPaused) {
-            // Vừa dừng: ghi nhớ thời điểm bắt đầu dừng
-            pauseStartMs = nowMs();
-        } else if (waspaused) {
-            // Vừa resume: server đã shift started_at, cần re-sync để client đồng bộ
-            // Lấy lại thông tin phiên từ server để cập nhật sessionStartedMs chính xác
-            const { data: sess } = await supabase
-                .from('sessions')
-                .select('started_at, duration_min, refresh_time')
-                .eq('id', currentSessionId)
-                .single();
-            if (sess) {
-                sessionStartedMs = new Date(sess.started_at).getTime();
-                sessionEndsAt = sessionStartedMs + (sess.duration_min * 60 * 1000);
-                sessionCycleMs = Math.max(5, Number(sess.refresh_time) || 20) * 1000;
-            }
-            pauseStartMs = 0;
-            // Render lại QR ngay vì window có thể đã đổi
-            lastToken = null;
-            renderQR();
-        }
-
-        updatePauseUI();
-    } catch (e) {
-        console.error('[togglePauseQR]', e);
-        alert('Lỗi tạm dừng/tiếp tục: ' + (e.message || e));
-    } finally {
-        if (btn) btn.disabled = false;
-    }
+// ============ LOAD DATA ============
+async function loadStudents(){
+  const { data, error } = await supabase.from('students').select('mssv, name').order('mssv');
+  if (error){ console.error(error); return; }
+  students = data || [];
 }
 
-function updatePauseUI(){
-    const btn = document.getElementById('btnPauseResume');
-    const badge = document.getElementById('statusIndicator');
-    const name = document.getElementById('sessionName')?.value || '';
-    if (isPaused) {
-        if (btn) {
-            btn.innerHTML = '▶ Tiếp tục QR';
-            btn.style.background = 'var(--ok-bg, #dcfce7)';
-            btn.style.color = 'var(--ok, #16a34a)';
-            btn.style.borderColor = 'rgba(22,163,74,0.3)';
-            btn.title = 'Bấm để tiếp tục chạy đếm ngược QR';
-        }
-        if (badge) {
-            badge.className = 'status-badge status-warn';
-            badge.innerHTML = '<span class="dot" style="background:#f59e0b"></span><span>TẠM DỪNG QR</span>';
-        }
-    } else {
-        if (btn) {
-            btn.innerHTML = '⏸ Tạm dừng QR';
-            btn.style.background = 'var(--warn-bg, #fef3c7)';
-            btn.style.color = 'var(--warn, #d97706)';
-            btn.style.borderColor = 'rgba(217,119,6,0.3)';
-            btn.title = 'Bấm để tạm dừng đếm ngược QR';
-        }
-        if (badge && isOpen) {
-            badge.className = 'status-badge status-on';
-            badge.innerHTML = '<span class="pulse"></span><span>MỞ — ' + escapeHtml(name) + '</span>';
-        }
-    }
+async function loadSession(){
+  const { data, error } = await supabase.rpc('get_open_session');
+  if (error || !data){
+    currentSession = null;
+    showEmpty();
+    return null;
+  }
+  currentSession = data;
+  return data;
 }
 
-function startSessionUI(st){
-    isOpen = true;
-    lastToken = null;
-    isPaused = !!st.is_paused;
-    pauseStartMs = isPaused ? nowMs() : 0;
-    document.getElementById('dashboardArea').classList.add('show');
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('statusIndicator').className = 'status-badge status-on';
-    document.getElementById('statusIndicator').innerHTML = '<span class="pulse"></span><span>MỞ — ' + escapeHtml(st.session_name) + '</span>';
+async function loadAttendance(){
+  if (!currentSession) return;
+  const { data, error } = await supabase.from('attendance')
+    .select('mssv, full_name, status, category, note, created_at')
+    .eq('session_id', currentSession.id);
+  if (error){ console.error(error); return; }
 
-    // Cập nhật lại form nếu là khôi phục phiên
-    if (st.session_name) document.getElementById('sessionName').value = st.session_name;
-    if (st.refresh_time) document.getElementById('qrRefreshTime').value = st.refresh_time;
-    if (st.duration_min) document.getElementById('sessionDuration').value = st.duration_min;
-
-    const refresh = Math.max(5, Number(st.refresh_time) || 20);
-    sessionCycleMs = refresh * 1000;
-    sessionStartedMs = new Date(st.started_at).getTime();
-    sessionEndsAt = sessionStartedMs + (st.duration_min * 60 * 1000);
-
-    updatePauseUI();
-
-    const calcCycle = () => {
-        const now = nowMs();
-        const elapsed = Math.max(0, now - sessionStartedMs);
-        const win = Math.floor(elapsed / sessionCycleMs);
-        const cycleEnd = sessionStartedMs + (win + 1) * sessionCycleMs;
-        const remaining = Math.max(1, Math.ceil((cycleEnd - now) / 1000));
-        const pct = Math.max(0, Math.min(100, ((cycleEnd - now) / sessionCycleMs) * 100));
-        return { win, remaining, pct };
+  attendanceMap = {};
+  (data || []).forEach(r => {
+    attendanceMap[r.mssv] = {
+      status: r.status,
+      time: fmtClock(new Date(r.created_at)),
+      category: r.category || '',
+      note: r.note || ''
     };
+  });
+}
 
-    const { win: initialWin, remaining: initialRemaining, pct: initialPct } = calcCycle();
-    lastToken = initialWin;
+// ============ UI: EMPTY / DASHBOARD ============
+function showEmpty(){
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đã đóng</span>';
+  clearInterval(countdownTimer);
+}
+
+function showDashboard(){
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-on';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
+}
+
+// ============ QR ============
+function renderQR(){
+  const canvas = document.getElementById('qrCanvas');
+  canvas.innerHTML = '';
+  const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
+  const url = `${base}/checkin.html?s=${encodeURIComponent(currentSession.id)}&t=${encodeURIComponent(currentSession.qr_token)}`;
+  new QRCode(canvas, { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
+  document.getElementById('qrBorn').textContent = fmtClock(new Date(currentSession.qr_born_at));
+}
+
+async function regenerateQR(){
+  const btn = document.getElementById('btnRefreshQr');
+  btn.disabled = true;
+  const old = btn.innerHTML;
+  btn.innerHTML = '⏳ Đang tạo...';
+  try {
+    const { data, error } = await supabase.rpc('admin_regenerate_qr');
+    if (error || !data?.ok) throw new Error(data?.message || error?.message);
+    currentSession.qr_token = data.qr_token;
+    currentSession.qr_born_at = data.qr_born_at;
     renderQR();
-    pollAttendance();
-
-    document.getElementById('secondsLeft').innerText = initialRemaining + 's';
-    document.getElementById('progressFill').style.width = initialPct + '%';
-
-    clearInterval(progressInterval);
-    progressInterval = setInterval(() => {
-        if (isPaused) return; // Đóng băng đếm ngược và thanh progress khi tạm dừng
-        const { win, remaining, pct } = calcCycle();
-        if (win !== lastToken) {
-            lastToken = win;
-            renderQR();
-        }
-        document.getElementById('secondsLeft').innerText = remaining + 's';
-        document.getElementById('progressFill').style.width = pct + '%';
-    }, 250);
-
-    clearInterval(sessionTimer);
-    sessionTimer = setInterval(() => {
-        if (isPaused) return; // Đóng băng thời gian tổng của phiên khi tạm dừng
-        const left = Math.max(0, Math.floor((sessionEndsAt - nowMs())/1000));
-        document.getElementById('sessionCountdown').innerText = fmtTime(left);
-        if (left <= 0) turnOff(true);
-    }, 1000);
-}
-
-function stopSessionUI(){
-    isOpen = false;
-    currentSessionId = null;
-    lastToken = null;
-    isPaused = false;
-    pauseStartMs = 0;
-    clearInterval(progressInterval);
-    clearInterval(sessionTimer);
-    if (document.fullscreenElement) document.exitFullscreen();
-
-    updatePauseUI();
-
-    // Reset 100% giao diện về ban đầu: hiện emptyState, ẩn dashboardArea
-    document.getElementById('dashboardArea').classList.remove('show');
-    document.getElementById('emptyState').style.display = 'block';
-    document.getElementById('statusIndicator').className = 'status-badge status-off';
-    document.getElementById('statusIndicator').innerHTML = '<span class="dot"></span><span>ĐÓNG</span>';
-
-    const canvas = document.getElementById('qrCanvas');
-    if (canvas) canvas.innerHTML = '';
-    const progressFill = document.getElementById('progressFill');
-    if (progressFill) progressFill.style.width = '100%';
-    const defaultRefresh = Math.max(5, Number(document.getElementById('qrRefreshTime')?.value) || 20);
-    const secondsLeft = document.getElementById('secondsLeft');
-    if (secondsLeft) secondsLeft.innerText = defaultRefresh + 's';
-    const countdown = document.getElementById('sessionCountdown');
-    if (countdown) countdown.innerText = '--:--';
-}
-
-let qrBusy = false;
-async function renderQR(){
-    if (!currentSessionId) return;
-    if (qrBusy) { lastToken = null; return; } // đang lấy token => nhịp sau thử lại, không bỏ lỡ
-    qrBusy = true;
-    try {
-        // Token do SERVER ký (HMAC + secret của phiên) — không thể tự tính ở client
-        const { data, error } = await supabase.rpc('issue_qr_token', { p_session_id: String(currentSessionId) });
-        if (error || !data) throw error || new Error('no token');
-        // QR phải chứa URL tuyệt đối vì camera điện thoại không mở được đường dẫn tương đối
-        const base = window.__DETECTED_BASE_URL__ || window.location.origin;
-        const url = `${base}/checkin.html?s=${encodeURIComponent(currentSessionId)}&t=${encodeURIComponent(data.token)}`;
-        document.getElementById('qrCanvas').innerHTML = '';
-        // Render 360px rồi CSS co lại → nét khi phóng to toàn màn hình
-        new QRCode(document.getElementById('qrCanvas'), { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
-    } catch (e) {
-        console.error('[renderQR]', e);
-        // thử lại ở nhịp kế tiếp
-        setTimeout(() => { lastToken = null; }, 2000);
-    } finally {
-        qrBusy = false;
-    }
+    toast('ok', 'Đã đổi mã QR', 'Mã cũ không còn hiệu lực.');
+  } catch(e){
+    toast('err', 'Đổi QR thất bại', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = old;
+  }
 }
 
 function toggleFullscreen(){
-    const el = document.getElementById('qrSection');
-    if (document.fullscreenElement) document.exitFullscreen();
-    else if (el.requestFullscreen) el.requestFullscreen();
-    else alert('Trình duyệt không hỗ trợ toàn màn hình, hãy dùng F11.');
+  const el = document.getElementById('qrPanel');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen().catch(() => toast('err', 'Không hỗ trợ', 'Trình duyệt chặn.'));
 }
 
-async function pollAttendance(){
-    if (!currentSessionId) return;
-    const { data: records } = await supabase.from('attendance')
-        .select('*')
-        .eq('session_id', currentSessionId)
-        .order('created_at', { ascending: false });
-    if (!records) return;
-
-    classStudents.forEach(s => { s.status = 'Chưa điểm danh'; s.time = '-'; s.category = ''; s.note = ''; });
-    recentCheckins = [];
-    records.forEach(r => {
-        let st = classStudents.find(s => s.mssv === r.mssv);
-        if (!st) {
-            st = { mssv: r.mssv, name: r.full_name || r.mssv, status: 'Chưa điểm danh', time: '-', category: '', note: '' };
-            classStudents.push(st);
-        }
-        st.status = r.status || 'có mặt';
-        st.time = new Date(r.created_at).toLocaleTimeString('vi-VN');
-        st.category = r.category || '';
-        st.note = r.note || '';
-
-        recentCheckins.push({
-            name: r.full_name || r.mssv,
-            mssv: r.mssv,
-            status: r.status || 'có mặt',
-            time: new Date(r.created_at).toLocaleTimeString('vi-VN')
-        });
-    });
-    renderStudents(); renderRecent(); updateStats();
-}
-
-function renderStudents(){
-    document.getElementById('studentList').innerHTML = classStudents.map(s => `
-        <tr data-status="${escapeHtml(s.status)}">
-            <td><div class="student-cell"><div class="avatar">${escapeHtml((s.name || '?')[0])}</div><div>${escapeHtml(s.name)}</div></div></td>
-            <td class="mono">${escapeHtml(s.mssv)}</td>
-            <td>
-                <select onchange="changeStatus('${s.mssv}', this.value)" class="status-select ${s.status==='Chưa điểm danh'?'st-none': s.status==='có mặt'?'st-ok':'st-no'}" ${!currentSessionId ? 'disabled' : ''}>
-                    <option value="Chưa điểm danh" ${s.status === 'Chưa điểm danh' ? 'selected' : ''}>Chưa điểm danh</option>
-                    <option value="có mặt" ${s.status === 'có mặt' ? 'selected' : ''}>Có mặt</option>
-                    <option value="vắng có phép" ${s.status === 'vắng có phép' ? 'selected' : ''}>Vắng có phép</option>
-                    <option value="vắng không phép" ${s.status === 'vắng không phép' ? 'selected' : ''}>Vắng không phép</option>
-                </select>
-            </td>
-            <td class="mono">${escapeHtml(s.time)}</td>
-        </tr>`).join('');
-    filterTable();
-}
-
-function renderRecent(){
-    document.getElementById('recentList').innerHTML = recentCheckins.slice(0,10).map(r => `
-        <div class="recent-item"><div class="avatar">${escapeHtml((r.name || '?')[0])}</div><div class="info"><div class="name">${escapeHtml(r.name)}</div><div class="time">${escapeHtml(r.time)}</div></div></div>
-    `).join('') || '<div class="recent-empty">Chưa có ai điểm danh</div>';
-}
-
+// ============ STATS + FILTERS ============
 function updateStats(){
-    const total = classStudents.length;
-    const present = classStudents.filter(s => s.status === 'có mặt').length;
-    const absent = classStudents.filter(s => s.status === 'vắng có phép' || s.status === 'vắng không phép').length;
-    document.getElementById('totalCount').innerText = total;
-    document.getElementById('presentCount').innerText = present;
-    document.getElementById('absentCount').innerText = absent;
-    const pct = total ? Math.round((present/total)*100) : 0;
-    document.getElementById('ratePercent').innerText = pct + '%';
-    document.getElementById('rateBar').style.width = pct + '%';
+  const total = students.length;
+  let present = 0, absent = 0, unmarked = 0;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    if (!a) unmarked++;
+    else if (a.status === 'có mặt') present++;
+    else absent++;
+  });
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statPresent').textContent = present;
+  document.getElementById('statAbsent').textContent = absent;
+  document.getElementById('statUnmarked').textContent = unmarked;
+  const pct = total ? Math.round((present / total) * 100) : 0;
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  const f = document.querySelectorAll('.filter');
+  f[0].querySelector('.count').textContent = total;
+  f[1].querySelector('.count').textContent = present;
+  f[2].querySelector('.count').textContent = absent;
+  f[3].querySelector('.count').textContent = unmarked;
 }
 
-async function changeStatus(mssv, newStatus) {
-    if (!currentSessionId) return;
-    if (newStatus === 'Chưa điểm danh') {
-        alert('Vui lòng chọn trạng thái khác.');
-        pollAttendance(); // reset UI
-        return; 
-    }
-    const res = await supabase.rpc('admin_set_status', { p_session_id: currentSessionId, p_mssv: mssv, p_status: newStatus });
-    if (res.error || (res.data && !res.data.ok)) {
-        alert('Lỗi: ' + (res.error?.message || res.data?.message));
-        pollAttendance();
-    } else {
-        pollAttendance();
-    }
-}
+function renderTable(){
+  const list = students.filter(s => {
+    const a = attendanceMap[s.mssv];
+    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : 'absent');
+    const ok1 = currentFilter === 'all' || currentFilter === status;
+    const q = currentSearch.toLowerCase();
+    const ok2 = !q || s.name.toLowerCase().includes(q) || s.mssv.includes(q);
+    return ok1 && ok2;
+  });
 
-// BỘ LỌC TRẠNG THÁI
-function setFilter(status){
-    currentFilter = status;
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.getAttribute('data-status') === status);
-    });
-    filterTable();
-}
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const page = list.slice(start, start + pageSize);
 
-function filterTable(){
-    const q = (document.getElementById('searchStudent')?.value || '').toLowerCase().trim();
-    document.querySelectorAll('#studentList tr').forEach(tr => {
-        const text = tr.innerText.toLowerCase();
-        const st = tr.getAttribute('data-status') || '';
-        const matchQuery = !q || text.includes(q);
-        let matchFilter = true;
-        if (currentFilter === 'present') matchFilter = (st === 'có mặt');
-        else if (currentFilter === 'absent') matchFilter = (st === 'vắng có phép' || st === 'vắng không phép');
-        else if (currentFilter === 'unmarked') matchFilter = (st === 'Chưa điểm danh');
-        tr.style.display = (matchQuery && matchFilter) ? '' : 'none';
-    });
-}
-
-// THAO TÁC HÀNG LOẠT (BATCH ACTIONS - TỐC ĐỘ CAO SONG SONG)
-async function markAllAbsent(){
-    if (!currentSessionId) return alert('Chưa có phiên nào được chọn!');
-    const unmarked = classStudents.filter(s => s.status === 'Chưa điểm danh');
-    if (!unmarked.length) return alert('Tất cả sinh viên đã có trạng thái điểm danh.');
-    if (!confirm(`Xác nhận đánh dấu ${unmarked.length} sinh viên chưa quét thành "Vắng không phép"?`)) return;
-
-    // Chạy song song (Promise.allSettled) nhanh gấp 20 lần tuần tự
-    const results = await Promise.allSettled(
-        unmarked.map(s => supabase.rpc('admin_set_status', {
-            p_session_id: currentSessionId,
-            p_mssv: s.mssv,
-            p_status: 'vắng không phép'
-        }))
-    );
-    const successCount = results.filter(r => r.status === 'fulfilled' && !r.value.error && r.value.data?.ok !== false).length;
-    await pollAttendance();
-    alert(`Đã cập nhật trạng thái vắng cho ${successCount}/${unmarked.length} sinh viên!`);
-}
-
-async function markAllPresent(){
-    if (!currentSessionId) return alert('Chưa có phiên nào được chọn!');
-    if (!confirm(`Xác nhận đánh dấu TẤT CẢ ${classStudents.length} sinh viên là "Có mặt"?`)) return;
-
-    const results = await Promise.allSettled(
-        classStudents.map(s => supabase.rpc('admin_set_status', {
-            p_session_id: currentSessionId,
-            p_mssv: s.mssv,
-            p_status: 'có mặt'
-        }))
-    );
-    const successCount = results.filter(r => r.status === 'fulfilled' && !r.value.error && r.value.data?.ok !== false).length;
-    await pollAttendance();
-    alert(`Đã cập nhật "Có mặt" cho ${successCount}/${classStudents.length} sinh viên!`);
-}
-
-// XUẤT FILE BÁO CÁO CSV (EXCEL) CHO GIẢNG VIÊN (TÍNH NĂNG TỪ GITHUB)
-function fmtTime(s){ return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
-async function logout(){ await supabase.auth.signOut(); location.href = 'index.html'; }
-
-// ============================================================
-// LỊCH SỬ ĐIỂM DANH TRONG NGÀY
-// ============================================================
-async function loadTodayHistory() {
-    const box = document.getElementById('todayHistoryBox');
-    const section = document.getElementById('todayHistorySection');
-    if (!box || !section) return;
-
-    // Lấy đầu ngày và cuối ngày theo giờ máy admin
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const endOfDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
-    // Lấy tất cả phiên đã đóng TRONG HÔM NAY
-    const { data: sessions, error: sessErr } = await supabase
-        .from('sessions')
-        .select('id, session_name, started_at, is_open')
-        .gte('started_at', startOfDay.toISOString())
-        .lte('started_at', endOfDay.toISOString())
-        .eq('is_open', false)
-        .order('started_at', { ascending: false });
-
-    if (sessErr || !sessions || sessions.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
-
-    section.style.display = 'block';
-
-    let html = '';
-    for (const sess of sessions) {
-        const { data: records } = await supabase
-            .from('attendance')
-            .select('mssv, full_name, status, category, created_at')
-            .eq('session_id', sess.id)
-            .order('created_at', { ascending: true });
-
-        const list = records || [];
-        const present = list.filter(r => r.status === 'có mặt').length;
-        const absent  = list.filter(r => r.status !== 'có mặt').length;
-        const startTime = new Date(sess.started_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-        html += `
-        <div class="hist-session">
-          <div class="hist-session-header" onclick="toggleHistSession(this)">
-            <div>
-              <b>${escapeHtml(sess.session_name)}</b>
-              <span class="hist-meta">Bắt đầu ${startTime} · ${list.length} SV · <span style="color:var(--ok);">${present} có mặt</span> · <span style="color:var(--err);">${absent} vắng</span></span>
+  const tbody = document.getElementById('studentTbody');
+  if (!page.length){
+    tbody.innerHTML = `
+      <tr><td colspan="4">
+        <div class="tbl-empty">
+          <div class="tbl-empty-icon">🔍</div>
+          <b>Không có sinh viên nào</b>
+          <span>Thử đổi bộ lọc hoặc từ khoá.</span>
+        </div>
+      </td></tr>`;
+  } else {
+    tbody.innerHTML = page.map(s => {
+      const a = attendanceMap[s.mssv];
+      const status = a?.status || 'unmarked';
+      const selClass = status === 'có mặt' ? 'st-ok' : status === 'unmarked' ? 'st-none' : 'st-no';
+      return `
+        <tr data-mssv="${s.mssv}">
+          <td>
+            <div class="student-cell">
+              <div class="avt">${s.name.trim().slice(-1)}</div>
+              <div class="td-name">${escapeHtml(s.name)}</div>
             </div>
-            <span class="hist-chevron">▼</span>
-          </div>
-          <div class="hist-session-body" style="display:none;">
-            <table class="hist-table">
-              <thead><tr><th>Họ tên</th><th>MSSV</th><th>Trạng thái</th><th>Lĩnh vực</th><th>Thời gian</th></tr></thead>
-              <tbody>
-                ${list.map(r => {
-                    const sc = r.status === 'có mặt' ? 'st-ok' : 'st-no';
-                    const t  = new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-                    return `<tr>
-                      <td>${escapeHtml(r.full_name || r.mssv)}</td>
-                      <td class="mono">${escapeHtml(r.mssv)}</td>
-                      <td><span class="status-chip ${sc}">${escapeHtml(r.status)}</span></td>
-                      <td class="mono">${escapeHtml(r.category || '—')}</td>
-                      <td class="mono">${t}</td>
-                    </tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
+          </td>
+          <td class="td-mono">${s.mssv}</td>
+          <td>
+            <select class="status-select ${selClass}" onchange="changeStatus('${s.mssv}', this.value)">
+              <option value="unmarked" ${status==='unmarked'?'selected':''} disabled>Chưa quét</option>
+              <option value="có mặt" ${status==='có mặt'?'selected':''}>Có mặt</option>
+              <option value="vắng có phép" ${status==='vắng có phép'?'selected':''}>Vắng có phép</option>
+              <option value="vắng không phép" ${status==='vắng không phép'?'selected':''}>Vắng không phép</option>
+            </select>
+          </td>
+          <td class="td-mono">${a?.time || '—'}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  const end = Math.min(start + pageSize, total);
+  document.getElementById('pagerInfo').innerHTML =
+    total === 0 ? 'Không có sinh viên nào'
+    : `Hiển thị <b>${start+1}–${end}</b> / <b>${total}</b>`;
+  document.getElementById('pagerNum').innerHTML = `<b>${currentPage}</b>/${totalPages}`;
+  document.getElementById('pagerPrev').disabled = currentPage <= 1;
+  document.getElementById('pagerNext').disabled = currentPage >= totalPages;
+}
+
+function renderFeed(){
+  const feed = document.getElementById('feedList');
+  const recent = Object.entries(attendanceMap)
+    .filter(([_, a]) => a.status === 'có mặt')
+    .sort((a, b) => (b[1].time || '').localeCompare(a[1].time || ''))
+    .slice(0, 5);
+  if (!recent.length){
+    feed.innerHTML = '<div class="feed-empty">Chưa có ai điểm danh</div>';
+    return;
+  }
+  feed.innerHTML = recent.map(([mssv, a]) => {
+    const s = students.find(x => x.mssv === mssv);
+    const name = s?.name || mssv;
+    return `<div class="feed-item">
+      <div class="feed-avt">${name.trim().slice(-1)}</div>
+      <div class="feed-name">${escapeHtml(name)}</div>
+      <div class="feed-time">${a.time || '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============ ACTIONS ============
+async function openSession(){
+  const name = document.getElementById('quickName').value.trim();
+  const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
+  if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
+  const warn = Math.min(30, Math.max(1, Math.floor(dur / 10)));
+
+  const { data, error } = await supabase.rpc('admin_open_session', {
+    p_name: name, p_duration_min: dur, p_warn_before_min: warn
+  });
+  if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
+  toast('ok', 'Đã mở phiên', `"${name}" — ${dur} phút`);
+  await refreshAll();
+}
+
+async function changeStatus(mssv, newStatus){
+  if (newStatus === 'unmarked'){
+    toast('warn', 'Không thể đặt "Chưa quét"', 'Chọn "Vắng" hoặc "Có mặt".');
+    renderTable();
+    return;
+  }
+  const { data, error } = await supabase.rpc('admin_set_status', {
+    p_session_id: String(currentSession.id),
+    p_mssv: mssv, p_status: newStatus
+  });
+  if (error || !data?.ok){
+    toast('err', 'Cập nhật thất bại', data?.message || error?.message);
+    return;
+  }
+  const s = students.find(x => x.mssv === mssv);
+  toast('ok', 'Đã cập nhật', `${s?.name} → ${newStatus}`);
+  await loadAttendance();
+  renderAll();
+}
+
+let _bulkCb = null;
+function showBulkModal(title, text, cb){
+  document.getElementById('bulkTitle').textContent = title;
+  document.getElementById('bulkText').innerHTML = text;
+  _bulkCb = cb;
+  document.getElementById('bulkModal').classList.add('show');
+}
+function closeBulkModal(){ document.getElementById('bulkModal').classList.remove('show'); _bulkCb = null; }
+document.getElementById('bulkConfirmBtn').addEventListener('click', () => {
+  if (_bulkCb) _bulkCb();
+  closeBulkModal();
+});
+
+function confirmMarkAllAbsent(){
+  const list = students.filter(s => !attendanceMap[s.mssv]);
+  if (!list.length) return toast('info', 'Không có SV nào chưa quét');
+  showBulkModal('Đánh dấu vắng?',
+    `Sẽ đánh dấu <b>${list.length} sinh viên</b> thành "Vắng không phép".`,
+    async () => {
+      const { data, error } = await supabase.rpc('admin_batch_set_status', {
+        p_session_id: String(currentSession.id),
+        p_mssv_list: list.map(s => s.mssv),
+        p_status: 'vắng không phép'
+      });
+      if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+      toast('ok', 'Đã cập nhật', `${data.count} sinh viên → Vắng`);
+      await loadAttendance();
+      renderAll();
+    });
+}
+
+function confirmMarkAllPresent(){
+  showBulkModal('Đánh dấu có mặt tất cả?',
+    `Sẽ đánh dấu <b>TẤT CẢ ${students.length} sinh viên</b> thành "Có mặt". Thao tác này ghi đè trạng thái vắng.`,
+    async () => {
+      const { data, error } = await supabase.rpc('admin_batch_set_status', {
+        p_session_id: String(currentSession.id),
+        p_mssv_list: students.map(s => s.mssv),
+        p_status: 'có mặt'
+      });
+      if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+      toast('ok', 'Đã cập nhật', `${data.count} sinh viên → Có mặt`);
+      await loadAttendance();
+      renderAll();
+    });
+}
+
+// ============ CLOSE SESSION ============
+function openCloseModal(){
+  let present = 0, absent = 0, unmarked = 0;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    if (!a) unmarked++;
+    else if (a.status === 'có mặt') present++;
+    else absent++;
+  });
+  document.getElementById('modalPresent').textContent = present;
+  document.getElementById('modalAbsent').textContent = absent;
+  document.getElementById('modalUnmarked').textContent = unmarked;
+  const warn = document.getElementById('modalWarnText');
+  if (unmarked > 0){
+    warn.style.display = 'block';
+    warn.innerHTML = `💡 Có <b>${unmarked} sinh viên chưa quét</b>. Bạn có thể đánh dấu vắng trước khi đóng.`;
+  } else {
+    warn.style.display = 'none';
+  }
+  document.getElementById('closeModal').classList.add('show');
+}
+function closeModalFn(){ document.getElementById('closeModal').classList.remove('show'); }
+async function confirmCloseSession(){
+  closeModalFn();
+  const { data, error } = await supabase.rpc('admin_close_session');
+  if (error || !data?.ok) return toast('err', 'Đóng phiên thất bại', data?.message || error?.message);
+  toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử hôm nay".');
+  currentSession = null;
+  showEmpty();
+  await loadTodayHistory();
+}
+
+// ============ TODAY HISTORY ============
+async function loadTodayHistory(){
+  const { data, error } = await supabase.rpc('admin_today_sessions');
+  const wrap = document.getElementById('todayHistoryWrap');
+  const list = document.getElementById('todayHistoryList');
+  if (error || !data?.ok || !data.sessions?.length){
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  list.innerHTML = data.sessions.map(s => {
+    const t = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+    const badge = s.is_open
+      ? '<span class="rk-badge doing">Đang mở</span>'
+      : '<span class="rk-badge todo">Đã đóng</span>';
+    return `<div class="today-history-item">
+      <div>
+        <div class="today-history-name">${escapeHtml(s.session_name)} ${badge}</div>
+        <div class="today-history-meta">Bắt đầu ${t} · ${s.total} SV · <span style="color:var(--ok)">${s.present} ĐD</span> · <span style="color:var(--err)">${s.absent} vắng</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============ COUNTDOWN ============
+function startCountdown(){
+  clearInterval(countdownTimer);
+  tickCountdown();
+  countdownTimer = setInterval(tickCountdown, 1000);
+}
+
+function tickCountdown(){
+  if (!currentSession) return;
+  const chip = document.getElementById('countdownChip');
+  const txt = document.getElementById('countdownText');
+  const warnEl = document.getElementById('qrWarning');
+
+  if (!currentSession.duration_min){
+    txt.textContent = '∞';
+    chip.className = 'countdown-chip';
+    warnEl.classList.remove('show');
+    return;
+  }
+  const start = new Date(currentSession.started_at).getTime();
+  const end = start + currentSession.duration_min * 60000;
+  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+  const warn = (currentSession.warn_before_min || 5) * 60;
+
+  if (left === 0){
+    txt.textContent = '00:00';
+    chip.className = 'countdown-chip danger';
+    warnEl.classList.add('show');
+    if (!autoClosed){
+      autoClosed = true;
+      toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.');
+      confirmCloseSession();
     }
+    return;
+  }
 
-    box.innerHTML = html;
+  txt.textContent = fmtTime(left);
+  if (left <= warn){
+    chip.className = 'countdown-chip danger';
+    warnEl.classList.add('show');
+  } else if (left <= warn * 2){
+    chip.className = 'countdown-chip warn';
+    warnEl.classList.remove('show');
+  } else {
+    chip.className = 'countdown-chip';
+    warnEl.classList.remove('show');
+  }
 }
 
-function toggleHistSession(header) {
-    const body    = header.nextElementSibling;
-    const chevron = header.querySelector('.hist-chevron');
-    const open    = body.style.display !== 'none';
-    body.style.display    = open ? 'none' : 'block';
-    chevron.style.transform = open ? '' : 'rotate(180deg)';
+// ============ REALTIME ============
+let _lastMssvSet = new Set();
+function setupRealtime(){
+  supabase.channel('admin-changes')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'attendance' },
+      async payload => {
+        if (!currentSession) return;
+        if (payload.new && payload.new.session_id !== currentSession.id) return;
+        await loadAttendance();
+        renderAll();
+        // Thông báo khi có SV mới ĐD
+        if (payload.eventType === 'INSERT' && payload.new.mssv && !_lastMssvSet.has(payload.new.mssv)){
+          _lastMssvSet.add(payload.new.mssv);
+          const s = students.find(x => x.mssv === payload.new.mssv);
+          toast('ok', 'SV vừa điểm danh', `${s?.name || payload.new.mssv} · ${fmtClock(new Date())}`);
+        }
+      })
+    .subscribe();
 }
 
-initAdmin();
+// ============ RENDER ALL ============
+function renderAll(){
+  updateStats();
+  renderTable();
+  renderFeed();
+}
+
+async function refreshAll(){
+  await loadSession();
+  if (!currentSession){ showEmpty(); return; }
+  showDashboard();
+  document.getElementById('sessionBarName').textContent = currentSession.session_name;
+  document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
+  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
+  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? `${currentSession.duration_min} phút` : 'Không giới hạn';
+  _lastMssvSet = new Set();
+  await loadAttendance();
+  Object.entries(attendanceMap).forEach(([m]) => _lastMssvSet.add(m));
+  renderQR();
+  renderAll();
+  startCountdown();
+  autoClosed = false;
+}
+
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = await checkAuth();
+  if (!user) return;
+
+  // Nếu URL có ?s=<session_id> thì admin vào xem lại phiên cũ — bỏ qua, hiển thị như bình thường
+  await loadStudents();
+  await refreshAll();
+  await loadTodayHistory();
+  setupRealtime();
+
+  // Filter tabs
+  document.getElementById('filters').addEventListener('click', e => {
+    const btn = e.target.closest('.filter');
+    if (!btn) return;
+    document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.status;
+    currentPage = 1;
+    renderTable();
+  });
+
+  // Search
+  document.getElementById('searchInput').addEventListener('input', e => {
+    currentSearch = e.target.value.trim();
+    currentPage = 1;
+    renderTable();
+  });
+
+  // Pagination
+  document.getElementById('pagerSize').addEventListener('change', e => {
+    pageSize = parseInt(e.target.value, 10);
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('pagerPrev').addEventListener('click', () => {
+    currentPage = Math.max(1, currentPage - 1);
+    renderTable();
+  });
+  document.getElementById('pagerNext').addEventListener('click', () => {
+    currentPage++;
+    renderTable();
+  });
+
+  // Network
+  window.addEventListener('online', () => {
+    document.getElementById('netBadge').className = 'net-badge net-online';
+    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Online</span>';
+    document.getElementById('offlineBanner').classList.remove('show');
+  });
+  window.addEventListener('offline', () => {
+    document.getElementById('netBadge').className = 'net-badge net-offline';
+    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Offline</span>';
+    document.getElementById('offlineBanner').classList.add('show');
+  });
+
+  // Polling backup mỗi 30s
+  setInterval(() => {
+    if (currentSession) loadAttendance().then(renderAll);
+  }, 30000);
+});
