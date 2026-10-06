@@ -44,12 +44,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function bindFormEvents() {
-  // Chọn Thứ/Buổi -> cập nhật lại danh sách ai rảnh
-  const thu = document.getElementById('taskThu');
-  const buoi = document.getElementById('taskBuoi');
-  if (thu) thu.addEventListener('change', refreshMemberPicker);
-  if (buoi) buoi.addEventListener('change', refreshMemberPicker);
-
   const teamSelect = document.getElementById('teamSelect');
   if (teamSelect) {
     teamSelect.addEventListener('change', (e) => {
@@ -115,30 +109,26 @@ async function switchTeam(team) {
 
 async function refreshAll() {
   await Promise.all([loadMembers(), loadTasks()]);
-  await renderAvailability();
-  await renderTaskBoard();
+  await refreshMemberPicker();
+  renderTaskBoard();
   updateStats();
 }
 
 // ============================================================
-// THÀNH VIÊN & LỊCH RẢNH
+// THÀNH VIÊN (không còn lịch rảnh — chỉ load danh sách)
 // ============================================================
 async function loadMembers() {
-  const box = document.getElementById('availabilityBox');
   try {
     const { data, error } = await supabase.rpc('get_team_availability', {
       p_team_id: currentTeam.id,
     });
     if (error) throw error;
-
     teamMembers = Array.isArray(data?.members) ? data.members : [];
-
-    // Tính ma trận rảnh/bận cho toàn bộ thành viên
-    availabilityMatrix = await buildAvailabilityMatrix(teamMembers);
+    // availabilityMatrix không còn dùng cho UI nhưng giữ để openAssignDialog vẫn chạy
+    availabilityMatrix = {};
   } catch (e) {
     console.error('[loadMembers]', e);
     teamMembers = [];
-    if (box) box.innerHTML = '<div class="rk-empty">Không tải được danh sách thành viên.</div>';
   }
 }
 
@@ -195,13 +185,9 @@ async function renderAvailability() {
   await refreshMemberPicker();
 }
 
-/**
- * Render danh sách thành viên để chọn người nhận việc.
- * Nếu đã chọn Thứ + Buổi, thành viên RẢNH được xếp lên đầu và gắn nhãn rõ ràng.
- */
+/** Render danh sách thành viên để chọn người nhận việc */
 async function refreshMemberPicker() {
   const box = document.getElementById('memberPicker');
-  const hint = document.getElementById('pickHint');
   if (!box) return;
 
   if (!teamMembers.length) {
@@ -209,83 +195,23 @@ async function refreshMemberPicker() {
     return;
   }
 
-  const thu = document.getElementById('taskThu')?.value;
-  const buoi = document.getElementById('taskBuoi')?.value;
-  const hasSlot = !!(thu && buoi);
-
-  if (hint) {
-    hint.textContent = hasSlot
-      ? `— ${THU_LABELS[thu]} · ${BUOI_SHORT[buoi]}`
-      : '— chọn khung giờ để xem ai rảnh';
-  }
-
-  // Đánh giá rảnh/bận cho từng thành viên tại khung đã chọn
-  const evaluated = [];
-  for (const m of teamMembers) {
-    if (hasSlot) {
-      const key = `${m.user_id}|${thu}|${buoi}`;
-      const info = availabilityMatrix[key] || await checkMemberFree(m.mssv, thu, buoi, m.blocks);
-      evaluated.push({ ...m, ...info });
-    } else {
-      evaluated.push({ ...m, free: null, reason: '' });
-    }
-  }
-
-  // Rảnh trước, bận sau
-  evaluated.sort((a, b) => {
-    if (a.free === b.free) return a.full_name.localeCompare(b.full_name, 'vi');
-    if (a.free === true) return -1;
-    if (b.free === true) return 1;
-    return 0;
-  });
-
-  const freeCount = evaluated.filter((m) => m.free === true).length;
-
   let html = '';
-  evaluated.forEach((m) => {
+  teamMembers.forEach((m) => {
     const selected = selectedMemberId === m.user_id;
-    let statusHtml = '<span class="rk-muted">Chưa chọn khung giờ</span>';
-    let cls = '';
-
-    if (hasSlot) {
-      if (m.free) {
-        statusHtml = '<span class="rk-badge free">✓ Rảnh</span>';
-      } else {
-        statusHtml = `<span class="rk-badge busy">✕ ${escapeHtml(m.reason || 'Bận')}</span>`;
-        cls = ' unavailable';
-      }
-    }
-
-    html += `<div class="rk-member-card${selected ? ' selected' : ''}${cls}" ` +
-      `onclick="selectMember('${m.user_id}', ${m.free === false})">` +
-      `<div class="rk-member-name">${escapeHtml(m.full_name)}` +
-      (m.is_leader ? ' <span class="rk-badge doing" style="font-size:10px;">ĐT</span>' : '') +
-      `</div>` +
+    const roleLabel = m.team_role === 'leader' ? ' <span class="rk-badge doing" style="font-size:10px;">ĐT</span>'
+                    : m.team_role === 'deputy'  ? ' <span class="rk-badge todo" style="font-size:10px;">ĐP</span>'
+                    : '';
+    html += `<div class="rk-member-card${selected ? ' selected' : ''}" onclick="selectMember('${m.user_id}')">` +
+      `<div class="rk-member-name">${escapeHtml(m.full_name)}${roleLabel}</div>` +
       `<div class="rk-member-sub">${m.mssv ? escapeHtml(m.mssv) : escapeHtml(m.username || '')}</div>` +
-      `<div style="margin-top:7px;">${statusHtml}</div></div>`;
+      `</div>`;
   });
-
-  if (hasSlot && freeCount === 0) {
-    html = '<div class="rk-alert rk-alert-info show" style="grid-column:1/-1;">' +
-      '⚠️ Không có thành viên nào rảnh trong khung giờ này. Bạn vẫn có thể giao, ' +
-      'nhưng nên cân nhắc chọn khung giờ khác.</div>' + html;
-  }
 
   box.innerHTML = html;
 }
 
-function selectMember(userId, unavailable) {
-  if (unavailable) {
-    const thu = document.getElementById('taskThu')?.value;
-    const buoi = document.getElementById('taskBuoi')?.value;
-    const ok = confirm(
-      'Thành viên này KHÔNG rảnh tại ' +
-      `${thu ? THU_LABELS[thu] : ''} ${buoi ? BUOI_SHORT[buoi] : ''}.\n\n` +
-      'Bạn vẫn muốn giao nhiệm vụ này?'
-    );
-    if (!ok) return;
-  }
-  selectedMemberId = userId;
+function selectMember(userId) {
+  selectedMemberId = selectedMemberId === userId ? null : userId;
   refreshMemberPicker();
 }
 
@@ -296,9 +222,6 @@ async function createAndAssign() {
   const btn = document.getElementById('btnCreateTask');
   const title = document.getElementById('taskTitle')?.value.trim();
   const desc = document.getElementById('taskDesc')?.value.trim();
-  const priority = document.getElementById('taskPriority')?.value || 'normal';
-  const thu = document.getElementById('taskThu')?.value;
-  const buoi = document.getElementById('taskBuoi')?.value;
   const dueRaw = document.getElementById('taskDue')?.value;
 
   if (!title) return showAssignAlert('Vui lòng nhập tiêu đề nhiệm vụ.', true);
@@ -307,15 +230,14 @@ async function createAndAssign() {
   if (btn) btn.disabled = true;
 
   try {
-    // 1) Tạo nhiệm vụ
     const { data, error } = await supabase.rpc('leader_create_task', {
       p_team_id: currentTeam.id,
       p_title: title,
       p_description: desc || null,
-      p_slot_thu: thu ? Number(thu) : null,
-      p_slot_buoi: buoi ? Number(buoi) : null,
+      p_slot_thu: null,
+      p_slot_buoi: null,
       p_due_at: dueRaw ? new Date(dueRaw).toISOString() : null,
-      p_priority: priority,
+      p_priority: 'normal',
     });
 
     if (error) throw error;
@@ -324,35 +246,12 @@ async function createAndAssign() {
     const taskId = data.task.id;
     pendingTaskId = taskId;
 
-    // 2) Giao cho thành viên đã chọn (nếu có)
     if (selectedMemberId) {
-      const thuNum = thu ? Number(thu) : null;
-      const buoiNum = buoi ? Number(buoi) : null;
-
-      // Kiểm tra lịch rảnh phía client (lịch học trong JSON)
-      const member = teamMembers.find((m) => m.user_id === selectedMemberId);
-      let force = false;
-      if (member && thuNum && buoiNum) {
-        const info = availabilityMatrix[`${member.user_id}|${thuNum}|${buoiNum}`]
-          || await checkMemberFree(member.mssv, thuNum, buoiNum, member.blocks);
-        if (!info.free) {
-          force = confirm(
-            `${member.full_name} không rảnh tại ${THU_LABELS[thuNum]} ${BUOI_SHORT[buoiNum]}` +
-            ` (${info.reason}).\n\nVẫn giao nhiệm vụ?`
-          );
-          if (!force) {
-            showAssignAlert('Đã tạo nhiệm vụ nhưng chưa giao cho ai. Hãy chọn người khác.', true);
-            await loadTasks();
-            return;
-          }
-        }
-      }
-
       const { data: aData, error: aErr } = await supabase.rpc('leader_assign_task', {
         p_task_id: taskId,
         p_assignee_id: selectedMemberId,
         p_note: null,
-        p_force: force,
+        p_force: true,
       });
 
       if (aErr) throw aErr;
@@ -361,10 +260,9 @@ async function createAndAssign() {
         await loadTasks();
         return;
       }
-
       showAssignAlert('✓ Đã tạo và giao nhiệm vụ thành công.', false);
     } else {
-      showAssignAlert('✓ Đã tạo nhiệm vụ (chưa giao cho ai). Chọn người ở danh sách nhiệm vụ.', false);
+      showAssignAlert('✓ Đã tạo nhiệm vụ (chưa giao cho ai).', false);
     }
 
     resetTaskForm();
@@ -384,13 +282,6 @@ function resetTaskForm() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['taskThu', 'taskBuoi'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  const p = document.getElementById('taskPriority');
-  if (p) p.value = 'normal';
-
   selectedMemberId = null;
   pendingTaskId = null;
   refreshMemberPicker();
@@ -446,35 +337,34 @@ function renderTaskBoard() {
   const box = document.getElementById('taskBoard');
   if (!box) return;
 
+  // Hiện nút lịch sử khi có nhiệm vụ
+  const btnHistory = document.getElementById('btnShowHistory');
+  if (btnHistory) btnHistory.style.display = teamTasks.length ? 'inline-flex' : 'none';
+
   if (!teamTasks.length) {
     box.innerHTML = '<div class="rk-empty">Chưa có nhiệm vụ nào trong nhóm.</div>';
     return;
   }
 
-  let html = '<div class="rk-task-list">';
+  // Chỉ hiển thị nhiệm vụ chưa done/cancelled
+  const active = teamTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+  if (!active.length) {
+    box.innerHTML = '<div class="rk-empty">Tất cả nhiệm vụ đã hoàn thành! 🎉</div>';
+    return;
+  }
 
-  teamTasks.forEach((t) => {
-    const slot = taskSlotLabel(t);
+  let html = '<div class="rk-task-list">';
+  active.forEach((t) => {
     const due = fmtDue(t.due_at);
     const assignees = Array.isArray(t.assignees) ? t.assignees : [];
 
     html += '<div class="rk-task">';
-    html += '<div class="rk-task-head"><div class="rk-task-title">' +
-      escapeHtml(t.title) + '</div>' +
-      `<span class="rk-badge ${escapeHtml(t.priority)}">${PRIORITY_LABELS[t.priority] || ''}</span></div>`;
+    html += '<div class="rk-task-head"><div class="rk-task-title">' + escapeHtml(t.title) + '</div></div>';
 
-    if (t.description) {
-      html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
-    }
+    if (t.description) html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
 
-    // Meta: khung giờ, hạn, số người nhận
-    html += '<div class="rk-task-meta">';
-    if (slot) html += `<span>🕐 ${escapeHtml(slot)}</span><span class="rk-dot"></span>`;
-    if (due) html += `<span>⏳ Hạn: ${escapeHtml(due)}</span><span class="rk-dot"></span>`;
-    html += `<span>👥 ${assignees.length} người nhận</span>`;
-    html += '</div>';
+    if (due) html += `<div class="rk-task-meta"><span>⏳ Hạn: ${escapeHtml(due)}</span></div>`;
 
-    // Danh sách người nhận + trạng thái
     html += '<div class="rk-task-foot"><div class="rk-assignee-list">';
     if (!assignees.length) {
       html += '<span class="rk-muted">Chưa giao cho ai</span>';
@@ -487,15 +377,10 @@ function renderTaskBoard() {
           '</span>';
       });
     }
-    html += '</div>';
-
-    // Nút thao tác
-    html += '<div class="rk-assignee-list">';
+    html += '</div><div class="rk-assignee-list">';
     html += `<button class="rk-btn rk-btn-sm" onclick="openAssignDialog('${t.id}')">＋ Giao thêm</button>`;
     html += `<button class="rk-btn rk-btn-sm rk-btn-err" onclick="deleteTask('${t.id}')">Xoá</button>`;
-    html += '</div></div>';
-
-    html += '</div>';
+    html += '</div></div></div>';
   });
 
   html += '</div>';
@@ -594,14 +479,8 @@ async function openAssignDialog(taskId) {
 // THỐNG KÊ
 // ============================================================
 function updateStats() {
-  const set = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
-
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   set('statMembers', teamMembers.length);
-
-  // Đếm nhiệm vụ: đang mở = chưa done/cancelled; hoàn thành = done
   let open = 0, done = 0;
   teamTasks.forEach((t) => {
     if (t.status === 'done') done++;
@@ -609,24 +488,78 @@ function updateStats() {
   });
   set('statOpenTasks', open);
   set('statDoneTasks', done);
-
-  // Số người rảnh "hôm nay" (theo thứ hiện tại + buổi đang diễn ra)
-  const now = new Date();
-  const jsDay = now.getDay();            // 0=CN ... 6=T7
-  const thuToday = jsDay === 0 ? 8 : jsDay + 1;
-  const hour = now.getHours();
-  const buoiNow = hour < 11 ? 1 : (hour < 16 ? 2 : 3);
-
-  let freeCount = 0;
-  for (const m of teamMembers) {
-    const info = availabilityMatrix[`${m.user_id}|${thuToday}|${buoiNow}`];
-    if (info && info.free) freeCount++;
-  }
-  set('statFreeNow', freeCount);
 }
 
 // ============================================================
-// PANEL PHÂN QUYỀN NỘI BỘ (leader / deputy)
+// LỊCH SỬ GIAO VIỆC & HOÀN THÀNH
+// ============================================================
+
+function toggleHistory() {
+  const box = document.getElementById('taskHistory');
+  const btn = document.getElementById('btnShowHistory');
+  if (!box) return;
+  const showing = box.style.display !== 'none';
+  box.style.display = showing ? 'none' : 'block';
+  if (btn) btn.textContent = showing ? '📋 Lịch sử' : '✕ Đóng lịch sử';
+  if (!showing) renderTaskHistory();
+}
+
+function renderTaskHistory() {
+  const box = document.getElementById('taskHistoryList');
+  if (!box) return;
+
+  // Lấy TẤT CẢ nhiệm vụ (kể cả done/cancelled)
+  const all = teamTasks;
+  if (!all.length) {
+    box.innerHTML = '<div class="rk-empty">Chưa có nhiệm vụ nào.</div>';
+    return;
+  }
+
+  // Sắp xếp: done trước, rồi theo thời gian tạo giảm dần
+  const sorted = [...all].sort((a, b) => {
+    if (a.status === 'done' && b.status !== 'done') return -1;
+    if (b.status === 'done' && a.status !== 'done') return 1;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  let html = '<div class="rk-task-list">';
+  sorted.forEach((t) => {
+    const due = fmtDue(t.due_at);
+    const created = fmtDue(t.created_at);
+    const assignees = Array.isArray(t.assignees) ? t.assignees : [];
+    const isDone = t.status === 'done' || assignees.every((a) => a.status === 'done');
+
+    html += `<div class="rk-task" style="opacity:${isDone ? '0.75' : '1'}">`;
+    html += `<div class="rk-task-head">` +
+      `<div class="rk-task-title">${isDone ? '✅ ' : ''}${escapeHtml(t.title)}</div>` +
+      `</div>`;
+
+    if (t.description) html += `<div class="rk-task-desc">${escapeHtml(t.description)}</div>`;
+
+    html += '<div class="rk-task-meta">';
+    if (created) html += `<span>📅 Tạo: ${escapeHtml(created)}</span><span class="rk-dot"></span>`;
+    if (due)     html += `<span>⏳ Hạn: ${escapeHtml(due)}</span><span class="rk-dot"></span>`;
+    html += `<span>👥 ${assignees.length} người</span>`;
+    html += '</div>';
+
+    if (assignees.length) {
+      html += '<div class="rk-task-foot"><div class="rk-assignee-list">';
+      assignees.forEach((a) => {
+        html += `<span class="rk-assignee">${escapeHtml(a.full_name)}` +
+          `<span class="rk-badge ${escapeHtml(a.status)}" style="font-size:10px;padding:2px 7px;">` +
+          `${TASK_STATUS_LABELS[a.status] || a.status}</span></span>`;
+      });
+      html += '</div></div>';
+    }
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+// ============================================================
 // ============================================================
 
 /**

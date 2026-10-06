@@ -9,6 +9,7 @@
 let adminTeams = [];
 let adminUsers = [];
 let _rolesCurrentUserRole = null; // 'admin' | 'leader' | 'deputy'
+let _studentsMap = {};             // mssv → name (từ students.json)
 
 // ============================================================
 // MỞ / ĐÓNG PANEL
@@ -43,6 +44,18 @@ async function loadAdminRoles() {
     const auth = await getCurrentAuth();
     _rolesCurrentUserRole = auth?.role || 'student';
   }
+  // Tải students.json một lần để đồng bộ tên
+  if (!Object.keys(_studentsMap).length) {
+    try {
+      const res = await fetch('students.json');
+      const json = await res.json();
+      (json.students || []).forEach((s) => {
+        if (s.mssv) _studentsMap[String(s.mssv).trim()] = s.name;
+      });
+    } catch (e) {
+      console.warn('[loadAdminRoles] Không tải được students.json', e);
+    }
+  }
   await loadAdminTeams();
   await loadAdminUsers();
 }
@@ -62,10 +75,47 @@ async function loadAdminTeams() {
 async function loadAdminUsers() {
   const box = document.getElementById('adminUserList');
   try {
-    const { data, error } = await supabase.rpc('admin_list_users');
-    if (error) throw error;
-    if (!data?.ok) throw new Error(data?.message || 'Không có quyền.');
-    adminUsers = Array.isArray(data.users) ? data.users : [];
+    // leader/deputy dùng RPC list_team_users (nhóm mình), admin dùng admin_list_users
+    let users = [];
+    if (_rolesCurrentUserRole === 'admin') {
+      const { data, error } = await supabase.rpc('admin_list_users');
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.message || 'Không có quyền.');
+      users = Array.isArray(data.users) ? data.users : [];
+    } else {
+      // Leader/deputy: lấy toàn bộ user thông qua get_team_availability của tất cả nhóm mình quản lý
+      const { data: teamsData } = await supabase.rpc('my_teams');
+      const teams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
+      const seen = new Set();
+      for (const t of teams) {
+        const { data: av } = await supabase.rpc('get_team_availability', { p_team_id: t.id });
+        (av?.members || []).forEach((m) => {
+          if (!seen.has(m.user_id)) {
+            seen.add(m.user_id);
+            users.push({
+              user_id: m.user_id,
+              username: m.username,
+              full_name: m.full_name,
+              mssv: m.mssv,
+              role: m.role,
+              team_id: t.id,
+              team_name: t.name,
+              team_role: m.team_role || 'member',
+            });
+          }
+        });
+      }
+    }
+
+    // Đồng bộ tên từ students.json theo MSSV
+    users = users.map((u) => {
+      if (u.mssv && _studentsMap[String(u.mssv).trim()]) {
+        return { ...u, full_name: _studentsMap[String(u.mssv).trim()] };
+      }
+      return u;
+    });
+
+    adminUsers = users;
     renderAdminUsers();
   } catch (e) {
     console.error('[loadAdminUsers]', e);
@@ -113,6 +163,7 @@ function renderAdminTeams() {
     '<th style="text-align:right;">Thao tác</th></tr></thead><tbody>';
 
   const isAdmin = _rolesCurrentUserRole === 'admin';
+  const canManage = isAdmin || _rolesCurrentUserRole === 'leader' || _rolesCurrentUserRole === 'deputy';
 
   adminTeams.forEach((t) => {
     const leader = adminUsers.find((u) => u.user_id === t.leader_id);
@@ -127,8 +178,10 @@ function renderAdminTeams() {
     html += `<td>${leader ? escapeHtml(leaderName) : leaderName}</td>`;
     html += '<td><div class="rk-actions">';
 
-    if (isAdmin) {
+    if (canManage) {
       html += `<button class="rk-btn rk-btn-sm" onclick="adminAddMember('${t.id}')">＋ Thêm thành viên</button>`;
+    }
+    if (isAdmin) {
       if (t.leader_id) {
         html += `<button class="rk-btn rk-btn-sm rk-btn-err" onclick="adminRevokeLeader('${t.id}')">Thu hồi ĐT</button>`;
       }
@@ -222,8 +275,7 @@ function renderAdminUsers() {
   }
 
   const isAdmin = _rolesCurrentUserRole === 'admin';
-
-  const roleBadge = (role) => {
+  const canManage = isAdmin || _rolesCurrentUserRole === 'leader' || _rolesCurrentUserRole === 'deputy'; = (role) => {
     const cls = role === 'admin'   ? 'chip-admin'
               : role === 'leader'  ? 'chip-leader'
               : role === 'deputy'  ? 'chip-deputy'
@@ -276,9 +328,9 @@ function renderAdminUsers() {
     }
     html += '</td>';
 
-    // Thao tác: chỉ gỡ được thành viên thường (không phải leader, không phải admin)
+    // Thao tác: leader/deputy cũng gỡ được thành viên thường
     html += '<td><div class="rk-actions">';
-    if (u.team_id && u.role !== 'admin' && !isThisTeamLeader && isAdmin) {
+    if (u.team_id && u.role !== 'admin' && !isThisTeamLeader && canManage) {
       html += `<button class="rk-btn rk-btn-sm rk-btn-err" ` +
         `onclick="adminRemoveMember('${u.team_id}','${u.user_id}')">Gỡ khỏi nhóm</button>`;
     }
