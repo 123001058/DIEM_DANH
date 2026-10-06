@@ -140,9 +140,9 @@ async function requireRoles(allowed = [], title = 'trang này') {
 
 /** Trang đích phù hợp với từng vai trò */
 function roleHome(role) {
-  if (role === ROLES.ADMIN)  return 'admin.html';
-  if (role === ROLES.LEADER) return 'leader.html';
-  if (role === ROLES.DEPUTY) return 'leader.html';
+  if (role === ROLES.ADMIN)   return 'admin.html';
+  if (role === ROLES.LEADER)  return 'admin.html';
+  if (role === ROLES.DEPUTY)  return 'admin.html';
   return 'tasks.html';
 }
 

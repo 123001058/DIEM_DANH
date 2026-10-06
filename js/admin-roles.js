@@ -275,7 +275,9 @@ function renderAdminUsers() {
   }
 
   const isAdmin = _rolesCurrentUserRole === 'admin';
-  const canManage = isAdmin || _rolesCurrentUserRole === 'leader' || _rolesCurrentUserRole === 'deputy'; = (role) => {
+  const canManage = isAdmin || _rolesCurrentUserRole === 'leader' || _rolesCurrentUserRole === 'deputy';
+
+  const roleBadge = (role) => {
     const cls = role === 'admin'   ? 'chip-admin'
               : role === 'leader'  ? 'chip-leader'
               : role === 'deputy'  ? 'chip-deputy'

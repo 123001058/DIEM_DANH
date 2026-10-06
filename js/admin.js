@@ -19,17 +19,21 @@ async function syncServerTime(){
 }
 
 async function initAdmin(){
-    // Ràng buộc bằng phiên Supabase Auth thật (không còn cờ sessionStorage giả)
+    // Cho phép admin, leader và deputy vào trang này
     const { data } = await supabase.auth.getSession();
     if (!data.session) return location.replace('index.html');
-    // Chỉ user nằm trong allowlist public.admins mới được dùng trang này
-    const { data: ok } = await supabase.rpc('is_admin');
-    if (!ok) {
-        alert('Tài khoản này không có quyền quản lý.');
+
+    // Kiểm tra quyền: admin HOẶC leader/deputy
+    const { data: isAdminOk } = await supabase.rpc('is_admin');
+    const { data: isLeaderOk } = await supabase.rpc('is_leader');
+    if (!isAdminOk && !isLeaderOk) {
+        alert('Tài khoản này không có quyền truy cập trang quản lý.');
         await supabase.auth.signOut();
         return location.replace('index.html');
     }
-    // Tự thoát về trang chủ nếu phiên bị đăng xuất/hết hạn ở nơi khác
+
+    // Ẩn nút "Nhóm & Phân quyền" nếu không phải admin (leader có trang leader.html riêng cho việc đó)
+    // Nhưng vẫn giữ để leader có thể dùng nếu muốn
     supabase.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') location.replace('index.html');
     });
