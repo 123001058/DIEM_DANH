@@ -166,20 +166,20 @@
 
   // Fetch data
   async function loadData() {
-    // 1. Kiểm tra đăng nhập — ai đăng nhập đều xem được lịch học
+    // Tự động nhận diện sinh viên nếu đã đăng nhập
     try {
-      if (typeof supabase === 'undefined') {
-        alert('Lỗi khởi tạo hệ thống! Vui lòng tải lại trang.');
-        return location.replace('index.html');
-      }
-      const { data: authData } = await supabase.auth.getSession();
-      if (!authData?.session) {
-        alert('Vui lòng đăng nhập để tra cứu thời khóa biểu!');
-        return location.replace('index.html');
+      if (typeof supabase !== 'undefined') {
+        const { data: authData } = await supabase.auth.getSession();
+        if (authData?.session?.user) {
+          const { data: prof } = await supabase
+            .from('profiles').select('mssv').eq('user_id', authData.session.user.id).maybeSingle();
+          if (prof?.mssv) {
+            localStorage.setItem('selected_tkb_mssv', prof.mssv);
+          }
+        }
       }
     } catch (e) {
-      console.error('[auth check lichhoc]', e);
-      return location.replace('index.html');
+      console.warn('[auth check lichhoc]', e);
     }
 
     try {
