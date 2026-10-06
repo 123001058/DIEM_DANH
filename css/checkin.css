@@ -46,3 +46,10 @@ h1{font-size:23px;text-align:center;margin-bottom:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
 #qrReader video { width: 100% !important; height: auto !important; border-radius: 8px; object-fit: cover; }
 
+
+/* Lịch sử điểm danh */
+#historyPanel { animation: rise .25s var(--ease,ease) both; }
+#historyContent > div:last-child { border-bottom: none !important; }
+
+/* Nút Wake Lock */
+#btnWakeLock:hover { opacity: .85; }

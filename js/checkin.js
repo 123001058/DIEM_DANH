@@ -472,4 +472,161 @@ document.addEventListener('DOMContentLoaded', () => {
   if (n) n.addEventListener('keydown', e => { if (e.key === 'Enter') doCheckin(); });
 });
 
+// ==========================================
+// SCREEN WAKE LOCK — Giữ màn hình sáng
+// ==========================================
+let wakeLock = null;
+let wakeLockActive = false;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return false;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLockActive = true;
+    wakeLock.addEventListener('release', () => {
+      // Màn hình lock bị OS thu hồi (ví dụ: tab ẩn), tự cập nhật UI
+      wakeLockActive = false;
+      updateWakeLockUI();
+    });
+    return true;
+  } catch (e) {
+    console.warn('[WakeLock]', e);
+    return false;
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) {
+    try { await wakeLock.release(); } catch (e) {}
+    wakeLock = null;
+  }
+  wakeLockActive = false;
+}
+
+function updateWakeLockUI() {
+  const btn  = document.getElementById('btnWakeLock');
+  const icon = document.getElementById('wakeLockIcon');
+  const text = document.getElementById('wakeLockText');
+  if (!btn) return;
+  if (wakeLockActive) {
+    icon.textContent = '☀️';
+    text.textContent = 'Màn hình đang giữ sáng';
+    btn.style.borderColor = 'var(--ok, #059669)';
+    btn.style.color       = 'var(--ok, #059669)';
+    btn.style.background  = 'var(--ok-bg, rgba(16,185,129,.08))';
+  } else {
+    icon.textContent = '💤';
+    text.textContent = 'Giữ màn hình sáng';
+    btn.style.borderColor = '';
+    btn.style.color       = '';
+    btn.style.background  = '';
+  }
+}
+
+async function toggleWakeLock() {
+  if (wakeLockActive) {
+    await releaseWakeLock();
+  } else {
+    const ok = await requestWakeLock();
+    if (!ok) {
+      showBadge('warn', 'Trình duyệt này không hỗ trợ giữ màn hình sáng. Hãy thử Chrome/Edge trên Android.');
+      setTimeout(hideBadge, 4000);
+      return;
+    }
+  }
+  updateWakeLockUI();
+}
+
+// Tự khôi phục wake lock khi tab được focus lại (ví dụ từ tab khác)
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLockActive && document.visibilityState === 'visible') {
+    await requestWakeLock();
+    updateWakeLockUI();
+  }
+});
+
+// ==========================================
+// LỊCH SỬ ĐIỂM DANH
+// ==========================================
+let historyOpen = false;
+let historyLoaded = false;
+
+function toggleHistory() {
+  const panel   = document.getElementById('historyPanel');
+  const chevron = document.getElementById('historyChevron');
+  historyOpen = !historyOpen;
+  panel.style.display   = historyOpen ? 'block' : 'none';
+  chevron.style.transform = historyOpen ? 'rotate(180deg)' : '';
+
+  if (historyOpen && !historyLoaded) {
+    loadHistory();
+  }
+}
+
+async function loadHistory() {
+  const content = document.getElementById('historyContent');
+  const mssv = (document.getElementById('mssv')?.value || '').trim();
+
+  if (!mssv) {
+    content.innerHTML = '<div style="color:var(--muted);padding:12px 0;">Nhập MSSV để xem lịch sử điểm danh.</div>';
+    return;
+  }
+
+  content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px 0;"><span style="display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:6px;"></span>Đang tải...</div>';
+
+  try {
+    const { data, error } = await supabase.rpc('get_my_attendance_history', { p_mssv: mssv });
+
+    if (error) {
+      content.innerHTML = `<div style="color:var(--err);padding:8px;">Lỗi tải lịch sử: ${escapeHtml(error.message)}</div>`;
+      return;
+    }
+
+    if (!data?.ok) {
+      content.innerHTML = `<div style="color:var(--err);padding:8px;">${escapeHtml(data?.message || 'Không thể tải lịch sử.')}</div>`;
+      return;
+    }
+
+    const records = data.records || [];
+    historyLoaded = true;
+
+    if (records.length === 0) {
+      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px 8px;">Chưa có lịch sử điểm danh nào.</div>';
+      return;
+    }
+
+    const statusColor = {
+      'có mặt':          { bg: 'var(--ok-bg,rgba(16,185,129,.1))',  fg: 'var(--ok,#059669)'  },
+      'vắng có phép':    { bg: 'var(--warn-bg,rgba(234,179,8,.1))', fg: 'var(--warn,#ca8a04)' },
+      'vắng không phép': { bg: 'var(--err-bg,rgba(239,68,68,.1))',  fg: 'var(--err,#ef4444)'  },
+    };
+
+    const rows = records.map(r => {
+      const sc   = statusColor[r.status] || statusColor['có mặt'];
+      const date = r.checked_at
+        ? new Date(r.checked_at).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
+        : (r.started_at ? new Date(r.started_at).toLocaleDateString('vi-VN') : '—');
+
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border,#e2e8f0);">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.session_name)}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${escapeHtml(date)}${r.category ? ' · ' + escapeHtml(r.category) : ''}</div>
+            ${r.note ? `<div style="font-size:11.5px;color:var(--muted);margin-top:1px;font-style:italic;">${escapeHtml(r.note)}</div>` : ''}
+          </div>
+          <span style="flex:none;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:700;background:${sc.bg};color:${sc.fg};">${escapeHtml(r.status)}</span>
+        </div>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div style="font-size:12px;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600;">
+        Tổng cộng ${records.length} lần điểm danh
+      </div>
+      ${rows}`;
+
+  } catch (e) {
+    content.innerHTML = `<div style="color:var(--err);padding:8px;">Lỗi: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
 init();

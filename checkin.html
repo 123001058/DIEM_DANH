@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Điểm Danh Sinh Viên</title>
+<title>LH-NaviX — Điểm Danh Sinh Viên</title>
 <meta name="description" content="Nhập MSSV để điểm danh sau khi quét mã QR.">
 <meta name="theme-color" content="#f5f6f8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,10 +22,10 @@
   <div class="card rise">
     <div class="brand">
       <div class="brand-mark">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        <img src="images/logo.png" alt="LH-NaviX" width="28" height="28" style="object-fit:contain;border-radius:6px;">
       </div>
     </div>
-    <h1 class="gradient-text">Điểm danh sinh viên</h1>
+    <h1 class="gradient-text">LH-NaviX</h1>
     <p class="sub">Nhập MSSV và xác nhận để điểm danh</p>
 
     <div class="info-box" id="sessionInfo">Đang tải thông tin phiên...</div>
@@ -69,6 +69,29 @@
     </div>
     <div class="loader" id="loader"><span class="spin"></span>Đang xử lý...</div>
     <div class="badge" id="badge" role="status"></div>
+    <!-- Nút giữ màn hình sáng -->
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;justify-content:center;">
+      <button type="button" id="btnWakeLock" onclick="toggleWakeLock()"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12.5px;font-weight:700;border:1.5px solid var(--border-strong,#cbd5e1);background:var(--surface-2);color:var(--muted);border-radius:8px;cursor:pointer;transition:all .2s;">
+        <span id="wakeLockIcon">💤</span>
+        <span id="wakeLockText">Giữ màn hình sáng</span>
+      </button>
+    </div>
+
+    <!-- Lịch sử điểm danh -->
+    <div style="margin-top:20px;">
+      <button type="button" onclick="toggleHistory()"
+        style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 14px;font-size:13px;font-weight:700;border:1px solid var(--border,#e2e8f0);background:var(--surface-2);color:var(--text);border-radius:10px;cursor:pointer;">
+        <span>📋 Lịch sử điểm danh của tôi</span>
+        <span id="historyChevron" style="transition:transform .25s;">▼</span>
+      </button>
+      <div id="historyPanel" style="display:none;margin-top:8px;border:1px solid var(--border,#e2e8f0);border-radius:10px;overflow:hidden;">
+        <div id="historyContent" style="padding:12px;font-size:13px;color:var(--muted);text-align:center;">
+          Đang tải...
+        </div>
+      </div>
+    </div>
+
     <a class="back" href="index.html">← Về trang chủ</a>
   </div>
 </main>

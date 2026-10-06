@@ -984,6 +984,61 @@ $$;
 revoke all on function public.admin_close_session(text) from public, anon;
 grant execute on function public.admin_close_session(text) to authenticated;
 
+-- RPC Lịch sử điểm danh của sinh viên (SV chỉ xem của mình)
+create or replace function public.get_my_attendance_history(p_mssv text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_profile_mssv text;
+begin
+  -- Trường hợp đã đăng nhập: xác thực mssv phải khớp với profile
+  if v_uid is not null then
+    select mssv into v_profile_mssv
+    from public.profiles
+    where user_id = v_uid;
+
+    -- Nếu profile có mssv thì phải khớp, không cho query mssv người khác
+    if v_profile_mssv is not null and btrim(v_profile_mssv) <> '' then
+      if btrim(coalesce(p_mssv, '')) <> btrim(v_profile_mssv) then
+        return jsonb_build_object('ok', false, 'message', 'Không được xem lịch sử của MSSV khác.');
+      end if;
+    end if;
+  end if;
+
+  -- Bắt buộc phải cung cấp mssv
+  if p_mssv is null or btrim(p_mssv) = '' then
+    return jsonb_build_object('ok', false, 'message', 'Thiếu MSSV.');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'records', (
+      select coalesce(jsonb_agg(
+        jsonb_build_object(
+          'session_name', s.session_name,
+          'started_at',   s.started_at,
+          'status',       a.status,
+          'category',     a.category,
+          'note',         a.note,
+          'checked_at',   a.created_at
+        ) order by a.created_at desc
+      ), '[]'::jsonb)
+      from public.attendance a
+      join public.sessions s on s.id = a.session_id
+      where a.mssv = btrim(p_mssv)
+    )
+  );
+end;
+$$;
+
+revoke all on function public.get_my_attendance_history(text) from public, anon;
+grant execute on function public.get_my_attendance_history(text) to anon, authenticated;
+
 -- RPC Liên kết MSSV cho sinh viên (Chỉ Admin nếu muốn gán lại thủ công)
 create or replace function public.admin_link_student_mssv(
   p_target_user_id uuid,

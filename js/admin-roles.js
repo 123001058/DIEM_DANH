@@ -137,8 +137,11 @@ function renderAdminTeams() {
 
     // Nút thu hồi quyền
     if (t.leader_id) {
-      html += `<button class="rk-btn rk-btn-sm rk-btn-err" onclick="adminRevokeLeader('${t.id}')">Thu hồi</button>`;
+      html += `<button class="rk-btn rk-btn-sm rk-btn-err" onclick="adminRevokeLeader('${t.id}')">Thu hồi ĐT</button>`;
     }
+
+    // Nút xóa nhóm
+    html += `<button class="rk-btn rk-btn-sm rk-btn-err" onclick="adminDeleteTeam('${t.id}','${escapeHtml(t.name)}')">🗑 Xóa nhóm</button>`;
 
     html += '</div></td></tr>';
   });
@@ -319,4 +322,29 @@ function renderAdminUsers() {
     'Tài khoản Admin không thể bị gỡ quyền.</p>';
 
   box.innerHTML = html;
+}
+
+// ============================================================
+// XÓA NHÓM
+// ============================================================
+async function adminDeleteTeam(teamId, teamName) {
+  // Kiểm tra nhóm còn thành viên không
+  const members = adminUsers.filter((u) => u.team_id === teamId);
+  if (members.length > 0) {
+    return showAdminAlert(
+      `Nhóm "${teamName}" còn ${members.length} thành viên. Hãy gỡ hết thành viên trước khi xóa nhóm.`,
+      'err'
+    );
+  }
+
+  if (!confirm(`Bạn có chắc muốn XÓA nhóm "${teamName}"?\nHành động này không thể hoàn tác.`)) return;
+
+  const { data, error } = await supabase.rpc('admin_delete_team', { p_team_id: teamId });
+
+  if (error || !data?.ok) {
+    return showAdminAlert(data?.message || error?.message || 'Không xóa được nhóm.', 'err');
+  }
+
+  showAdminAlert(`✓ Đã xóa nhóm "${teamName}".`, 'ok');
+  await loadAdminRoles();
 }
