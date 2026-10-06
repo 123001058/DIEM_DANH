@@ -1,632 +1,418 @@
-// Chức năng trang điểm danh sinh viên (checkin.html)
-let currentSessionId = '';
-let qrSessionId = null;
-let currentRefresh = 20;
-let sessionToken = null;
+// js/checkin.js
+let currentUser = null, currentProfile = null;
+let currentSession = null;    // { id, session_name, duration_min, warn_before_min, qr_token, qr_born_at }
+let sessionToken = null;      // QR token đã quét
 let deviceId = '';
-let sessionStatus = { is_open: false };
-let loggedInUser = null;
+let scanner = null, isScanning = false;
+let refreshTimer = null;
 
-function getDeviceId(){
+function getDeviceId() {
   let id = localStorage.getItem('device_id');
-  if (!id){
+  if (!id) {
     id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
     localStorage.setItem('device_id', id);
   }
   return id;
 }
 
-function showBadge(type, text){
-  const b = document.getElementById('badge');
-  b.className = 'badge show ' + type;
-  b.innerHTML = text;
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-function hideBadge(){
-  document.getElementById('badge').className = 'badge';
-}
-
-function showLoader(v){
-  document.getElementById('loader').classList.toggle('show', !!v);
-}
-
-function setBtnDisabled(v){
-  document.getElementById('btnCheckin').disabled = !!v;
-}
-
-function setSessionBox(state, html){
-  const box = document.getElementById('sessionInfo');
-  box.className = 'info-box ' + state;
+function showResult(type, html) {
+  const box = document.getElementById('resultBox');
+  box.className = 'result ' + type + ' show';
   box.innerHTML = html;
 }
 
-function playSuccessSound(){
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch (e) {}
+function hideResult() {
+  document.getElementById('resultBox').className = 'result';
 }
 
-// ==========================================
-// CAMERA SCANNER QUÉT MÃ QR TRỰC TIẾP
-// ==========================================
-let html5QrScanner = null;
-let isScanning = false;
+// ─── Camera scanner ──────────────────────────────────────────────────
+async function toggleCameraScanner() {
+  if (isScanning) { stopCameraScanner(); } else { await startCameraScanner(); }
+}
 
-function parseQrData(text){
-  let s = null, t = null;
-  if (!text) return { s, t };
+async function startCameraScanner() {
+  const wrapper = document.getElementById('scannerWrapper');
+  const btn = document.getElementById('scanBtn');
+  if (!window.Html5Qrcode) {
+    return showResult('error', 'Không tải được thư viện quét QR.');
+  }
+  wrapper.style.display = 'block';
+  btn.style.display = 'none';
+  if (!scanner) scanner = new Html5Qrcode('qrReader');
+
+  const cfg = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
   try {
-    if (text.startsWith('http://') || text.startsWith('https://')) {
+    isScanning = true;
+    await scanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => { });
+  } catch (e) {
+    try {
+      await scanner.start({ facingMode: 'user' }, cfg, onScanSuccess, () => { });
+    } catch (e2) {
+      isScanning = false;
+      stopCameraScanner();
+      showResult('error', 'Không mở được camera. Vui lòng cấp quyền truy cập.');
+    }
+  }
+}
+
+async function stopCameraScanner() {
+  const wrapper = document.getElementById('scannerWrapper');
+  const btn = document.getElementById('scanBtn');
+  wrapper.style.display = 'none';
+  btn.style.display = 'flex';
+  if (scanner && isScanning) {
+    try { await scanner.stop(); } catch (e) { }
+    isScanning = false;
+  }
+  updateScanBtn();
+}
+
+function updateScanBtn() {
+  const btn = document.getElementById('scanBtn');
+  const status = document.getElementById('qrStatus');
+  if (sessionToken) {
+    btn.classList.add('scanned');
+    btn.innerHTML = '✓ Đã có mã QR (Bấm để quét lại)';
+    status.className = 'qr-status has-token';
+    status.innerHTML = '✓ Đã nhận mã QR — Sẵn sàng điểm danh';
+  } else {
+    btn.classList.remove('scanned');
+    btn.innerHTML = '📷 Bật camera quét mã QR';
+    status.className = 'qr-status no-token';
+    status.innerHTML = '⚠️ Chưa có mã QR — Hãy quét mã từ màn hình';
+  }
+}
+
+function parseQr(text) {
+  let s = null, t = null;
+  try {
+    if (text.startsWith('http')) {
       const u = new URL(text);
       s = u.searchParams.get('s');
       t = u.searchParams.get('t');
     }
-  } catch (e) {}
-
+  } catch (e) { }
   if (!t) {
-    const matchT = text.match(/[?&]t=([^&]+)/);
-    const matchS = text.match(/[?&]s=([^&]+)/);
-    if (matchT) t = decodeURIComponent(matchT[1]);
-    if (matchS) s = decodeURIComponent(matchS[1]);
+    const mt = text.match(/[?&]t=([^&]+)/);
+    const ms = text.match(/[?&]s=([^&]+)/);
+    if (mt) t = decodeURIComponent(mt[1]);
+    if (ms) s = decodeURIComponent(ms[1]);
   }
-
-  if (!t) {
-    try {
-      const obj = JSON.parse(text);
-      if (obj.t) t = obj.t;
-      if (obj.s) s = obj.s;
-    } catch (e) {}
-  }
-
-  // Token thuần [win].[hash]
-  if (!t && /^[0-9]{1,12}\.[0-9a-f]{24}$/.test(text.trim())) {
-    t = text.trim();
-  }
-
+  if (!t && /^[0-9a-f]{20,}$/i.test(text.trim())) t = text.trim();
   return { s, t };
 }
 
-async function startCameraScanner(){
-  const wrapper = document.getElementById('scannerWrapper');
-  const btnText = document.getElementById('scannerBtnText');
-  if (wrapper) wrapper.style.display = 'block';
-  if (btnText) btnText.innerHTML = '⏹ Dừng Camera quét mã';
-
-  if (!window.Html5Qrcode) {
-    showBadge('err', 'Chưa tải được thư viện quét mã QR. Vui lòng tải lại trang.');
-    return;
-  }
-
-  if (!html5QrScanner) {
-    html5QrScanner = new Html5Qrcode("qrReader");
-  }
-
-  const config = {
-    fps: 10,
-    qrbox: { width: 250, height: 250 },
-    aspectRatio: 1.0
-  };
-
-  try {
-    isScanning = true;
-    await html5QrScanner.start(
-      { facingMode: "environment" },
-      config,
-      onScanSuccess,
-      () => {}
-    );
-  } catch (err) {
-    console.warn('[Camera environment failed, trying user camera]', err);
-    try {
-      await html5QrScanner.start(
-        { facingMode: "user" },
-        config,
-        onScanSuccess,
-        () => {}
-      );
-    } catch (fallbackErr) {
-      console.error('[Camera fallback failed]', fallbackErr);
-      isScanning = false;
-      stopCameraScanner();
-      showBadge('err', 'Không thể mở Camera: ' + (err.message || 'Hãy cấp quyền truy cập Camera cho trình duyệt'));
-    }
-  }
-}
-
-async function stopCameraScanner(){
-  const wrapper = document.getElementById('scannerWrapper');
-  const btnText = document.getElementById('scannerBtnText');
-  if (wrapper) wrapper.style.display = 'none';
-  if (btnText) {
-    btnText.innerHTML = sessionToken
-      ? '✓ Đã có mã QR (Bấm nếu muốn quét lại)'
-      : '📷 Bật Camera quét mã QR trực tiếp';
-  }
-
-  if (html5QrScanner && isScanning) {
-    try {
-      await html5QrScanner.stop();
-    } catch (e) {
-      console.warn('[stopCameraScanner]', e);
-    } finally {
-      isScanning = false;
-    }
-  }
-}
-
-function toggleCameraScanner(){
-  if (isScanning) {
-    stopCameraScanner();
-  } else {
-    startCameraScanner();
-  }
-}
-
-async function onScanSuccess(decodedText){
-  const { s, t } = parseQrData(decodedText);
+async function onScanSuccess(decodedText) {
+  const { s, t } = parseQr(decodedText);
   if (!t) {
-    showBadge('warn', 'Mã QR không đúng định dạng điểm danh. Hãy hướng camera vào mã QR trên màn hình Admin.');
-    return;
+    return showResult('warning', 'Mã QR không đúng định dạng điểm danh.');
   }
-
   sessionToken = t;
-  if (s) {
-    qrSessionId = s;
-    currentSessionId = s;
-  }
-
+  if (s) currentSession = { ...currentSession, id: s };
   await stopCameraScanner();
-  playSuccessSound();
+  playChime();
+  showResult('success', '✓ Đã nhận mã QR — Bấm "Xác nhận điểm danh" để hoàn tất.');
+}
 
-  const mssv = document.getElementById('mssv').value.trim();
-  const category = document.getElementById('category').value;
+function playChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 0.35);
+  } catch (e) { }
+}
+
+// ─── Load profile + session ──────────────────────────────────────────
+async function loadProfile() {
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth?.session) {
+    location.href = 'index.html';
+    return false;
+  }
+  currentUser = auth.session.user;
+
+  const { data: prof } = await supabase
+    .from('profiles').select('full_name, mssv').eq('user_id', currentUser.id).maybeSingle();
+
+  currentProfile = prof || {};
+  const name = currentProfile.full_name || currentUser.email;
+  const mssv = currentProfile.mssv || '';
+
+  document.getElementById('userAvatar').textContent = (name || '?').trim().slice(-1).toUpperCase();
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userId').textContent = 'MSSV: ' + (mssv || '—');
+  document.getElementById('mssv').value = mssv;
 
   if (!mssv) {
-    showBadge('info', '✓ Đã quét mã QR thành công! Vui lòng nhập MSSV rồi bấm Xác nhận.');
-    document.getElementById('mssv').focus();
-    return;
+    showResult('error', 'Tài khoản chưa liên kết MSSV. Vui lòng liên hệ Admin.');
+    return false;
   }
-
-  if (!category) {
-    showBadge('info', '✓ Đã quét mã QR thành công! Vui lòng chọn Lĩnh vực rồi bấm Xác nhận.');
-    document.getElementById('category').focus();
-    return;
-  }
-
-  showBadge('info', '✓ Đã nhận mã QR! Đang gửi điểm danh...');
-  await doCheckin();
+  return true;
 }
 
-function clearSavedStudent(){
-  localStorage.removeItem('saved_mssv');
-  localStorage.removeItem('saved_student_creds');
-  location.reload();
-}
-
-async function logoutStudent(){
-  localStorage.removeItem('saved_mssv');
-  localStorage.removeItem('saved_student_creds');
-  await supabase.auth.signOut();
-  location.href = 'index.html';
-}
-
-async function init(){
-  deviceId = getDeviceId();
-
-  const catSel = document.getElementById('category');
-  (CONFIG.CATEGORIES || []).forEach(c => {
-    const o = document.createElement('option');
-    o.value = c;
-    o.textContent = c;
-    catSel.appendChild(o);
-  });
-
-  const savedCat = localStorage.getItem('saved_category');
-  if (savedCat && catSel) {
-    catSel.value = savedCat;
-  }
-
-  // 1. Kiểm tra tài khoản sinh viên đăng nhập / tự động nhận diện từ lần đăng nhập trước
-  try {
-    let { data: authData } = await supabase.auth.getSession();
-    let user = authData?.session?.user;
-
-    // NẾU CHƯA CÓ PHIÊN AUTH, TỰ ĐỘNG ĐĂNG NHẬP NGẦM BẰNG THÔNG TIN ĐÃ LƯU
-    if (!user) {
-      const rawCreds = localStorage.getItem('saved_student_creds');
-      if (rawCreds) {
-        try {
-          const creds = JSON.parse(rawCreds);
-          if (creds.email && creds.pwd) {
-            const { data: loginData } = await supabase.auth.signInWithPassword({
-              email: creds.email,
-              password: creds.pwd
-            });
-            user = loginData?.user || null;
-          }
-        } catch (e) {}
-      }
-    }
-
-    const savedMssv = (localStorage.getItem('saved_mssv') || '').trim();
-    const m = document.getElementById('mssv');
-    const hint = document.getElementById('mssvHint');
-    const banner = document.getElementById('studentAuthBanner');
-
-    if (user) {
-      loggedInUser = user;
-
-      // Đọc profile của chính mình qua RLS (profiles_read_self)
-      const { data: profile, error: profErr } = await supabase
-        .from('profiles')
-        .select('mssv, full_name, username, role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profErr) {
-        console.warn('[init profiles query]', profErr);
-      }
-
-      // Ưu tiên MSSV từ profiles, nếu chưa có thì lấy từ metadata lúc đăng ký hoặc saved_mssv
-      const meta = user.user_metadata || {};
-      const stMssv = (profile?.mssv || meta.mssv || savedMssv || '').trim();
-      const stName = profile?.full_name || meta.name || profile?.username || user.email;
-
-      if (stMssv) {
-        localStorage.setItem('saved_mssv', stMssv);
-        if (m) {
-          m.value = stMssv;
-          m.readOnly = true;
-          m.style.background = 'var(--surface-2)';
-        }
-        if (hint) {
-          hint.style.color = 'var(--text-muted)';
-          hint.innerText = '🔒 Đã tự động nhận diện và khóa theo tài khoản sinh viên';
-        }
-      }
-
-      if (banner) {
-        banner.style.display = 'block';
-        banner.style.background = 'var(--info-bg, rgba(59, 130, 246, 0.1))';
-        banner.style.color = 'var(--info, #2563eb)';
-        banner.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <span>👋 Xin chào: <b>${escapeHtml(stName)}</b>${stMssv ? ' (MSSV: <b>' + escapeHtml(stMssv) + '</b>)' : ''}</span>
-            <button type="button" onclick="logoutStudent()" style="background:none;border:none;color:var(--err, #ef4444);font-weight:700;cursor:pointer;font-size:12px;text-decoration:underline;">Đổi tài khoản</button>
-          </div>
-        `;
-      }
-    } else if (savedMssv) {
-      // Trường hợp không có session auth (quét từ Zalo / app ngoài), nhưng máy đã nhớ MSSV từ lần trước
-      if (m) {
-        m.value = savedMssv;
-        m.readOnly = true;
-        m.style.background = 'var(--surface-2)';
-      }
-      if (hint) {
-        hint.style.color = 'var(--ok, #059669)';
-        hint.innerText = '✓ Đã tự động nhớ MSSV của bạn từ lần đăng nhập trước';
-      }
-      if (banner) {
-        banner.style.display = 'block';
-        banner.style.background = 'var(--ok-bg, rgba(16, 185, 129, 0.1))';
-        banner.style.color = 'var(--ok, #059669)';
-        banner.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <span>✓ Đã nhận diện sinh viên MSSV: <b>${escapeHtml(savedMssv)}</b> (Lần trước đã đăng nhập)</span>
-            <button type="button" onclick="clearSavedStudent()" style="background:none;border:none;color:var(--muted, #64748b);font-weight:600;cursor:pointer;font-size:11.5px;text-decoration:underline;">Đổi MSSV</button>
-          </div>
-        `;
-      }
-    } else {
-      // Chưa từng đăng nhập hay nhập MSSV
-      if (banner) {
-        banner.style.display = 'block';
-        banner.style.background = 'var(--surface-2, #f1f5f9)';
-        banner.style.color = 'var(--muted, #475569)';
-        banner.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <span>💡 Nhập MSSV của bạn (hệ thống sẽ tự ghi nhớ cho các lần quét sau).</span>
-            <a href="index.html" style="color:var(--primary, #3b82f6);font-weight:700;font-size:12px;text-decoration:underline;">Đăng nhập</a>
-          </div>
-        `;
-      }
-      if (hint) {
-        hint.style.color = '';
-        hint.innerText = '✓ Hệ thống tự ghi nhớ MSSV cho các lần sau';
-      }
-    }
-  } catch (e) {
-    console.warn('[init auth check]', e);
-  }
-
-  const url = new URL(location.href);
-  qrSessionId = url.searchParams.get('s');
-  const qrToken = url.searchParams.get('t');
-
-  if (qrToken) {
-    sessionToken = qrToken;
-    const btnText = document.getElementById('scannerBtnText');
-    if (btnText) btnText.innerHTML = '✓ Đã nhận mã QR (Bấm nếu muốn quét lại qua Camera)';
-  }
-  if (qrSessionId) currentSessionId = qrSessionId;
-
-  await refreshStatus();
-  setInterval(refreshStatus, 10000);
-}
-
-async function refreshStatus(){
+async function loadSession() {
+  const box = document.getElementById('sessionBox');
   const { data, error } = await supabase.rpc('get_open_session');
-  if (error) {
-    console.error('[refreshStatus]', error);
-    setSessionBox('warn', 'Lỗi kết nối server: ' + escapeHtml(error.message));
+  if (error || !data) {
+    box.className = 'session state-closed';
+    document.getElementById('sessionStatusText').textContent = 'Chưa mở';
+    document.getElementById('sessionName').textContent = 'Chưa có phiên điểm danh nào đang mở';
+    document.getElementById('sessionMeta').innerHTML = '';
+    document.getElementById('sessionCountdown').textContent = '';
+    currentSession = null;
+    updateScanBtn();
     return;
   }
-  if (!data) {
-    sessionStatus = { is_open: false };
-    setSessionBox('off', '<b>Chưa có phiên điểm danh nào đang mở.</b>');
-    return;
-  }
+  currentSession = data;
+  const { id, session_name, duration_min, warn_before_min, started_at } = data;
+  box.className = 'session state-open';
+  document.getElementById('sessionStatusText').textContent = 'Phiên đang mở';
+  document.getElementById('sessionName').textContent = session_name;
+  const startTime = new Date(started_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('sessionTime').textContent = startTime;
+  document.getElementById('sessionMeta').innerHTML =
+    `<span>🔑 ID: <code>${String(id).slice(0, 8)}</code></span>` +
+    (duration_min ? `<span>⏱ ${duration_min} phút</span>` : '<span>⏱ Không giới hạn</span>');
 
-  // Nếu mở bằng mã QR của phiên cũ đã đóng
-  if (qrSessionId && String(data.id) !== String(qrSessionId)) {
-    sessionStatus = { is_open: false };
-    setSessionBox('warn', '<b>Phiên trong mã QR đã kết thúc.</b><br>Vui lòng quét lại mã mới nhất trên màn hình.');
-    return;
-  }
-
-  currentSessionId = String(data.id);
-  sessionStatus = { ...data, is_open: true };
-  currentRefresh = data.refresh_time || 20;
-  setSessionBox('on', `<b>Phiên đang mở:</b> ${escapeHtml(data.session_name)}<br>QR đổi mỗi <b>${currentRefresh}s</b>`);
+  // Cập nhật countdown mỗi giây
+  clearInterval(refreshTimer);
+  tickCountdown();
+  refreshTimer = setInterval(tickCountdown, 1000);
 }
 
-function handleCheckinResponse(data, error, mssv, category){
-  if (error) {
-    showBadge('err', 'Lỗi: ' + escapeHtml(error.message));
-  } else if (!data || !data.ok) {
-    const type = data && data.code === 'ALREADY' ? 'info' : 'err';
-    showBadge(type, escapeHtml((data && data.message) || 'Điểm danh thất bại.'));
+function tickCountdown() {
+  if (!currentSession) return;
+  const { started_at, duration_min, warn_before_min } = currentSession;
+  const el = document.getElementById('sessionCountdown');
+  const box = document.getElementById('sessionBox');
+
+  if (!duration_min) {
+    el.textContent = '⏱ Không giới hạn thời gian';
+    return;
+  }
+  const end = new Date(started_at).getTime() + duration_min * 60000;
+  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+
+  if (left === 0) {
+    box.className = 'session state-closed';
+    document.getElementById('sessionStatusText').textContent = 'Đã đóng';
+    el.textContent = '⏱ Phiên đã kết thúc';
+    clearInterval(refreshTimer);
+    currentSession = null;
+    sessionToken = null;
+    updateScanBtn();
+    return;
+  }
+
+  const warn = (warn_before_min || 5) * 60;
+  el.textContent = left <= warn
+    ? `⚠️ Còn ${fmtTime(left)} để điểm danh — Khẩn trương!`
+    : `⏱ Còn ${fmtTime(left)} để điểm danh`;
+
+  if (left <= warn) {
+    box.className = 'session state-warn';
   } else {
-    localStorage.setItem('saved_mssv', mssv);
-    localStorage.setItem('saved_category', category);
-    playSuccessSound();
-    showBadge('ok', `✓ Điểm danh thành công!<br><b>${escapeHtml(data.name || mssv)}</b> — MSSV: <b>${escapeHtml(data.mssv || mssv)}</b>`);
-    document.getElementById('note').value = '';
+    box.className = 'session state-open';
   }
 }
 
-async function doCheckin(){
-  hideBadge();
-
-  if (!sessionStatus.is_open){
-    showBadge('err', 'Phiên điểm danh hiện đang ĐÓNG. Vui lòng đợi quản lý mở phiên.');
-    return;
+// ─── Submit ──────────────────────────────────────────────────────────
+async function doCheckin() {
+  hideResult();
+  if (!currentProfile?.mssv) {
+    return showResult('error', 'Tài khoản chưa có MSSV.');
   }
-
-  const mssv = document.getElementById('mssv').value.trim();
-  const category = document.getElementById('category').value;
-
-  if (!mssv){
-    showBadge('err', 'Vui lòng nhập MSSV của bạn!');
-    document.getElementById('mssv').focus();
-    return;
+  if (!currentSession) {
+    return showResult('error', 'Chưa có phiên điểm danh nào mở.');
   }
-  if (!category){
-    showBadge('err', 'Vui lòng chọn Lĩnh vực!');
-    document.getElementById('category').focus();
-    return;
-  }
-
-  // Kiểm tra mã QR
   if (!sessionToken) {
-    showBadge('err', 'Thiếu mã QR điểm danh. Vui lòng bấm nút mở Camera để quét mã trên màn hình.');
-    return;
+    return showResult('warning', 'Vui lòng quét mã QR trước khi điểm danh.');
+  }
+  const category = document.getElementById('category').value;
+  const note = document.getElementById('note').value.trim();
+  if (!category) {
+    return showResult('warning', 'Vui lòng chọn Lĩnh vực.');
   }
 
-  // 3. Kiểm tra và đảm bảo deviceId
-  if (!deviceId) {
-    deviceId = getDeviceId();
-  }
-
-  setBtnDisabled(true);
-  showLoader(true);
+  const btn = document.getElementById('btnCheckin');
+  btn.disabled = true;
+  const oldHTML = btn.innerHTML;
+  btn.innerHTML = '<span class="spin"></span> Đang xử lý...';
 
   try {
     const { data, error } = await supabase.rpc('submit_attendance', {
-      p_session_id: currentSessionId,
+      p_session_id: String(currentSession.id),
       p_token: sessionToken,
-      p_mssv: mssv,
+      p_mssv: currentProfile.mssv,
       p_category: category,
-      p_note: document.getElementById('note').value.trim(),
+      p_note: note,
       p_device_id: deviceId
     });
 
-    handleCheckinResponse(data, error, mssv, category);
-  } catch (e){
-    showBadge('err', 'Lỗi kết nối: ' + escapeHtml(e.message));
-  } finally {
-    showLoader(false);
-    setBtnDisabled(false);
-  }
-}
+    if (error) {
+      showResult('error', 'Lỗi: ' + error.message);
+    } else if (!data?.ok) {
+      const type = data?.code === 'ALREADY' ? 'warning' : 'error';
+      showResult(type, (data?.code === 'ALREADY' ? '✓ ' : '✕ ') + (data.message || 'Điểm danh thất bại.'));
+    } else {
+      playChime();
+      // Lấy tổng kết
+      const { data: sum } = await supabase.rpc('get_session_summary', {
+        p_session_id: String(currentSession.id)
+      });
+      const statsHTML = sum?.ok ? `
+        <div class="stat-summary">
+          <div class="stat-item c-present"><b>${sum.present}</b><span>Đã ĐD</span></div>
+          <div class="stat-item c-absent"><b>${sum.absent}</b><span>Vắng</span></div>
+          <div class="stat-item c-unmarked"><b>${sum.unmarked}</b><span>Chưa quét</span></div>
+        </div>` : '';
 
-// Bắt sự kiện phím Enter
-document.addEventListener('DOMContentLoaded', () => {
-  const m = document.getElementById('mssv');
-  const n = document.getElementById('note');
-  if (m) m.addEventListener('keydown', e => { if (e.key === 'Enter') doCheckin(); });
-  if (n) n.addEventListener('keydown', e => { if (e.key === 'Enter') doCheckin(); });
-});
-
-// ==========================================
-// SCREEN WAKE LOCK — Giữ màn hình sáng
-// ==========================================
-let wakeLock = null;
-let wakeLockActive = false;
-
-async function requestWakeLock() {
-  if (!('wakeLock' in navigator)) return false;
-  try {
-    wakeLock = await navigator.wakeLock.request('screen');
-    wakeLockActive = true;
-    wakeLock.addEventListener('release', () => {
-      // Màn hình lock bị OS thu hồi (ví dụ: tab ẩn), tự cập nhật UI
-      wakeLockActive = false;
-      updateWakeLockUI();
-    });
-    return true;
-  } catch (e) {
-    console.warn('[WakeLock]', e);
-    return false;
-  }
-}
-
-async function releaseWakeLock() {
-  if (wakeLock) {
-    try { await wakeLock.release(); } catch (e) {}
-    wakeLock = null;
-  }
-  wakeLockActive = false;
-}
-
-function updateWakeLockUI() {
-  const btn  = document.getElementById('btnWakeLock');
-  const icon = document.getElementById('wakeLockIcon');
-  const text = document.getElementById('wakeLockText');
-  if (!btn) return;
-  if (wakeLockActive) {
-    icon.textContent = '☀️';
-    text.textContent = 'Màn hình đang giữ sáng';
-    btn.style.borderColor = 'var(--ok, #059669)';
-    btn.style.color       = 'var(--ok, #059669)';
-    btn.style.background  = 'var(--ok-bg, rgba(16,185,129,.08))';
-  } else {
-    icon.textContent = '💤';
-    text.textContent = 'Giữ màn hình sáng';
-    btn.style.borderColor = '';
-    btn.style.color       = '';
-    btn.style.background  = '';
-  }
-}
-
-async function toggleWakeLock() {
-  if (wakeLockActive) {
-    await releaseWakeLock();
-  } else {
-    const ok = await requestWakeLock();
-    if (!ok) {
-      showBadge('warn', 'Trình duyệt này không hỗ trợ giữ màn hình sáng. Hãy thử Chrome/Edge trên Android.');
-      setTimeout(hideBadge, 4000);
-      return;
+      showResult('success', `
+        <div class="result-title">✓ Điểm danh thành công</div>
+        <div class="result-info">
+          <b>${escapeHtml(data.name || '')}</b> · MSSV: <b>${escapeHtml(data.mssv || '')}</b><br>
+          ${new Date().toLocaleString('vi-VN')}<br>
+          Phiên: ${escapeHtml(currentSession.session_name)} · ${escapeHtml(category)}
+        </div>
+        ${statsHTML}
+      `);
+      document.getElementById('note').value = '';
     }
+  } catch (e) {
+    showResult('error', 'Lỗi kết nối: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldHTML;
   }
-  updateWakeLockUI();
 }
 
-// Tự khôi phục wake lock khi tab được focus lại (ví dụ từ tab khác)
-document.addEventListener('visibilitychange', async () => {
-  if (wakeLockActive && document.visibilityState === 'visible') {
-    await requestWakeLock();
-    updateWakeLockUI();
-  }
-});
-
-// ==========================================
-// LỊCH SỬ ĐIỂM DANH
-// ==========================================
-let historyOpen = false;
-let historyLoaded = false;
-
-function toggleHistory() {
-  const panel   = document.getElementById('historyPanel');
-  const chevron = document.getElementById('historyChevron');
-  historyOpen = !historyOpen;
-  panel.style.display   = historyOpen ? 'block' : 'none';
-  chevron.style.transform = historyOpen ? 'rotate(180deg)' : '';
-
-  if (historyOpen && !historyLoaded) {
-    loadHistory();
-  }
+// ─── History ─────────────────────────────────────────────────────────
+async function toggleHistory(btn) {
+  btn.classList.toggle('open');
+  const list = document.getElementById('historyList');
+  list.classList.toggle('open');
+  if (list.classList.contains('open')) await loadHistory();
 }
 
 async function loadHistory() {
-  const content = document.getElementById('historyContent');
-  const mssv = (document.getElementById('mssv')?.value || '').trim();
-
+  const list = document.getElementById('historyList');
+  list.innerHTML = '<div class="history-empty">Đang tải...</div>';
+  const mssv = currentProfile?.mssv;
   if (!mssv) {
-    content.innerHTML = '<div style="color:var(--muted);padding:12px 0;">Nhập MSSV để xem lịch sử điểm danh.</div>';
+    list.innerHTML = '<div class="history-empty">Chưa có MSSV.</div>';
     return;
   }
-
-  content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px 0;"><span style="display:inline-block;width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--text);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:6px;"></span>Đang tải...</div>';
-
-  try {
-    const { data, error } = await supabase.rpc('get_my_attendance_history', { p_mssv: mssv });
-
-    if (error) {
-      content.innerHTML = `<div style="color:var(--err);padding:8px;">Lỗi tải lịch sử: ${escapeHtml(error.message)}</div>`;
-      return;
-    }
-
-    if (!data?.ok) {
-      content.innerHTML = `<div style="color:var(--err);padding:8px;">${escapeHtml(data?.message || 'Không thể tải lịch sử.')}</div>`;
-      return;
-    }
-
-    const records = data.records || [];
-    historyLoaded = true;
-
-    if (records.length === 0) {
-      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:16px 8px;">Chưa có lịch sử điểm danh nào.</div>';
-      return;
-    }
-
-    const statusColor = {
-      'có mặt':          { bg: 'var(--ok-bg,rgba(16,185,129,.1))',  fg: 'var(--ok,#059669)'  },
-      'vắng có phép':    { bg: 'var(--warn-bg,rgba(234,179,8,.1))', fg: 'var(--warn,#ca8a04)' },
-      'vắng không phép': { bg: 'var(--err-bg,rgba(239,68,68,.1))',  fg: 'var(--err,#ef4444)'  },
-    };
-
-    const rows = records.map(r => {
-      const sc   = statusColor[r.status] || statusColor['có mặt'];
-      const date = r.checked_at
-        ? new Date(r.checked_at).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
-        : (r.started_at ? new Date(r.started_at).toLocaleDateString('vi-VN') : '—');
-
-      return `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border,#e2e8f0);">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.session_name)}</div>
-            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${escapeHtml(date)}${r.category ? ' · ' + escapeHtml(r.category) : ''}</div>
-            ${r.note ? `<div style="font-size:11.5px;color:var(--muted);margin-top:1px;font-style:italic;">${escapeHtml(r.note)}</div>` : ''}
-          </div>
-          <span style="flex:none;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:700;background:${sc.bg};color:${sc.fg};">${escapeHtml(r.status)}</span>
-        </div>`;
-    }).join('');
-
-    content.innerHTML = `
-      <div style="font-size:12px;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600;">
-        Tổng cộng ${records.length} lần điểm danh
-      </div>
-      ${rows}`;
-
-  } catch (e) {
-    content.innerHTML = `<div style="color:var(--err);padding:8px;">Lỗi: ${escapeHtml(e.message)}</div>`;
+  const { data, error } = await supabase.rpc('get_my_attendance_history', { p_mssv: mssv });
+  // (Nếu chưa tạo RPC này, fallback query thẳng)
+  const records = data?.records || [];
+  if (error || !records.length) {
+    list.innerHTML = '<div class="history-empty">Chưa có lịch sử điểm danh nào.</div>';
+    return;
   }
+  list.innerHTML = records.slice(0, 20).map(r => `
+    <div class="history-item">
+      <div>
+        <div class="history-date">${new Date(r.checked_at).toLocaleString('vi-VN')}</div>
+        <div class="history-name">${escapeHtml(r.session_name || '—')}</div>
+      </div>
+      <div class="history-status ${r.status === 'có mặt' ? 'ok' : 'absent'}">
+        ${r.status === 'có mặt' ? '✓ Có mặt' : '✕ ' + r.status}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Wake Lock ───────────────────────────────────────────────────────
+let wakeLock = null, wakeActive = false;
+
+async function toggleWakeLock() {
+  if (!('wakeLock' in navigator)) {
+    return showResult('warning', 'Trình duyệt không hỗ trợ giữ màn hình sáng.');
+  }
+  if (wakeActive) {
+    try { await wakeLock?.release(); } catch (e) { }
+    wakeLock = null; wakeActive = false;
+  } else {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeActive = true;
+      wakeLock.addEventListener('release', () => { wakeActive = false; updateWakeUI(); });
+    } catch (e) { return showResult('warning', 'Không giữ được màn hình sáng.'); }
+  }
+  updateWakeUI();
+}
+
+function updateWakeUI() {
+  document.getElementById('wakeSwitch').classList.toggle('active', wakeActive);
+}
+
+function logoutStudent() {
+  if (!confirm('Đăng xuất khỏi tài khoản này?')) return;
+  localStorage.removeItem('saved_creds');
+  localStorage.removeItem('saved_mssv');
+  supabase.auth.signOut().then(() => location.href = 'index.html');
+}
+
+// ─── Init ────────────────────────────────────────────────────────────
+async function init() {
+  deviceId = getDeviceId();
+
+  // Populate categories
+  const catSel = document.getElementById('category');
+  (CONFIG.CATEGORIES || []).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    catSel.appendChild(o);
+  });
+  const savedCat = localStorage.getItem('saved_category');
+  if (savedCat && catSel) catSel.value = savedCat;
+
+  if (!await loadProfile()) return;
+  await loadSession();
+
+  // Auto nhận token từ URL
+  const url = new URL(location.href);
+  const t = url.searchParams.get('t');
+  if (t) { sessionToken = t; updateScanBtn(); }
+
+  // Refresh session mỗi 15s (SV mở form trước khi phiên mở)
+  setInterval(loadSession, 15000);
+
+  // Enter submit
+  document.getElementById('note').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doCheckin();
+  });
+
+  // Realtime: khi admin đổi QR → token cũ hết hiệu lực
+  supabase.channel('session_changes')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions' }, payload => {
+      if (currentSession && payload.new.id === currentSession.id) {
+        if (payload.new.qr_token !== currentSession.qr_token) {
+          currentSession.qr_token = payload.new.qr_token;
+          currentSession.qr_born_at = payload.new.qr_born_at;
+          if (sessionToken) {
+            sessionToken = null;
+            updateScanBtn();
+            showResult('warning', '⚠️ Mã QR đã được đổi. Vui lòng quét lại mã mới.');
+          }
+        }
+        if (payload.new.is_open === false) {
+          currentSession = null;
+          loadSession();
+        }
+      }
+    }).subscribe();
 }
 
 init();

@@ -1,100 +1,107 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LH-NaviX — Điểm Danh Sinh Viên</title>
-<meta name="description" content="Nhập MSSV để điểm danh sau khi quét mã QR.">
-<meta name="theme-color" content="#f5f6f8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/theme.css">
-<link rel="stylesheet" href="css/checkin.css">
-<!-- Thư viện quét mã QR qua Camera và Supabase SDK -->
-<script src="js/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LH-NaviX — Điểm danh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/checkin.css">
+  <script src="js/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js?v=5"></script>
 </head>
+
 <body>
-<div class="bg-grid"></div>
-<main class="wrap">
-  <div class="card rise">
-    <div class="brand">
-      <div class="brand-mark">
-        <img src="images/logo.png" alt="LH-NaviX" width="28" height="28" style="object-fit:contain;border-radius:6px;">
-      </div>
-    </div>
-    <h1 class="gradient-text">LH-NaviX</h1>
-    <p class="sub">Nhập MSSV và xác nhận để điểm danh</p>
+  <div class="bg-grid"></div>
+  <div class="wrap">
+    <div class="card">
 
-    <div class="info-box" id="sessionInfo">Đang tải thông tin phiên...</div>
-    <div id="studentAuthBanner" style="display:none;background:var(--info-bg);color:var(--info);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;margin-bottom:16px;"></div>
+      <header class="header">
+        <div class="logo">LH-NaviX</div>
+        <div class="sub">Điểm danh sinh viên</div>
+      </header>
 
-    <!-- Khung Quét mã QR trực tiếp qua Camera điện thoại -->
-    <div class="scanner-section" style="margin-bottom:16px;">
-      <button type="button" class="btn" id="btnToggleScanner" onclick="toggleCameraScanner()" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;font-size:14px;font-weight:700;border:1.5px dashed var(--primary,#3b82f6);background:var(--primary-light,rgba(59,130,246,0.06));color:var(--primary,#2563eb);border-radius:10px;cursor:pointer;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        <span id="scannerBtnText">📷 Bật Camera quét mã QR trực tiếp</span>
-      </button>
-
-      <div id="scannerWrapper" style="display:none;margin-top:10px;background:var(--surface-2,#f8fafc);padding:12px;border-radius:12px;border:1px solid var(--border,#e2e8f0);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:12px;font-weight:700;color:var(--text);">🎥 Đưa camera vào mã QR trên màn hình Admin</span>
-          <button type="button" onclick="stopCameraScanner()" style="background:none;border:none;color:var(--err,#ef4444);font-weight:700;cursor:pointer;font-size:12px;">✕ Đóng camera</button>
+      <section class="user-box">
+        <div class="avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="userName">Đang tải...</div>
+          <div class="user-id" id="userId">—</div>
         </div>
-        <div id="qrReader" style="width:100%;max-width:320px;margin:0 auto;border-radius:8px;overflow:hidden;background:#000;"></div>
-      </div>
-    </div>
+        <button class="logout" onclick="logoutStudent()">Đăng xuất</button>
+      </section>
 
-    <div class="field">
-      <label for="mssv">MSSV <span class="req">*</span></label>
-      <input type="text" id="mssv" placeholder="Nhập mã số sinh viên" autocomplete="off" inputmode="numeric">
-      <span class="field-hint" id="mssvHint">✓ Hệ thống tự ghi nhớ MSSV cho các lần sau</span>
-    </div>
-    <div class="field">
-      <label for="category">Lĩnh vực <span class="req">*</span></label>
-      <select id="category" required>
-        <option value="">-- Chọn lĩnh vực --</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="note">Ghi chú (không bắt buộc)</label>
-      <input type="text" id="note" placeholder="Ghi chú nếu có" autocomplete="off" maxlength="200">
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-primary" id="btnCheckin" onclick="doCheckin()">Xác nhận điểm danh</button>
-      <button class="btn btn-secondary" onclick="location.reload()">Làm mới</button>
-    </div>
-    <div class="loader" id="loader"><span class="spin"></span>Đang xử lý...</div>
-    <div class="badge" id="badge" role="status"></div>
-    <!-- Nút giữ màn hình sáng -->
-    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;justify-content:center;">
-      <button type="button" id="btnWakeLock" onclick="toggleWakeLock()"
-        style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12.5px;font-weight:700;border:1.5px solid var(--border-strong,#cbd5e1);background:var(--surface-2);color:var(--muted);border-radius:8px;cursor:pointer;transition:all .2s;">
-        <span id="wakeLockIcon">💤</span>
-        <span id="wakeLockText">Giữ màn hình sáng</span>
-      </button>
-    </div>
-
-    <!-- Lịch sử điểm danh -->
-    <div style="margin-top:20px;">
-      <button type="button" onclick="toggleHistory()"
-        style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 14px;font-size:13px;font-weight:700;border:1px solid var(--border,#e2e8f0);background:var(--surface-2);color:var(--text);border-radius:10px;cursor:pointer;">
-        <span>📋 Lịch sử điểm danh của tôi</span>
-        <span id="historyChevron" style="transition:transform .25s;">▼</span>
-      </button>
-      <div id="historyPanel" style="display:none;margin-top:8px;border:1px solid var(--border,#e2e8f0);border-radius:10px;overflow:hidden;">
-        <div id="historyContent" style="padding:12px;font-size:13px;color:var(--muted);text-align:center;">
-          Đang tải...
+      <section class="session state-loading" id="sessionBox">
+        <div class="session-top">
+          <div class="status"><span class="status-dot"></span><span id="sessionStatusText">Đang kiểm tra...</span></div>
+          <div class="session-time" id="sessionTime"></div>
         </div>
-      </div>
-    </div>
+        <div class="session-name" id="sessionName">—</div>
+        <div class="session-meta" id="sessionMeta"></div>
+        <div class="session-countdown" id="sessionCountdown"></div>
+      </section>
 
-    <a class="back" href="index.html">← Về trang chủ</a>
+      <div class="qr-zone">
+        <button class="scan-btn" id="scanBtn" onclick="toggleCameraScanner()">
+          📷 Bật camera quét mã QR
+        </button>
+        <div class="qr-status no-token" id="qrStatus">⚠️ Chưa có mã QR</div>
+      </div>
+
+      <div class="scanner" id="scannerWrapper" style="display:none">
+        <div class="scanner-head">
+          <span>🎥 Đưa camera vào mã QR trên màn hình Admin</span>
+          <button onclick="stopCameraScanner()">✕ Đóng</button>
+        </div>
+        <div id="qrReader"></div>
+      </div>
+
+      <div class="field">
+        <label class="label">MSSV <span class="req">*</span></label>
+        <input type="text" id="mssv" readonly>
+        <span class="hint">🔒 Tài khoản hiện tại</span>
+      </div>
+
+      <div class="field">
+        <label class="label">Lĩnh vực <span class="req">*</span></label>
+        <select id="category">
+          <option value="">-- Chọn lĩnh vực --</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label">Ghi chú</label>
+        <input type="text" id="note" placeholder="Không bắt buộc" maxlength="200">
+      </div>
+
+      <button class="btn-main" id="btnCheckin" onclick="doCheckin()">✓ Xác nhận điểm danh</button>
+
+      <div class="result" id="resultBox"></div>
+
+      <div class="wake">
+        <div>
+          <div class="wake-text">☀️ Giữ màn hình sáng</div>
+          <div class="wake-desc">Không tự tắt màn hình khi đang điểm danh</div>
+        </div>
+        <button class="switch" id="wakeSwitch" onclick="toggleWakeLock()"></button>
+      </div>
+
+      <section class="history">
+        <button class="history-toggle" onclick="toggleHistory(this)">
+          <span>📋 Lịch sử điểm danh</span>
+          <span class="chev">⌄</span>
+        </button>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <footer class="footer">LH-NaviX · v2.0.0</footer>
+    </div>
   </div>
-</main>
-<script src="js/checkin.js"></script>
+
+  <script src="js/checkin.js?v=5"></script>
 </body>
+
 </html>
