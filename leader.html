@@ -34,6 +34,7 @@
       <select id="teamSelect" style="width:auto;min-width:190px;display:none;"></select>
       <a href="lichhoc.html" class="rk-btn">📅 Thời khóa biểu</a>
       <a href="checkin.html" class="rk-btn">📷 Điểm danh</a>
+      <button class="rk-btn" id="btnRolesPanel" onclick="toggleRolesPanel()" style="display:none;">👥 Phân quyền</button>
       <button class="rk-btn" onclick="roleLogout()">Đăng xuất</button>
     </div>
   </header>
@@ -138,8 +139,26 @@
     </div>
   </section>
 
+  <!-- ============ PHÂN QUYỀN NỘI BỘ (leader / deputy xem được) ============ -->
+  <section class="card rk-card rise rise-4" id="rolesPanel">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+      <div>
+        <div class="rk-card-title">Phân quyền nội bộ nhóm</div>
+        <p class="rk-card-sub" style="margin:0;">Cấp Đội phó hoặc thu hồi quyền — chỉ ảnh hưởng trong nhóm này.</p>
+      </div>
+      <button class="rk-btn rk-btn-sm" onclick="loadRolesPanel()" title="Làm mới danh sách">↻ Làm mới</button>
+    </div>
+
+    <div class="rk-alert" id="rolesPanelAlert"></div>
+
+    <div id="rolesPanelList">
+      <div class="rk-empty">Đang tải thành viên...</div>
+    </div>
+  </section>
+
 </div>
 
+<script src="js/admin-roles.js?v=1"></script>
 <script src="js/leader.js?v=1"></script>
 </body>
 </html>

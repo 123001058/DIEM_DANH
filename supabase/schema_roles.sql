@@ -1,4 +1,4 @@
--- =====================================================================
+﻿-- =====================================================================
 -- DIEM_DANH — Migration: PHÂN QUYỀN & GIAO NHIỆM VỤ
 -- Chạy trong Supabase > SQL Editor (SAU khi đã chạy schema.sql).
 -- Idempotent: chạy lại nhiều lần vẫn an toàn, không mất dữ liệu cũ.
@@ -982,4 +982,5 @@ grant execute on function public.my_teams() to authenticated;
 
 -- =====================================================================
 -- Xong. Sau khi chạy file này, hãy refresh lại schema cache của Supabase.
+-- Bước tiếp theo: chạy schema_roles_v2.sql để thêm vai trò Deputy.
 -- =====================================================================

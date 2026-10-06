@@ -4,7 +4,10 @@
  *
  * Vai trò:
  *   admin   : tài khoản quản trị duy nhất (quyền cao nhất).
- *   leader  : Đội trưởng do Admin cấp quyền, quản lý nhóm/đội của mình.
+ *   leader  : Đội trưởng chính do Admin cấp — quản lý toàn nhóm,
+ *             tự cấp Đội phó trong nhóm mình.
+ *   deputy  : Đội phó — quyền NGANG Đội trưởng (xem lịch rảnh, giao việc),
+ *             TRỪ việc đổi vai trò của người khác.
  *   student : Thành viên, chỉ xem & thực hiện nhiệm vụ được giao.
  *
  * Yêu cầu: js/config.js phải được nạp TRƯỚC js/roles.js.
@@ -13,6 +16,7 @@
 const ROLES = {
   ADMIN: 'admin',
   LEADER: 'leader',
+  DEPUTY: 'deputy',
   STUDENT: 'student',
 };
 
@@ -20,7 +24,15 @@ const ROLES = {
 const ROLE_LABELS = {
   admin: 'Quản trị viên',
   leader: 'Đội trưởng',
+  deputy: 'Đội phó',
   student: 'Thành viên',
+};
+
+// Nhãn vai trò trong nhóm (team_role)
+const TEAM_ROLE_LABELS = {
+  leader: 'Đội trưởng',
+  deputy: 'Đội phó',
+  member: 'Thành viên',
 };
 
 const THU_LABELS = {
@@ -85,9 +97,11 @@ async function getCurrentAuth() {
       user,
       profile,
       role,
-      isAdmin: role === ROLES.ADMIN,
-      isLeader: role === ROLES.LEADER,
+      isAdmin:   role === ROLES.ADMIN,
+      isLeader:  role === ROLES.LEADER,
+      isDeputy:  role === ROLES.DEPUTY,
       isStudent: role === ROLES.STUDENT,
+      canManage: role === ROLES.LEADER || role === ROLES.DEPUTY || role === ROLES.ADMIN,
       displayName: profile?.full_name || profile?.username || user.email,
     };
   } catch (e) {
@@ -116,7 +130,6 @@ async function requireRoles(allowed = [], title = 'trang này') {
     location.replace(roleHome(auth.role));
     return null;
   }
-
   // Tự động thoát nếu phiên bị đăng xuất/hết hạn ở nơi khác
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') location.replace('index.html');
@@ -127,8 +140,9 @@ async function requireRoles(allowed = [], title = 'trang này') {
 
 /** Trang đích phù hợp với từng vai trò */
 function roleHome(role) {
-  if (role === ROLES.ADMIN) return 'admin.html';
+  if (role === ROLES.ADMIN)  return 'admin.html';
   if (role === ROLES.LEADER) return 'leader.html';
+  if (role === ROLES.DEPUTY) return 'leader.html';
   return 'tasks.html';
 }
 

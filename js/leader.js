@@ -21,18 +21,26 @@ let availabilityMatrix = {};
 // KHỞI TẠO
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Chỉ Admin và Đội trưởng được vào trang này
-  currentAuth = await requireRoles([ROLES.ADMIN, ROLES.LEADER], 'bảng điều khiển Đội trưởng');
+  // Admin, Đội trưởng và Đội phó đều được vào trang này
+  // (deputy = quyền ngang leader: xem lịch rảnh, giao việc, quản lý nhóm)
+  currentAuth = await requireRoles(
+    [ROLES.ADMIN, ROLES.LEADER, ROLES.DEPUTY],
+    'bảng điều khiển Đội trưởng'
+  );
   if (!currentAuth) return;
 
   const chip = document.getElementById('roleChip');
   if (currentAuth.isAdmin) {
     chip.textContent = 'Quản trị viên';
     chip.className = 'rk-role-chip chip-admin';
+  } else if (currentAuth.isDeputy) {
+    chip.textContent = 'Đội phó';
+    chip.className = 'rk-role-chip chip-deputy';
   }
 
   bindFormEvents();
   await loadTeams();
+  initRolesPanelButton();
 });
 
 function bindFormEvents() {
@@ -91,10 +99,18 @@ async function switchTeam(team) {
   if (sel) sel.value = team.id;
 
   const isLeaderOfThis = team.leader_id === currentAuth.user.id || currentAuth.isAdmin;
+  const roleLabel = currentAuth.isAdmin ? 'Quản trị viên'
+    : isLeaderOfThis ? 'Đội trưởng'
+    : currentAuth.isDeputy ? 'Đội phó'
+    : 'Thành viên';
   document.getElementById('teamSubtitle').textContent =
-    `Nhóm: ${team.name} · ${isLeaderOfThis ? 'Bạn là Đội trưởng' : 'Bạn là thành viên'}`;
+    `Nhóm: ${team.name} · Bạn là ${roleLabel}`;
 
   await refreshAll();
+
+  // Nếu panel phân quyền đang mở, reload theo nhóm mới
+  const panel = document.getElementById('rolesPanel');
+  if (panel && panel.style.display === 'block') loadRolesPanel();
 }
 
 async function refreshAll() {
@@ -513,7 +529,7 @@ async function deleteTask(taskId) {
   updateStats();
 }
 
-/** Mở hộp thoại giao thêm người cho một nhiệm vụ đã có */
+/** Mở hộp thoại giao thêm người cho một nhiệm vụ đã có — dùng picker modal thay prompt() */
 async function openAssignDialog(taskId) {
   const task = teamTasks.find((t) => t.id === taskId);
   if (!task) return;
@@ -525,53 +541,53 @@ async function openAssignDialog(taskId) {
     return showAlert('Tất cả thành viên trong nhóm đều đã nhận nhiệm vụ này.', 'info');
   }
 
-  const lines = candidates.map((m, i) => {
-    const slot = taskSlotLabel(task);
-    return `${i + 1}. ${m.full_name}${m.mssv ? ' (' + m.mssv + ')' : ''}` +
-      (slot ? ` — khung ${slot}` : '');
-  });
+  const slot = taskSlotLabel(task);
+  const title = `Giao "${task.title}"` + (slot ? ` · ${slot}` : '');
 
-  const choice = prompt(
-    'Giao nhiệm vụ "' + task.title + '" cho thành viên nào?\n\n' +
-    lines.join('\n') + '\n\nNhập số thứ tự:'
-  );
+  // Gắn trạng thái rảnh/bận vào candidates để hiển thị trong picker
+  const enriched = await Promise.all(candidates.map(async (m) => {
+    let statusNote = '';
+    if (task.slot_thu && task.slot_buoi) {
+      const info = availabilityMatrix[`${m.user_id}|${task.slot_thu}|${task.slot_buoi}`]
+        || await checkMemberFree(m.mssv, task.slot_thu, task.slot_buoi, m.blocks);
+      statusNote = info.free ? '✓ Rảnh' : `✕ ${info.reason || 'Bận'}`;
+      m = { ...m, _statusNote: statusNote, _free: info.free };
+    }
+    return m;
+  }));
 
-  if (choice === null) return;
-  const idx = Number(choice.trim()) - 1;
-  if (!Number.isInteger(idx) || idx < 0 || idx >= candidates.length) {
-    return showAlert('Lựa chọn không hợp lệ.', 'err');
-  }
+  showPickerModal(title, enriched.map((m) => ({
+    ...m,
+    // Thêm vào mssv field text phụ để picker hiển thị trạng thái rảnh/bận
+    mssv: (m.mssv ? m.mssv + '  ' : '') + (m._statusNote || ''),
+  })), async (userId) => {
+    const member = enriched.find((m) => m.user_id === userId);
+    if (!member) return;
 
-  const member = candidates[idx];
-
-  // Cảnh báo nếu người được chọn không rảnh trong khung giờ của nhiệm vụ
-  let force = false;
-  if (task.slot_thu && task.slot_buoi) {
-    const info = availabilityMatrix[`${member.user_id}|${task.slot_thu}|${task.slot_buoi}`]
-      || await checkMemberFree(member.mssv, task.slot_thu, task.slot_buoi, member.blocks);
-    if (!info.free) {
+    let force = false;
+    if (task.slot_thu && task.slot_buoi && member._free === false) {
       force = confirm(
-        `${member.full_name} không rảnh (${info.reason}).\nVẫn giao nhiệm vụ này?`
+        `${member.full_name} không rảnh (${member._statusNote}).\nVẫn giao nhiệm vụ này?`
       );
       if (!force) return;
     }
-  }
 
-  const { data, error } = await supabase.rpc('leader_assign_task', {
-    p_task_id: taskId,
-    p_assignee_id: member.user_id,
-    p_note: null,
-    p_force: force,
+    const { data, error } = await supabase.rpc('leader_assign_task', {
+      p_task_id: taskId,
+      p_assignee_id: userId,
+      p_note: null,
+      p_force: force,
+    });
+
+    if (error || !data?.ok) {
+      return showAlert(data?.message || error?.message || 'Không giao được.', 'err');
+    }
+
+    showAlert('✓ Đã giao nhiệm vụ cho ' + member.full_name, 'ok');
+    await loadTasks();
+    renderTaskBoard();
+    updateStats();
   });
-
-  if (error || !data?.ok) {
-    return showAlert(data?.message || error?.message || 'Không giao được.', 'err');
-  }
-
-  showAlert('✓ Đã giao nhiệm vụ cho ' + member.full_name, 'ok');
-  await loadTasks();
-  renderTaskBoard();
-  updateStats();
 }
 
 // ============================================================
@@ -607,4 +623,166 @@ function updateStats() {
     if (info && info.free) freeCount++;
   }
   set('statFreeNow', freeCount);
+}
+
+// ============================================================
+// PANEL PHÂN QUYỀN NỘI BỘ (leader / deputy)
+// ============================================================
+
+/**
+ * Hiện/ẩn section #rolesPanel và tải lại danh sách thành viên khi mở.
+ */
+function toggleRolesPanel() {
+  const panel = document.getElementById('rolesPanel');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    loadRolesPanel();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+/**
+ * Tải + render danh sách thành viên vào #rolesPanelList với dropdown vai trò.
+ * Gọi được từ nút "↻ Làm mới" trong panel và từ toggleRolesPanel().
+ */
+async function loadRolesPanel() {
+  const box = document.getElementById('rolesPanelList');
+  const alertEl = document.getElementById('rolesPanelAlert');
+  if (!box) return;
+
+  box.innerHTML = '<div class="rk-empty">Đang tải...</div>';
+  if (alertEl) alertEl.className = 'rk-alert';
+
+  if (!currentTeam) {
+    box.innerHTML = '<div class="rk-empty">Chưa chọn nhóm.</div>';
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_team_availability', {
+      p_team_id: currentTeam.id,
+    });
+    if (error) throw error;
+
+    const members = Array.isArray(data?.members) ? data.members : [];
+    if (!members.length) {
+      box.innerHTML = '<div class="rk-empty">Nhóm chưa có thành viên nào.</div>';
+      return;
+    }
+
+    const canSetLeader = currentAuth.isAdmin;
+
+    let html = '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">';
+
+    members.forEach((m) => {
+      const teamRole = m.team_role || (m.is_leader ? 'leader' : 'member');
+      const isMe = m.user_id === currentAuth.user.id;
+
+      html += `<div class="rk-member-row">
+        <div class="rk-member-row-info">
+          <b>${escapeHtml(m.full_name || m.username)}</b>
+          <span>${m.mssv ? escapeHtml(m.mssv) : ''}</span>
+        </div>`;
+
+      // Dropdown: admin thấy tất cả; leader/deputy không tự đổi mình, không cấp leader
+      if (!isMe) {
+        html += `<select class="role-inline-select ${teamRole}"
+          data-prev="${teamRole}"
+          onchange="setRolePanelInline('${currentTeam.id}','${m.user_id}',this)"
+          title="Đổi vai trò trong nhóm">`;
+
+        if (canSetLeader) {
+          html += `<option value="leader" ${teamRole === 'leader' ? 'selected' : ''}>👑 Đội trưởng</option>`;
+        }
+        html += `<option value="deputy" ${teamRole === 'deputy' ? 'selected' : ''}>🥈 Đội phó</option>`;
+        html += `<option value="member" ${teamRole === 'member' ? 'selected' : ''}>👤 Thành viên</option>`;
+        html += `</select>`;
+      } else {
+        // Chính mình: chỉ hiện chip tĩnh
+        const chipCls = teamRole === 'leader' ? 'chip-leader'
+                      : teamRole === 'deputy' ? 'chip-deputy'
+                      : 'chip-student';
+        const label = TEAM_ROLE_LABELS[teamRole] || teamRole;
+        html += `<span class="rk-role-chip ${chipCls}" style="font-size:11px;">${label} (bạn)</span>`;
+      }
+
+      html += `</div>`;
+    });
+
+    html += '</div>';
+    box.innerHTML = html;
+  } catch (e) {
+    console.error('[loadRolesPanel]', e);
+    box.innerHTML = '<div class="rk-empty">Không tải được danh sách.</div>';
+  }
+}
+
+/**
+ * Xử lý thay đổi dropdown vai trò trong panel leader.
+ * Gọi RPC leader_set_member_role rồi reload.
+ */
+async function setRolePanelInline(teamId, userId, selectEl) {
+  const newRole = selectEl.value;
+  const oldRole = selectEl.dataset.prev || 'member';
+  const alertEl = document.getElementById('rolesPanelAlert');
+
+  const showPanelAlert = (msg, type = 'info') => {
+    if (!alertEl) return;
+    alertEl.className = `rk-alert show rk-alert-${type}`;
+    alertEl.innerText = msg;
+    setTimeout(() => { alertEl.className = 'rk-alert'; }, 5000);
+  };
+
+  if (newRole === 'leader' && !currentAuth.isAdmin) {
+    selectEl.value = oldRole;
+    showPanelAlert('Chỉ Admin mới được cấp Đội trưởng chính.', 'err');
+    return;
+  }
+
+  if (newRole === 'leader') {
+    const member = teamMembers.find((m) => m.user_id === userId);
+    if (!confirm(`Cấp Đội trưởng chính cho ${member?.full_name || 'người này'}?\nĐội trưởng cũ sẽ trở thành thành viên.`)) {
+      selectEl.value = oldRole;
+      return;
+    }
+  }
+
+  selectEl.disabled = true;
+  try {
+    const { data, error } = await supabase.rpc('leader_set_member_role', {
+      p_team_id: teamId,
+      p_user_id: userId,
+      p_new_role: newRole,
+    });
+
+    if (error || !data?.ok) {
+      showPanelAlert(data?.message || error?.message || 'Không đổi được vai trò.', 'err');
+      selectEl.value = oldRole;
+      return;
+    }
+
+    selectEl.className = `role-inline-select ${newRole}`;
+    selectEl.dataset.prev = newRole;
+    showPanelAlert('✓ ' + (data.message || 'Đã cập nhật vai trò.'), 'ok');
+
+    // Cập nhật lại teamMembers local để thống kê không bị lệch
+    await loadMembers();
+    await loadRolesPanel();
+  } catch (e) {
+    selectEl.value = oldRole;
+    showPanelAlert('Lỗi: ' + e.message, 'err');
+  } finally {
+    selectEl.disabled = false;
+  }
+}
+
+// Hiện nút "Phân quyền" trong topbar — chỉ leader / deputy / admin
+function initRolesPanelButton() {
+  const btn = document.getElementById('btnRolesPanel');
+  if (!btn || !currentAuth) return;
+  if (currentAuth.canManage) {
+    btn.style.display = 'inline-flex';
+  }
 }

@@ -187,8 +187,8 @@
         .maybeSingle();
       const role = prof?.role || 'student';
 
-      if (role !== 'admin' && role !== 'leader') {
-        alert('Từ chối truy cập! Chỉ Admin và Đội trưởng có quyền tra cứu thời khóa biểu.');
+      if (role !== 'admin' && role !== 'leader' && role !== 'deputy') {
+        alert('Từ chối truy cập! Chỉ Admin, Đội trưởng và Đội phó có quyền tra cứu thời khóa biểu.');
         return location.replace('index.html');
       }
     } catch (e) {

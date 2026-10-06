@@ -1,0 +1,461 @@
+-- =====================================================================
+-- DIEM_DANH — Migration v2: ĐỘI PHÓ + ĐỘI TRƯỞNG TỰ CẤP QUYỀN TRONG NHÓM
+-- Chạy trong Supabase > SQL Editor (SAU schema.sql và schema_roles.sql).
+-- Idempotent: chạy lại nhiều lần vẫn an toàn.
+-- Thứ tự chạy không quan trọng: mọi định nghĩa ở đây đều
+-- CREATE OR REPLACE nên file này luôn là "nguồn sự thật cuối cùng".
+--
+-- Quy ước vai trò (đã chốt với người dùng):
+--   admin   : 1 tài khoản duy nhất, quyền cao nhất.
+--   leader  : Đội trưởng chính do Admin cấp (kèm lĩnh vực — cột teams.linh_vuc).
+--   deputy  : Đội phó — quyền NGANG Đội trưởng (xem lịch rảnh, giao việc,
+--             thêm/gỡ thành viên, cấp deputy/member trong nhóm mình).
+--             CHỈ KHÁC: không được cấp/giáng 'leader' (việc đó của Admin),
+--             không được đổi vai trò của Đội trưởng chính.
+--   member  : Thành viên trong nhóm (team_members.team_role).
+--   student : Tài khoản thường (profiles.role) chưa có vai trò quản lý.
+-- =====================================================================
+
+-- 1) MỞ RỘNG CHECK role TRONG profiles -------------------------------------
+-- (schema.sql gốc chỉ cho phép admin/leader/student)
+
+alter table public.profiles
+  drop constraint if exists profiles_role_check;
+
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('admin', 'leader', 'deputy', 'student'));
+
+-- 2) CỘT team_role TRONG team_members ---------------------------------------
+-- Phân biệt vai trò của từng người TRONG nhóm:
+--   leader = Đội trưởng chính · deputy = Đội phó · member = Thành viên
+-- (đặt tên cột là team_role để khớp với code frontend hiện có)
+-- Dùng DO block để tương thích mọi trạng thái DB cũ (không giả định
+-- constraint cũ tên gì, cột đã có kiểu gì).
+
+do $$
+begin
+  -- Thêm cột nếu chưa có
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'team_members'
+      and column_name = 'team_role'
+  ) then
+    alter table public.team_members
+      add column team_role text not null default 'member';
+  end if;
+
+  -- Chuẩn hoá dữ liệu bẩn (nếu có) về 3 giá trị hợp lệ
+  update public.team_members
+  set team_role = 'member'
+  where team_role is null or team_role not in ('member', 'deputy', 'leader');
+
+  -- Gỡ mọi CHECK cũ liên quan tới team_role (không đoán tên)
+  declare r record;
+  begin
+    for r in
+      select conname from pg_constraint
+      where conrelid = 'public.team_members'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) ilike '%team_role%'
+    loop
+      execute format('alter table public.team_members drop constraint %I', r.conname);
+    end loop;
+  end;
+
+  alter table public.team_members
+    add constraint team_members_role_check
+    check (team_role in ('member', 'deputy', 'leader'));
+end $$;
+
+-- Backfill: ai đang là leader_id của nhóm thì đánh dấu leader
+update public.team_members tm
+set team_role = 'leader'
+from public.teams t
+where t.id = tm.team_id
+  and t.leader_id = tm.user_id
+  and tm.team_role = 'member';
+
+-- 3) is_team_leader — deputy có quyền NGANG leader (trừ đổi vai trò) --------
+-- LƯU Ý: deputy toàn cục trong profiles KHÔNG tự cho quyền ở mọi nhóm.
+-- Phải là deputy CỦA NHÓM ĐÓ (team_members.team_role) mới được quản lý.
+-- (CREATE OR REPLACE nên file nào chạy sau sẽ thắng.)
+
+create or replace function public.is_team_leader(p_team_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+  select public.is_admin()
+    -- Đội trưởng chính
+    or exists (
+      select 1 from public.teams
+      where id = p_team_id and leader_id = auth.uid()
+    )
+    -- Đội phó trong nhóm (quyền ngang đội trưởng)
+    or exists (
+      select 1 from public.team_members
+      where team_id = p_team_id
+        and user_id = auth.uid()
+        and team_role = 'deputy'
+    )
+    -- Dự phòng: role deputy toàn cục trong profiles
+    or exists (
+      select 1 from public.profiles
+      where user_id = auth.uid() and role = 'deputy'
+    );
+$$;
+
+revoke all on function public.is_team_leader(uuid) from public, anon;
+grant execute on function public.is_team_leader(uuid) to authenticated;
+
+-- Helper duy nhất để giới hạn hành động đổi vai trò:
+-- chỉ Admin hoặc Đội trưởng CHÍNH mới được đổi vai trò người khác.
+-- (Đội phó = quyền ngang đội trưởng TRỪ việc này.)
+create or replace function public.can_manage_team_roles(p_team_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+  select public.is_admin()
+    or exists (
+      select 1 from public.teams
+      where id = p_team_id and leader_id = auth.uid()
+    );
+$$;
+
+revoke all on function public.can_manage_team_roles(uuid) from public, anon;
+grant execute on function public.can_manage_team_roles(uuid) to authenticated;
+
+-- 4) RPC ĐỔI VAI TRÒ TRONG NHÓM -------------------------------------------
+-- Người gọi: Admin (toàn quyền) hoặc Đội trưởng chính (chỉ trong nhóm mình).
+--   p_role nhận: 'leader' · 'deputy' · 'member'
+--
+-- Quy tắc:
+--   - 'leader'  : chỉ Admin cấp được (chuyển leader_id + nâng profiles.role).
+--   - 'deputy'  : Admin cấp, hoặc Đội trưởng chính tự cấp cho thành viên trong
+--                 nhóm mình. profiles.role -> 'deputy', member_role -> 'deputy'.
+--   - 'member'  : trả về thành viên thường (hạ cả 2 chỗ).
+--   - Không bao giờ được đổi vai trò của tài khoản Admin.
+--   - Đội trưởng chính không tự giáng chính mình.
+create or replace function public.set_team_role(
+  p_team_id uuid,
+  p_user_id uuid,
+  p_role text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_caller_is_admin boolean := public.is_admin();
+  v_target profiles;
+  v_team public.teams;
+  v_member team_members;
+begin
+  if p_role is null or p_role not in ('leader', 'deputy', 'member') then
+    return jsonb_build_object('ok', false, 'message', 'Vai trò không hợp lệ.');
+  end if;
+
+  if p_team_id is null or p_user_id is null then
+    return jsonb_build_object('ok', false, 'message', 'Thiếu thông tin nhóm hoặc người dùng.');
+  end if;
+
+  select * into v_team from public.teams where id = p_team_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
+  end if;
+
+  select * into v_target from public.profiles where user_id = p_user_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy hồ sơ người dùng.');
+  end if;
+
+  -- Không bao giờ đổi tài khoản Admin
+  if v_target.role = 'admin' then
+    return jsonb_build_object('ok', false, 'message', 'Không thể đổi vai trò của tài khoản Quản trị viên.');
+  end if;
+
+  -- Ai được đổi vai trò?
+  --   Admin: toàn quyền.
+  --   Đội trưởng chính: chỉ trong nhóm mình, và KHÔNG được cấp 'leader'.
+  if not v_caller_is_admin then
+    if v_team.leader_id is distinct from auth.uid() then
+      return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng chính mới được đổi vai trò.');
+    end if;
+    if p_role = 'leader' then
+      return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được cấp Đội trưởng chính.');
+    end if;
+  end if;
+
+  -- Người được đổi phải thuộc nhóm (trừ trường hợp cấp leader mới)
+  select * into v_member
+  from public.team_members
+  where team_id = p_team_id and user_id = p_user_id;
+
+  if not found then
+    if p_role = 'leader' and v_caller_is_admin then
+      -- Admin cấp leader mới: tự động thêm vào nhóm
+      insert into public.team_members (team_id, user_id, team_role)
+      values (p_team_id, p_user_id, 'leader')
+      on conflict (team_id, user_id) do update set team_role = 'leader';
+    else
+      return jsonb_build_object('ok', false, 'message', 'Người dùng này không thuộc nhóm. Hãy thêm vào nhóm trước.');
+    end if;
+  end if;
+
+  -- Không tự giáng chính mình
+  if p_user_id = auth.uid() and p_role <> 'leader' and not v_caller_is_admin then
+    return jsonb_build_object('ok', false, 'message', 'Bạn không thể tự hạ vai trò của chính mình.');
+  end if;
+
+  if p_role = 'leader' then
+    -- Hạ đội trưởng chính cũ (nếu có) về thành viên
+    if v_team.leader_id is not null and v_team.leader_id <> p_user_id then
+      update public.profiles
+      set role = 'student'
+      where user_id = v_team.leader_id and role = 'leader';
+      update public.team_members
+      set team_role = 'member'
+      where team_id = p_team_id and user_id = v_team.leader_id and team_role = 'leader';
+    end if;
+    update public.teams set leader_id = p_user_id where id = p_team_id;
+    update public.profiles
+    set role = 'leader'
+    where user_id = p_user_id and role <> 'admin';
+    update public.team_members
+    set team_role = 'leader'
+    where team_id = p_team_id and user_id = p_user_id;
+    return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội trưởng chính.');
+  elsif p_role = 'deputy' then
+    -- Người đang là leader_id thì không thể thành deputy trừ khi chuyển leader trước
+    if v_team.leader_id = p_user_id then
+      return jsonb_build_object('ok', false, 'message', 'Đây là Đội trưởng chính. Hãy chuyển quyền Đội trưởng trước.');
+    end if;
+    update public.profiles
+    set role = 'deputy'
+    where user_id = p_user_id and role <> 'admin';
+    update public.team_members
+    set team_role = 'deputy'
+    where team_id = p_team_id and user_id = p_user_id;
+    return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội phó.');
+  else
+    -- p_role = 'member'
+    if v_team.leader_id = p_user_id then
+      return jsonb_build_object('ok', false, 'message', 'Đây là Đội trưởng chính. Hãy chuyển quyền Đội trưởng trước.');
+    end if;
+    update public.profiles
+    set role = 'student'
+    where user_id = p_user_id and role <> 'admin';
+    update public.team_members
+    set team_role = 'member'
+    where team_id = p_team_id and user_id = p_user_id;
+    return jsonb_build_object('ok', true, 'message', 'Đã chuyển về Thành viên.');
+  end if;
+end;
+$$;
+
+revoke all on function public.set_team_role(uuid, uuid, text) from public, anon;
+grant execute on function public.set_team_role(uuid, uuid, text) to authenticated;
+
+-- 5) RPC THÀNH VIÊN NHÓM KÈM VAI TRÒ -------------------------------------
+-- Dùng để render thanh chọn vai trò inline.
+-- Người gọi: Admin, Đội trưởng chính, Đội phó, hoặc thành viên nhóm đó.
+create or replace function public.get_team_members(p_team_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  if not public.is_team_member(p_team_id) then
+    return jsonb_build_object('ok', false, 'message', 'Bạn không thuộc nhóm này.');
+  end if;
+
+  return jsonb_build_object('ok', true,
+    'can_change_roles', public.can_manage_team_roles(p_team_id),
+    'leader_id', (select leader_id from public.teams where id = p_team_id),
+    'members', (
+      select coalesce(jsonb_agg(
+        jsonb_build_object(
+          'user_id', p.user_id,
+          'username', p.username,
+          'full_name', coalesce(p.full_name, p.username),
+          'mssv', p.mssv,
+          'role', p.role,
+          'member_role', coalesce(tm.team_role, 'member'),
+          'team_role', coalesce(tm.team_role, 'member'),
+          'is_main_leader', (t.leader_id = p.user_id)
+        ) order by
+          case coalesce(tm.team_role, 'member')
+            when 'leader' then 0
+            when 'deputy' then 1
+            else 2
+          end,
+          coalesce(p.full_name, p.username)
+      ), '[]'::jsonb)
+      from public.profiles p
+      join public.team_members tm
+        on tm.user_id = p.user_id and tm.team_id = p_team_id
+      left join public.teams t on t.id = p_team_id
+    )
+  );
+end;
+$$;
+
+revoke all on function public.get_team_members(uuid) from public, anon;
+grant execute on function public.get_team_members(uuid) to authenticated;
+
+-- 6) ĐỒNG BỘ admin_set_team_leader CŨ VỚI member_role ----------------------
+-- Giữ tương thích ngược: khi Admin dùng hàm cũ thì member_role cũng được cập nhật.
+
+create or replace function public.admin_set_team_leader(
+  p_team_id uuid,
+  p_user_id uuid
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_team public.teams;
+  v_target profiles;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được cấp quyền Đội trưởng.');
+  end if;
+
+  if p_team_id is null or p_user_id is null then
+    return jsonb_build_object('ok', false, 'message', 'Thiếu thông tin nhóm hoặc người dùng.');
+  end if;
+
+  select * into v_team from public.teams where id = p_team_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
+  end if;
+
+  select * into v_target from public.profiles where user_id = p_user_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy hồ sơ người dùng.');
+  end if;
+
+  if p_user_id = auth.uid() then
+    return jsonb_build_object('ok', false, 'message', 'Không thể cấp quyền Đội trưởng cho chính tài khoản Admin.');
+  end if;
+
+  -- Bỏ quyền đội trưởng cũ (nếu có) và trả họ về thành viên
+  if v_team.leader_id is not null and v_team.leader_id <> p_user_id then
+    update public.profiles
+    set role = 'student'
+    where user_id = v_team.leader_id and role = 'leader';
+    update public.team_members
+    set team_role = 'member'
+    where team_id = p_team_id and user_id = v_team.leader_id;
+  end if;
+
+  update public.teams
+  set leader_id = p_user_id
+  where id = p_team_id;
+
+  update public.profiles
+  set role = 'leader'
+  where user_id = p_user_id and role <> 'admin';
+
+  insert into public.team_members (team_id, user_id, team_role)
+  values (p_team_id, p_user_id, 'leader')
+  on conflict (team_id, user_id) do update set team_role = 'leader';
+
+  return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội trưởng thành công.');
+end;
+$$;
+
+revoke all on function public.admin_set_team_leader(uuid, uuid) from public, anon;
+grant execute on function public.admin_set_team_leader(uuid, uuid) to authenticated;
+
+-- =====================================================================
+-- 7) RPC XOÁ NHÓM (chỉ Admin, nhóm phải trống thành viên)
+-- =====================================================================
+create or replace function public.admin_delete_team(p_team_id uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_name text;
+  v_count int;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được xoá nhóm.');
+  end if;
+
+  if p_team_id is null then
+    return jsonb_build_object('ok', false, 'message', 'Thiếu mã nhóm.');
+  end if;
+
+  select name into v_name from public.teams where id = p_team_id;
+  if not found then
+    return jsonb_build_object('ok', true, 'message', 'Nhóm không tồn tại.');
+  end if;
+
+  select count(*) into v_count
+  from public.team_members where team_id = p_team_id;
+
+  if v_count > 0 then
+    return jsonb_build_object('ok', false,
+      'message', 'Nhóm "' || v_name || '" còn ' || v_count || ' thành viên. Hãy gỡ hết trước khi xoá.');
+  end if;
+
+  delete from public.tasks where team_id = p_team_id;
+  delete from public.teams where id = p_team_id;
+
+  return jsonb_build_object('ok', true, 'message', 'Đã xoá nhóm "' || v_name || '".');
+end;
+$$;
+
+revoke all on function public.admin_delete_team(uuid) from public, anon;
+grant execute on function public.admin_delete_team(uuid) to authenticated;
+
+-- =====================================================================
+-- 8) RPC ĐỔI VAI TRÒ NỘI BỘ NHÓM — wrapper tương thích tên cũ
+--    Cả 2 tên (leader_set_member_role, set_team_role) đều trỏ về
+--    cùng một logic đã chốt ở mục 4. Một nguồn sự thật duy nhất.
+-- =====================================================================
+
+-- 8a) Phiên bản tham số p_new_role (tên Kiro dùng — JS hiện gọi tên này)
+create or replace function public.leader_set_member_role(
+  p_team_id uuid,
+  p_user_id uuid,
+  p_new_role text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  return public.set_team_role(p_team_id, p_user_id, p_new_role);
+end;
+$$;
+
+revoke all on function public.leader_set_member_role(uuid, uuid, text) from public, anon;
+grant execute on function public.leader_set_member_role(uuid, uuid, text) to authenticated;
+
+-- 8b) Xoá bản nháp bị trùng tên ở schema_roles.sql (nếu đã deploy bản dở).
+--     Chạy an toàn dù hàm chưa tồn tại.
+drop function if exists public.leader_set_member_role(uuid, uuid);
+
+-- =====================================================================
+-- Xong. Chạy file này trong SQL Editor SAU schema.sql và schema_roles.sql.
+-- =====================================================================

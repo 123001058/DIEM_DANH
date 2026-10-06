@@ -99,7 +99,8 @@ async function submitLogin(){
 
     if (role === 'admin') {
       location.href = 'admin.html';
-    } else if (role === 'leader') {
+    } else if (role === 'leader' || role === 'deputy') {
+      // Đội phó vào cùng bảng điều khiển (quyền ngang đội trưởng)
       location.href = 'leader.html';
     } else {
       location.href = 'checkin.html';
@@ -268,7 +269,7 @@ async function checkCurrentSession(){
       if (role === 'admin') {
         btn.innerHTML = ICON + ' Vào bảng quản trị →';
         btn.onclick = () => { location.href = 'admin.html'; };
-      } else if (role === 'leader') {
+      } else if (role === 'leader' || role === 'deputy') {
         btn.innerHTML = ICON + ' Vào bảng đội trưởng →';
         btn.onclick = () => { location.href = 'leader.html'; };
       } else {

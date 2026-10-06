@@ -22,6 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (myAuth.isLeader) {
     chip.textContent = 'Đội trưởng';
     chip.className = 'rk-role-chip chip-leader';
+  } else if (myAuth.isDeputy) {
+    chip.textContent = 'Đội phó';
+    chip.className = 'rk-role-chip chip-deputy';
   } else if (myAuth.isAdmin) {
     chip.textContent = 'Quản trị viên';
     chip.className = 'rk-role-chip chip-admin';
