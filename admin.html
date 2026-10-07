@@ -622,7 +622,10 @@ tbody tr:last-child td{border-bottom:none}
               <span class="widget-title">🏫 Sinh viên bận học trường hôm nay</span>
               <span class="count-badge" id="todaySchoolScheduleCount">0 bạn</span>
             </div>
-            <a href="lichhoc.html" class="widget-link" title="Xem thời khóa biểu chi tiết">Chi tiết TKB →</a>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="btn btn-secondary" id="btnSyncME" onclick="syncSchedulesFromME()" style="padding:5px 10px;font-size:11.5px;font-weight:700" title="Kéo dữ liệu thời khóa biểu mới nhất từ cổng thông tin ME của trường LHU">🔄 Đồng bộ từ ME</button>
+              <a href="lichhoc.html" class="widget-link" title="Xem thời khóa biểu chi tiết">Chi tiết TKB →</a>
+            </div>
           </div>
           <div class="schedule-list-wrap" id="todaySchoolScheduleList">
             <div class="schedule-loading">Đang tải lịch học hôm nay...</div>
@@ -1521,6 +1524,88 @@ async function loadTodaySchoolSchedule(){
   }
 }
 
+async function syncSchedulesFromME(isAuto = false){
+  const btn = document.getElementById('btnSyncME');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang đồng bộ...'; }
+  if (!isAuto) toast('info', 'Đang kết nối ME...', 'Đang kéo lịch học của ' + (students?.length || 31) + ' sinh viên...');
+
+  try {
+    const list = students && students.length ? students : [
+      { mssv: '123000555' }, { mssv: '123000078' }, { mssv: '125001579' }, { mssv: '124000534' },
+      { mssv: '125001875' }, { mssv: '124000737' }, { mssv: '125001809' }, { mssv: '124001238' },
+      { mssv: '124001851' }, { mssv: '124000354' }, { mssv: '124001589' }, { mssv: '125000568' },
+      { mssv: '125002381' }, { mssv: '123000651' }, { mssv: '125001648' }, { mssv: '125000372' },
+      { mssv: '123000722' }, { mssv: '123001058' }, { mssv: '123000185' }, { mssv: '123000872' },
+      { mssv: '125000798' }, { mssv: '123001188' }, { mssv: '125000550' }, { mssv: '123000432' },
+      { mssv: '123000375' }, { mssv: '123001394' }, { mssv: '125000890' }, { mssv: '125001087' },
+      { mssv: '124001273' }, { mssv: '122000426' }, { mssv: '125001343' }
+    ];
+
+    const allSchedules = [];
+    const dateStr = new Date().toISOString();
+    const chunkSize = 6;
+
+    for (let i = 0; i < list.length; i += chunkSize) {
+      const chunk = list.slice(i, i + chunkSize);
+      const promises = chunk.map(async s => {
+        try {
+          const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ StudentID: s.mssv, Ngay: dateStr, PageIndex: 1, PageSize: 100 })
+          });
+          if (!res.ok) return [];
+          const json = await res.json();
+          const items = json.data?.[2] || [];
+          return items.map(c => {
+            let t_bd = c.ThoiGianBD;
+            let t_kt = c.ThoiGianKT;
+            if (t_bd && !t_bd.includes('+07') && !t_bd.includes('Z')) t_bd += '+07:00';
+            if (t_kt && !t_kt.includes('+07') && !t_kt.includes('Z')) t_kt += '+07:00';
+            return {
+              mssv: s.mssv,
+              subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
+              room_name: (c.TenPhong || 'Online').trim(),
+              teacher_name: (c.GiaoVien || '').trim(),
+              start_time: t_bd,
+              end_time: t_kt,
+              day_of_week: c.Thu || 0
+            };
+          });
+        } catch(e) {
+          console.warn('Lỗi lấy lịch MSSV ' + s.mssv, e);
+          return [];
+        }
+      });
+
+      const chunkResults = await Promise.all(promises);
+      chunkResults.forEach(r => allSchedules.push(...r));
+    }
+
+    if (!allSchedules.length) {
+      throw new Error('Không thể kết nối cổng ME trường LHU hoặc không có dữ liệu trả về.');
+    }
+
+    const { data, error } = await supabase.rpc('admin_sync_student_schedules', {
+      p_schedules: allSchedules
+    });
+
+    if (error || !data?.ok) {
+      throw new Error(data?.message || error?.message || 'Lỗi khi lưu vào Supabase');
+    }
+
+    localStorage.setItem('last_me_sync', Date.now().toString());
+    toast('ok', 'Đã đồng bộ xong!', 'Đã cập nhật ' + data.count + ' tiết học từ ME trường LHU.');
+    await loadTodaySchoolSchedule();
+  } catch(err) {
+    console.error('syncSchedulesFromME error:', err);
+    toast('err', 'Đồng bộ thất bại', err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
 function startCountdown(){
   clearInterval(countdownTimer);
   tickCountdown();
@@ -1675,6 +1760,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadTodayHistory();
   await loadTodaySchoolSchedule();
   setupRealtime();
+
+  // Tự động kiểm tra và đồng bộ ngầm từ ME nếu dữ liệu cũ hơn 24 giờ
+  const lastSync = parseInt(localStorage.getItem('last_me_sync') || '0', 10);
+  if (Date.now() - lastSync > 24 * 3600 * 1000) {
+    setTimeout(() => syncSchedulesFromME(true), 2500);
+  }
 
   document.getElementById('filters').addEventListener('click', e => {
     const btn = e.target.closest('.filter');

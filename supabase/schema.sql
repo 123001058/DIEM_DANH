@@ -705,6 +705,54 @@ insert into public.students (mssv, name)
 values ('125001343', 'Dương Công Mạnh')
 on conflict (mssv) do nothing;
 
+-- RPC ĐỒNG BỘ LỊCH HỌC TỪ ME LÊN SUPABASE
+create or replace function public.admin_sync_student_schedules(p_schedules jsonb)
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_count int;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+
+  if p_schedules is null or jsonb_array_length(p_schedules) = 0 then
+    return jsonb_build_object('ok', false, 'message', 'Danh sách lịch học trống.');
+  end if;
+
+  delete from public.student_schedules;
+
+  insert into public.student_schedules (
+    mssv, subject_name, room_name, teacher_name, start_time, end_time, day_of_week
+  )
+  select
+    x.mssv,
+    x.subject_name,
+    x.room_name,
+    x.teacher_name,
+    x.start_time,
+    x.end_time,
+    x.day_of_week
+  from jsonb_to_recordset(p_schedules) as x(
+    mssv text,
+    subject_name text,
+    room_name text,
+    teacher_name text,
+    start_time timestamptz,
+    end_time timestamptz,
+    day_of_week int
+  );
+
+  get diagnostics v_count = row_count;
+  return jsonb_build_object('ok', true, 'count', v_count);
+end;
+$$;
+
+revoke all on function public.admin_sync_student_schedules(jsonb) from public, anon;
+grant execute on function public.admin_sync_student_schedules(jsonb) to authenticated;
+
+
 -- 2. CẬP NHẬT admin_open_session:
 -- Khi Admin mở phiên xưởng: Tự động ghi nhận "vắng có phép (Học trường)" cho SV có lịch học trùng ca này
 create or replace function public.admin_open_session(
