@@ -769,3 +769,62 @@ $$;
 
 revoke all on function public.admin_close_session(text) from public, anon;
 grant execute on function public.admin_close_session(text) to authenticated;
+
+
+
+-- 5. RPC XÓA LỊCH SỬ CÁC PHIÊN ĐÃ ĐÓNG
+create or replace function public.admin_delete_history()
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as 
+declare
+  v_count int;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+
+  -- Xóa tất cả các phiên đã đóng -> cascade xóa sạch attendance liên quan
+  delete from public.sessions where is_open = false;
+  get diagnostics v_count = row_count;
+
+  return jsonb_build_object('ok', true, 'deleted', v_count);
+end;
+;
+
+revoke all on function public.admin_delete_history() from public, anon;
+grant execute on function public.admin_delete_history() to authenticated;
+
+-- 6. RPC LẤY LỊCH SỬ 7 PHIÊN GẦN NHẤT TRONG 7 NGÀY
+create or replace function public.admin_today_sessions()
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as 
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+
+  return jsonb_build_object('ok', true, 'sessions', (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', s.id, 'session_name', s.session_name,
+      'started_at', s.started_at, 'is_open', s.is_open,
+      'present', (select count(*) from public.attendance a
+                  where a.session_id = s.id and a.status = 'có mặt'),
+      'absent', (select count(*) from public.attendance a
+                 where a.session_id = s.id
+                 and a.status in ('vắng có phép','vắng không phép')),
+      'total', (select count(*) from public.students)
+    ) order by s.started_at desc), '[]'::jsonb)
+    from (
+      select * from public.sessions s
+      where s.started_at >= current_date - interval '7 days'
+      order by s.started_at desc
+      limit 7
+    ) s
+  ));
+end;
+;
+
+revoke all on function public.admin_today_sessions() from public, anon;
+grant execute on function public.admin_today_sessions() to authenticated;

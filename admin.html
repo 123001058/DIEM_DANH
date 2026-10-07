@@ -242,6 +242,19 @@ tbody tr:last-child td{border-bottom:none}
       </div>
       <button class="btn btn-primary" style="padding:11px 18px;height:42px" onclick="openSession()">▶ Mở phiên</button>
     </div>
+    <div class="today-history" id="emptyTodayHistoryWrap" style="display:none;margin-top:24px;text-align:left;width:100%;max-width:560px">
+      <div class="today-history-head">
+        <div>
+          <div class="thead-title">Lịch sử phiên gần đây</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:2px">7 phiên gần nhất trong 7 ngày qua</p>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-danger" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử điểm danh">🗑 Xóa lịch sử</button>
+          <button class="btn btn-icon" onclick="loadTodayHistory()" title="Làm mới">↻</button>
+        </div>
+      </div>
+      <div id="emptyTodayHistoryList"></div>
+    </div>
   </section>
 
   <div class="dashboard" id="dashboard" style="display:none">
@@ -347,8 +360,8 @@ tbody tr:last-child td{border-bottom:none}
         <div class="today-history" id="todayHistoryWrap" style="display:none">
           <div class="today-history-head">
             <div>
-              <div class="thead-title">Lịch sử phiên hôm nay</div>
-              <p style="font-size:12px;color:var(--muted);margin-top:2px">Qua ngày mới danh sách sẽ tự ẩn</p>
+              <div class="thead-title">Lịch sử phiên gần đây</div>
+              <p style="font-size:12px;color:var(--muted);margin-top:2px">7 phiên gần nhất trong 7 ngày qua</p>
             </div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-danger" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử điểm danh">🗑 Xóa lịch sử</button>
@@ -689,17 +702,17 @@ async function autoCloseSession(){
 }
 
 async function confirmDeleteHistory(){
-  if (!confirm('Xóa toàn bộ lịch sử điểm danh và các phiên đã đóng hôm nay? Hành động này không thể hoàn tác.')){
+  if (!confirm('Xóa toàn bộ lịch sử các phiên đã đóng trong 7 ngày qua? Hành động này không thể hoàn tác.')){
     return;
   }
-  const { data, error } = await supabase.rpc('admin_delete_attendance');
+  const { data, error } = await supabase.rpc('admin_delete_history');
   if (error || !data?.ok){
     const msg = error ? (error.message || JSON.stringify(error)) : (data?.message || 'Lỗi không xác định');
     toast('err', 'Xóa thất bại', msg);
-    console.error('Lỗi khi gọi admin_delete_attendance:', error, data);
+    console.error('Lỗi khi gọi admin_delete_history:', error, data);
     return;
   }
-  toast('ok', 'Đã xóa lịch sử', 'Đã xóa ' + (data.deleted || 0) + ' hồ sơ điểm danh.');
+  toast('ok', 'Đã xóa lịch sử', 'Đã xóa các phiên đã đóng.');
   await loadTodayHistory();
   if (typeof refreshAll === 'function') await refreshAll();
   else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
@@ -731,14 +744,22 @@ async function loadTodayHistory(){
   const { data, error } = await supabase.rpc('admin_today_sessions');
   const wrap = document.getElementById('todayHistoryWrap');
   const list = document.getElementById('todayHistoryList');
-  if (error || !data?.ok || !data.sessions?.length){ wrap.style.display = 'none'; return; }
-  wrap.style.display = 'block';
-  list.innerHTML = data.sessions.map(s => {
+  const emptyWrap = document.getElementById('emptyTodayHistoryWrap');
+  const emptyList = document.getElementById('emptyTodayHistoryList');
+  if (error || !data?.ok || !data.sessions?.length){
+    if (wrap) wrap.style.display = 'none';
+    if (emptyWrap) emptyWrap.style.display = 'none';
+    return;
+  }
+  const itemsHtml = data.sessions.map(s => {
     const t = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+    const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
     const badge = s.is_open ? '<span class="rk-badge doing">Đang mở</span>' : '<span class="rk-badge todo">Đã đóng</span>';
     return '<div class="today-history-item"><div><div class="today-history-name">' + escapeHtml(s.session_name) + ' ' + badge + '</div>' +
-      '<div class="today-history-meta">Bắt đầu ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok)">' + s.present + ' ĐD</span> · <span style="color:var(--err)">' + s.absent + ' vắng</span></div></div></div>';
+      '<div class="today-history-meta">' + d + ' · ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok)">' + s.present + ' ĐD</span> · <span style="color:var(--err)">' + s.absent + ' vắng</span></div></div></div>';
   }).join('');
+  if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
+  if (emptyWrap && emptyList) { emptyWrap.style.display = 'block'; emptyList.innerHTML = itemsHtml; }
 }
 function startCountdown(){
   clearInterval(countdownTimer);
