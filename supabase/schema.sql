@@ -184,6 +184,7 @@ grant select on public.profiles to authenticated;
 -- lỗi 42501 "permission denied for table attendance" -> trang admin
 -- luôn hiện 0 điểm danh dù sinh viên quét thành công.
 grant select on public.attendance to authenticated;
+grant select on public.sessions to authenticated;
 
 create or replace function public.get_open_session()
 returns jsonb language sql volatile security definer

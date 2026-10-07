@@ -651,7 +651,8 @@ tbody tr:last-child td{border-bottom:none}
         <div class="countdown-chip" id="countdownChip">⏱ <span id="countdownText">--:--</span></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-danger" onclick="openCloseModal()">■ Đóng phiên</button>
+        <button class="btn" id="btnBackToActive" onclick="backFromPastSession()" style="display:none;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-weight:600">← Quay lại</button>
+        <button class="btn btn-danger" id="btnCloseSession" onclick="openCloseModal()">■ Đóng phiên</button>
       </div>
     </div>
 
@@ -863,7 +864,11 @@ async function loadAttendance(){
   const { data, error } = await supabase.from('attendance')
     .select('mssv, full_name, status, category, note, created_at')
     .eq('session_id', currentSession.id);
-  if (error){ console.error(error); return; }
+  if (error){
+    console.error('loadAttendance error:', error);
+    toast('err', 'Lỗi tải điểm danh', error.message || 'Không thể tải dữ liệu điểm danh.');
+    return;
+  }
   attendanceMap = {};
   (data || []).forEach(r => {
     attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), category: r.category || '', note: r.note || '' };
@@ -874,6 +879,8 @@ function showEmpty(){
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
   document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đã đóng</span>';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'none';
   clearInterval(countdownTimer);
   loadTodayHistory();
   loadTodaySchoolSchedule();
@@ -1144,6 +1151,10 @@ async function loadTodayHistory(){
     return;
   }
 
+  // Lưu map các phiên để có thể xem lại chi tiết ngay lập tức không phụ thuộc quyền bảng sessions
+  window._todaySessionsMap = {};
+  data.sessions.forEach(s => { window._todaySessionsMap[s.id] = s; });
+
   // Tính KPI tổng quan từ các phiên gần nhất
   let totalPresent = 0;
   let totalAbsent = 0;
@@ -1287,12 +1298,28 @@ function renderAll(){ updateStats(); renderTable(); renderFeed(); }
 async function refreshAll(){
   await loadSession();
   if (!currentSession){ showEmpty(); return; }
-  document.querySelector('.main-grid').style.gridTemplateColumns = '';
-  document.getElementById('qrPanel').style.display = '';
-  document.querySelector('.danger-zone').style.display = 'flex';
-  document.getElementById('countdownChip').style.display = 'inline-flex';
-  document.getElementById('sessionBarPill').className = 'session-pill pill-on';
-  document.getElementById('sessionBarPill').innerHTML = '<span class="net-dot"></span>Đang mở';
+  const mainGrid = document.querySelector('.main-grid');
+  if (mainGrid) mainGrid.style.gridTemplateColumns = '';
+  const qrPanel = document.getElementById('qrPanel');
+  if (qrPanel) qrPanel.style.display = '';
+  const dz = document.querySelector('.danger-zone');
+  if (dz) dz.style.display = 'flex';
+  const btnClose = document.getElementById('btnCloseSession');
+  if (btnClose) btnClose.style.display = '';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'none';
+  const chip = document.getElementById('countdownChip');
+  if (chip) chip.style.display = 'inline-flex';
+  const sPill = document.getElementById('sessionBarPill');
+  if (sPill) {
+    sPill.className = 'session-pill pill-on';
+    sPill.innerHTML = '<span class="net-dot"></span>Đang mở';
+  }
+  const topbarPill = document.getElementById('topbarSessionPill');
+  if (topbarPill) {
+    topbarPill.className = 'session-pill pill-on';
+    topbarPill.innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
+  }
   showDashboard();
   document.getElementById('sessionBarName').textContent = currentSession.session_name;
   document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
@@ -1305,21 +1332,63 @@ async function refreshAll(){
   _closingSession = false;
 }
 
+window.backFromPastSession = async function() {
+  await refreshAll();
+};
+
 window.viewPastSession = async function(sid) {
-  const { data, error } = await supabase.from('sessions').select('*').eq('id', sid).single();
-  if (!data) return toast('err', 'Lỗi', 'Không thể xem chi tiết phiên này.');
-  currentSession = data;
+  let s = (window._todaySessionsMap && window._todaySessionsMap[sid]) || null;
+  if (s && s.is_open) {
+    await refreshAll();
+    return;
+  }
+  if (!s) {
+    try {
+      const { data } = await supabase.from('sessions').select('*').eq('id', sid).maybeSingle();
+      if (data) s = data;
+    } catch(e) {
+      console.warn('Cannot fetch from sessions table:', e);
+    }
+  }
+  if (!s) {
+    s = { id: sid, session_name: 'Phiên điểm danh', started_at: new Date().toISOString() };
+  }
+  currentSession = s;
   showDashboard();
-  document.querySelector('.main-grid').style.gridTemplateColumns = '1fr';
-  document.getElementById('qrPanel').style.display = 'none';
-  document.querySelector('.danger-zone').style.display = 'none';
-  document.getElementById('countdownChip').style.display = 'none';
-  document.getElementById('sessionBarPill').className = 'session-pill pill-off';
-  document.getElementById('sessionBarPill').innerHTML = '<span class="net-dot"></span>Đã đóng';
-  document.getElementById('sessionBarName').textContent = currentSession.session_name;
-  document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
+
+  const topbarPill = document.getElementById('topbarSessionPill');
+  if (topbarPill) {
+    topbarPill.className = 'session-pill pill-off';
+    topbarPill.innerHTML = '<span class="net-dot"></span><span>Xem lịch sử</span>';
+  }
+
+  const mainGrid = document.querySelector('.main-grid');
+  if (mainGrid) mainGrid.style.gridTemplateColumns = '1fr';
+  const qrPanel = document.getElementById('qrPanel');
+  if (qrPanel) qrPanel.style.display = 'none';
+  const dz = document.querySelector('.danger-zone');
+  if (dz) dz.style.display = 'none';
+  const btnClose = document.getElementById('btnCloseSession');
+  if (btnClose) btnClose.style.display = 'none';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'inline-flex';
+  const chip = document.getElementById('countdownChip');
+  if (chip) chip.style.display = 'none';
+
+  const sPill = document.getElementById('sessionBarPill');
+  if (sPill) {
+    sPill.className = 'session-pill pill-off';
+    sPill.innerHTML = '<span class="net-dot"></span>Đã đóng';
+  }
+  document.getElementById('sessionBarName').textContent = currentSession.session_name || 'Phiên đã đóng';
+  document.getElementById('sessionStartTime').textContent = currentSession.started_at ? new Date(currentSession.started_at).toLocaleString('vi-VN') : '—';
   document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
-  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
+  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : '—';
+
+  currentFilter = 'all';
+  currentPage = 1;
+  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.status === 'all'));
+
   await loadAttendance();
   renderAll();
   clearInterval(countdownTimer);
