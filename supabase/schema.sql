@@ -831,22 +831,27 @@ grant execute on function public.admin_today_sessions() to authenticated;
 
 -- 7. RPC XEM LỊCH SỬ ĐIỂM DANH CÁ NHÂN
 create or replace function public.get_my_attendance_history(p_mssv text)
-returns jsonb language sql stable security definer
+returns jsonb language plpgsql security definer
 set search_path = public, extensions, pg_temp
 as $$
-  select jsonb_build_object(
+declare
+  v_res jsonb;
+begin
+  select jsonb_agg(jsonb_build_object(
+    'checked_at', a.created_at,
+    'session_name', s.session_name,
+    'status', a.status
+  ) order by a.created_at desc)
+  into v_res
+  from public.attendance a
+  join public.sessions s on a.session_id = s.id
+  where a.mssv = p_mssv;
+
+  return jsonb_build_object(
     'ok', true,
-    'records', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'checked_at', a.created_at,
-        'session_name', s.session_name,
-        'status', a.status
-      ) order by a.created_at desc)
-      from public.attendance a
-      join public.sessions s on a.session_id = s.id
-      where a.mssv = p_mssv
-    ), '[]'::jsonb)
+    'records', coalesce(v_res, '[]'::jsonb)
   );
+end;
 $$;
 
 revoke all on function public.get_my_attendance_history(text) from public, anon;

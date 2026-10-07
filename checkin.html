@@ -392,8 +392,12 @@ async function loadHistory(){
   const mssv = currentProfile?.mssv;
   if (!mssv){ list.innerHTML = '<div class="history-empty">Chưa có MSSV.</div>'; return; }
   const { data, error } = await supabase.rpc('get_my_attendance_history', { p_mssv: mssv });
+  if (error) {
+    list.innerHTML = '<div class="history-empty" style="color:var(--err)">Lỗi DB: ' + escapeHtml(error.message) + '<br><small>(Bạn đã chạy lệnh SQL bên Supabase chưa?)</small></div>';
+    return;
+  }
   const records = data?.records || [];
-  if (error || !records.length){ list.innerHTML = '<div class="history-empty">Chưa có lịch sử điểm danh nào.</div>'; return; }
+  if (!records.length){ list.innerHTML = '<div class="history-empty">Bạn chưa điểm danh phiên nào.</div>'; return; }
   list.innerHTML = records.slice(0, 30).map(r =>
     '<div class="history-item">' +
       '<div><div class="history-date">' + new Date(r.checked_at).toLocaleString('vi-VN') + '</div>' +
