@@ -721,7 +721,7 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Danh sách lịch học trống.');
   end if;
 
-  delete from public.student_schedules;
+  delete from public.student_schedules where id is not null;
 
   insert into public.student_schedules (
     mssv, subject_name, room_name, teacher_name, start_time, end_time, day_of_week
