@@ -334,18 +334,7 @@ $$;
 
 revoke all on function public.admin_set_status(text, text, text, text) from public, anon;
 grant execute on function public.admin_set_status(text, text, text, text) to authenticated;
-
--- Hỗ trợ gọi 3 tham số
-create or replace function public.admin_set_status(
-  p_session_id text, p_mssv text, p_status text
-)
-returns jsonb language sql volatile security definer
-set search_path = public, extensions, pg_temp
-as $$
-  select public.admin_set_status(p_session_id, p_mssv, p_status, null::text);
-$$;
-revoke all on function public.admin_set_status(text, text, text) from public, anon;
-grant execute on function public.admin_set_status(text, text, text) to authenticated;
+drop function if exists public.admin_set_status(text, text, text);
 
 create or replace function public.admin_batch_set_status(
   p_session_id text, p_mssv_list text[], p_status text, p_reason text default null
@@ -363,7 +352,7 @@ begin
   if p_status not in ('có mặt','đi muộn','vắng có phép','vắng không phép') then
     return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
   end if;
-  select id into v_sid from public.sessions where id::text = p_session_id;
+  select id into v_sid from public.sessions where id::text = btrim(p_session_id);
   if v_sid is null then
     return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
   end if;
@@ -396,17 +385,7 @@ $$;
 
 revoke all on function public.admin_batch_set_status(text, text[], text, text) from public, anon;
 grant execute on function public.admin_batch_set_status(text, text[], text, text) to authenticated;
-
-create or replace function public.admin_batch_set_status(
-  p_session_id text, p_mssv_list text[], p_status text
-)
-returns jsonb language sql volatile security definer
-set search_path = public, extensions, pg_temp
-as $$
-  select public.admin_batch_set_status(p_session_id, p_mssv_list, p_status, null::text);
-$$;
-revoke all on function public.admin_batch_set_status(text, text[], text) from public, anon;
-grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
+drop function if exists public.admin_batch_set_status(text, text[], text);
 
 -- RPC MỞ LẠI PHIÊN ĐIỂM DANH ĐÃ ĐÓNG (closed -> active)
 create or replace function public.admin_reopen_session(p_session_id text)
@@ -472,7 +451,7 @@ begin
       'changed_at', l.changed_at
     ) order by l.changed_at desc), '[]'::jsonb)
     from public.attendance_audit_logs l
-    where l.session_id::text = p_session_id
+    where l.session_id::text = btrim(p_session_id)
   ));
 end;
 $$;

@@ -1183,8 +1183,8 @@ document.getElementById('reasonInput')?.addEventListener('keydown', e => {
 
 // Chuyển Tabs trong Phiên
 function switchSessionTab(tabName){
-  const tabStudents = document.getElementById('tabStudentsList');
-  const tabAudit = document.getElementById('tabAuditLog');
+  const tabStudents = document.getElementById('tabBtnStudents');
+  const tabAudit = document.getElementById('tabBtnAudit');
   const panelStudents = document.getElementById('studentsTabPanel');
   const panelAudit = document.getElementById('auditLogPanel');
   if (!tabStudents || !tabAudit) return;
@@ -1203,6 +1203,7 @@ function switchSessionTab(tabName){
 }
 async function loadAuditLogs(){
   const listEl = document.getElementById('auditLogList');
+  const badgeEl = document.getElementById('auditLogCountBadge');
   if (!listEl || !currentSession?.id) return;
   listEl.innerHTML = '<div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px"><span class="spin"></span> Đang tải lịch sử thay đổi...</div>';
   try {
@@ -1212,6 +1213,7 @@ async function loadAuditLogs(){
       return;
     }
     const logs = data.logs || [];
+    if (badgeEl) badgeEl.textContent = logs.length;
     if (!logs.length){
       listEl.innerHTML = '<div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px"><div style="font-size:26px;margin-bottom:6px">🕒</div><b>Chưa có lịch sử thay đổi nào</b><p style="font-size:12px;margin-top:4px;color:var(--faint)">Mọi thao tác chỉnh sửa trạng thái điểm danh sẽ được ghi nhận tại đây.</p></div>';
       return;
