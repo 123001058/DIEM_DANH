@@ -83,7 +83,21 @@ body{background:var(--bg);color:var(--text);line-height:1.55;padding:20px;min-he
 .stat-num.blue{color:var(--info)}
 .stat-num.green{color:var(--ok)}
 .stat-num.red{color:var(--err)}
+.stat-num.purple{color:#7c3aed}
+.stat-num.amber{color:#d97706}
 .stat-num.gray{color:var(--faint)}
+.status-select.st-late{background-color:#fef3c7;color:#b45309;border-color:rgba(217,119,6,.28)}
+.session-tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.session-tab{padding:9px 16px;border:none;background:transparent;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.session-tab:hover{color:var(--text)}
+.session-tab.active{color:var(--text);border-bottom-color:var(--text)}
+.audit-timeline{display:flex;flex-direction:column;gap:10px}
+.audit-item{padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px}
+.audit-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap}
+.audit-user{font-weight:700;color:var(--text)}
+.audit-time{font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+.audit-change{display:flex;align-items:center;gap:8px;font-weight:600}
+.audit-reason{margin-top:6px;padding:6px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-size:12px}
 .progress-wrap{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px}
 .progress-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
 .progress-lbl{font-size:12px;font-weight:600;color:var(--muted)}
@@ -128,6 +142,7 @@ tbody tr:last-child td{border-bottom:none}
 .td-mono{font-variant-numeric:tabular-nums;color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}
 .status-select{padding:5px 26px 5px 11px;border-radius:99px;font-size:11.5px;font-weight:800;border:1px solid var(--border);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");background-repeat:no-repeat;background-position:right 7px center;background-size:11px;transition:.15s;font-family:inherit}
 .status-select.st-ok{background-color:var(--ok-bg);color:var(--ok);border-color:rgba(15,122,74,.28)}
+.status-select.st-warn{background-color:#f5f3ff;color:#7c3aed;border-color:rgba(124,58,237,.28)}
 .status-select.st-no{background-color:var(--err-bg);color:var(--err);border-color:rgba(194,56,46,.28)}
 .status-select.st-none{background-color:var(--surface-2);color:var(--muted)}
 .tbl-empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
@@ -652,6 +667,7 @@ tbody tr:last-child td{border-bottom:none}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="btnBackToActive" onclick="backFromPastSession()" style="display:none;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-weight:600">← Quay lại</button>
+        <button class="btn btn-primary" id="btnReopenSession" onclick="confirmReopenSession()" style="display:none;background:var(--info);border:none;color:#fff;font-weight:700">🔄 Mở lại phiên</button>
         <button class="btn btn-danger" id="btnCloseSession" onclick="openCloseModal()">■ Đóng phiên</button>
       </div>
     </div>
@@ -672,9 +688,11 @@ tbody tr:last-child td{border-bottom:none}
       <section class="card main-panel">
         <div class="stats-grid">
           <div class="stat"><div class="stat-label">Tổng SV</div><div class="stat-num blue" id="statTotal">0</div></div>
-          <div class="stat"><div class="stat-label">Đã ĐD</div><div class="stat-num green" id="statPresent">0</div></div>
-          <div class="stat"><div class="stat-label">Vắng</div><div class="stat-num red" id="statAbsent">0</div></div>
-          <div class="stat"><div class="stat-label">Chưa quét</div><div class="stat-num gray" id="statUnmarked">0</div></div>
+          <div class="stat"><div class="stat-label">Có mặt</div><div class="stat-num green" id="statPresent">0</div></div>
+          <div class="stat"><div class="stat-label">Đi muộn</div><div class="stat-num amber" id="statLate">0</div></div>
+          <div class="stat"><div class="stat-label">Vắng K.phép</div><div class="stat-num red" id="statAbsent">0</div></div>
+          <div class="stat"><div class="stat-label">Có phép</div><div class="stat-num purple" id="statExcused">0</div></div>
+          <div class="stat" id="statUnmarkedCard" style="display:none"><div class="stat-label">Chưa quét</div><div class="stat-num gray" id="statUnmarked">0</div></div>
         </div>
 
         <div class="progress-wrap">
@@ -692,47 +710,64 @@ tbody tr:last-child td{border-bottom:none}
           <div class="feed-list" id="feedList"><div class="feed-empty">Chưa có ai điểm danh</div></div>
         </div>
 
-        <div class="thead-block">
-          <div class="thead-top">
-            <div>
-              <div class="thead-title">Danh sách sinh viên</div>
-              <div class="filters" id="filters">
-                <button class="filter active" data-status="all">Tất cả <span class="count">0</span></button>
-                <button class="filter" data-status="present">Có mặt <span class="count">0</span></button>
-                <button class="filter" data-status="absent">Vắng <span class="count">0</span></button>
-                <button class="filter" data-status="unmarked">Chưa quét <span class="count">0</span></button>
+        <div class="session-tabs">
+          <button class="session-tab active" id="tabBtnStudents" onclick="switchSessionTab('students')">📋 Danh sách điểm danh</button>
+          <button class="session-tab" id="tabBtnAudit" onclick="switchSessionTab('audit')">🕒 Lịch sử thay đổi (Audit Log) <span id="auditLogCountBadge" style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.07)">0</span></button>
+        </div>
+
+        <div id="studentsTabPanel">
+          <div class="thead-block">
+            <div class="thead-top">
+              <div>
+                <div class="thead-title">Danh sách sinh viên</div>
+                <div class="filters" id="filters">
+                  <button class="filter active" data-status="all">Tất cả <span class="count">0</span></button>
+                  <button class="filter" data-status="present">Có mặt <span class="count">0</span></button>
+                  <button class="filter" data-status="late">Đi muộn <span class="count">0</span></button>
+                  <button class="filter" data-status="absent">Vắng K.phép <span class="count">0</span></button>
+                  <button class="filter" data-status="excused">Có phép <span class="count">0</span></button>
+                  <button class="filter" data-status="unmarked" id="filterUnmarked" style="display:none">Chưa điểm danh <span class="count">0</span></button>
+                </div>
+              </div>
+              <div class="thead-actions">
+                <div class="search-wrap">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
+                </div>
+                <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả chưa quét</button>
+                <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
               </div>
             </div>
-            <div class="thead-actions">
-              <div class="search-wrap">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
+          </div>
+
+          <div class="tbl-wrap">
+            <div class="tbl-scroll">
+              <table>
+                <thead><tr><th style="width:40%">Sinh viên</th><th style="width:18%">MSSV</th><th style="width:24%">Trạng thái</th><th style="width:18%">Thời gian</th></tr></thead>
+                <tbody id="studentTbody"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <div class="pager-info" id="pagerInfo">—</div>
+              <div class="pager-ctrl">
+                <select id="pagerSize">
+                  <option value="10">10 / trang</option>
+                  <option value="20" selected>20 / trang</option>
+                  <option value="50">50 / trang</option>
+                  <option value="100">100 / trang</option>
+                </select>
+                <button class="pager-btn" id="pagerPrev">‹ Trước</button>
+                <span class="pager-info" style="padding:0 4px" id="pagerNum"><b>1</b>/1</span>
+                <button class="pager-btn" id="pagerNext">Sau ›</button>
               </div>
-              <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả chưa quét</button>
-              <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
             </div>
           </div>
         </div>
 
-        <div class="tbl-wrap">
-          <div class="tbl-scroll">
-            <table>
-              <thead><tr><th style="width:42%">Sinh viên</th><th style="width:18%">MSSV</th><th style="width:22%">Trạng thái</th><th style="width:18%">Thời gian</th></tr></thead>
-              <tbody id="studentTbody"></tbody>
-            </table>
-          </div>
-          <div class="pager">
-            <div class="pager-info" id="pagerInfo">—</div>
-            <div class="pager-ctrl">
-              <select id="pagerSize">
-                <option value="10">10 / trang</option>
-                <option value="20" selected>20 / trang</option>
-                <option value="50">50 / trang</option>
-                <option value="100">100 / trang</option>
-              </select>
-              <button class="pager-btn" id="pagerPrev">‹ Trước</button>
-              <span class="pager-info" style="padding:0 4px" id="pagerNum"><b>1</b>/1</span>
-              <button class="pager-btn" id="pagerNext">Sau ›</button>
+        <div id="auditLogPanel" style="display:none">
+          <div class="tbl-wrap" style="padding:16px;background:var(--surface)">
+            <div id="auditLogList">
+              <div style="text-align:center;padding:24px;color:var(--muted);font-style:italic">Đang tải lịch sử thay đổi...</div>
             </div>
           </div>
         </div>
@@ -789,6 +824,44 @@ tbody tr:last-child td{border-bottom:none}
     <div class="modal-actions" style="margin-top:20px">
       <button onclick="closeBulkModal()">Huỷ</button>
       <button class="danger" id="bulkConfirmBtn">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal xác nhận mở lại phiên -->
+<div class="modal-bg" id="reopenModal">
+  <div class="modal">
+    <div class="modal-ic" style="background:var(--info-bg);color:var(--info)">🔄</div>
+    <h3>Mở lại phiên điểm danh</h3>
+    <p>Bạn có chắc muốn mở lại phiên này? Phiên sẽ chuyển thành <b>Đang mở</b>, sinh viên có thể tiếp tục quét mã QR.</p>
+    <div class="modal-actions" style="margin-top:20px">
+      <button onclick="closeReopenModal()">Huỷ</button>
+      <button class="primary" style="background:var(--info);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer" onclick="executeReopenSession()">✓ Mở lại phiên</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cập nhật trạng thái kèm Lý do (Audit Log) -->
+<div class="modal-bg" id="reasonModal">
+  <div class="modal" style="text-align:left">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="modal-ic" style="margin:0;width:40px;height:40px;font-size:18px;background:var(--info-bg);color:var(--info)">✏️</div>
+      <div>
+        <h3 style="margin:0;font-size:16px">Cập nhật điểm danh</h3>
+        <p style="margin:2px 0 0;font-size:12px;color:var(--muted)" id="reasonStudentName">—</p>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;padding:10px 12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px">
+      <span>Trạng thái mới:</span>
+      <b id="reasonNewStatusBadge" style="font-weight:800">—</b>
+    </div>
+    <div class="form-field" style="margin-bottom:14px">
+      <label for="reasonInputText" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">Lý do thay đổi (Lưu vào Audit Log):</label>
+      <input type="text" id="reasonInputText" placeholder="VD: SV xin vào muộn, điểm danh bù, nhầm lẫn..." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button onclick="closeReasonModal()">Huỷ</button>
+      <button class="primary" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer" onclick="confirmStatusChange()">Lưu thay đổi</button>
     </div>
   </div>
 </div>
@@ -932,30 +1005,50 @@ function toggleFullscreen(){
 }
 function updateStats(){
   const total = students.length;
-  let present = 0, absent = 0, unmarked = 0;
+  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
   students.forEach(s => {
     const a = attendanceMap[s.mssv];
     if (!a) unmarked++;
     else if (a.status === 'có mặt') present++;
+    else if (a.status === 'đi muộn') late++;
+    else if (a.status === 'vắng có phép') excused++;
     else absent++;
   });
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPresent').textContent = present;
+  const lateEl = document.getElementById('statLate');
+  if (lateEl) lateEl.textContent = late;
   document.getElementById('statAbsent').textContent = absent;
-  document.getElementById('statUnmarked').textContent = unmarked;
-  const pct = total ? Math.round((present / total) * 100) : 0;
+  const excEl = document.getElementById('statExcused');
+  if (excEl) excEl.textContent = excused;
+  const unmEl = document.getElementById('statUnmarked');
+  if (unmEl) unmEl.textContent = unmarked;
+
+  const pct = total ? Math.round(((present + late) / total) * 100) : 0;
   document.getElementById('progressPct').textContent = pct + '%';
   document.getElementById('progressFill').style.width = pct + '%';
-  const f = document.querySelectorAll('.filter');
-  f[0].querySelector('.count').textContent = total;
-  f[1].querySelector('.count').textContent = present;
-  f[2].querySelector('.count').textContent = absent;
-  f[3].querySelector('.count').textContent = unmarked;
+
+  const fAll = document.querySelector('.filter[data-status="all"] .count');
+  if (fAll) fAll.textContent = total;
+  const fPres = document.querySelector('.filter[data-status="present"] .count');
+  if (fPres) fPres.textContent = present;
+  const fLate = document.querySelector('.filter[data-status="late"] .count');
+  if (fLate) fLate.textContent = late;
+  const fAbs = document.querySelector('.filter[data-status="absent"] .count');
+  if (fAbs) fAbs.textContent = absent;
+  const fExc = document.querySelector('.filter[data-status="excused"] .count');
+  if (fExc) fExc.textContent = excused;
+  const fUnm = document.querySelector('.filter[data-status="unmarked"]');
+  if (fUnm) {
+    const fUnmCount = fUnm.querySelector('.count');
+    if (fUnmCount) fUnmCount.textContent = unmarked;
+    fUnm.style.display = unmarked > 0 ? 'inline-flex' : 'none';
+  }
 }
 function renderTable(){
   const list = students.filter(s => {
     const a = attendanceMap[s.mssv];
-    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : 'absent');
+    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : (a.status === 'đi muộn' ? 'late' : (a.status === 'vắng có phép' ? 'excused' : 'absent')));
     const ok1 = currentFilter === 'all' || currentFilter === status;
     const q = currentSearch.toLowerCase();
     const ok2 = !q || s.name.toLowerCase().includes(q) || s.mssv.includes(q);
@@ -972,17 +1065,18 @@ function renderTable(){
   } else {
     tbody.innerHTML = page.map(s => {
       const a = attendanceMap[s.mssv];
-      const status = a?.status || 'unmarked';
-      const selClass = status === 'có mặt' ? 'st-ok' : status === 'unmarked' ? 'st-none' : 'st-no';
+      const rawStatus = a?.status || 'unmarked';
+      const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
       const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
       return '<tr>' +
         '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
         '<td class="td-mono">' + s.mssv + '</td>' +
-        '<td><select class="status-select ' + selClass + '" onchange="changeStatus(\'' + s.mssv + '\', this.value)">' +
-          (status==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
-          '<option value="có mặt" ' + (status==='có mặt'?'selected':'') + '>Có mặt</option>' +
-          '<option value="vắng có phép" ' + (status==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
-          '<option value="vắng không phép" ' + (status==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
+        '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
+          (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
+          '<option value="có mặt" ' + (rawStatus==='có mặt'?'selected':'') + '>Có mặt</option>' +
+          '<option value="đi muộn" ' + (rawStatus==='đi muộn'?'selected':'') + '>Đi muộn</option>' +
+          '<option value="vắng có phép" ' + (rawStatus==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
+          '<option value="vắng không phép" ' + (rawStatus==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
         '</select></td>' +
         '<td class="td-mono">' + (a?.time || '—') + '</td></tr>';
     }).join('');
@@ -997,7 +1091,7 @@ function renderTable(){
 function renderFeed(){
   const feed = document.getElementById('feedList');
   const recent = Object.entries(attendanceMap)
-    .filter(([_, a]) => a.status === 'có mặt')
+    .filter(([_, a]) => a.status === 'có mặt' || a.status === 'đi muộn')
     .sort((a, b) => (b[1].time || '').localeCompare(a[1].time || ''))
     .slice(0, 5);
   if (!recent.length){ feed.innerHTML = '<div class="feed-empty">Chưa có ai điểm danh</div>'; return; }
@@ -1017,14 +1111,160 @@ async function openSession(){
   toast('ok', 'Đã mở phiên', '"' + name + '" — ' + dur + ' phút');
   await refreshAll();
 }
-async function changeStatus(mssv, newStatus){
-  if (!newStatus) return;
-  const { data, error } = await supabase.rpc('admin_set_status', { p_session_id: String(currentSession.id), p_mssv: mssv, p_status: newStatus });
-  if (error || !data?.ok){ toast('err', 'Cập nhật thất bại', data?.message || error?.message); return; }
+
+// Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
+let _pendingStatusChange = null;
+function promptChangeStatus(mssv, newStatus, selectEl){
+  if (!newStatus || !currentSession?.id) return;
   const s = students.find(x => x.mssv === mssv);
-  toast('ok', 'Đã cập nhật', (s?.name) + ' → ' + newStatus);
-  await loadAttendance(); renderAll();
+  const oldStatus = attendanceMap[mssv]?.status || 'chưa điểm danh';
+  _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
+
+  const modal = document.getElementById('reasonModal');
+  const title = document.getElementById('reasonModalTitle');
+  const desc = document.getElementById('reasonModalDesc');
+  const input = document.getElementById('reasonInput');
+
+  if (title) title.textContent = '📝 Xác nhận thay đổi trạng thái';
+  if (desc) {
+    desc.innerHTML = 'Sinh viên: <b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')<br>' +
+      'Trạng thái: <span class="audit-badge old">' + escapeHtml(oldStatus) + '</span> ➔ <span class="audit-badge new">' + escapeHtml(newStatus) + '</span>';
+  }
+  if (input) input.value = '';
+  if (modal) modal.classList.add('show');
+  if (input) setTimeout(() => input.focus(), 100);
 }
+function closeReasonModal(){
+  const modal = document.getElementById('reasonModal');
+  if (modal) modal.classList.remove('show');
+  if (_pendingStatusChange?.selectEl) {
+    renderTable(); // reset select về giá trị cũ
+  }
+  _pendingStatusChange = null;
+}
+async function executeStatusChange(){
+  if (!_pendingStatusChange || !currentSession?.id) return;
+  const { mssv, newStatus, studentName } = _pendingStatusChange;
+  const reason = (document.getElementById('reasonInput')?.value || '').trim();
+  const btn = document.getElementById('reasonConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
+
+  try {
+    const { data, error } = await supabase.rpc('admin_set_status', {
+      p_session_id: String(currentSession.id),
+      p_mssv: mssv,
+      p_status: newStatus,
+      p_reason: reason || null
+    });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể lưu thay đổi');
+    toast('ok', 'Đã cập nhật', studentName + ' → ' + newStatus);
+    const modal = document.getElementById('reasonModal');
+    if (modal) modal.classList.remove('show');
+    _pendingStatusChange = null;
+    await loadAttendance();
+    renderAll();
+    const tabAudit = document.getElementById('tabAuditLog');
+    if (tabAudit && tabAudit.classList.contains('active')) {
+      loadAuditLogs();
+    }
+  } catch(e) {
+    toast('err', 'Cập nhật thất bại', e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+  }
+}
+document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeStatusChange);
+document.getElementById('reasonInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') executeStatusChange();
+});
+
+// Chuyển Tabs trong Phiên
+function switchSessionTab(tabName){
+  const tabStudents = document.getElementById('tabStudentsList');
+  const tabAudit = document.getElementById('tabAuditLog');
+  const panelStudents = document.getElementById('studentsTabPanel');
+  const panelAudit = document.getElementById('auditLogPanel');
+  if (!tabStudents || !tabAudit) return;
+  if (tabName === 'audit') {
+    tabStudents.classList.remove('active');
+    tabAudit.classList.add('active');
+    if (panelStudents) panelStudents.style.display = 'none';
+    if (panelAudit) panelAudit.style.display = 'block';
+    loadAuditLogs();
+  } else {
+    tabAudit.classList.remove('active');
+    tabStudents.classList.add('active');
+    if (panelAudit) panelAudit.style.display = 'none';
+    if (panelStudents) panelStudents.style.display = 'block';
+  }
+}
+async function loadAuditLogs(){
+  const listEl = document.getElementById('auditLogList');
+  if (!listEl || !currentSession?.id) return;
+  listEl.innerHTML = '<div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px"><span class="spin"></span> Đang tải lịch sử thay đổi...</div>';
+  try {
+    const { data, error } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
+    if (error || !data?.ok){
+      listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi tải Audit Log: ' + escapeHtml(error?.message || data?.message || 'Không thể tải') + '</div>';
+      return;
+    }
+    const logs = data.logs || [];
+    if (!logs.length){
+      listEl.innerHTML = '<div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px"><div style="font-size:26px;margin-bottom:6px">🕒</div><b>Chưa có lịch sử thay đổi nào</b><p style="font-size:12px;margin-top:4px;color:var(--faint)">Mọi thao tác chỉnh sửa trạng thái điểm danh sẽ được ghi nhận tại đây.</p></div>';
+      return;
+    }
+    listEl.innerHTML = logs.map(l => {
+      const t = new Date(l.changed_at).toLocaleString('vi-VN');
+      const user = escapeHtml(l.changed_by || 'Admin');
+      const sName = escapeHtml(l.student_name || l.mssv);
+      const oldSt = escapeHtml(l.old_status || 'chưa điểm danh');
+      const newSt = escapeHtml(l.new_status);
+      const reason = l.reason ? '<div class="audit-reason">💬 Lý do: ' + escapeHtml(l.reason) + '</div>' : '';
+      return '<div class="audit-item">' +
+        '<div class="audit-item-top">' +
+          '<span class="audit-item-time">⏱ ' + t + '</span>' +
+          '<span class="audit-item-user">👤 ' + user + '</span>' +
+        '</div>' +
+        '<div class="audit-item-action">' +
+          '<b>' + sName + '</b> (' + escapeHtml(l.mssv) + '): ' +
+          '<span class="audit-badge old">' + oldSt + '</span> ➔ ' +
+          '<span class="audit-badge new">' + newSt + '</span>' +
+        '</div>' +
+        reason +
+      '</div>';
+    }).join('');
+  } catch(e){
+    listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi kết nối: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// Mở lại phiên đã đóng (closed -> active)
+function openReopenModal(){
+  const modal = document.getElementById('reopenModal');
+  if (modal) modal.classList.add('show');
+}
+function closeReopenModal(){
+  const modal = document.getElementById('reopenModal');
+  if (modal) modal.classList.remove('show');
+}
+async function executeReopenSession(){
+  if (!currentSession?.id) return;
+  const btn = document.getElementById('reopenConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang mở lại...'; }
+  try {
+    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: String(currentSession.id) });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại phiên');
+    closeReopenModal();
+    toast('ok', 'Đã mở lại phiên', 'Phiên điểm danh hiện đã hoạt động trở lại.');
+    await refreshAll();
+    await loadTodayHistory();
+  } catch(e){
+    toast('err', 'Mở lại thất bại', e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Xác nhận mở lại'; }
+  }
+}
+
 let _bulkCb = null;
 function showBulkModal(title, text, cb){
   document.getElementById('bulkTitle').textContent = title;
@@ -1039,7 +1279,7 @@ function confirmMarkAllAbsent(){
   if (!list.length) return toast('info', 'Không có SV nào chưa quét');
   showBulkModal('Đánh dấu vắng?', 'Sẽ đánh dấu <b>' + list.length + ' sinh viên</b> thành "Vắng không phép".', async () => {
     const { data, error } = await supabase.rpc('admin_batch_set_status', {
-      p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép'
+      p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép', p_reason: 'Admin đánh dấu vắng tất cả chưa quét'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Vắng');
@@ -1049,7 +1289,7 @@ function confirmMarkAllAbsent(){
 function confirmMarkAllPresent(){
   showBulkModal('Đánh dấu có mặt tất cả?', 'Sẽ đánh dấu <b>TẤT CẢ ' + students.length + ' sinh viên</b> thành "Có mặt".', async () => {
     const { data, error } = await supabase.rpc('admin_batch_set_status', {
-      p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt'
+      p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt', p_reason: 'Admin đánh dấu có mặt cả lớp'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Có mặt');
@@ -1057,11 +1297,13 @@ function confirmMarkAllPresent(){
   });
 }
 function openCloseModal(){
-  let present = 0, absent = 0, unmarked = 0;
+  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
   students.forEach(s => {
     const a = attendanceMap[s.mssv];
     if (!a) unmarked++;
     else if (a.status === 'có mặt') present++;
+    else if (a.status === 'đi muộn') late++;
+    else if (a.status === 'vắng có phép') excused++;
     else absent++;
   });
   document.getElementById('modalPresent').textContent = present;
@@ -1077,12 +1319,8 @@ function closeModalFn(){ document.getElementById('closeModal').classList.remove(
 // Đóng phiên TỰ ĐỘNG khi hết giờ (không cần confirm)
 async function autoCloseSession(){
   clearInterval(countdownTimer);
-  const sid = currentSession?.id ? String(currentSession.id) : '';
-  let res = await supabase.rpc('admin_close_session', { p_session_id: sid });
-  if (res.error && res.error.code === 'PGRST202') {
-    res = await supabase.rpc('admin_close_session');
-  }
-  const { data, error } = res;
+  const sid = currentSession?.id ? String(currentSession.id) : null;
+  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
   if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
   currentSession = null;
   showEmpty();
@@ -1111,19 +1349,15 @@ async function confirmCloseSession(){
   if (_closingSession) return;
   _closingSession = true;
   clearInterval(countdownTimer);
-  const sid = currentSession?.id ? String(currentSession.id) : '';
-  let res = await supabase.rpc('admin_close_session', { p_session_id: sid });
-  if (res.error && res.error.code === 'PGRST202') {
-    res = await supabase.rpc('admin_close_session');
-  }
-  const { data, error } = res;
+  const sid = currentSession?.id ? String(currentSession.id) : null;
+  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
   if (error || !data?.ok){
     toast('err', 'Đóng phiên thất bại', data?.message || error?.message);
     _closingSession = false;
     return;
   }
   closeModalFn();
-  toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử hôm nay".');
+  toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử điểm danh".');
   currentSession = null;
   showEmpty();
   await loadTodayHistory();
@@ -1151,7 +1385,7 @@ async function loadTodayHistory(){
     return;
   }
 
-  // Lưu map các phiên để có thể xem lại chi tiết ngay lập tức không phụ thuộc quyền bảng sessions
+  // Lưu map các phiên để có thể xem lại chi tiết ngay lập tức
   window._todaySessionsMap = {};
   data.sessions.forEach(s => { window._todaySessionsMap[s.id] = s; });
 
@@ -1159,7 +1393,7 @@ async function loadTodayHistory(){
   let totalPresent = 0;
   let totalAbsent = 0;
   data.sessions.forEach(s => {
-    totalPresent += (s.present || 0);
+    totalPresent += (s.present || 0) + (s.late || 0);
     totalAbsent += (s.absent || 0);
   });
   const grandTotal = totalPresent + totalAbsent;
@@ -1174,15 +1408,47 @@ async function loadTodayHistory(){
   }
 
   const itemsHtml = data.sessions.map(s => {
-    const t = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+    const tStart = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
     const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
-    const badge = s.is_open ? '<span class="rk-badge doing">Đang mở</span>' : '<span class="rk-badge todo">Đã đóng</span>';
-    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')"><div><div class="today-history-name">' + escapeHtml(s.session_name) + ' ' + badge + '</div>' +
-      '<div class="today-history-meta">' + d + ' · ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok);font-weight:700">' + s.present + ' ĐD</span> · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span></div></div></div>';
+    const badge = s.is_open ? '<span class="rk-badge doing">🟢 Đang mở</span>' : '<span class="rk-badge todo">🔴 Đã đóng</span>';
+    const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
+    const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
+    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="today-history-name" style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+          '<span>' + escapeHtml(s.session_name) + '</span>' +
+          badge +
+        '</div>' +
+        '<div class="today-history-meta" style="margin-top:4px">' +
+          d + ' ' + tStart + ' · ' + s.total + ' SV · ' +
+          '<span style="color:var(--ok);font-weight:700">' + s.present + ' có mặt</span>' +
+          lateText +
+          ' · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span>' +
+          excusedText +
+        '</div>' +
+      '</div>' +
+      '<div style="flex:none;display:flex;align-items:center;gap:6px">' +
+        '<button class="btn btn-secondary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
+        (!s.is_open ? '<button class="btn btn-primary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>' : '') +
+      '</div>' +
+    '</div>';
   }).join('');
 
   if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
   if (emptyList) { emptyList.innerHTML = itemsHtml; }
+}
+
+async function quickReopenSession(sid){
+  if (!confirm('Bạn có chắc muốn mở lại phiên điểm danh này?')) return;
+  try {
+    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: sid });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại');
+    toast('ok', 'Đã mở lại phiên', 'Phiên đã chuyển sang trạng thái đang hoạt động.');
+    await refreshAll();
+    await loadTodayHistory();
+  } catch(e){
+    toast('err', 'Lỗi', e.message);
+  }
 }
 
 async function loadTodaySchoolSchedule(){
@@ -1306,6 +1572,8 @@ async function refreshAll(){
   if (dz) dz.style.display = 'flex';
   const btnClose = document.getElementById('btnCloseSession');
   if (btnClose) btnClose.style.display = '';
+  const btnReopen = document.getElementById('btnReopenSession');
+  if (btnReopen) btnReopen.style.display = 'none';
   const btnBack = document.getElementById('btnBackToActive');
   if (btnBack) btnBack.style.display = 'none';
   const chip = document.getElementById('countdownChip');
@@ -1321,6 +1589,7 @@ async function refreshAll(){
     topbarPill.innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
   }
   showDashboard();
+  switchSessionTab('students');
   document.getElementById('sessionBarName').textContent = currentSession.session_name;
   document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
   document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
@@ -1370,6 +1639,8 @@ window.viewPastSession = async function(sid) {
   if (dz) dz.style.display = 'none';
   const btnClose = document.getElementById('btnCloseSession');
   if (btnClose) btnClose.style.display = 'none';
+  const btnReopenPast = document.getElementById('btnReopenSession');
+  if (btnReopenPast) btnReopenPast.style.display = 'inline-flex';
   const btnBack = document.getElementById('btnBackToActive');
   if (btnBack) btnBack.style.display = 'inline-flex';
   const chip = document.getElementById('countdownChip');
@@ -1388,6 +1659,7 @@ window.viewPastSession = async function(sid) {
   currentFilter = 'all';
   currentPage = 1;
   document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.status === 'all'));
+  switchSessionTab('students');
 
   await loadAttendance();
   renderAll();

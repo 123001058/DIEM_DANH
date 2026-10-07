@@ -32,12 +32,16 @@ create table if not exists public.attendance (
   mssv       text not null,
   full_name  text,
   status     text not null default 'có mặt'
-              check (status in ('có mặt','vắng có phép','vắng không phép')),
+              check (status in ('có mặt','đi muộn','vắng có phép','vắng không phép')),
   category   text,
   note       text,
   device_id  text,
   created_at timestamptz not null default now()
 );
+
+alter table public.attendance drop constraint if exists attendance_status_check;
+alter table public.attendance add constraint attendance_status_check
+  check (status in ('có mặt','đi muộn','vắng có phép','vắng không phép'));
 
 create unique index if not exists attendance_session_mssv_uq
   on public.attendance (session_id, mssv);
@@ -45,6 +49,22 @@ create unique index if not exists attendance_session_device_uq
   on public.attendance (session_id, device_id) where device_id is not null;
 create index if not exists attendance_session_idx
   on public.attendance (session_id, created_at desc);
+
+-- Bảng Audit Log ghi nhận lịch sử thay đổi trạng thái điểm danh
+create table if not exists public.attendance_audit_logs (
+  id           uuid primary key default gen_random_uuid(),
+  session_id   uuid not null references public.sessions(id) on delete cascade,
+  mssv         text not null,
+  student_name text,
+  old_status   text,
+  new_status   text not null,
+  changed_by   text not null default 'Admin',
+  reason       text,
+  changed_at   timestamptz not null default now()
+);
+
+create index if not exists idx_attendance_audit_logs_session
+  on public.attendance_audit_logs (session_id, changed_at desc);
 
 create table if not exists public.students (
   mssv text primary key,
@@ -186,6 +206,13 @@ grant select on public.profiles to authenticated;
 grant select on public.attendance to authenticated;
 grant select on public.sessions to authenticated;
 
+alter table public.attendance_audit_logs enable row level security;
+drop policy if exists admin_all_audit on public.attendance_audit_logs;
+create policy admin_all_audit on public.attendance_audit_logs
+  for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+grant select, insert on public.attendance_audit_logs to authenticated;
+
 create or replace function public.get_open_session()
 returns jsonb language sql volatile security definer
 set search_path = public, extensions, pg_temp
@@ -231,21 +258,9 @@ $$;
 revoke all on function public.admin_open_session(text, int, int) from public, anon;
 grant execute on function public.admin_open_session(text, int, int) to authenticated;
 
-create or replace function public.admin_close_session()
-returns jsonb language plpgsql volatile security definer
-set search_path = public, extensions, pg_temp
-as $$
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
-  end if;
-  update public.sessions set is_open = false where is_open = true;
-  return jsonb_build_object('ok', true);
-end;
-$$;
-
-revoke all on function public.admin_close_session() from public, anon;
-grant execute on function public.admin_close_session() to authenticated;
+-- Xóa sạch các phiên bản cũ của admin_close_session để tránh lỗi PGRST202 ambiguity overload
+drop function if exists public.admin_close_session();
+drop function if exists public.admin_close_session(text);
 
 create or replace function public.admin_regenerate_qr()
 returns jsonb language plpgsql volatile security definer
@@ -270,17 +285,21 @@ revoke all on function public.admin_regenerate_qr() from public, anon;
 grant execute on function public.admin_regenerate_qr() to authenticated;
 
 create or replace function public.admin_set_status(
-  p_session_id text, p_mssv text, p_status text
+  p_session_id text, p_mssv text, p_status text, p_reason text default null
 )
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
 as $$
-declare v_name text; v_sid uuid;
+declare
+  v_name text;
+  v_sid uuid;
+  v_old_status text;
+  v_admin_email text := coalesce(auth.jwt() ->> 'email', 'Admin');
 begin
   if not public.is_admin() then
     return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
   end if;
-  if p_status not in ('có mặt','vắng có phép','vắng không phép') then
+  if p_status not in ('có mặt','đi muộn','vắng có phép','vắng không phép') then
     return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
   end if;
   select name into v_name from public.students where mssv = p_mssv;
@@ -291,44 +310,175 @@ begin
   if v_sid is null then
     return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
   end if;
+
+  select status into v_old_status from public.attendance
+  where session_id = v_sid and mssv = p_mssv;
+
   insert into public.attendance (session_id, mssv, full_name, status, category, note)
-  values (v_sid, p_mssv, v_name, p_status, 'Admin', '')
-  on conflict (session_id, mssv) do update set status = excluded.status;
+  values (v_sid, p_mssv, v_name, p_status, 'Admin', coalesce(p_reason, ''))
+  on conflict (session_id, mssv) do update set
+    status = excluded.status,
+    note = case when excluded.note <> '' then excluded.note else public.attendance.note end;
+
+  -- Ghi nhận Audit Log
+  insert into public.attendance_audit_logs (
+    session_id, mssv, student_name, old_status, new_status, changed_by, reason, changed_at
+  ) values (
+    v_sid, p_mssv, v_name, coalesce(v_old_status, 'chưa điểm danh'), p_status,
+    v_admin_email, nullif(btrim(coalesce(p_reason, '')), ''), now()
+  );
+
   return jsonb_build_object('ok', true);
 end;
 $$;
 
+revoke all on function public.admin_set_status(text, text, text, text) from public, anon;
+grant execute on function public.admin_set_status(text, text, text, text) to authenticated;
+
+-- Hỗ trợ gọi 3 tham số
+create or replace function public.admin_set_status(
+  p_session_id text, p_mssv text, p_status text
+)
+returns jsonb language sql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+  select public.admin_set_status(p_session_id, p_mssv, p_status, null::text);
+$$;
 revoke all on function public.admin_set_status(text, text, text) from public, anon;
 grant execute on function public.admin_set_status(text, text, text) to authenticated;
 
 create or replace function public.admin_batch_set_status(
-  p_session_id text, p_mssv_list text[], p_status text
+  p_session_id text, p_mssv_list text[], p_status text, p_reason text default null
 )
 returns jsonb language plpgsql volatile security definer
 set search_path = public, extensions, pg_temp
 as $$
-declare v_sid uuid;
+declare
+  v_sid uuid;
+  v_admin_email text := coalesce(auth.jwt() ->> 'email', 'Admin');
 begin
   if not public.is_admin() then
     return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
   end if;
-  if p_status not in ('có mặt','vắng có phép','vắng không phép') then
+  if p_status not in ('có mặt','đi muộn','vắng có phép','vắng không phép') then
     return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
   end if;
   select id into v_sid from public.sessions where id::text = p_session_id;
   if v_sid is null then
     return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
   end if;
+
+  -- Ghi nhận Audit Log
+  insert into public.attendance_audit_logs (
+    session_id, mssv, student_name, old_status, new_status, changed_by, reason, changed_at
+  )
+  select
+    v_sid,
+    st.mssv,
+    st.name,
+    coalesce(a.status, 'chưa điểm danh'),
+    p_status,
+    v_admin_email,
+    coalesce(p_reason, 'Cập nhật hàng loạt'),
+    now()
+  from public.students st
+  left join public.attendance a on a.session_id = v_sid and a.mssv = st.mssv
+  where st.mssv = any(p_mssv_list);
+
   insert into public.attendance (session_id, mssv, full_name, status, category, note)
-  select v_sid, st.mssv, st.name, p_status, 'Admin Batch', ''
+  select v_sid, st.mssv, st.name, p_status, 'Admin Batch', coalesce(p_reason, '')
   from public.students st where st.mssv = any(p_mssv_list)
   on conflict (session_id, mssv) do update set status = excluded.status;
+
   return jsonb_build_object('ok', true, 'count', cardinality(p_mssv_list));
 end;
 $$;
 
+revoke all on function public.admin_batch_set_status(text, text[], text, text) from public, anon;
+grant execute on function public.admin_batch_set_status(text, text[], text, text) to authenticated;
+
+create or replace function public.admin_batch_set_status(
+  p_session_id text, p_mssv_list text[], p_status text
+)
+returns jsonb language sql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+  select public.admin_batch_set_status(p_session_id, p_mssv_list, p_status, null::text);
+$$;
 revoke all on function public.admin_batch_set_status(text, text[], text) from public, anon;
 grant execute on function public.admin_batch_set_status(text, text[], text) to authenticated;
+
+-- RPC MỞ LẠI PHIÊN ĐIỂM DANH ĐÃ ĐÓNG (closed -> active)
+create or replace function public.admin_reopen_session(p_session_id text)
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_sid uuid;
+  v_token text;
+  v_admin_email text := coalesce(auth.jwt() ->> 'email', 'Admin');
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+
+  select id into v_sid from public.sessions where id::text = p_session_id;
+  if v_sid is null then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy phiên.');
+  end if;
+
+  update public.sessions set is_open = false where is_open = true and id <> v_sid;
+
+  v_token := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+  update public.sessions set
+    is_open = true,
+    qr_token = v_token,
+    qr_born_at = now()
+  where id = v_sid;
+
+  insert into public.attendance_audit_logs (
+    session_id, mssv, student_name, old_status, new_status, changed_by, reason, changed_at
+  ) values (
+    v_sid, 'SYSTEM', 'Phiên điểm danh', 'closed', 'active',
+    v_admin_email, 'Admin mở lại phiên đã đóng', now()
+  );
+
+  return jsonb_build_object('ok', true, 'qr_token', v_token);
+end;
+$$;
+
+revoke all on function public.admin_reopen_session(text) from public, anon;
+grant execute on function public.admin_reopen_session(text) to authenticated;
+
+-- RPC LẤY LỊCH SỬ THAY ĐỔI (AUDIT LOGS) CỦA PHIÊN
+create or replace function public.admin_get_audit_logs(p_session_id text)
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+
+  return jsonb_build_object('ok', true, 'logs', (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', l.id,
+      'mssv', l.mssv,
+      'student_name', l.student_name,
+      'old_status', l.old_status,
+      'new_status', l.new_status,
+      'changed_by', l.changed_by,
+      'reason', l.reason,
+      'changed_at', l.changed_at
+    ) order by l.changed_at desc), '[]'::jsonb)
+    from public.attendance_audit_logs l
+    where l.session_id::text = p_session_id
+  ));
+end;
+$$;
+
+revoke all on function public.admin_get_audit_logs(text) from public, anon;
+grant execute on function public.admin_get_audit_logs(text) to authenticated;
 
 create or replace function public.submit_attendance(
   p_session_id text, p_token text, p_mssv text,
@@ -668,22 +818,16 @@ begin
   end if;
 
   -- KIỂM TRA TRÙNG LỊCH HỌC TRƯỜNG:
-  v_sess_end := s.started_at + (coalesce(s.duration_min, 240) * interval '1 minute');
+  -- Nếu sinh viên có lịch học tại thời điểm này nhưng có mặt quét QR ở xưởng thì vẫn cho phép điểm danh và lưu ghi chú
   select subject_name, room_name into v_sch_sub, v_sch_room
   from public.student_schedules
   where mssv = v_mssv
-    and start_time < v_sess_end
-    and end_time > s.started_at
+    and now() >= start_time
+    and now() <= end_time
   order by start_time asc limit 1;
 
-  if v_sch_sub is not null then
-    return jsonb_build_object(
-      'ok', false,
-      'code', 'HAS_CLASS_SCHEDULE',
-      'message', 'Theo lịch đào tạo, bạn đang có tiết học môn "' || v_sch_sub || '"' ||
-                 coalesce(' tại phòng ' || v_sch_room, '') ||
-                 '. Không được điểm danh ở xưởng!'
-    );
+  if v_sch_sub is not null and (v_note is null or v_note = '') then
+    v_note := 'Trùng lịch: ' || v_sch_sub || coalesce(' (' || v_sch_room || ')', '');
   end if;
 
   select status into v_existing_status from public.attendance
@@ -809,19 +953,24 @@ begin
   return jsonb_build_object('ok', true, 'sessions', (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', s.id, 'session_name', s.session_name,
-      'started_at', s.started_at, 'is_open', s.is_open,
+      'started_at', s.started_at,
+      'duration_min', s.duration_min,
+      'is_open', s.is_open,
+      'status', case when s.is_open then 'active' else 'closed' end,
       'present', (select count(*) from public.attendance a
                   where a.session_id = s.id and a.status = 'có mặt'),
+      'late', (select count(*) from public.attendance a
+               where a.session_id = s.id and a.status = 'đi muộn'),
       'absent', (select count(*) from public.attendance a
-                 where a.session_id = s.id
-                 and a.status in ('vắng có phép','vắng không phép')),
+                 where a.session_id = s.id and a.status = 'vắng không phép'),
+      'excused', (select count(*) from public.attendance a
+                  where a.session_id = s.id and a.status = 'vắng có phép'),
       'total', (select count(*) from public.students)
     ) order by s.started_at desc), '[]'::jsonb)
     from (
       select * from public.sessions s
-      where s.started_at >= current_date - interval '7 days'
       order by s.started_at desc
-      limit 7
+      limit 50
     ) s
   ));
 end;
