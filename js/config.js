@@ -12,7 +12,7 @@ const CONFIG = {
     CATEGORIES: ['Thiết kế', 'Cơ khí', 'Điện', 'Lập trình'],
     // Supabase Auth đăng nhập bằng email. Form chỉ hiện "Tên đăng nhập",
     // app tự ghép hậu tố này -> email nội bộ.
-    AUTH_EMAIL_SUFFIX: '@diemdanh.local',
+    AUTH_EMAIL_SUFFIX: '@sv.local',
 };
 
 // 2. Khởi tạo client Supabase (Sử dụng thư viện từ CDN)
