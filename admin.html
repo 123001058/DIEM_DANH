@@ -195,6 +195,310 @@ tbody tr:last-child td{border-bottom:none}
 .qr-panel:fullscreen .qr-actions .btn{padding:14px;font-size:15px}
 .qr-panel:fullscreen .qr-hint{max-width:min(70vh,80vw);font-size:13px;padding:12px 16px}
 @media(max-width:900px){body{padding:12px}.session-bar-name{max-width:220px}.thead-actions{justify-content:stretch;width:100%}.search-wrap,.search-wrap input{width:100%}}
+
+/* ==========================================================
+   EMPTY STATE REVAMP & WIDGETS
+   ========================================================== */
+.empty-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.25s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+}
+.kpi-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.kpi-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.kpi-icon-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.kpi-icon-badge.blue { background: #eff6ff; }
+.kpi-icon-badge.green { background: var(--ok-bg); }
+.kpi-icon-badge.red { background: var(--err-bg); }
+.kpi-icon-badge.purple { background: #f3e8ff; }
+.kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-top: 4px;
+}
+.kpi-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* 2-Column Main Layout */
+.empty-main-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1.15fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .empty-main-grid { grid-template-columns: 1fr; }
+}
+.empty-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.empty-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Session Create Card */
+.session-create-card {
+  padding: 22px 24px;
+}
+.scc-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.scc-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.scc-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.scc-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.session-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+.form-field input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  font-size: 13.5px;
+  outline: none;
+  background: var(--surface);
+  transition: .15s;
+  font-family: inherit;
+}
+.form-field input:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 12px;
+  align-items: end;
+}
+@media (max-width: 500px) {
+  .form-row-2 { grid-template-columns: 1fr; }
+}
+.btn-open-session {
+  height: 42px;
+  font-size: 13.5px;
+  justify-content: center;
+}
+
+/* Widgets Header */
+.widget-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.widget-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.widget-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.widget-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.widget-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--info);
+  text-decoration: none;
+}
+.widget-link:hover { text-decoration: underline; }
+.count-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* Schedule Widget Card */
+.schedule-widget-card {
+  padding: 20px 22px;
+}
+.schedule-list-wrap {
+  max-height: 290px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.schedule-mini-item {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: transform .1s ease, border-color .1s ease;
+}
+.schedule-mini-item:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.sc-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sc-student-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sc-student-mssv {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--muted);
+}
+.sc-item-subject {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--info);
+}
+.sc-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.room-chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.06);
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+/* History Widget Card */
+.history-widget-card {
+  padding: 20px 22px;
+}
+.history-list-wrap {
+  max-height: 480px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.btn-sm {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+.btn-icon.btn-sm {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.schedule-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
 </style>
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -225,37 +529,112 @@ tbody tr:last-child td{border-bottom:none}
     <span>⚠️</span><span><b>Mất kết nối mạng.</b> Đang thử kết nối lại...</span>
   </div>
 
-  <section class="card empty-state" id="emptyState" style="display:none">
-    <div class="empty-icon">
-      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
-    </div>
-    <h2>Chưa có phiên điểm danh nào</h2>
-    <p>Tạo phiên mới để bắt đầu điểm danh. QR sẽ đứng yên — chiếu lên máy chiếu cả buổi.</p>
-    <div class="quick-form">
-      <div class="quick-field">
-        <label>Tên phiên *</label>
-        <input type="text" id="quickName" placeholder="VD: Kiểm tra thiết bị C503">
-      </div>
-      <div class="quick-field">
-        <label>Thời gian (phút)</label>
-        <input type="number" id="quickDuration" value="90" min="1">
-      </div>
-      <button class="btn btn-primary" style="padding:11px 18px;height:42px" onclick="openSession()">▶ Mở phiên</button>
-    </div>
-    <div class="today-history" id="emptyTodayHistoryWrap" style="display:none;margin-top:24px;text-align:left;width:100%;max-width:560px">
-      <div class="today-history-head">
-        <div>
-          <div class="thead-title">Lịch sử phiên gần đây</div>
-          <p style="font-size:12px;color:var(--muted);margin-top:2px">7 phiên gần nhất trong 7 ngày qua</p>
+    <div id="emptyState" class="empty-layout" style="display:none">
+    <!-- Dải KPI thống kê tổng quan -->
+    <div class="kpi-grid">
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tổng quân số</span>
+          <span class="kpi-icon-badge blue">👥</span>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-danger" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử điểm danh">🗑 Xóa lịch sử</button>
-          <button class="btn btn-icon" onclick="loadTodayHistory()" title="Làm mới">↻</button>
-        </div>
+        <div class="kpi-val" id="kpiTotalStudents">31</div>
+        <div class="kpi-sub">Thành viên đội Robocon (23TD111)</div>
       </div>
-      <div id="emptyTodayHistoryList"></div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tỉ lệ có mặt</span>
+          <span class="kpi-icon-badge green">📈</span>
+        </div>
+        <div class="kpi-val" id="kpiPresentRate" style="color:var(--ok)">--%</div>
+        <div class="kpi-sub">Trung bình các phiên gần đây</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tỉ lệ vắng</span>
+          <span class="kpi-icon-badge red">📉</span>
+        </div>
+        <div class="kpi-val" id="kpiAbsentRate" style="color:var(--err)">--%</div>
+        <div class="kpi-sub">Cần cải thiện chuyên cần</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Lịch học trường hôm nay</span>
+          <span class="kpi-icon-badge purple">🏫</span>
+        </div>
+        <div class="kpi-val" id="kpiBusyCount" style="color:var(--info)">--</div>
+        <div class="kpi-sub">SV có lịch học trên trường</div>
+      </div>
     </div>
-  </section>
+
+    <!-- Bố cục 2 cột chính -->
+    <div class="empty-main-grid">
+      <!-- Cột Trái: Tạo phiên + Lịch học hôm nay -->
+      <div class="empty-col-left">
+        <!-- Khởi tạo phiên -->
+        <section class="card session-create-card">
+          <div class="scc-header">
+            <div class="scc-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
+            </div>
+            <div>
+              <h2 class="scc-title">Khởi tạo phiên điểm danh mới</h2>
+              <p class="scc-sub">Mã QR đứng yên — thuận tiện chiếu máy chiếu cả buổi.</p>
+            </div>
+          </div>
+
+          <div class="session-form">
+            <div class="form-field">
+              <label for="quickName">Tên phiên điểm danh *</label>
+              <input type="text" id="quickName" placeholder="VD: Buổi làm Robocon C503">
+            </div>
+            <div class="form-row-2">
+              <div class="form-field">
+                <label for="quickDuration">Thời lượng (phút)</label>
+                <input type="number" id="quickDuration" value="90" min="1">
+              </div>
+              <button class="btn btn-primary btn-open-session" onclick="openSession()">▶ Mở phiên điểm danh</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Widget: Lịch học trường hôm nay -->
+        <section class="card schedule-widget-card">
+          <div class="widget-head">
+            <div class="widget-title-wrap">
+              <span class="widget-title">🏫 Sinh viên bận học trường hôm nay</span>
+              <span class="count-badge" id="todaySchoolScheduleCount">0 bạn</span>
+            </div>
+            <a href="lichhoc.html" class="widget-link" title="Xem thời khóa biểu chi tiết">Chi tiết TKB →</a>
+          </div>
+          <div class="schedule-list-wrap" id="todaySchoolScheduleList">
+            <div class="schedule-loading">Đang tải lịch học hôm nay...</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Cột Phải: Lịch sử phiên gần đây -->
+      <div class="empty-col-right">
+        <section class="card history-widget-card">
+          <div class="widget-head">
+            <div>
+              <div class="widget-title">📋 Lịch sử phiên gần đây</div>
+              <p class="widget-sub">7 phiên gần nhất trong 7 ngày qua</p>
+            </div>
+            <div class="widget-actions">
+              <button class="btn btn-danger btn-sm" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử các phiên đã đóng">🗑 Xóa lịch sử</button>
+              <button class="btn btn-icon btn-sm" onclick="loadTodayHistory()" title="Làm mới">↻</button>
+            </div>
+          </div>
+          <div class="history-list-wrap" id="emptyTodayHistoryList">
+            <div class="schedule-loading">Đang tải lịch sử...</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
 
   <div class="dashboard" id="dashboard" style="display:none">
     <div class="card session-bar">
@@ -491,11 +870,13 @@ async function loadAttendance(){
   });
 }
 function showEmpty(){
-  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'flex';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
   document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đã đóng</span>';
   clearInterval(countdownTimer);
+  loadTodayHistory();
+  loadTodaySchoolSchedule();
 }
 function showDashboard(){
   document.getElementById('emptyState').style.display = 'none';
@@ -744,23 +1125,125 @@ async function loadTodayHistory(){
   const { data, error } = await supabase.rpc('admin_today_sessions');
   const wrap = document.getElementById('todayHistoryWrap');
   const list = document.getElementById('todayHistoryList');
-  const emptyWrap = document.getElementById('emptyTodayHistoryWrap');
   const emptyList = document.getElementById('emptyTodayHistoryList');
+  const kpiPresentRateEl = document.getElementById('kpiPresentRate');
+  const kpiAbsentRateEl = document.getElementById('kpiAbsentRate');
+
   if (error || !data?.ok || !data.sessions?.length){
     if (wrap) wrap.style.display = 'none';
-    if (emptyWrap) emptyWrap.style.display = 'none';
+    if (emptyList) {
+      emptyList.innerHTML = `
+        <div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px">
+          <div style="font-size:26px;margin-bottom:8px">📋</div>
+          <b>Chưa có lịch sử phiên nào</b>
+          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Các phiên điểm danh gần đây sẽ hiển thị tại đây.</p>
+        </div>`;
+    }
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '—%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '—%';
     return;
   }
+
+  // Tính KPI tổng quan từ các phiên gần nhất
+  let totalPresent = 0;
+  let totalAbsent = 0;
+  data.sessions.forEach(s => {
+    totalPresent += (s.present || 0);
+    totalAbsent += (s.absent || 0);
+  });
+  const grandTotal = totalPresent + totalAbsent;
+  if (grandTotal > 0){
+    const pRate = Math.round((totalPresent / grandTotal) * 100);
+    const aRate = 100 - pRate;
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = pRate + '%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = aRate + '%';
+  } else {
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '0%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '0%';
+  }
+
   const itemsHtml = data.sessions.map(s => {
     const t = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
     const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
     const badge = s.is_open ? '<span class="rk-badge doing">Đang mở</span>' : '<span class="rk-badge todo">Đã đóng</span>';
     return '<div class="today-history-item"><div><div class="today-history-name">' + escapeHtml(s.session_name) + ' ' + badge + '</div>' +
-      '<div class="today-history-meta">' + d + ' · ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok)">' + s.present + ' ĐD</span> · <span style="color:var(--err)">' + s.absent + ' vắng</span></div></div></div>';
+      '<div class="today-history-meta">' + d + ' · ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok);font-weight:700">' + s.present + ' ĐD</span> · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span></div></div></div>';
   }).join('');
+
   if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
-  if (emptyWrap && emptyList) { emptyWrap.style.display = 'block'; emptyList.innerHTML = itemsHtml; }
+  if (emptyList) { emptyList.innerHTML = itemsHtml; }
 }
+
+async function loadTodaySchoolSchedule(){
+  const listEl = document.getElementById('todaySchoolScheduleList');
+  const countBadge = document.getElementById('todaySchoolScheduleCount');
+  const kpiBusyEl = document.getElementById('kpiBusyCount');
+  if (!listEl) return;
+
+  try {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const startStr = `${y}-${m}-${d}T00:00:00`;
+    const endStr = `${y}-${m}-${d}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('student_schedules')
+      .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
+      .gte('start_time', startStr)
+      .lte('start_time', endStr)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error('Lỗi khi tải lịch học trường:', error);
+      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">Không thể tải lịch học trường</div>';
+      return;
+    }
+
+    const items = data || [];
+    const studentMap = {};
+    (students || []).forEach(s => { studentMap[s.mssv] = s.name; });
+
+    const busyMssvs = new Set(items.map(s => s.mssv));
+    const busyCount = busyMssvs.size;
+
+    if (countBadge) countBadge.textContent = busyCount + ' bạn';
+    if (kpiBusyEl) kpiBusyEl.textContent = busyCount;
+
+    if (items.length === 0){
+      listEl.innerHTML = `
+        <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
+          <div style="font-size:26px;margin-bottom:6px">🎉</div>
+          <b>Hôm nay cả đội không vướng lịch học trường!</b>
+          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tham gia xưởng đầy đủ.</p>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = items.map(sc => {
+      const sName = studentMap[sc.mssv] || sc.mssv;
+      const tStart = new Date(sc.start_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const tEnd = new Date(sc.end_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const room = sc.room_name ? `<span class="room-chip">${escapeHtml(sc.room_name)}</span>` : '';
+      return `
+        <div class="schedule-mini-item">
+          <div class="sc-item-header">
+            <span class="sc-student-name">${escapeHtml(sName)}</span>
+            <span class="sc-student-mssv">${escapeHtml(sc.mssv)}</span>
+          </div>
+          <div class="sc-item-subject">📚 ${escapeHtml(sc.subject_name)}</div>
+          <div class="sc-item-meta">
+            <span>⏱ ${tStart} – ${tEnd}</span>
+            ${room}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('loadTodaySchoolSchedule error:', err);
+  }
+}
+
 function startCountdown(){
   clearInterval(countdownTimer);
   tickCountdown();
@@ -819,8 +1302,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const user = await checkAuth();
   if (!user) return;
   await loadStudents();
+  const kpiTotalEl = document.getElementById('kpiTotalStudents');
+  if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
   await refreshAll();
   await loadTodayHistory();
+  await loadTodaySchoolSchedule();
   setupRealtime();
 
   document.getElementById('filters').addEventListener('click', e => {
