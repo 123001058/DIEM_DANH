@@ -846,25 +846,25 @@ tbody tr:last-child td{border-bottom:none}
 
 <!-- Modal cập nhật trạng thái kèm Lý do (Audit Log) -->
 <div class="modal-bg" id="reasonModal">
-  <div class="modal" style="text-align:left">
+  <div class="modal" style="text-align:left;max-width:440px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div class="modal-ic" style="margin:0;width:40px;height:40px;font-size:18px;background:var(--info-bg);color:var(--info)">✏️</div>
+      <div class="modal-ic" style="margin:0;width:40px;height:40px;font-size:18px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;border-radius:10px">✏️</div>
       <div>
         <h3 style="margin:0;font-size:16px">Cập nhật điểm danh</h3>
-        <p style="margin:2px 0 0;font-size:12px;color:var(--muted)" id="reasonStudentName">—</p>
+        <p style="margin:2px 0 0;font-size:12.5px;color:var(--muted)" id="reasonStudentInfo">—</p>
       </div>
     </div>
     <div style="margin-bottom:12px;padding:10px 12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px">
       <span>Trạng thái mới:</span>
-      <b id="reasonNewStatusBadge" style="font-weight:800">—</b>
+      <b id="reasonStatusDisplay" style="font-weight:800">—</b>
     </div>
     <div class="form-field" style="margin-bottom:14px">
-      <label for="reasonInputText" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">Lý do thay đổi (Lưu vào Audit Log):</label>
-      <input type="text" id="reasonInputText" placeholder="VD: SV xin vào muộn, điểm danh bù, nhầm lẫn..." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+      <label for="reasonInput" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">LÝ DO THAY ĐỔI (LƯU VÀO AUDIT LOG):</label>
+      <input type="text" id="reasonInput" placeholder="VD: SV xin vào muộn, điểm danh bù, nhầm lẫn..." style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
     </div>
-    <div class="modal-actions" style="margin-top:16px">
-      <button onclick="closeReasonModal()">Huỷ</button>
-      <button class="primary" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer" onclick="confirmStatusChange()">Lưu thay đổi</button>
+    <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeReasonModal()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-family:inherit;font-weight:600">Huỷ</button>
+      <button id="reasonConfirmBtn" onclick="executeStatusChange()" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Lưu thay đổi</button>
     </div>
   </div>
 </div>
@@ -1124,14 +1124,13 @@ function promptChangeStatus(mssv, newStatus, selectEl){
   _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
 
   const modal = document.getElementById('reasonModal');
-  const title = document.getElementById('reasonModalTitle');
-  const desc = document.getElementById('reasonModalDesc');
+  const infoEl = document.getElementById('reasonStudentInfo');
+  const statusEl = document.getElementById('reasonStatusDisplay');
   const input = document.getElementById('reasonInput');
 
-  if (title) title.textContent = '📝 Xác nhận thay đổi trạng thái';
-  if (desc) {
-    desc.innerHTML = 'Sinh viên: <b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')<br>' +
-      'Trạng thái: <span class="audit-badge old">' + escapeHtml(oldStatus) + '</span> ➔ <span class="audit-badge new">' + escapeHtml(newStatus) + '</span>';
+  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')';
+  if (statusEl) {
+    statusEl.innerHTML = '<span class="audit-badge old" style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.06)">' + escapeHtml(oldStatus) + '</span> ➔ <span class="audit-badge new" style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--ok-bg);color:var(--ok)">' + escapeHtml(newStatus) + '</span>';
   }
   if (input) input.value = '';
   if (modal) modal.classList.add('show');
