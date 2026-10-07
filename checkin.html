@@ -357,8 +357,11 @@ async function doCheckin(){
     });
     if (error){ showResult('error', 'Lỗi: ' + error.message); }
     else if (!data?.ok){
-      const type = data?.code === 'ALREADY' ? 'warning' : 'error';
-      showResult(type, (data?.code === 'ALREADY' ? '✓ ' : '✕ ') + (data.message || 'Điểm danh thất bại.'));
+      let type = 'error';
+      let icon = '✕ ';
+      if (data?.code === 'ALREADY'){ type = 'warning'; icon = '✓ '; }
+      else if (data?.code === 'HAS_CLASS_SCHEDULE'){ type = 'warning'; icon = '⛔ '; }
+      showResult(type, icon + (data.message || 'Điểm danh thất bại.'));
     } else {
       playChime();
       const { data: sum } = await supabase.rpc('get_session_summary', { p_session_id: String(currentSession.id) });

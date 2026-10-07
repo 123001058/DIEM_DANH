@@ -573,8 +573,9 @@ function renderTable(){
       const a = attendanceMap[s.mssv];
       const status = a?.status || 'unmarked';
       const selClass = status === 'có mặt' ? 'st-ok' : status === 'unmarked' ? 'st-none' : 'st-no';
+      const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
       return '<tr>' +
-        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div class="td-name">' + escapeHtml(s.name) + '</div></div></td>' +
+        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
         '<td class="td-mono">' + s.mssv + '</td>' +
         '<td><select class="status-select ' + selClass + '" onchange="changeStatus(\'' + s.mssv + '\', this.value)">' +
           (status==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
@@ -688,17 +689,20 @@ async function autoCloseSession(){
 }
 
 async function confirmDeleteHistory(){
-  if (!confirm('Xóa toàn bộ lịch sử điểm danh hôm nay? Hành động này không thể hoàn tác.')){
+  if (!confirm('Xóa toàn bộ lịch sử điểm danh và các phiên đã đóng hôm nay? Hành động này không thể hoàn tác.')){
     return;
   }
   const { data, error } = await supabase.rpc('admin_delete_attendance');
   if (error || !data?.ok){
-    toast('err', 'Xóa thất bại', data?.message || error?.message);
+    const msg = error ? (error.message || JSON.stringify(error)) : (data?.message || 'Lỗi không xác định');
+    toast('err', 'Xóa thất bại', msg);
+    console.error('Lỗi khi gọi admin_delete_attendance:', error, data);
     return;
   }
-  toast('ok', 'Đã xóa', 'Đã xóa ' + data.deleted + ' hồ sơ điểm danh.');
+  toast('ok', 'Đã xóa lịch sử', 'Đã xóa ' + (data.deleted || 0) + ' hồ sơ điểm danh.');
   await loadTodayHistory();
-  await refreshAll();
+  if (typeof refreshAll === 'function') await refreshAll();
+  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
 }
 
 // Đóng phiên THỦ CÔNG qua modal xác nhận
