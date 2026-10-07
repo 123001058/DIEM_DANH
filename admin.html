@@ -1166,7 +1166,7 @@ async function loadTodayHistory(){
     const t = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
     const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
     const badge = s.is_open ? '<span class="rk-badge doing">Đang mở</span>' : '<span class="rk-badge todo">Đã đóng</span>';
-    return '<div class="today-history-item"><div><div class="today-history-name">' + escapeHtml(s.session_name) + ' ' + badge + '</div>' +
+    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')"><div><div class="today-history-name">' + escapeHtml(s.session_name) + ' ' + badge + '</div>' +
       '<div class="today-history-meta">' + d + ' · ' + t + ' · ' + s.total + ' SV · <span style="color:var(--ok);font-weight:700">' + s.present + ' ĐD</span> · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span></div></div></div>';
   }).join('');
 
@@ -1287,6 +1287,12 @@ function renderAll(){ updateStats(); renderTable(); renderFeed(); }
 async function refreshAll(){
   await loadSession();
   if (!currentSession){ showEmpty(); return; }
+  document.querySelector('.main-grid').style.gridTemplateColumns = '';
+  document.getElementById('qrPanel').style.display = '';
+  document.querySelector('.danger-zone').style.display = 'flex';
+  document.getElementById('countdownChip').style.display = 'inline-flex';
+  document.getElementById('sessionBarPill').className = 'session-pill pill-on';
+  document.getElementById('sessionBarPill').innerHTML = '<span class="net-dot"></span>Đang mở';
   showDashboard();
   document.getElementById('sessionBarName').textContent = currentSession.session_name;
   document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
@@ -1298,6 +1304,26 @@ async function refreshAll(){
   renderQR(); renderAll(); startCountdown();
   _closingSession = false;
 }
+
+window.viewPastSession = async function(sid) {
+  const { data, error } = await supabase.from('sessions').select('*').eq('id', sid).single();
+  if (!data) return toast('err', 'Lỗi', 'Không thể xem chi tiết phiên này.');
+  currentSession = data;
+  showDashboard();
+  document.querySelector('.main-grid').style.gridTemplateColumns = '1fr';
+  document.getElementById('qrPanel').style.display = 'none';
+  document.querySelector('.danger-zone').style.display = 'none';
+  document.getElementById('countdownChip').style.display = 'none';
+  document.getElementById('sessionBarPill').className = 'session-pill pill-off';
+  document.getElementById('sessionBarPill').innerHTML = '<span class="net-dot"></span>Đã đóng';
+  document.getElementById('sessionBarName').textContent = currentSession.session_name;
+  document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
+  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
+  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
+  await loadAttendance();
+  renderAll();
+  clearInterval(countdownTimer);
+};
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await checkAuth();
   if (!user) return;
