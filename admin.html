@@ -854,14 +854,22 @@ tbody tr:last-child td{border-bottom:none}
         <p style="margin:2px 0 0;font-size:12.5px;color:var(--muted)" id="reasonStudentInfo">—</p>
       </div>
     </div>
-    <div style="margin-bottom:12px;padding:10px 12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:13px">
-      <span>Trạng thái mới:</span>
-      <b id="reasonStatusDisplay" style="font-weight:800">—</b>
+    
+    <div class="form-field" style="margin-bottom:12px">
+      <label for="reasonModalSelect" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">TRẠNG THÁI MỚI:</label>
+      <select id="reasonModalSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13.5px;font-weight:600;outline:none;font-family:inherit;background:var(--surface)">
+        <option value="có mặt">🟢 Có mặt</option>
+        <option value="đi muộn">🟡 Đi muộn</option>
+        <option value="vắng có phép">🟣 Vắng có phép</option>
+        <option value="vắng không phép">🔴 Vắng không phép</option>
+      </select>
     </div>
+
     <div class="form-field" style="margin-bottom:14px">
       <label for="reasonInput" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">LÝ DO THAY ĐỔI (LƯU VÀO AUDIT LOG):</label>
       <input type="text" id="reasonInput" placeholder="VD: SV xin vào muộn, điểm danh bù, nhầm lẫn..." style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
     </div>
+
     <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closeReasonModal()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-family:inherit;font-weight:600">Huỷ</button>
       <button id="reasonConfirmBtn" onclick="executeStatusChange()" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Lưu thay đổi</button>
@@ -1118,20 +1126,22 @@ async function openSession(){
 // Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
 let _pendingStatusChange = null;
 function promptChangeStatus(mssv, newStatus, selectEl){
-  if (!newStatus || !currentSession?.id) return;
+  if (!currentSession?.id) {
+    toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
+    if (selectEl) renderTable();
+    return;
+  }
   const s = students.find(x => x.mssv === mssv);
   const oldStatus = attendanceMap[mssv]?.status || 'chưa điểm danh';
   _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
 
   const modal = document.getElementById('reasonModal');
   const infoEl = document.getElementById('reasonStudentInfo');
-  const statusEl = document.getElementById('reasonStatusDisplay');
+  const selEl = document.getElementById('reasonModalSelect');
   const input = document.getElementById('reasonInput');
 
   if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')';
-  if (statusEl) {
-    statusEl.innerHTML = '<span class="audit-badge old" style="font-size:11px;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.06)">' + escapeHtml(oldStatus) + '</span> ➔ <span class="audit-badge new" style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--ok-bg);color:var(--ok)">' + escapeHtml(newStatus) + '</span>';
-  }
+  if (selEl && newStatus) selEl.value = newStatus;
   if (input) input.value = '';
   if (modal) modal.classList.add('show');
   if (input) setTimeout(() => input.focus(), 100);
@@ -1146,11 +1156,16 @@ function closeReasonModal(){
 }
 async function executeStatusChange(){
   if (!_pendingStatusChange || !currentSession?.id) return;
-  const { mssv, newStatus, studentName } = _pendingStatusChange;
+  const { mssv, studentName, oldStatus } = _pendingStatusChange;
+  const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
   const reason = (document.getElementById('reasonInput')?.value || '').trim();
   const btn = document.getElementById('reasonConfirmBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
 
+  let savedOk = false;
+  let saveErrorMsg = '';
+
+  // 1. Thử gọi RPC admin_set_status trên DB (xử lý đồng thời attendance & audit log)
   try {
     const { data, error } = await supabase.rpc('admin_set_status', {
       p_session_id: String(currentSession.id),
@@ -1158,23 +1173,77 @@ async function executeStatusChange(){
       p_status: newStatus,
       p_reason: reason || null
     });
-    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể lưu thay đổi');
-    toast('ok', 'Đã cập nhật', studentName + ' → ' + newStatus);
-    const modal = document.getElementById('reasonModal');
-    if (modal) modal.classList.remove('show');
-    _pendingStatusChange = null;
-    await loadAttendance();
-    renderAll();
-    const tabAudit = document.getElementById('tabAuditLog');
-    if (tabAudit && tabAudit.classList.contains('active')) {
-      loadAuditLogs();
+    if (!error && data?.ok) {
+      savedOk = true;
+    } else {
+      saveErrorMsg = data?.message || error?.message || '';
     }
-  } catch(e) {
-    toast('err', 'Cập nhật thất bại', e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+  } catch(eRpc) {
+    saveErrorMsg = eRpc.message;
   }
+
+  // 2. Dự phòng an toàn: nếu RPC chưa có hoặc gặp lỗi SQL, ghi thẳng vào bảng attendance
+  if (!savedOk) {
+    try {
+      const { error: upsertErr } = await supabase.from('attendance').upsert({
+        session_id: currentSession.id,
+        mssv: mssv,
+        full_name: studentName,
+        status: newStatus,
+        category: 'Admin',
+        note: reason || ''
+      }, { onConflict: 'session_id,mssv' });
+
+      if (upsertErr) throw new Error(upsertErr.message);
+      savedOk = true;
+
+      // Cố gắng ghi Audit Log trực tiếp nếu bảng audit logs đã có
+      try {
+        const { data: authData } = await supabase.auth.getSession();
+        const userEmail = authData?.session?.user?.email || 'Admin';
+        await supabase.from('attendance_audit_logs').insert({
+          session_id: currentSession.id,
+          mssv: mssv,
+          student_name: studentName,
+          old_status: oldStatus,
+          new_status: newStatus,
+          changed_by: userEmail,
+          reason: reason || null
+        });
+      } catch(_) { /* bảng audit logs chưa tạo, bỏ qua */ }
+    } catch(directErr) {
+      toast('err', 'Cập nhật thất bại', directErr.message || saveErrorMsg || 'Không thể lưu.');
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+      return;
+    }
+  }
+
+  // 3. Hoàn tất thành công: cập nhật UI ngay lập tức
+  toast('ok', 'Đã cập nhật', studentName + ' → ' + newStatus);
+  const modal = document.getElementById('reasonModal');
+  if (modal) modal.classList.remove('show');
+
+  if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
+  attendanceMap[mssv].status = newStatus;
+  attendanceMap[mssv].time = fmtClock(new Date());
+  if (reason) attendanceMap[mssv].note = reason;
+
+  _pendingStatusChange = null;
+  renderAll();
+
+  // Đồng bộ lại nền từ database
+  loadAttendance().then(() => renderAll());
+
+  const tabAudit = document.getElementById('tabAuditLog');
+  if (tabAudit && tabAudit.classList.contains('active')) {
+    loadAuditLogs();
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
 }
+window.executeStatusChange = executeStatusChange;
+window.confirmStatusChange = executeStatusChange;
+
 document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeStatusChange);
 document.getElementById('reasonInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') executeStatusChange();

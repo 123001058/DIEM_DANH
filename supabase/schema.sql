@@ -303,8 +303,9 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
   end if;
   select name into v_name from public.students where mssv = p_mssv;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên.');
+  if v_name is null then
+    select full_name into v_name from public.attendance where session_id = v_sid and mssv = p_mssv limit 1;
+    v_name := coalesce(v_name, p_mssv);
   end if;
   select id into v_sid from public.sessions where id::text = p_session_id;
   if v_sid is null then
