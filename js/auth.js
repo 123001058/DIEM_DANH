@@ -1,23 +1,18 @@
-// js/auth.js — Đăng nhập chuẩn Supabase (Đơn giản nhất)
-const AUTH_SUFFIX = '@sv.local';
-
-function openLogin() {
-  document.getElementById('modalBg').classList.add('show');
-  setTimeout(() => document.getElementById('mssvInput')?.focus(), 100);
-}
-
-function closeLogin() {
-  document.getElementById('modalBg').classList.remove('show');
-}
-
 async function submitLogin() {
-  const accountInput = document.getElementById('mssvInput').value.trim();
+  // Chuẩn hóa: trim + lowercase (Supabase email phân biệt hoa thường)
+  const mssv = document.getElementById('mssvInput').value.trim().toLowerCase();
   const pwd = document.getElementById('pwdInput').value;
   const err = document.getElementById('errBox');
   err.innerText = '';
 
-  if (!accountInput || !pwd) {
-    err.innerText = 'Vui lòng nhập tài khoản và mật khẩu.';
+  if (!mssv || !pwd) {
+    err.innerText = 'Vui lòng nhập MSSV và mật khẩu.';
+    return;
+  }
+
+  // Nới lỏng: cho phép chữ + số + . _ - (3-32 ký tự)
+  if (!/^[a-z0-9._-]{3,32}$/.test(mssv)) {
+    err.innerText = 'MSSV chỉ chứa chữ, số, dấu chấm, gạch ngang, gạch dưới (3–32 ký tự).';
     return;
   }
 
@@ -25,69 +20,21 @@ async function submitLogin() {
   btn.disabled = true;
   btn.innerText = 'Đang đăng nhập...';
 
-  try {
-    // 1. Chuẩn hóa email (Nếu nhập MSSV thì tự thêm hậu tố)
-    let email = accountInput.toLowerCase();
-    if (!email.includes('@')) {
-      email += AUTH_SUFFIX;
-    }
+  const email = mssv + AUTH_SUFFIX;
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pwd });
 
-    // 2. Đăng nhập trực tiếp qua Supabase Auth
-    const { data, error } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password: pwd 
-    });
+  btn.disabled = false;
+  btn.innerText = 'Đăng nhập';
 
-    if (error) {
-      err.innerText = error.message || 'Sai tài khoản hoặc mật khẩu.';
-      btn.disabled = false;
-      btn.innerText = 'Đăng nhập';
-      return;
-    }
-
-    // 3. Kiểm tra quyền Admin thông qua RPC 'is_admin' (Bạn set quyền này trên Supabase)
-    const { data: isAdm, error: admError } = await supabase.rpc('is_admin');
-    
-    if (admError) {
-      console.warn('Lỗi check admin:', admError);
-    }
-
-    // Điều hướng dựa trên quyền
-    if (isAdm) {
-      location.href = 'admin.html';
-    } else {
-      location.href = 'checkin.html';
-    }
-
-  } catch (e) {
-    err.innerText = 'Lỗi hệ thống: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.innerText = 'Đăng nhập';
+  if (error) {
+    const m = (error.message || '').toLowerCase();
+    err.innerText = m.includes('invalid') ? 'Sai MSSV hoặc mật khẩu.' :
+      error.message || 'Đăng nhập thất bại.';
+    return;
   }
-}
 
-async function autoLogin() {
-  try {
-    const { data } = await supabase.auth.getSession();
-    if (data?.session) {
-      const { data: isAdm } = await supabase.rpc('is_admin');
-      const btn = document.getElementById('btnOpenLogin');
-      if (btn) {
-        btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
-        btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
-      }
-      return;
-    }
-  } catch (e) {
-    console.warn('[autoLogin]', e);
-  }
-}
+  try { localStorage.setItem('saved_creds', JSON.stringify({ email, pwd, mssv })); } catch (e) { }
 
-document.addEventListener('DOMContentLoaded', () => {
-  autoLogin();
-  const m = document.getElementById('mssvInput');
-  const p = document.getElementById('pwdInput');
-  m?.addEventListener('keydown', e => { if (e.key === 'Enter') p?.focus(); });
-  p?.addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
-});
+  const { data: isAdm } = await supabase.rpc('is_admin');
+  location.href = isAdm ? 'admin.html' : 'checkin.html';
+}
