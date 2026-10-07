@@ -196,9 +196,9 @@ tbody tr:last-child td{border-bottom:none}
 .qr-panel:fullscreen .qr-hint{max-width:min(70vh,80vw);font-size:13px;padding:12px 16px}
 @media(max-width:900px){body{padding:12px}.session-bar-name{max-width:220px}.thead-actions{justify-content:stretch;width:100%}.search-wrap,.search-wrap input{width:100%}}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js?v=5"></script>
+<script src="js/config.js?v=6"></script>
 </head>
 <body>
 
@@ -488,12 +488,18 @@ function showDashboard(){
   document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
 }
 function renderQR(){
+  if (!currentSession || !currentSession.id || !currentSession.qr_token) return;
   const canvas = document.getElementById('qrCanvas');
+  if (!canvas) return;
   canvas.innerHTML = '';
   const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
   const url = base + '/checkin.html?s=' + encodeURIComponent(currentSession.id) + '&t=' + encodeURIComponent(currentSession.qr_token);
-  new QRCode(canvas, { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
-  document.getElementById('qrBorn').textContent = fmtClock(new Date(currentSession.qr_born_at));
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(canvas, { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
+  }
+  if (currentSession.qr_born_at) {
+    document.getElementById('qrBorn').textContent = fmtClock(new Date(currentSession.qr_born_at));
+  }
 }
 async function regenerateQR(){
   const btn = document.getElementById('btnRefreshQr');
@@ -501,8 +507,13 @@ async function regenerateQR(){
   const old = btn.innerHTML;
   btn.innerHTML = '⏳ Đang tạo...';
   try {
-    const { data, error } = await supabase.rpc('admin_regenerate_qr');
+    let res = await supabase.rpc('admin_regenerate_qr');
+    if (res.error && res.error.code === 'PGRST203' && currentSession?.id) {
+      res = await supabase.rpc('admin_regenerate_qr', { p_session_id: String(currentSession.id) });
+    }
+    const { data, error } = res;
     if (error || !data?.ok) throw new Error(data?.message || error?.message);
+    if (!currentSession) currentSession = {};
     currentSession.qr_token = data.qr_token;
     currentSession.qr_born_at = data.qr_born_at;
     renderQR();
@@ -661,7 +672,12 @@ function closeModalFn(){ document.getElementById('closeModal').classList.remove(
 // Đóng phiên TỰ ĐỘNG khi hết giờ (không cần confirm)
 async function autoCloseSession(){
   clearInterval(countdownTimer);
-  const { data, error } = await supabase.rpc('admin_close_session');
+  const sid = currentSession?.id ? String(currentSession.id) : '';
+  let res = await supabase.rpc('admin_close_session', { p_session_id: sid });
+  if (res.error && res.error.code === 'PGRST202') {
+    res = await supabase.rpc('admin_close_session');
+  }
+  const { data, error } = res;
   if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
   currentSession = null;
   showEmpty();
@@ -674,7 +690,12 @@ async function confirmCloseSession(){
   _closingSession = true;
   closeModalFn();
   clearInterval(countdownTimer);
-  const { data, error } = await supabase.rpc('admin_close_session');
+  const sid = currentSession?.id ? String(currentSession.id) : '';
+  let res = await supabase.rpc('admin_close_session', { p_session_id: sid });
+  if (res.error && res.error.code === 'PGRST202') {
+    res = await supabase.rpc('admin_close_session');
+  }
+  const { data, error } = res;
   if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
   toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử hôm nay".');
   currentSession = null;
