@@ -66,7 +66,8 @@ insert into public.students (mssv, name) values
   ('125000550','Nguyễn Duy Tiến'),('123000432','Trần Thành Long'),
   ('123000375','Phạm Đinh Tài Lộc'),('123001394','Đỗ Văn Quyền'),
   ('125000890','Lê Ngô Gia Bảo'),('125001087','Cao Anh Tú'),
-  ('124001273','Vũ Tiến Dũng'),('122000426','Nguyễn Văn Hậu')
+  ('124001273','Vũ Tiến Dũng'),('122000426','Nguyễn Văn Hậu'),
+  ('125001343','Dương Công Mạnh')
 on conflict (mssv) do update set name = excluded.name;
 
 create table if not exists public.profiles (
@@ -488,6 +489,25 @@ $$;
 
 revoke all on function public.admin_today_sessions() from public, anon;
 grant execute on function public.admin_today_sessions() to authenticated;
+
+create or replace function public.admin_delete_attendance()
+returns jsonb language plpgsql volatile security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_count int;
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Không có quyền.');
+  end if;
+  delete from public.attendance;
+  get diagnostics v_count = row_count;
+  return jsonb_build_object('ok', true, 'deleted', v_count);
+end;
+$$;
+
+revoke all on function public.admin_delete_attendance() from public, anon;
+grant execute on function public.admin_delete_attendance() to authenticated;
 
 do $$ begin
   alter publication supabase_realtime add table public.attendance;
