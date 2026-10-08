@@ -50,10 +50,7 @@ serve(async (req) => {
       .eq('mssv', target_mssv)
       .maybeSingle()
 
-    if (profileErr || !targetProfile) {
-      return new Response(JSON.stringify({ error: 'Student not found in profiles' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
-    }
-    const targetUserId = targetProfile.user_id
+    let targetUserId = targetProfile?.user_id
 
     // Check if target is also an admin (disallow resetting other admins)
     const { data: targetAdmin } = await supabaseAdmin
@@ -69,13 +66,43 @@ serve(async (req) => {
     // Generate temporary password
     const tempPassword = Math.random().toString(36).slice(-8)
 
-    // Reset password
-    const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
-      password: tempPassword
-    })
+    if (!targetUserId) {
+      // Missing in profiles/Auth. Check if exists in students table
+      const { data: student } = await supabaseAdmin.from('students').select('name').eq('mssv', target_mssv).maybeSingle()
+      
+      if (!student) {
+        return new Response(JSON.stringify({ error: 'Student not found in students list' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
+      }
 
-    if (resetErr) {
-      return new Response(JSON.stringify({ error: 'Failed to reset password: ' + resetErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      // Create new auth user
+      const { data: newAuth, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email: `${target_mssv}@sv.local`,
+        password: tempPassword,
+        email_confirm: true
+      })
+
+      if (createErr) {
+        return new Response(JSON.stringify({ error: 'Failed to create missing user: ' + createErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      }
+      
+      targetUserId = newAuth.user.id
+
+      // Upsert profile
+      await supabaseAdmin.from('profiles').upsert({
+        user_id: targetUserId,
+        mssv: target_mssv,
+        full_name: student.name,
+        is_admin: false
+      })
+    } else {
+      // Reset password for existing user
+      const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        password: tempPassword
+      })
+
+      if (resetErr) {
+        return new Response(JSON.stringify({ error: 'Failed to reset password: ' + resetErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      }
     }
 
     return new Response(JSON.stringify({ tempPassword }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
