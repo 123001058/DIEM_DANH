@@ -1618,6 +1618,19 @@ async function confirmDeleteHistory(){
   else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
 }
 
+async function deleteSpecificSession(sid) {
+  if (!confirm('Xóa phiên điểm danh này? Dữ liệu của phiên cũng sẽ bị xóa. Không thể hoàn tác.')) return;
+  const { error } = await supabase.from('attendance_sessions').delete().eq('id', sid);
+  if (error) {
+    toast('err', 'Xóa thất bại', error.message);
+    return;
+  }
+  toast('ok', 'Đã xóa', 'Phiên điểm danh đã được xóa.');
+  await loadTodayHistory();
+  if (typeof refreshAll === 'function') await refreshAll();
+  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
+}
+
 // Đóng phiên THỦ CÔNG qua modal xác nhận
 async function confirmCloseSession(){
   if (_closingSession) return;
@@ -1704,6 +1717,7 @@ async function loadTodayHistory(){
       '<div style="flex:none;display:flex;align-items:center;gap:6px">' +
         '<button class="btn btn-secondary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
         (!s.is_open ? '<button class="btn btn-primary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>' : '') +
+        '<button class="btn btn-danger" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
       '</div>' +
     '</div>';
   }).join('');
