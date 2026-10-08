@@ -954,9 +954,24 @@ async function loadAttendance(){
     toast('err', 'Lỗi tải điểm danh', error.message || 'Không thể tải dữ liệu điểm danh.');
     return;
   }
+  let latestAuditMap = {};
+  try {
+    const { data: auditData } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
+    if (auditData && auditData.ok && auditData.logs) {
+      // Sắp xếp tăng dần theo thời gian trước (nếu mssv xuất hiện nhiều lần, cái sau sẽ ghi đè cái trước)
+      const logs = auditData.logs.sort((a, b) => new Date(a.changed_at) - new Date(b.changed_at));
+      logs.forEach(l => {
+        latestAuditMap[l.mssv] = l.changed_at;
+      });
+    }
+  } catch(e) {
+    console.warn('Cannot fetch audit logs for time display, falling back to created_at', e);
+  }
+
   attendanceMap = {};
   (data || []).forEach(r => {
-    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), category: r.category || '', note: r.note || '' };
+    const finalTime = latestAuditMap[r.mssv] || r.created_at;
+    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(finalTime)), category: r.category || '', note: r.note || '' };
   });
 }
 function showEmpty(){
@@ -1176,8 +1191,6 @@ async function executeStatusChange(){
     });
     if (!error && data?.ok) {
       savedOk = true;
-      // Đồng bộ thời gian thực tế vào CSDL
-      await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).eq('mssv', mssv);
     } else {
       saveErrorMsg = data?.message || error?.message || '';
     }
@@ -1194,8 +1207,7 @@ async function executeStatusChange(){
         full_name: studentName,
         status: newStatus,
         category: 'Admin',
-        note: reason || '',
-        created_at: new Date().toISOString()
+        note: reason || ''
       }, { onConflict: 'session_id,mssv' });
 
       if (upsertErr) throw new Error(upsertErr.message);
@@ -1359,7 +1371,6 @@ function confirmMarkAllAbsent(){
       p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép', p_reason: 'Admin đánh dấu vắng tất cả chưa quét'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
-    await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).in('mssv', list.map(s => s.mssv));
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Vắng');
     await loadAttendance(); renderAll();
   });
@@ -1370,7 +1381,6 @@ function confirmMarkAllPresent(){
       p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt', p_reason: 'Admin đánh dấu có mặt cả lớp'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
-    await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).in('mssv', students.map(s => s.mssv));
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Có mặt');
     await loadAttendance(); renderAll();
   });
