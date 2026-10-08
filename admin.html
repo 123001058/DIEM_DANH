@@ -1620,9 +1620,9 @@ async function confirmDeleteHistory(){
 
 async function deleteSpecificSession(sid) {
   if (!confirm('Xóa phiên điểm danh này? Dữ liệu của phiên cũng sẽ bị xóa. Không thể hoàn tác.')) return;
-  const { error } = await supabase.from('sessions').delete().eq('id', sid);
-  if (error) {
-    toast('err', 'Xóa thất bại', error.message);
+  const { data, error } = await supabase.rpc('admin_delete_session', { p_session_id: sid });
+  if (error || (data && !data.ok)) {
+    toast('err', 'Xóa thất bại', error?.message || data?.message || 'Lỗi không xác định');
     return;
   }
   toast('ok', 'Đã xóa', 'Phiên điểm danh đã được xóa.');
