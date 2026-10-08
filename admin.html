@@ -1195,8 +1195,18 @@ async function resetStudentPassword(mssv, requestId = null) {
   
   toast('info', 'Đang xử lý', 'Vui lòng chờ...');
   try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    
+    if (!token) {
+      throw new Error('Phiên đăng nhập không hợp lệ. Vui lòng tải lại trang.');
+    }
+
     const { data, error } = await supabase.functions.invoke('admin-reset-password', {
-      body: { target_mssv: mssv }
+      body: { target_mssv: mssv },
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
     });
     
     if (error) {
