@@ -1199,7 +1199,14 @@ async function resetStudentPassword(mssv, requestId = null) {
       body: { target_mssv: mssv }
     });
     
-    if (error) throw error;
+    if (error) {
+      let extra = '';
+      if (error.context && typeof error.context.text === 'function') {
+        const bodyText = await error.context.text();
+        extra = '\\n' + bodyText;
+      }
+      throw new Error(error.message + extra);
+    }
     if (data?.error) throw new Error(data.error);
     
     document.getElementById('tempPwdText').innerText = data.tempPassword;
@@ -1218,7 +1225,7 @@ async function resetStudentPassword(mssv, requestId = null) {
     
     toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
   } catch (err) {
-    console.error(err);
+    console.error('Edge Function Error:', err);
     toast('err', 'Lỗi reset mật khẩu', err.message);
   }
 }
