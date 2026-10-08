@@ -30,13 +30,9 @@ serve(async (req) => {
     const callerId = userData.user.id
 
     // Check if caller is Admin
-    const { data: adminData, error: adminErr } = await supabaseAdmin
-      .from('admin_mssv')
-      .select('mssv')
-      .eq('user_id', callerId)
-      .maybeSingle()
+    const { data: isAdmin, error: adminErr } = await supabaseClient.rpc('is_admin')
       
-    if (adminErr || !adminData) {
+    if (adminErr || !isAdmin) {
       return new Response(JSON.stringify({ error: 'Permission denied (Not Admin)' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 })
     }
 
@@ -61,7 +57,7 @@ serve(async (req) => {
     const { data: targetAdmin } = await supabaseAdmin
       .from('admin_mssv')
       .select('mssv')
-      .eq('user_id', targetUserId)
+      .eq('mssv', target_mssv)
       .maybeSingle()
 
     if (targetAdmin) {
