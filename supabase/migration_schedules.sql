@@ -23,7 +23,7 @@ alter table public.student_schedules enable row level security;
 
 drop policy if exists "Allow read student_schedules" on public.student_schedules;
 create policy "Allow read student_schedules" on public.student_schedules
-  for select to authenticated using (true);
+  for select using (true);
 
 -- Đảm bảo sinh viên 125001343 có trong bảng students nếu chưa có
 insert into public.students (mssv, name)

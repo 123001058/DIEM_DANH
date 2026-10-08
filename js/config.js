@@ -36,11 +36,9 @@ let validStudents = [];
 
 async function loadStudents() {
   try {
-    // Thêm timestamp để tránh cache trình duyệt
-    const res = await fetch('./students.json?t=' + Date.now());
-    if (!res.ok) throw new Error('Không load được students.json');
-    const data = await res.json();
-    validStudents = Array.isArray(data.students) ? data.students : [];
+    const { data, error } = await window.supabase.from('students').select('*').order('mssv');
+    if (error) throw error;
+    validStudents = data || [];
     return validStudents;
   } catch (e) {
     console.error('[loadStudents] Lỗi:', e);

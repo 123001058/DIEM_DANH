@@ -193,7 +193,7 @@ create policy admin_all_att on public.attendance
 
 drop policy if exists read_students on public.students;
 create policy read_students on public.students
-  for select to authenticated using (true);
+  for select using (true);
 
 revoke all on public.sessions, public.attendance, public.students,
               public.admin_mssv, public.profiles from anon, authenticated;

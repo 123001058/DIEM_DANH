@@ -166,31 +166,54 @@
 
   // Fetch data
   async function loadData() {
-    // Tự động nhận diện sinh viên nếu đã đăng nhập
     try {
-      if (typeof supabase !== 'undefined') {
-        const { data: authData } = await supabase.auth.getSession();
-        if (authData?.session?.user) {
-          const { data: prof } = await supabase
-            .from('profiles').select('mssv').eq('user_id', authData.session.user.id).maybeSingle();
-          if (prof?.mssv) {
-            localStorage.setItem('selected_tkb_mssv', prof.mssv);
-          }
-        }
+      if (typeof window.supabase === 'undefined') throw new Error('Supabase client chưa khởi tạo.');
+      
+      const { data: authData } = await window.supabase.auth.getSession();
+      if (authData?.session?.user) {
+        const { data: prof } = await window.supabase
+          .from('profiles').select('mssv').eq('user_id', authData.session.user.id).maybeSingle();
+        if (prof?.mssv) localStorage.setItem('selected_tkb_mssv', prof.mssv);
       }
-    } catch (e) {
-      console.warn('[auth check lichhoc]', e);
-    }
 
-    try {
-      const res = await fetch('lich_hoc_tong_hop.json?t=' + Date.now());
-      if (!res.ok) throw new Error('Không thể tải file lich_hoc_tong_hop.json');
-      allStudentsData = await res.json();
+      // Lấy từ Supabase thay vì JSON tĩnh
+      const { data: studentsData, error: stuErr } = await window.supabase.from('students').select('*').order('mssv');
+      if (stuErr) throw stuErr;
+
+      const { data: schedulesData, error: schErr } = await window.supabase.from('student_schedules').select('*');
+      if (schErr) throw schErr;
+
+      const schedMap = {};
+      (schedulesData || []).forEach(s => {
+        if (!schedMap[s.mssv]) schedMap[s.mssv] = [];
+        const t = new Date(s.start_time);
+        const hour = t.getHours();
+        let buoi = 1;
+        if (hour >= 12 && hour < 17) buoi = 2;
+        else if (hour >= 17) buoi = 3;
+
+        schedMap[s.mssv].push({
+          ThoiGianBD: s.start_time,
+          ThoiGianKT: s.end_time,
+          TenMonHoc: s.subject_name,
+          TenPhong: s.room_name || 'Online',
+          GiaoVien: s.teacher_name || '',
+          Thu: s.day_of_week || (t.getDay() === 0 ? 8 : t.getDay() + 1),
+          Buoi: buoi,
+          TenCoSo: s.room_name ? 'Trường' : 'Online',
+          GoogleMap: ''
+        });
+      });
+
+      allStudentsData = (studentsData || []).map(st => ({
+        mssv: st.mssv,
+        name: st.name,
+        schedule: schedMap[st.mssv] || []
+      }));
 
       buildSemesterWeeks();
       renderStudentDropdown();
 
-      // Pick default student: check localStorage or default to 123001058
       const savedMssv = localStorage.getItem('selected_tkb_mssv') || '123001058';
       let target = allStudentsData.find(s => s.mssv === savedMssv);
       if (!target && allStudentsData.length > 0) target = allStudentsData[0];
@@ -204,7 +227,7 @@
         timetableContainer.innerHTML = `
           <div class="tkb-empty-state">
             <p style="color:var(--err);font-weight:700;">Lỗi tải dữ liệu lịch học: ${err.message}</p>
-            <p>Vui lòng đảm bảo server đang chạy và file lich_hoc_tong_hop.json có sẵn.</p>
+            <p>Vui lòng đảm bảo bạn đã đăng nhập và RLS Supabase cho phép đọc.</p>
           </div>
         `;
       }
