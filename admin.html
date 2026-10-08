@@ -851,8 +851,11 @@ tbody tr:last-child td{border-bottom:none}
   <div class="modal">
     <div class="modal-ic" style="background:#dcfce7;color:#16a34a">🔑</div>
     <h3>Đã cấp mật khẩu mới</h3>
-    <p>Vui lòng copy và gửi mật khẩu tạm này cho sinh viên. Sinh viên sẽ bị buộc đổi mật khẩu ở lần đăng nhập tiếp theo.</p>
-    <div style="background:#f1f5f9;padding:12px;border-radius:8px;margin:16px 0;font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:1px;color:#0f172a" id="tempPwdText"></div>
+    <p style="color:var(--err); font-weight: 600;">⚠️ Chỉ gửi password này cho đúng sinh viên.</p>
+    <div style="background:#f1f5f9;padding:12px;border-radius:8px;margin:16px 0;font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:1px;color:#0f172a;display:flex;justify-content:space-between;align-items:center;">
+      <span id="tempPwdText"></span>
+      <button class="btn" style="background:#e2e8f0;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer" onclick="navigator.clipboard.writeText(document.getElementById('tempPwdText').innerText).then(()=>toast('ok','Đã copy','Mật khẩu tạm đã được copy'))">Copy</button>
+    </div>
     <div class="modal-actions">
       <button class="btn-ok" onclick="document.getElementById('resetPwdModal').classList.remove('show')">Đóng</button>
     </div>
@@ -1161,7 +1164,7 @@ async function openSession(){
 let _pendingStatusChange = null;
 
 async function resetStudentPassword(mssv) {
-  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không? Sinh viên sẽ bị buộc đổi mật khẩu lại.')) return;
+  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không?')) return;
   
   toast('info', 'Đang xử lý', 'Vui lòng chờ...');
   try {

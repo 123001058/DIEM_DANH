@@ -65,6 +65,9 @@
       <p>Sử dụng MSSV và mật khẩu được cấp</p>
       <input type="text" id="mssvInput" placeholder="Mã số sinh viên" autocomplete="username" inputmode="numeric">
       <input type="password" id="pwdInput" placeholder="Mật khẩu" autocomplete="current-password">
+      <div style="text-align: right; margin-top: -6px; margin-bottom: 12px;">
+        <a href="javascript:void(0)" onclick="alert('Nếu bạn quên mật khẩu, vui lòng liên hệ quản trị viên (Admin) để được cấp lại mật khẩu tạm.')" style="font-size: 11.5px; color: var(--accent); font-weight: 600; text-decoration: none;">Quên mật khẩu?</a>
+      </div>
       <div id="errBox" role="alert"></div>
       <div class="modal-actions">
         <button type="button" onclick="closeLogin()">Huỷ</button>
