@@ -845,6 +845,19 @@ tbody tr:last-child td{border-bottom:none}
   </div>
 </div>
 
+<!-- Modal kết quả Reset Mật khẩu -->
+<div class="modal-bg" id="resetPwdModal">
+  <div class="modal">
+    <div class="modal-ic" style="background:#dcfce7;color:#16a34a">🔑</div>
+    <h3>Đã cấp mật khẩu mới</h3>
+    <p>Vui lòng copy và gửi mật khẩu tạm này cho sinh viên. Sinh viên sẽ bị buộc đổi mật khẩu ở lần đăng nhập tiếp theo.</p>
+    <div style="background:#f1f5f9;padding:12px;border-radius:8px;margin:16px 0;font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:1px;color:#0f172a" id="tempPwdText"></div>
+    <div class="modal-actions">
+      <button class="btn-ok" onclick="document.getElementById('resetPwdModal').classList.remove('show')">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cập nhật trạng thái kèm Lý do (Audit Log) -->
 <div class="modal-bg" id="reasonModal">
   <div class="modal" style="text-align:left;max-width:440px">
@@ -917,7 +930,11 @@ async function checkAuth(){
     location.href = 'index.html';
     return null;
   }
-  const { data: prof } = await supabase.from('profiles').select('full_name, mssv').eq('user_id', auth.session.user.id).maybeSingle();
+  const { data: prof } = await supabase.from('profiles').select('full_name, mssv, must_change_password').eq('user_id', auth.session.user.id).maybeSingle();
+  if (prof?.must_change_password) {
+    location.href = 'change-password.html';
+    return null;
+  }
   document.getElementById('adminName').textContent = prof?.full_name || '—';
   document.getElementById('adminMssv').textContent = prof?.mssv || '—';
   supabase.auth.onAuthStateChange(e => { if (e === 'SIGNED_OUT') location.href = 'index.html'; });
@@ -1097,7 +1114,7 @@ function renderTable(){
       const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
       return '<tr>' +
         '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
-        '<td class="td-mono">' + s.mssv + '</td>' +
+        '<td class="td-mono">' + s.mssv + '<br><button onclick="resetStudentPassword(\'' + s.mssv + '\')" style="margin-top:6px;font-size:10.5px;padding:3px 6px;border-radius:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;color:#334155" title="Cấp lại mật khẩu">🔑 Reset Pass</button></td>' +
         '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
           (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
           '<option value="có mặt" ' + (rawStatus==='có mặt'?'selected':'') + '>Có mặt</option>' +
@@ -1141,6 +1158,28 @@ async function openSession(){
 
 // Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
 let _pendingStatusChange = null;
+
+async function resetStudentPassword(mssv) {
+  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không? Sinh viên sẽ bị buộc đổi mật khẩu lại.')) return;
+  
+  toast('info', 'Đang xử lý', 'Vui lòng chờ...');
+  try {
+    const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+      body: { target_mssv: mssv }
+    });
+    
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    
+    document.getElementById('tempPwdText').innerText = data.tempPassword;
+    document.getElementById('resetPwdModal').classList.add('show');
+    toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
+  } catch (err) {
+    console.error(err);
+    toast('err', 'Lỗi reset mật khẩu', err.message);
+  }
+}
+
 function promptChangeStatus(mssv, newStatus, selectEl){
   if (!currentSession?.id) {
     toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');

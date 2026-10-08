@@ -277,7 +277,11 @@ async function loadProfile(){
   const { data: auth } = await supabase.auth.getSession();
   if (!auth?.session){ location.href = 'index.html'; return false; }
   currentUser = auth.session.user;
-  const { data: prof } = await supabase.from('profiles').select('full_name, mssv').eq('user_id', currentUser.id).maybeSingle();
+  const { data: prof } = await supabase.from('profiles').select('full_name, mssv, must_change_password').eq('user_id', currentUser.id).maybeSingle();
+  if (prof?.must_change_password) {
+    location.href = 'change-password.html';
+    return false;
+  }
   currentProfile = prof || {};
   const name = currentProfile.full_name || currentUser.email;
   const mssv = currentProfile.mssv || '';

@@ -94,7 +94,8 @@ create table if not exists public.profiles (
   user_id   uuid primary key references auth.users(id) on delete cascade,
   username  text unique,
   full_name text,
-  mssv      text unique
+  mssv      text unique,
+  must_change_password boolean default false
 );
 
 create table if not exists public.admin_mssv (
@@ -134,6 +135,28 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Trigger tự động gỡ cờ must_change_password khi mật khẩu thực sự bị thay đổi
+create or replace function public.handle_password_changed()
+returns trigger language plpgsql
+security definer set search_path = public, extensions, pg_temp
+as $$
+begin
+  if old.encrypted_password is distinct from new.encrypted_password then
+    if (old.raw_app_meta_data->>'admin_reset_at') is distinct from (new.raw_app_meta_data->>'admin_reset_at') then
+      update public.profiles set must_change_password = true where user_id = new.id;
+    else
+      update public.profiles set must_change_password = false where user_id = new.id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_password_changed on auth.users;
+create trigger on_password_changed
+  after update on auth.users
+  for each row execute function public.handle_password_changed();
 
 do $$
 declare r record;

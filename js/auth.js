@@ -43,7 +43,16 @@ async function submitLogin() {
       return;
     }
 
-    try { localStorage.setItem('saved_creds', JSON.stringify({ email, pwd, mssv: rawInput })); } catch (e) { }
+    try { 
+      localStorage.removeItem('saved_creds'); 
+      localStorage.setItem('saved_mssv', rawInput); 
+    } catch (e) { }
+
+    const { data: profile } = await supabase.from('profiles').select('must_change_password').eq('user_id', data.user.id).single();
+    if (profile?.must_change_password) {
+      location.href = 'change-password.html';
+      return;
+    }
 
     const { data: isAdm } = await supabase.rpc('is_admin');
     location.href = isAdm ? 'admin.html' : 'checkin.html';
@@ -61,11 +70,18 @@ async function autoLogin() {
   try {
     const { data } = await supabase.auth.getSession();
     if (data?.session) {
-      const { data: isAdm } = await supabase.rpc('is_admin');
+      const { data: profile } = await supabase.from('profiles').select('must_change_password').eq('user_id', data.session.user.id).single();
+      
       const btn = document.getElementById('btnOpenLogin');
       if (btn) {
-        btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
-        btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
+        if (profile?.must_change_password) {
+          btn.innerHTML = '🔒 Đổi mật khẩu bảo mật →';
+          btn.onclick = () => { location.href = 'change-password.html'; };
+        } else {
+          const { data: isAdm } = await supabase.rpc('is_admin');
+          btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
+          btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
+        }
       }
     }
   } catch (e) {
@@ -77,6 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
   autoLogin();
   const m = document.getElementById('mssvInput');
   const p = document.getElementById('pwdInput');
+  
+  try {
+    const savedMssv = localStorage.getItem('saved_mssv');
+    if (savedMssv && m) {
+      m.value = savedMssv;
+    }
+    // Cleanup old saved_creds
+    localStorage.removeItem('saved_creds');
+  } catch(e) {}
+
   m?.addEventListener('keydown', e => { if (e.key === 'Enter') p?.focus(); });
   p?.addEventListener('keydown', e => { if (e.key === 'Enter') submitLogin(); });
 });
