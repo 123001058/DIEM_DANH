@@ -1620,7 +1620,7 @@ async function confirmDeleteHistory(){
 
 async function deleteSpecificSession(sid) {
   if (!confirm('Xóa phiên điểm danh này? Dữ liệu của phiên cũng sẽ bị xóa. Không thể hoàn tác.')) return;
-  const { error } = await supabase.from('attendance_sessions').delete().eq('id', sid);
+  const { error } = await supabase.from('sessions').delete().eq('id', sid);
   if (error) {
     toast('err', 'Xóa thất bại', error.message);
     return;
@@ -1714,10 +1714,10 @@ async function loadTodayHistory(){
           excusedText +
         '</div>' +
       '</div>' +
-      '<div style="flex:none;display:flex;align-items:center;gap:6px">' +
-        '<button class="btn btn-secondary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
-        (!s.is_open ? '<button class="btn btn-primary" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>' : '') +
-        '<button class="btn btn-danger" style="padding:6px 10px;font-size:11px" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
+      '<div style="margin-top:12px; display:grid; grid-template-columns:' + (s.is_open ? '1fr 1fr' : '1fr 1fr 1fr') + '; gap:8px">' +
+        '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
+        (!s.is_open ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>' : '') +
+        '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
       '</div>' +
     '</div>';
   }).join('');
