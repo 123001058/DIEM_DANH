@@ -48,12 +48,6 @@ async function submitLogin() {
       localStorage.setItem('saved_mssv', rawInput); 
     } catch (e) { }
 
-    const { data: profile } = await supabase.from('profiles').select('must_change_password').eq('user_id', data.user.id).single();
-    if (profile?.must_change_password) {
-      location.href = 'change-password.html';
-      return;
-    }
-
     const { data: isAdm } = await supabase.rpc('is_admin');
     location.href = isAdm ? 'admin.html' : 'checkin.html';
   } catch (e) {
@@ -70,18 +64,11 @@ async function autoLogin() {
   try {
     const { data } = await supabase.auth.getSession();
     if (data?.session) {
-      const { data: profile } = await supabase.from('profiles').select('must_change_password').eq('user_id', data.session.user.id).single();
-      
+      const { data: isAdm } = await supabase.rpc('is_admin');
       const btn = document.getElementById('btnOpenLogin');
       if (btn) {
-        if (profile?.must_change_password) {
-          btn.innerHTML = '🔒 Đổi mật khẩu bảo mật →';
-          btn.onclick = () => { location.href = 'change-password.html'; };
-        } else {
-          const { data: isAdm } = await supabase.rpc('is_admin');
-          btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
-          btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
-        }
+        btn.innerHTML = isAdm ? '🛠️ Vào trang quản trị →' : '📷 Vào trang điểm danh →';
+        btn.onclick = () => { location.href = isAdm ? 'admin.html' : 'checkin.html'; };
       }
     }
   } catch (e) {

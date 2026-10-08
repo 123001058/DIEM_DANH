@@ -128,6 +128,7 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
         <div class="user-name" id="userName">Đang tải...</div>
         <div class="user-id" id="userId">—</div>
       </div>
+      <a href="change-password.html" class="logout" style="text-decoration:none; color:var(--text); background:rgba(0,0,0,0.05); margin-right:4px;">🔒 Đổi pass</a>
       <button class="logout" onclick="logoutStudent()">Đăng xuất</button>
     </section>
 
@@ -277,11 +278,7 @@ async function loadProfile(){
   const { data: auth } = await supabase.auth.getSession();
   if (!auth?.session){ location.href = 'index.html'; return false; }
   currentUser = auth.session.user;
-  const { data: prof } = await supabase.from('profiles').select('full_name, mssv, must_change_password').eq('user_id', currentUser.id).maybeSingle();
-  if (prof?.must_change_password) {
-    location.href = 'change-password.html';
-    return false;
-  }
+  const { data: prof } = await supabase.from('profiles').select('full_name, mssv').eq('user_id', currentUser.id).maybeSingle();
   currentProfile = prof || {};
   const name = currentProfile.full_name || currentUser.email;
   const mssv = currentProfile.mssv || '';
