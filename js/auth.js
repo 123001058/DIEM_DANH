@@ -9,6 +9,57 @@ function closeLogin() {
   document.getElementById('modalBg')?.classList.remove('show');
 }
 
+function openForgotPassword() {
+  closeLogin();
+  document.getElementById('forgotModal')?.classList.add('show');
+  setTimeout(() => document.getElementById('forgotMssvInput')?.focus(), 100);
+}
+
+function closeForgotPassword() {
+  document.getElementById('forgotModal')?.classList.remove('show');
+  document.getElementById('forgotMssvInput').value = '';
+  const errBox = document.getElementById('forgotErrBox');
+  if (errBox) { errBox.style.display = 'none'; errBox.innerText = ''; }
+}
+
+async function submitForgotPassword() {
+  const mssv = (document.getElementById('forgotMssvInput')?.value || '').trim();
+  const errBox = document.getElementById('forgotErrBox');
+  if (errBox) { errBox.style.display = 'none'; errBox.innerText = ''; }
+  
+  if (!mssv) {
+    if (errBox) { errBox.innerText = 'Vui lòng nhập MSSV.'; errBox.style.display = 'block'; }
+    return;
+  }
+  
+  const btn = document.getElementById('btnForgot');
+  if (btn) { btn.disabled = true; btn.innerText = 'Đang gửi...'; }
+  
+  try {
+    const { error } = await supabase
+      .from('password_reset_requests')
+      .insert({ mssv: mssv.toUpperCase() });
+      
+    if (error) {
+      if (error.code === '23505') { // unique violation
+        throw new Error('Yêu cầu của bạn đang chờ Admin xử lý. Không thể gửi thêm.');
+      }
+      if (error.code === '23503') { // foreign key violation
+        throw new Error('MSSV không tồn tại trong hệ thống.');
+      }
+      throw error;
+    }
+    
+    alert('✅ Yêu cầu đã được gửi đến Admin.\nVui lòng nhận mật khẩu tạm từ Admin.');
+    closeForgotPassword();
+  } catch (e) {
+    if (errBox) { errBox.innerText = e.message; errBox.style.display = 'block'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = 'Gửi yêu cầu'; }
+  }
+}
+
+
 async function submitLogin() {
   const mssvInput = document.getElementById('mssvInput');
   const pwdInput = document.getElementById('pwdInput');

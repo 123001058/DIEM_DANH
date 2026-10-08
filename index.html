@@ -66,12 +66,28 @@
       <input type="text" id="mssvInput" placeholder="Mã số sinh viên" autocomplete="username" inputmode="numeric">
       <input type="password" id="pwdInput" placeholder="Mật khẩu" autocomplete="current-password">
       <div style="text-align: right; margin-top: -6px; margin-bottom: 12px;">
-        <a href="javascript:void(0)" onclick="alert('Nếu bạn quên mật khẩu, vui lòng liên hệ quản trị viên (Admin) để được cấp lại mật khẩu tạm.')" style="font-size: 11.5px; color: var(--accent); font-weight: 600; text-decoration: none;">Quên mật khẩu?</a>
+        <a href="javascript:void(0)" onclick="openForgotPassword()" style="font-size: 11.5px; color: var(--accent); font-weight: 600; text-decoration: none;">Quên mật khẩu?</a>
       </div>
       <div id="errBox" role="alert"></div>
       <div class="modal-actions">
         <button type="button" onclick="closeLogin()">Huỷ</button>
         <button type="button" class="btn-ok" id="btnLogin" onclick="submitLogin()">Đăng nhập</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="forgotModal" onclick="if(event.target===this)closeForgotPassword()">
+    <div class="card modal">
+      <div class="modal-icon" style="background:#e0f2fe;color:#0284c7">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" /></svg>
+      </div>
+      <h2>Quên mật khẩu</h2>
+      <p>Mật khẩu mới sẽ được cấp tay qua quản trị viên, không gửi qua email.</p>
+      <input type="text" id="forgotMssvInput" placeholder="Mã số sinh viên" inputmode="numeric">
+      <div id="forgotErrBox" role="alert" style="display:none;color:var(--err);background:var(--err-bg);padding:8px;border-radius:6px;font-size:12px;margin-bottom:12px;border:1px solid rgba(194,56,46,.18);"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="closeForgotPassword()">Huỷ</button>
+        <button type="button" class="btn-ok" id="btnForgot" onclick="submitForgotPassword()">Gửi yêu cầu</button>
       </div>
     </div>
   </div>

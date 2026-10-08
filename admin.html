@@ -535,6 +535,7 @@ tbody tr:last-child td{border-bottom:none}
     <div class="topbar-right">
       <span class="net-badge net-online" id="netBadge"><span class="net-dot"></span><span>Online</span></span>
       <span class="session-pill pill-off" id="topbarSessionPill"><span class="net-dot"></span><span>Đã đóng</span></span>
+      <button class="btn" id="btnResetRequests" style="background:#fef3c7;border:none;color:#d97706;font-weight:700;display:none" onclick="openRequestsModal()">🔔 Yêu cầu (0)</button>
       <a class="btn" href="lichhoc.html" style="text-decoration:none;">📅 Lịch học</a>
       <a class="btn" href="change-password.html" style="text-decoration:none;">🔒 Đổi mật khẩu</a>
       <button class="btn btn-danger" onclick="logout()">Đăng xuất</button>
@@ -858,6 +859,30 @@ tbody tr:last-child td{border-bottom:none}
     </div>
     <div class="modal-actions">
       <button class="btn-ok" onclick="document.getElementById('resetPwdModal').classList.remove('show')">Đóng</button>
+      <button class="btn" style="background:#3b82f6;color:#fff;border:none;display:none" id="btnCompleteReset" onclick="completeResetRequest()">Đã gửi cho sinh viên</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reset Password Requests -->
+<div class="modal-bg" id="requestsModal" onclick="if(event.target===this)closeRequestsModal()">
+  <div class="modal" style="max-width: 600px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h3 style="margin:0;">🔔 Yêu cầu cấp mật khẩu</h3>
+      <button class="btn btn-icon btn-sm" onclick="fetchResetRequests()" title="Làm mới">↻</button>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-scroll" style="max-height:300px;">
+        <table>
+          <thead><tr><th style="width:40%">Sinh viên</th><th style="width:30%">MSSV</th><th style="width:30%; text-align:right;">Thao tác</th></tr></thead>
+          <tbody id="requestsTbody">
+            <tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button onclick="closeRequestsModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -1163,7 +1188,9 @@ async function openSession(){
 // Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
 let _pendingStatusChange = null;
 
-async function resetStudentPassword(mssv) {
+let _currentResetRequestId = null;
+
+async function resetStudentPassword(mssv, requestId = null) {
   if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không?')) return;
   
   toast('info', 'Đang xử lý', 'Vui lòng chờ...');
@@ -1177,11 +1204,89 @@ async function resetStudentPassword(mssv) {
     
     document.getElementById('tempPwdText').innerText = data.tempPassword;
     document.getElementById('resetPwdModal').classList.add('show');
+    
+    const completeBtn = document.getElementById('btnCompleteReset');
+    if (requestId && completeBtn) {
+      _currentResetRequestId = requestId;
+      completeBtn.style.display = 'inline-block';
+      completeBtn.disabled = false;
+      completeBtn.innerText = 'Đã gửi cho sinh viên';
+    } else if (completeBtn) {
+      completeBtn.style.display = 'none';
+      _currentResetRequestId = null;
+    }
+    
     toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
   } catch (err) {
     console.error(err);
     toast('err', 'Lỗi reset mật khẩu', err.message);
   }
+}
+
+async function fetchResetRequests() {
+  const tbody = document.getElementById('requestsTbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>';
+  
+  const { data, error } = await supabase
+    .from('password_reset_requests')
+    .select('id, mssv, created_at')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+    
+  const btn = document.getElementById('btnResetRequests');
+  if (btn) {
+    if (!error && data && data.length > 0) {
+      btn.style.display = 'inline-flex';
+      btn.innerHTML = '🔔 Yêu cầu (' + data.length + ')';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+  
+  if (error || !data || data.length === 0) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Không có yêu cầu nào.</div></td></tr>';
+    return;
+  }
+  
+  if (tbody) {
+    tbody.innerHTML = data.map(req => {
+      const stu = students.find(s => s.mssv === req.mssv);
+      const name = stu ? escapeHtml(stu.name) : '—';
+      return `<tr>
+        <td><b>${name}</b></td>
+        <td class="td-mono">${req.mssv}</td>
+        <td style="text-align:right">
+          <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function openRequestsModal() {
+  fetchResetRequests();
+  document.getElementById('requestsModal')?.classList.add('show');
+}
+
+function closeRequestsModal() {
+  document.getElementById('requestsModal')?.classList.remove('show');
+}
+
+async function completeResetRequest() {
+  if (!_currentResetRequestId) return;
+  const btn = document.getElementById('btnCompleteReset');
+  if (btn) { btn.disabled = true; btn.innerText = 'Đang lưu...'; }
+  
+  const { data, error } = await supabase.rpc('admin_complete_reset_request', { p_request_id: _currentResetRequestId });
+  if (error) {
+    toast('err', 'Lỗi', error.message);
+    if (btn) { btn.disabled = false; btn.innerText = 'Đã gửi cho sinh viên'; }
+    return;
+  }
+  toast('ok', 'Đã xử lý', 'Đã đánh dấu yêu cầu là hoàn thành.');
+  document.getElementById('resetPwdModal').classList.remove('show');
+  _currentResetRequestId = null;
+  fetchResetRequests();
 }
 
 function promptChangeStatus(mssv, newStatus, selectEl){
@@ -1908,6 +2013,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await refreshAll();
   await loadTodayHistory();
   await loadTodaySchoolSchedule();
+  fetchResetRequests();
   setupRealtime();
 
   // Tự động kiểm tra và đồng bộ ngầm từ ME nếu dữ liệu cũ hơn 24 giờ
