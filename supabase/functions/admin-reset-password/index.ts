@@ -71,29 +71,52 @@ serve(async (req) => {
       const { data: student } = await supabaseAdmin.from('students').select('name').eq('mssv', target_mssv).maybeSingle()
       
       if (!student) {
-        return new Response(JSON.stringify({ error: 'Student not found in students list' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
+        return new Response(JSON.stringify({ error: 'Không tìm thấy sinh viên này trong danh sách lớp (students table).' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
       }
 
-      // Create new auth user
-      const { data: newAuth, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        email: `${target_mssv}@sv.local`,
-        password: tempPassword,
-        email_confirm: true
-      })
-
-      if (createErr) {
-        return new Response(JSON.stringify({ error: 'Failed to create missing user: ' + createErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      // Try to list users to see if they already exist in Auth but missing profile
+      const emailToFind = `${target_mssv}@sv.local`;
+      const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+      if (listErr) {
+        return new Response(JSON.stringify({ error: 'Lỗi kiểm tra Auth: ' + listErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
       }
       
-      targetUserId = newAuth.user.id
+      const existingUser = listData.users.find(u => u.email === emailToFind);
+
+      if (existingUser) {
+        targetUserId = existingUser.id;
+        // User exists in auth but missing profile, let's reset their password
+        const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+          password: tempPassword
+        });
+        if (resetErr) {
+          return new Response(JSON.stringify({ error: 'Lỗi reset mk (có auth, thiếu profile): ' + resetErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+        }
+      } else {
+        // Create new auth user
+        const { data: newAuth, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email: emailToFind,
+          password: tempPassword,
+          email_confirm: true
+        })
+
+        if (createErr) {
+          return new Response(JSON.stringify({ error: 'Lỗi tạo mới Auth: ' + createErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+        }
+        targetUserId = newAuth.user.id;
+      }
 
       // Upsert profile
-      await supabaseAdmin.from('profiles').upsert({
+      const { error: upsertErr } = await supabaseAdmin.from('profiles').upsert({
         user_id: targetUserId,
         mssv: target_mssv,
         full_name: student.name,
         is_admin: false
       })
+
+      if (upsertErr) {
+        return new Response(JSON.stringify({ error: 'Lỗi lưu profile: ' + upsertErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      }
     } else {
       // Reset password for existing user
       const { error: resetErr } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
@@ -101,12 +124,12 @@ serve(async (req) => {
       })
 
       if (resetErr) {
-        return new Response(JSON.stringify({ error: 'Failed to reset password: ' + resetErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+        return new Response(JSON.stringify({ error: 'Lỗi cập nhật mật khẩu: ' + resetErr.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
       }
     }
 
     return new Response(JSON.stringify({ tempPassword }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+    return new Response(JSON.stringify({ error: 'Lỗi máy chủ: ' + err.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
   }
 })
