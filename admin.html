@@ -737,6 +737,7 @@ tbody tr:last-child td{border-bottom:none}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
                 </div>
+                <button class="btn" style="background:#0ea5e9;color:#fff;border:none" onclick="copyAttendanceList()">📋 Copy danh sách</button>
                 <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả chưa quét</button>
                 <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
               </div>
@@ -1175,6 +1176,8 @@ async function executeStatusChange(){
     });
     if (!error && data?.ok) {
       savedOk = true;
+      // Đồng bộ thời gian thực tế vào CSDL
+      await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).eq('mssv', mssv);
     } else {
       saveErrorMsg = data?.message || error?.message || '';
     }
@@ -1191,7 +1194,8 @@ async function executeStatusChange(){
         full_name: studentName,
         status: newStatus,
         category: 'Admin',
-        note: reason || ''
+        note: reason || '',
+        created_at: new Date().toISOString()
       }, { onConflict: 'session_id,mssv' });
 
       if (upsertErr) throw new Error(upsertErr.message);
@@ -1355,6 +1359,7 @@ function confirmMarkAllAbsent(){
       p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép', p_reason: 'Admin đánh dấu vắng tất cả chưa quét'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+    await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).in('mssv', list.map(s => s.mssv));
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Vắng');
     await loadAttendance(); renderAll();
   });
@@ -1365,8 +1370,29 @@ function confirmMarkAllPresent(){
       p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt', p_reason: 'Admin đánh dấu có mặt cả lớp'
     });
     if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+    await supabase.from('attendance').update({ created_at: new Date().toISOString() }).eq('session_id', currentSession.id).in('mssv', students.map(s => s.mssv));
     toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Có mặt');
     await loadAttendance(); renderAll();
+  });
+}
+
+function copyAttendanceList() {
+  if (!currentSession) return toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
+  let text = `Danh sách điểm danh: ${currentSession.session_name}\n`;
+  text += `Ngày: ${new Date().toLocaleDateString('vi-VN')}\n\n`;
+  
+  let i = 1;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    const status = a ? a.status : 'Chưa quét';
+    const note = a && a.note ? ` (${a.note})` : '';
+    text += `${i++}. ${s.name} - ${s.mssv} - ${status}${note}\n`;
+  });
+  
+  navigator.clipboard.writeText(text).then(() => {
+    toast('ok', 'Đã copy', 'Danh sách đã được copy vào khay nhớ tạm.');
+  }).catch(() => {
+    toast('err', 'Lỗi copy', 'Trình duyệt không hỗ trợ copy tự động.');
   });
 }
 function openCloseModal(){
