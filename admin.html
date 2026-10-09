@@ -513,6 +513,23 @@ tbody tr:last-child td{border-bottom:none}
   color: var(--muted);
   font-size: 12.5px;
 }
+.team-admin{margin:14px 0;padding:20px 22px}
+.team-admin-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.team-admin-title{font-size:16px;font-weight:800}
+.team-admin-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.team-create-grid,.team-edit-grid{display:grid;grid-template-columns:1.2fr 1fr 1.2fr auto;gap:9px;align-items:end}
+.team-field label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.team-field input,.team-field select,.team-select{width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:12.5px}
+.team-tools{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:9px;align-items:end;margin-top:14px}
+.team-members{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.team-member{padding:11px 13px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)}
+.team-member-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.team-member-name{font-size:12.5px;font-weight:800}
+.team-availability{display:inline-flex;padding:3px 8px;border-radius:99px;font-size:10.5px;font-weight:800}
+.team-availability.free{background:var(--ok-bg);color:var(--ok)}
+.team-availability.busy{background:var(--warn-bg);color:var(--warn)}
+.team-class{font-size:11.5px;color:var(--muted);margin-top:5px}
+@media(max-width:700px){.team-create-grid,.team-edit-grid,.team-tools{grid-template-columns:1fr}}
 
 </style>
 <script src="js/qrcode.min.js"></script>
@@ -545,6 +562,37 @@ tbody tr:last-child td{border-bottom:none}
   <div class="offline-banner" id="offlineBanner">
     <span>⚠️</span><span><b>Mất kết nối mạng.</b> Đang thử kết nối lại...</span>
   </div>
+
+  <section class="card team-admin" id="teamManagement">
+    <div class="team-admin-head">
+      <div><div class="team-admin-title">👥 Quản lý nhóm</div><div class="team-admin-sub">Tạo nhóm theo lĩnh vực, chọn đội trưởng và theo dõi lịch rảnh / bận của thành viên.</div></div>
+    </div>
+    <div class="team-create-grid">
+      <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="VD: Đội cơ khí"></div>
+      <div class="team-field"><label for="newTeamField">Lĩnh vực</label><input id="newTeamField" maxlength="120" placeholder="VD: Cơ khí"></div>
+      <div class="team-field"><label for="newTeamLeader">Đội trưởng</label><select id="newTeamLeader"></select></div>
+      <button class="btn btn-primary" onclick="createTeamGroup()">＋ Tạo nhóm</button>
+    </div>
+    <div class="team-tools">
+      <div class="team-field"><label for="teamPicker">Nhóm đang xem</label><select class="team-select" id="teamPicker" onchange="selectTeamGroup(this.value)"><option value="">Chưa có nhóm</option></select></div>
+      <div class="team-field"><label for="teamScheduleDate">Ngày xem lịch</label><input id="teamScheduleDate" type="date" onchange="loadTeamAvailability()"></div>
+      <button class="btn" onclick="loadTeamAvailability()">↻ Làm mới lịch</button>
+    </div>
+    <div id="teamDetails" style="display:none;margin-top:14px">
+      <div class="team-edit-grid">
+        <div class="team-field"><label for="editTeamName">Tên nhóm</label><input id="editTeamName" maxlength="100"></div>
+        <div class="team-field"><label for="editTeamField">Lĩnh vực</label><input id="editTeamField" maxlength="120"></div>
+        <div class="team-field"><label for="editTeamLeader">Đội trưởng</label><select id="editTeamLeader"></select></div>
+        <div style="display:flex;gap:6px"><button class="btn btn-success" onclick="saveTeamGroup()">Lưu</button><button class="btn btn-danger" onclick="deleteTeamGroup()">Xóa nhóm</button></div>
+      </div>
+      <div class="team-tools">
+        <div class="team-field"><label for="teamMemberPicker">Thêm thành viên</label><select class="team-select" id="teamMemberPicker"></select></div>
+        <button class="btn btn-primary" onclick="addTeamMember()">＋ Thêm thành viên</button>
+        <span class="team-admin-sub" id="teamMemberCount"></span>
+      </div>
+      <div id="teamMemberList" class="team-members"><div class="schedule-loading">Chọn nhóm để xem thành viên.</div></div>
+    </div>
+  </section>
 
     <div id="emptyState" class="empty-layout" style="display:none">
     <!-- Dải KPI thống kê tổng quan -->
@@ -1016,8 +1064,8 @@ async function loadAttendance(){
 
   attendanceMap = {};
   (data || []).forEach(r => {
-    const finalTime = latestAuditMap[r.mssv] || r.created_at;
-    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(finalTime)), category: r.category || '', note: r.note || '' };
+    // Keep the original time the row was recorded; edits are shown in the audit history.
+    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), editedAt: latestAuditMap[r.mssv] || null, category: r.category || '', note: r.note || '' };
   });
 }
 function showEmpty(){
@@ -1406,7 +1454,7 @@ async function executeStatusChange(){
 
   if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
   attendanceMap[mssv].status = newStatus;
-  attendanceMap[mssv].time = fmtClock(new Date());
+  attendanceMap[mssv].editedAt = new Date().toISOString();
   if (reason) attendanceMap[mssv].note = reason;
 
   _pendingStatusChange = null;
@@ -1463,11 +1511,7 @@ async function loadAuditLogs(){
     }
     const logs = data.logs || [];
     if (badgeEl) badgeEl.textContent = logs.length;
-    if (!logs.length){
-      listEl.innerHTML = '<div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px"><div style="font-size:26px;margin-bottom:6px">🕒</div><b>Chưa có lịch sử thay đổi nào</b><p style="font-size:12px;margin-top:4px;color:var(--faint)">Mọi thao tác chỉnh sửa trạng thái điểm danh sẽ được ghi nhận tại đây.</p></div>';
-      return;
-    }
-    listEl.innerHTML = logs.map(l => {
+    const statusHtml = logs.length ? logs.map(l => {
       const t = new Date(l.changed_at).toLocaleString('vi-VN');
       const user = escapeHtml(l.changed_by || 'Admin');
       const sName = escapeHtml(l.student_name || l.mssv);
@@ -1486,10 +1530,131 @@ async function loadAuditLogs(){
         '</div>' +
         reason +
       '</div>';
-    }).join('');
+    }).join('') : '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có thay đổi trạng thái.</div>';
+    let recordHtml = '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có bản ghi chỉnh sửa. Các lần sửa sau khi bật tính năng sẽ được lưu tại đây.</div>';
+    try {
+      const { data: historyData, error: historyError } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(currentSession.id) });
+      if (!historyError && historyData?.ok) {
+        const records = historyData.records || [];
+        if (records.length) recordHtml = records.map(h => {
+          const old = h.old_record || {}, next = h.new_record || {};
+          const time = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
+          const details = (label, value) => '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' + label + ': ' + escapeHtml(value || '—') + '</div>';
+          return '<div class="audit-item"><div class="audit-head"><span class="audit-time">' + time(h.changed_at) + '</span><span class="audit-user">👤 ' + escapeHtml(h.changed_by || 'Admin') + '</span></div>' +
+            '<div class="audit-change"><b>' + escapeHtml(h.student_name || h.mssv) + ' (' + escapeHtml(h.mssv) + ')</b></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Trước khi sửa</b>' +
+              details('Trạng thái', old.status) + details('Giờ điểm danh', time(old.checked_at)) + details('Phân loại', old.category) + details('Ghi chú', old.note) + '</div><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Sau khi sửa</b>' +
+              details('Trạng thái', next.status) + details('Giờ điểm danh', time(next.checked_at)) + details('Phân loại', next.category) + details('Ghi chú', next.note) + '</div></div></div>';
+        }).join('');
+      }
+    } catch (_) { /* the base schema can be migrated independently */ }
+    listEl.innerHTML = '<h3 style="font-size:13px;margin:2px 0 8px">Thay đổi trạng thái</h3><div class="audit-timeline">' + statusHtml + '</div>' +
+      '<h3 style="font-size:13px;margin:18px 0 8px">Lịch sử bản ghi điểm danh (giờ cũ và mới)</h3><div class="audit-timeline">' + recordHtml + '</div>';
   } catch(e){
     listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi kết nối: ' + escapeHtml(e.message) + '</div>';
   }
+}
+
+let teamGroups = [];
+let selectedTeamId = '';
+function teamStudentOptions(selected = '', includeEmpty = false){
+  return (includeEmpty ? '<option value="">Chọn đội trưởng</option>' : '') + students.map(s =>
+    '<option value="' + escapeHtml(s.mssv) + '" ' + (s.mssv === selected ? 'selected' : '') + '>' + escapeHtml(s.name) + ' · ' + escapeHtml(s.mssv) + '</option>'
+  ).join('');
+}
+async function loadTeamGroups(keepSelection = true){
+  const { data, error } = await supabase.from('team_groups').select('id,name,field,leader_mssv,created_at').order('created_at', { ascending: true });
+  if (error) { toast('err', 'Không tải được nhóm', error.message); return; }
+  teamGroups = data || [];
+  const picker = document.getElementById('teamPicker');
+  const prior = keepSelection ? selectedTeamId : '';
+  picker.innerHTML = teamGroups.length ? teamGroups.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + ' · ' + escapeHtml(t.field) + '</option>').join('') : '<option value="">Chưa có nhóm</option>';
+  selectedTeamId = teamGroups.some(t => t.id === prior) ? prior : (teamGroups[0]?.id || '');
+  picker.value = selectedTeamId;
+  document.getElementById('newTeamLeader').innerHTML = teamStudentOptions('', true);
+  document.getElementById('editTeamLeader').innerHTML = teamStudentOptions('', true);
+  document.getElementById('teamMemberPicker').innerHTML = teamStudentOptions();
+  await selectTeamGroup(selectedTeamId);
+}
+async function createTeamGroup(){
+  const name = document.getElementById('newTeamName').value.trim();
+  const field = document.getElementById('newTeamField').value.trim();
+  const leader = document.getElementById('newTeamLeader').value;
+  if (!name || !field || !leader) return toast('warn', 'Thiếu thông tin', 'Nhập tên nhóm, lĩnh vực và chọn đội trưởng.');
+  const { data: authData } = await supabase.auth.getSession();
+  const { data, error } = await supabase.from('team_groups').insert({ name, field, leader_mssv: leader, created_by: authData?.session?.user?.id }).select('id').single();
+  if (error) return toast('err', 'Tạo nhóm thất bại', error.message);
+  document.getElementById('newTeamName').value = '';
+  document.getElementById('newTeamField').value = '';
+  selectedTeamId = data.id;
+  toast('ok', 'Đã tạo nhóm', name);
+  await loadTeamGroups();
+}
+async function selectTeamGroup(id){
+  selectedTeamId = id || '';
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  const details = document.getElementById('teamDetails');
+  details.style.display = team ? 'block' : 'none';
+  if (!team) { document.getElementById('teamMemberList').innerHTML = '<div class="schedule-loading">Tạo nhóm để quản lý thành viên.</div>'; return; }
+  document.getElementById('editTeamName').value = team.name;
+  document.getElementById('editTeamField').value = team.field;
+  document.getElementById('editTeamLeader').value = team.leader_mssv || '';
+  await loadTeamAvailability();
+}
+async function saveTeamGroup(){
+  const { error } = await supabase.from('team_groups').update({ name: document.getElementById('editTeamName').value.trim(), field: document.getElementById('editTeamField').value.trim(), leader_mssv: document.getElementById('editTeamLeader').value || null }).eq('id', selectedTeamId);
+  if (error) return toast('err', 'Không lưu được nhóm', error.message);
+  toast('ok', 'Đã lưu nhóm'); await loadTeamGroups();
+}
+async function deleteTeamGroup(){
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (!team || !confirm('Xóa nhóm “' + team.name + '” cùng danh sách thành viên?')) return;
+  const { error } = await supabase.from('team_groups').delete().eq('id', selectedTeamId);
+  if (error) return toast('err', 'Xóa nhóm thất bại', error.message);
+  selectedTeamId = ''; toast('ok', 'Đã xóa nhóm', team.name); await loadTeamGroups(false);
+}
+async function addTeamMember(){
+  const mssv = document.getElementById('teamMemberPicker').value;
+  if (!selectedTeamId || !mssv) return toast('warn', 'Chọn thành viên', 'Vui lòng chọn một thành viên để thêm.');
+  const { error } = await supabase.from('team_group_members').insert({ team_id: selectedTeamId, mssv });
+  if (error) return toast('err', 'Không thêm được thành viên', error.message);
+  await loadTeamAvailability();
+}
+async function removeTeamMember(mssv){
+  if (!confirm('Xóa thành viên này khỏi nhóm?')) return;
+  const { error } = await supabase.from('team_group_members').delete().eq('team_id', selectedTeamId).eq('mssv', mssv);
+  if (error) return toast('err', 'Không xóa được thành viên', error.message);
+  await loadTeamAvailability();
+}
+function localDateBoundary(dateString, plusDays = 0){
+  const [y,m,d] = dateString.split('-').map(Number);
+  return new Date(y, m - 1, d + plusDays).toISOString();
+}
+async function loadTeamAvailability(){
+  const list = document.getElementById('teamMemberList');
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (!team) return;
+  list.innerHTML = '<div class="schedule-loading">Đang tải thành viên và lịch...</div>';
+  const { data: memberships, error } = await supabase.from('team_group_members').select('mssv').eq('team_id', team.id).order('added_at');
+  if (error) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(error.message) + '</div>'; return; }
+  const memberIds = (memberships || []).map(m => m.mssv);
+  document.getElementById('teamMemberCount').textContent = memberIds.length + ' thành viên';
+  if (!memberIds.length) { list.innerHTML = '<div class="schedule-loading">Nhóm chưa có thành viên.</div>'; return; }
+  let dateInput = document.getElementById('teamScheduleDate');
+  if (!dateInput.value) { const now = new Date(); dateInput.value = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-'); }
+  const start = localDateBoundary(dateInput.value), end = localDateBoundary(dateInput.value, 1);
+  const { data: schedules, error: scheduleError } = await supabase.from('student_schedules')
+    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', end).gt('end_time', start).order('start_time');
+  if (scheduleError) { list.innerHTML = '<div class="schedule-loading">Không tải được lịch học: ' + escapeHtml(scheduleError.message) + '</div>'; return; }
+  const byMember = new Map(memberIds.map(id => [id, []]));
+  (schedules || []).forEach(s => byMember.get(s.mssv)?.push(s));
+  list.innerHTML = memberIds.map(mssv => {
+    const member = students.find(s => s.mssv === mssv);
+    const classes = byMember.get(mssv) || [];
+    const isLeader = team.leader_mssv === mssv;
+    const scheduleHtml = classes.length ? classes.map(sc => '<div class="team-class">📚 ' + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + new Date(sc.start_time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) + '–' + new Date(sc.end_time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>').join('') : '<div class="team-class">Không có lịch học trong ngày này.</div>';
+    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px"><span class="team-availability ' + (classes.length ? 'busy">🔴 Bận' : 'free">🟢 Rảnh') + '</span><button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + '</div>';
+  }).join('');
 }
 
 // Mở lại phiên đã đóng (closed -> active)
@@ -2060,6 +2225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadStudents();
   const kpiTotalEl = document.getElementById('kpiTotalStudents');
   if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
+  await loadTeamGroups();
   await refreshAll();
   await loadTodayHistory();
   await loadTodaySchoolSchedule();
