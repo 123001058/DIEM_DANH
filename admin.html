@@ -514,7 +514,7 @@ tbody tr:last-child td{border-bottom:none}
   font-size: 12.5px;
 }
 .team-admin{margin:14px 0;padding:20px 22px}
-.team-admin-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.team-admin-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .team-admin-title{font-size:16px;font-weight:800}
 .team-admin-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .team-create-grid,.team-edit-grid{display:grid;grid-template-columns:1.2fr 1fr 1.2fr auto;gap:9px;align-items:end}
@@ -529,6 +529,23 @@ tbody tr:last-child td{border-bottom:none}
 .team-availability.free{background:var(--ok-bg);color:var(--ok)}
 .team-availability.busy{background:var(--warn-bg);color:var(--warn)}
 .team-class{font-size:11.5px;color:var(--muted);margin-top:5px}
+.team-groups-list{display:flex;flex-direction:column;gap:7px}
+.team-accordion{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;color:var(--text);font:inherit;cursor:pointer;transition:.15s}
+.team-accordion:hover{border-color:var(--border-strong);background:#fff}
+.team-accordion-main{min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.team-accordion-name{font-size:13px;font-weight:800}
+.team-accordion-meta{font-size:11.5px;color:var(--muted)}
+.team-accordion-counts{display:flex;align-items:center;gap:6px;flex:none}
+.team-count-pill{padding:4px 8px;border-radius:99px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.team-count-pill.free{background:var(--ok-bg);color:var(--ok)}
+.team-count-pill.busy{background:var(--warn-bg);color:var(--warn)}
+.team-modal-shell{width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+.team-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+.team-modal-title{font-size:17px;font-weight:800}
+.team-now{font-size:11.5px;color:var(--muted);margin-top:3px}
+.team-modal-section{border-top:1px solid var(--border);margin-top:15px;padding-top:14px}
+.team-schedule-state{display:inline-flex;align-items:center;gap:6px}
+.team-schedule-future{opacity:.82}
 @media(max-width:700px){.team-create-grid,.team-edit-grid,.team-tools{grid-template-columns:1fr}}
 
 </style>
@@ -566,33 +583,43 @@ tbody tr:last-child td{border-bottom:none}
   <section class="card team-admin" id="teamManagement">
     <div class="team-admin-head">
       <div><div class="team-admin-title">👥 Quản lý nhóm</div><div class="team-admin-sub">Tạo nhóm theo lĩnh vực, chọn đội trưởng và theo dõi lịch rảnh / bận của thành viên.</div></div>
+      <button class="btn btn-primary" onclick="openCreateTeamModal()">＋ Tạo nhóm</button>
     </div>
-    <div class="team-create-grid">
-      <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="VD: Đội cơ khí"></div>
-      <div class="team-field"><label for="newTeamField">Lĩnh vực</label><input id="newTeamField" maxlength="120" placeholder="VD: Cơ khí"></div>
-      <div class="team-field"><label for="newTeamLeader">Đội trưởng</label><select id="newTeamLeader"></select></div>
-      <button class="btn btn-primary" onclick="createTeamGroup()">＋ Tạo nhóm</button>
+    <div id="teamGroupsList" class="team-groups-list"><div class="schedule-loading">Đang tải nhóm...</div></div>
+  </section>
+
+  <div class="modal-bg" id="teamCreateModal" onclick="if(event.target===this)closeTeamCreateModal()">
+    <div class="team-modal-shell" style="max-width:520px">
+      <div class="team-modal-head"><div><div class="team-modal-title">Tạo nhóm mới</div><div class="team-now">Chọn tên, lĩnh vực và đội trưởng.</div></div><button class="btn btn-icon" onclick="closeTeamCreateModal()">✕</button></div>
+      <div class="team-create-grid" style="grid-template-columns:1fr;margin-top:12px">
+        <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="VD: Đội cơ khí"></div>
+        <div class="team-field"><label for="newTeamField">Lĩnh vực</label><input id="newTeamField" maxlength="120" placeholder="VD: Cơ khí"></div>
+        <div class="team-field"><label for="newTeamLeader">Đội trưởng</label><select id="newTeamLeader"></select></div>
+        <button class="btn btn-primary" onclick="createTeamGroup()">＋ Tạo nhóm</button>
+      </div>
     </div>
-    <div class="team-tools">
-      <div class="team-field"><label for="teamPicker">Nhóm đang xem</label><select class="team-select" id="teamPicker" onchange="selectTeamGroup(this.value)"><option value="">Chưa có nhóm</option></select></div>
-      <div class="team-field"><label for="teamScheduleDate">Ngày xem lịch</label><input id="teamScheduleDate" type="date" onchange="loadTeamAvailability()"></div>
-      <button class="btn" onclick="loadTeamAvailability()">↻ Làm mới lịch</button>
-    </div>
-    <div id="teamDetails" style="display:none;margin-top:14px">
+  </div>
+  <div class="modal-bg" id="teamModal" onclick="if(event.target===this)closeTeamModal()">
+    <div class="team-modal-shell">
+      <div class="team-modal-head"><div><div class="team-modal-title" id="teamModalTitle">Quản lý nhóm</div><div class="team-now" id="teamNowLabel">Đang cập nhật lịch theo giờ Việt Nam</div></div><button class="btn btn-icon" onclick="closeTeamModal()">✕</button></div>
       <div class="team-edit-grid">
         <div class="team-field"><label for="editTeamName">Tên nhóm</label><input id="editTeamName" maxlength="100"></div>
         <div class="team-field"><label for="editTeamField">Lĩnh vực</label><input id="editTeamField" maxlength="120"></div>
         <div class="team-field"><label for="editTeamLeader">Đội trưởng</label><select id="editTeamLeader"></select></div>
-        <div style="display:flex;gap:6px"><button class="btn btn-success" onclick="saveTeamGroup()">Lưu</button><button class="btn btn-danger" onclick="deleteTeamGroup()">Xóa nhóm</button></div>
+        <div style="display:flex;gap:6px"><button class="btn btn-success" onclick="saveTeamGroup()">Lưu</button><button class="btn btn-danger" onclick="deleteTeamGroup()">Xóa</button></div>
       </div>
-      <div class="team-tools">
-        <div class="team-field"><label for="teamMemberPicker">Thêm thành viên</label><select class="team-select" id="teamMemberPicker"></select></div>
-        <button class="btn btn-primary" onclick="addTeamMember()">＋ Thêm thành viên</button>
-        <span class="team-admin-sub" id="teamMemberCount"></span>
+      <div class="team-modal-section">
+        <div class="team-tools" style="margin-top:0">
+          <div class="team-field"><label for="teamMemberPicker">Thêm thành viên</label><select class="team-select" id="teamMemberPicker"></select></div>
+          <button class="btn btn-primary" onclick="addTeamMember()">＋ Thêm thành viên</button>
+          <span class="team-admin-sub" id="teamMemberCount"></span>
+        </div>
       </div>
-      <div id="teamMemberList" class="team-members"><div class="schedule-loading">Chọn nhóm để xem thành viên.</div></div>
+      <div class="team-modal-section"><div class="team-modal-title" style="font-size:13px">Lịch hôm nay <span style="font-weight:500;color:var(--muted)">· giờ Việt Nam</span></div>
+        <div id="teamMemberList" class="team-members"><div class="schedule-loading">Đang tải thành viên và lịch...</div></div>
+      </div>
     </div>
-  </section>
+  </div>
 
     <div id="emptyState" class="empty-layout" style="display:none">
     <!-- Dải KPI thống kê tổng quan -->
@@ -1557,24 +1584,83 @@ async function loadAuditLogs(){
 
 let teamGroups = [];
 let selectedTeamId = '';
+let teamAvailabilityTimer = null;
+const TEAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+function vietnamToday(){
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type)?.value || '';
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+function vietnamDayBounds(day = vietnamToday()){
+  const [y,m,d] = day.split('-').map(Number);
+  return { start: new Date(Date.UTC(y, m - 1, d, -7)).toISOString(), end: new Date(Date.UTC(y, m - 1, d + 1, -7)).toISOString() };
+}
+function vietnamTime(value){
+  return new Date(value).toLocaleTimeString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit' });
+}
+function vietnamDateTime(value){
+  return new Date(value).toLocaleString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+}
 function teamStudentOptions(selected = '', includeEmpty = false){
   return (includeEmpty ? '<option value="">Chọn đội trưởng</option>' : '') + students.map(s =>
     '<option value="' + escapeHtml(s.mssv) + '" ' + (s.mssv === selected ? 'selected' : '') + '>' + escapeHtml(s.name) + ' · ' + escapeHtml(s.mssv) + '</option>'
   ).join('');
 }
-async function loadTeamGroups(keepSelection = true){
+async function loadTeamGroups(){
   const { data, error } = await supabase.from('team_groups').select('id,name,field,leader_mssv,created_at').order('created_at', { ascending: true });
   if (error) { toast('err', 'Không tải được nhóm', error.message); return; }
   teamGroups = data || [];
-  const picker = document.getElementById('teamPicker');
-  const prior = keepSelection ? selectedTeamId : '';
-  picker.innerHTML = teamGroups.length ? teamGroups.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + ' · ' + escapeHtml(t.field) + '</option>').join('') : '<option value="">Chưa có nhóm</option>';
-  selectedTeamId = teamGroups.some(t => t.id === prior) ? prior : (teamGroups[0]?.id || '');
-  picker.value = selectedTeamId;
+  const list = document.getElementById('teamGroupsList');
   document.getElementById('newTeamLeader').innerHTML = teamStudentOptions('', true);
   document.getElementById('editTeamLeader').innerHTML = teamStudentOptions('', true);
   document.getElementById('teamMemberPicker').innerHTML = teamStudentOptions();
-  await selectTeamGroup(selectedTeamId);
+  if (!teamGroups.length) {
+    selectedTeamId = '';
+    list.innerHTML = '<div class="schedule-loading">Chưa có nhóm. Bấm “Tạo nhóm” để bắt đầu.</div>';
+    return;
+  }
+
+  const { data: memberships, error: membersError } = await supabase.from('team_group_members').select('team_id,mssv');
+  if (membersError) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(membersError.message) + '</div>'; return; }
+  const allMemberIds = [...new Set((memberships || []).map(m => m.mssv))];
+  const bounds = vietnamDayBounds();
+  let schedules = [];
+  if (allMemberIds.length) {
+    const result = await supabase.from('student_schedules').select('mssv,start_time,end_time')
+      .in('mssv', allMemberIds).lt('start_time', bounds.end).gt('end_time', bounds.start);
+    if (!result.error) schedules = result.data || [];
+  }
+  const membersByTeam = new Map(teamGroups.map(t => [t.id, []]));
+  (memberships || []).forEach(m => membersByTeam.get(m.team_id)?.push(m.mssv));
+  const now = Date.now();
+  const names = Object.fromEntries(students.map(s => [s.mssv, s.name]));
+  list.innerHTML = teamGroups.map(team => {
+    const ids = membersByTeam.get(team.id) || [];
+    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
+    const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
+    return '<button class="team-accordion" onclick="openTeamGroup(\'' + team.id + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
+      '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + escapeHtml(team.field) + ' · Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
+      '<span class="team-accordion-counts"><span class="team-count-pill free">' + (ids.length - busy.size) + ' rảnh</span><span class="team-count-pill busy">' + busy.size + ' bận</span><span aria-hidden="true">›</span></span></button>';
+  }).join('');
+  if (selectedTeamId && document.getElementById('teamModal').classList.contains('show')) await loadTeamAvailability();
+}
+function openCreateTeamModal(){
+  document.getElementById('newTeamName').value = '';
+  document.getElementById('newTeamField').value = '';
+  document.getElementById('teamCreateModal').classList.add('show');
+}
+function closeTeamCreateModal(){ document.getElementById('teamCreateModal').classList.remove('show'); }
+function closeTeamModal(){ document.getElementById('teamModal').classList.remove('show'); selectedTeamId = ''; }
+async function openTeamGroup(id){
+  selectedTeamId = id;
+  const team = teamGroups.find(t => t.id === id);
+  if (!team) return;
+  document.getElementById('teamModalTitle').textContent = team.name;
+  document.getElementById('editTeamName').value = team.name;
+  document.getElementById('editTeamField').value = team.field;
+  document.getElementById('editTeamLeader').value = team.leader_mssv || '';
+  document.getElementById('teamModal').classList.add('show');
+  await loadTeamAvailability();
 }
 async function createTeamGroup(){
   const name = document.getElementById('newTeamName').value.trim();
@@ -1587,48 +1673,37 @@ async function createTeamGroup(){
   document.getElementById('newTeamName').value = '';
   document.getElementById('newTeamField').value = '';
   selectedTeamId = data.id;
+  closeTeamCreateModal();
   toast('ok', 'Đã tạo nhóm', name);
   await loadTeamGroups();
-}
-async function selectTeamGroup(id){
-  selectedTeamId = id || '';
-  const team = teamGroups.find(t => t.id === selectedTeamId);
-  const details = document.getElementById('teamDetails');
-  details.style.display = team ? 'block' : 'none';
-  if (!team) { document.getElementById('teamMemberList').innerHTML = '<div class="schedule-loading">Tạo nhóm để quản lý thành viên.</div>'; return; }
-  document.getElementById('editTeamName').value = team.name;
-  document.getElementById('editTeamField').value = team.field;
-  document.getElementById('editTeamLeader').value = team.leader_mssv || '';
-  await loadTeamAvailability();
+  await openTeamGroup(data.id);
 }
 async function saveTeamGroup(){
   const { error } = await supabase.from('team_groups').update({ name: document.getElementById('editTeamName').value.trim(), field: document.getElementById('editTeamField').value.trim(), leader_mssv: document.getElementById('editTeamLeader').value || null }).eq('id', selectedTeamId);
   if (error) return toast('err', 'Không lưu được nhóm', error.message);
   toast('ok', 'Đã lưu nhóm'); await loadTeamGroups();
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (team) document.getElementById('teamModalTitle').textContent = team.name;
 }
 async function deleteTeamGroup(){
   const team = teamGroups.find(t => t.id === selectedTeamId);
   if (!team || !confirm('Xóa nhóm “' + team.name + '” cùng danh sách thành viên?')) return;
   const { error } = await supabase.from('team_groups').delete().eq('id', selectedTeamId);
   if (error) return toast('err', 'Xóa nhóm thất bại', error.message);
-  selectedTeamId = ''; toast('ok', 'Đã xóa nhóm', team.name); await loadTeamGroups(false);
+  closeTeamModal(); toast('ok', 'Đã xóa nhóm', team.name); await loadTeamGroups();
 }
 async function addTeamMember(){
   const mssv = document.getElementById('teamMemberPicker').value;
   if (!selectedTeamId || !mssv) return toast('warn', 'Chọn thành viên', 'Vui lòng chọn một thành viên để thêm.');
   const { error } = await supabase.from('team_group_members').insert({ team_id: selectedTeamId, mssv });
   if (error) return toast('err', 'Không thêm được thành viên', error.message);
-  await loadTeamAvailability();
+  await loadTeamGroups();
 }
 async function removeTeamMember(mssv){
   if (!confirm('Xóa thành viên này khỏi nhóm?')) return;
   const { error } = await supabase.from('team_group_members').delete().eq('team_id', selectedTeamId).eq('mssv', mssv);
   if (error) return toast('err', 'Không xóa được thành viên', error.message);
-  await loadTeamAvailability();
-}
-function localDateBoundary(dateString, plusDays = 0){
-  const [y,m,d] = dateString.split('-').map(Number);
-  return new Date(y, m - 1, d + plusDays).toISOString();
+  await loadTeamGroups();
 }
 async function loadTeamAvailability(){
   const list = document.getElementById('teamMemberList');
@@ -1639,21 +1714,28 @@ async function loadTeamAvailability(){
   if (error) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(error.message) + '</div>'; return; }
   const memberIds = (memberships || []).map(m => m.mssv);
   document.getElementById('teamMemberCount').textContent = memberIds.length + ' thành viên';
+  document.getElementById('teamNowLabel').textContent = 'Bây giờ: ' + vietnamTime(new Date()) + ' · Giờ Việt Nam · tự cập nhật mỗi phút';
   if (!memberIds.length) { list.innerHTML = '<div class="schedule-loading">Nhóm chưa có thành viên.</div>'; return; }
-  let dateInput = document.getElementById('teamScheduleDate');
-  if (!dateInput.value) { const now = new Date(); dateInput.value = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-'); }
-  const start = localDateBoundary(dateInput.value), end = localDateBoundary(dateInput.value, 1);
+  const bounds = vietnamDayBounds();
   const { data: schedules, error: scheduleError } = await supabase.from('student_schedules')
-    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', end).gt('end_time', start).order('start_time');
+    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', bounds.end).gt('end_time', bounds.start).order('start_time');
   if (scheduleError) { list.innerHTML = '<div class="schedule-loading">Không tải được lịch học: ' + escapeHtml(scheduleError.message) + '</div>'; return; }
   const byMember = new Map(memberIds.map(id => [id, []]));
   (schedules || []).forEach(s => byMember.get(s.mssv)?.push(s));
+  const now = Date.now();
   list.innerHTML = memberIds.map(mssv => {
     const member = students.find(s => s.mssv === mssv);
-    const classes = byMember.get(mssv) || [];
+    const allClasses = byMember.get(mssv) || [];
+    const activeClass = allClasses.find(sc => new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
+    const upcoming = allClasses.filter(sc => new Date(sc.start_time).getTime() > now);
+    const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming];
     const isLeader = team.leader_mssv === mssv;
-    const scheduleHtml = classes.length ? classes.map(sc => '<div class="team-class">📚 ' + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + new Date(sc.start_time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) + '–' + new Date(sc.end_time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>').join('') : '<div class="team-class">Không có lịch học trong ngày này.</div>';
-    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px"><span class="team-availability ' + (classes.length ? 'busy">🔴 Bận' : 'free">🟢 Rảnh') + '</span><button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + '</div>';
+    const scheduleHtml = visibleClasses.length ? visibleClasses.map(sc => {
+      const active = sc === activeClass;
+      return '<div class="team-class ' + (active ? '' : 'team-schedule-future') + '">' + (active ? '🔴 Đang học · ' : '📅 Sắp tới · ') + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>';
+    }).join('') : '<div class="team-class">Hôm nay không còn tiết học.</div>';
+    const state = activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
+    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + '</div>';
   }).join('');
 }
 
@@ -2226,6 +2308,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const kpiTotalEl = document.getElementById('kpiTotalStudents');
   if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
   await loadTeamGroups();
+  if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
+  teamAvailabilityTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') loadTeamGroups();
+  }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadTeamGroups();
+  });
   await refreshAll();
   await loadTodayHistory();
   await loadTodaySchoolSchedule();
