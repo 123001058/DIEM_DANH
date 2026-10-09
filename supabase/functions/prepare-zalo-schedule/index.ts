@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.14.0";
 
 const timeZone = "Asia/Ho_Chi_Minh";
 const periodSpecs = [
-  { key: "morning", label: "SÁNG", from: "07:30", to: "11:25", start: "07:30", end: "11:25" },
-  { key: "afternoon", label: "CHIỀU", from: "12:50", to: "16:45", start: "12:50", end: "16:45" },
-  { key: "evening", label: "TỐI", from: "17:30", to: "20:50", start: "17:30", end: "20:50" },
+  { key: "morning", label: "SÁNG", session: 1, from: "07:30", to: "11:25", start: "07:30", end: "11:25" },
+  { key: "afternoon", label: "CHIỀU", session: 2, from: "12:50", to: "16:45", start: "12:50", end: "16:45" },
+  { key: "evening", label: "TỐI", session: 3, from: "17:30", to: "20:50", start: "17:30", end: "20:50" },
 ];
 
 function json(data: unknown, status = 200) {
@@ -59,7 +59,9 @@ function buildPeriods(dateKey: string, members: Array<{ mssv: string; name: stri
     for (const member of members) {
       const classes = schedules
         .filter((item) => item.mssv === member.mssv)
-        .filter((item) => Date.parse(item.start_time) < end && Date.parse(item.end_time) > start)
+        .filter((item) => item.buoi != null
+          ? Number(item.buoi) === period.session
+          : Date.parse(item.start_time) < end && Date.parse(item.end_time) > start)
         .sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time))
         .map((item) => ({
           subject: item.subject_name || "Môn học",
@@ -112,17 +114,13 @@ serve(async (req) => {
       targetDate = body.target_date;
     }
 
-    const [{ data: allStudents, error: studentsError }, { data: memberships, error: membersError }] = await Promise.all([
-      admin.from("students").select("mssv,name").order("mssv").limit(1000),
-      admin.from("team_group_members").select("mssv").limit(5000),
-    ]);
+    const { data: allStudents, error: studentsError } = await admin
+      .from("students").select("mssv,name").order("mssv").limit(1000);
     if (studentsError) throw new Error(`Không đọc được danh sách sinh viên: ${studentsError.message}`);
-    if (membersError) throw new Error(`Không đọc được thành viên nhóm: ${membersError.message}`);
 
     const students = allStudents || [];
-    const nameById = new Map(students.map((student) => [student.mssv, student.name || student.mssv]));
-    const memberIds = [...new Set((memberships || []).map((row) => row.mssv).filter(Boolean))];
-    if (!memberIds.length) throw new Error("Chưa có thành viên trong nhóm.");
+    if (!students.length) throw new Error("Danh sách sinh viên đang trống.");
+    const members = students.map((student) => ({ mssv: student.mssv, name: student.name || student.mssv }));
 
     const allSchedules: any[] = [];
     const failedIds: string[] = [];
@@ -153,6 +151,7 @@ serve(async (req) => {
             start_time: normalizeMeDateTime(item.ThoiGianBD),
             end_time: normalizeMeDateTime(item.ThoiGianKT),
             day_of_week: Number(item.Thu) || 0,
+            buoi: Number(item.Buoi) || null,
           }));
         } catch (error) {
           failedIds.push(student.mssv);
@@ -162,7 +161,6 @@ serve(async (req) => {
       }));
       results.forEach((rows) => allSchedules.push(...rows));
     }
-    if (!students.length) throw new Error("Danh sách sinh viên đang trống.");
     if (failedIds.length) throw new Error(`ME không trả đủ lịch (${failedIds.length}/${students.length} sinh viên); giữ nguyên dữ liệu cũ.`);
 
     const dateStart = new Date(`${targetDate}T00:00:00+07:00`).toISOString();
@@ -189,7 +187,6 @@ serve(async (req) => {
       throw new Error(replaceError?.message || replaceResult?.message || "Không lưu được lịch mới.");
     }
 
-    const members = memberIds.map((mssv) => ({ mssv, name: nameById.get(mssv) || mssv }));
     const periods = buildPeriods(targetDate, members, daySchedules);
     const { error: insertError } = await admin.from("zalo_schedule_previews").insert({
       target_date: targetDate,
