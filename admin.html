@@ -2057,19 +2057,38 @@ function renderZaloScheduleImage(data){
   const periods=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean);
   if(!periods.length)throw new Error('Không có dữ liệu Sáng, Chiều, Tối để tạo ảnh.');
   const sections=periods.map(period=>{
-    const innerWidth=columnWidth-40,freeNames=(period.free||[]).map(member=>member.name||member.mssv).filter(Boolean);
-    const freeLines=wrap(freeNames.length?freeNames.join('  ·  '):'Không có thành viên rảnh trong buổi này.',innerWidth-28,15,400);
-    const busyRows=(period.busy||[]).map(member=>{
-      const nameLines=wrap(member.name||member.mssv,innerWidth-28,16,700);
-      const classLines=(member.classes||[]).flatMap(item=>wrap(`${item.time_range||''}  ·  ${item.subject||item.subject_name||'Môn học'}${item.room||item.room_name?'  ·  '+(item.room||item.room_name):''}`,innerWidth-42,14,400));
-      return {nameLines,classLines,height:16+nameLines.length*21+Math.max(1,classLines.length)*19+16};
+    const innerWidth=columnWidth-32;
+    const freeRows=(period.free||[]).map((m,idx)=>{
+      const name=m.name||m.mssv;
+      const mssvStr=m.mssv?`(${m.mssv})`:'';
+      const text=`${idx+1}. ${name} ${mssvStr}`.trim();
+      const lines=wrap(text,innerWidth-36,15,600);
+      const height=12+lines.length*20+8;
+      return {name,mssv:m.mssv||'',index:idx+1,lines,height};
     });
-    const freeHeight=52+freeLines.length*21;
-    const busyHeight=busyRows.length?busyRows.reduce((sum,row)=>sum+row.height+8,0):56;
-    const height=112+freeHeight+48+busyHeight+22;
-    return {period,freeLines,busyRows,freeHeight,height};
+    const freeTotalHeight=freeRows.length?freeRows.reduce((sum,r)=>sum+r.height+6,0):48;
+
+    const busyRows=(period.busy||[]).map((m,idx)=>{
+      const name=m.name||m.mssv;
+      const mssvStr=m.mssv?`(${m.mssv})`:'';
+      const nameText=`${idx+1}. ${name} ${mssvStr}`.trim();
+      const nameLines=wrap(nameText,innerWidth-28,15,700);
+      const classLines=(m.classes||[]).flatMap(item=>{
+        const roomStr=item.room||item.room_name?` · P.${item.room||item.room_name}`:'';
+        const subjStr=item.subject||item.subject_name||'Môn học';
+        const timeStr=item.time_range||'';
+        return wrap(`⏱ ${timeStr} · ${subjStr}${roomStr}`,innerWidth-36,13.5,400);
+      });
+      const height=12+nameLines.length*20+Math.max(1,classLines.length)*19+10;
+      return {nameLines,classLines,height};
+    });
+    const busyTotalHeight=busyRows.length?busyRows.reduce((sum,r)=>sum+r.height+6,0):48;
+
+    const height=125+30+freeTotalHeight+16+30+busyTotalHeight+28;
+    return {period,freeRows,freeTotalHeight,busyRows,busyTotalHeight,height};
   });
-  const imageHeight=contentTop+Math.max(...sections.map(section=>section.height))+74;
+  const maxSectionHeight=Math.max(...sections.map(s=>s.height));
+  const imageHeight=contentTop+maxSectionHeight+76;
   canvas.width=width;canvas.height=imageHeight;ctx=canvas.getContext('2d');ctx.fillStyle='#f3f5f8';ctx.fillRect(0,0,width,imageHeight);
   const round=(x,y,w,h,r,color,stroke=null)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}};
   round(24,24,width-48,imageHeight-48,26,'#ffffff','#e0e5ed');round(pad,headerY,contentWidth,headerH,22,'#ffffff','#e0e5ed');
@@ -2079,23 +2098,54 @@ function renderZaloScheduleImage(data){
   const updated=data.generatedAt?new Date(data.generatedAt).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'}):'theo lịch ME';
   ctx.fillStyle='#8290a4';setFont(16);ctx.fillText(`Cập nhật từ ME · ${updated} · Giờ Việt Nam (UTC+7)`,pad+28,headerY+151);
   const accents=['#f4a340','#5984ed','#8b70d6'];
-  sections.forEach(({period,freeLines,busyRows,freeHeight},index)=>{
+  sections.forEach(({period,freeRows,busyRows},index)=>{
     const x=pad+index*(columnWidth+gap),y=contentTop,innerX=x+16,innerWidth=columnWidth-32;
-    const cardHeight=sections[index].height;
+    const cardHeight=maxSectionHeight;
     round(x,y,columnWidth,cardHeight,20,'#ffffff','#e0e5ed');round(x,y,10,cardHeight,5,accents[index%accents.length]);
     ctx.fillStyle='#172033';setFont(23,700);ctx.fillText(period.label||'',x+25,y+35);
     ctx.fillStyle='#667085';setFont(15);ctx.fillText(`${period.from||''} – ${period.to||''}`,x+25,y+62);
-    round(x+25,y+77,Math.floor((columnWidth-62)/2),38,18,'#e8f6ee');ctx.fillStyle='#16784a';setFont(15,700);ctx.fillText(`● ${period.free_count??period.free?.length??0} RẢNH`,x+40,y+101);
-    const busyX=x+25+Math.floor((columnWidth-62)/2)+10;round(busyX,y+77,Math.floor((columnWidth-62)/2),38,18,'#fdeceb');ctx.fillStyle='#c63832';setFont(15,700);ctx.fillText(`● ${period.busy_count??period.busy?.length??0} BẬN`,busyX+14,y+101);
-    const freeY=y+128;round(innerX,freeY,innerWidth,freeHeight,12,'#f0fbf5');ctx.fillStyle='#14794a';setFont(13,700);ctx.fillText('RẢNH TRONG BUỔI',innerX+14,freeY+21);
-    ctx.fillStyle='#28364a';setFont(15);freeLines.forEach((line,i)=>ctx.fillText(line,innerX+14,freeY+43+i*21));
-    let busyY=freeY+freeHeight+14;ctx.fillStyle='#bc3732';setFont(14,700);ctx.fillText(`CÓ LỊCH HỌC · ${period.busy_count??period.busy?.length??0}`,innerX+4,busyY+16);busyY+=26;
-    if(!busyRows.length){round(innerX,busyY,innerWidth,52,10,'#fff7f6','#f4d8d5');ctx.fillStyle='#65738a';setFont(14);ctx.fillText('Không có thành viên bận trong buổi này.',innerX+12,busyY+31);}
-    else busyRows.forEach(row=>{
-      round(innerX,busyY,innerWidth,row.height,10,'#fff7f6','#f4d8d5');let textY=busyY+23;
-      ctx.fillStyle='#192333';setFont(16,700);row.nameLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=21;});
-      ctx.fillStyle='#596579';setFont(14);row.classLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=19;});busyY+=row.height+8;
-    });
+    const badgeW=Math.floor((columnWidth-62)/2);
+    round(x+25,y+77,badgeW,38,18,'#e8f6ee');ctx.fillStyle='#16784a';setFont(15,700);ctx.fillText(`● ${period.free_count??period.free?.length??0} RẢNH`,x+40,y+101);
+    const busyX=x+25+badgeW+10;round(busyX,y+77,badgeW,38,18,'#fdeceb');ctx.fillStyle='#c63832';setFont(15,700);ctx.fillText(`● ${period.busy_count??period.busy?.length??0} BẬN`,busyX+14,y+101);
+
+    // Phần Rảnh
+    let curY=y+130;
+    ctx.fillStyle='#15803d';setFont(14,700);ctx.fillText(`✅ THÀNH VIÊN RẢNH (${period.free_count??period.free?.length??0})`,innerX+4,curY+14);
+    curY+=26;
+    if(!freeRows.length){
+      round(innerX,curY,innerWidth,46,10,'#f8fafc','#e2e8f0');
+      ctx.fillStyle='#64748b';setFont(14);ctx.fillText('Không có thành viên rảnh trong buổi này.',innerX+14,curY+28);
+      curY+=46+16;
+    }else{
+      freeRows.forEach(row=>{
+        round(innerX,curY,innerWidth,row.height,8,'#f0fdf4','#bbf7d0');
+        ctx.fillStyle='#16a34a';setFont(13,700);ctx.fillText('✓',innerX+12,curY+21);
+        ctx.fillStyle='#0f172a';setFont(14.5,600);
+        let tY=curY+21;
+        row.lines.forEach(line=>{ctx.fillText(line,innerX+28,tY);tY+=20;});
+        curY+=row.height+6;
+      });
+      curY+=10;
+    }
+
+    // Phần Bận
+    ctx.fillStyle='#dc2626';setFont(14,700);ctx.fillText(`⚠️ CÓ LỊCH HỌC TRƯỜNG (${period.busy_count??period.busy?.length??0})`,innerX+4,curY+14);
+    curY+=26;
+    if(!busyRows.length){
+      round(innerX,curY,innerWidth,46,10,'#f8fafc','#e2e8f0');
+      ctx.fillStyle='#64748b';setFont(14);ctx.fillText('Cả đội đều không vướng lịch học.',innerX+14,curY+28);
+      curY+=46;
+    }else{
+      busyRows.forEach(row=>{
+        round(innerX,curY,innerWidth,row.height,8,'#fff7f6','#fecaca');
+        let tY=curY+21;
+        ctx.fillStyle='#991b1b';setFont(14.5,700);
+        row.nameLines.forEach(line=>{ctx.fillText(line,innerX+12,tY);tY+=20;});
+        ctx.fillStyle='#475569';setFont(13.5,400);
+        row.classLines.forEach(line=>{ctx.fillText(line,innerX+12,tY);tY+=19;});
+        curY+=row.height+6;
+      });
+    }
   });
   ctx.fillStyle='#8a96a8';setFont(14);ctx.fillText('Trạng thái tính theo tiết học giao với từng buổi · Nguồn thời khóa biểu: ME · LH-NaviX',pad,imageHeight-38);
   return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),'image/png'));
@@ -2105,8 +2155,8 @@ async function showZaloScheduleImage(data){
   if(window.zaloImageObjectUrl)URL.revokeObjectURL(window.zaloImageObjectUrl);window.zaloImageObjectUrl=URL.createObjectURL(blob);
   document.getElementById('zaloImagePreview').src=window.zaloImageObjectUrl;
   const download=document.getElementById('zaloImageDownload');download.href=window.zaloImageObjectUrl;download.download=`lich-ranh-${data.dateKey||data.target_date}.png`;download.style.pointerEvents='auto';download.style.opacity='1';
-  const periodTotals=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean).map(p=>`${p.label} (${p.from}–${p.to}): ${p.free_count} rảnh, ${p.busy_count} bận`).join(' · ');
-  document.getElementById('zaloCaptionPreview').textContent=`📅 Lịch toàn bộ sinh viên ngày ${data.day||data.target_date}: ${periodTotals}. Chi tiết trong ảnh.`;
+  const periodTotals=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean).map(p=>`• ${p.label} (${p.from}–${p.to}): ${p.free_count} rảnh, ${p.busy_count} bận`).join('\n');
+  document.getElementById('zaloCaptionPreview').textContent=`📅 LỊCH TOÀN BỘ SINH VIÊN NGÀY ${data.day||data.target_date}\n${periodTotals}\n\n👉 Chi tiết danh sách rảnh/bận theo từng ca xem trong ảnh đính kèm.`;
   const copyButton=document.getElementById('zaloCopyCaptionButton');if(copyButton)copyButton.disabled=false;
   document.getElementById('zaloImageArea').hidden=false;
 }
