@@ -437,7 +437,18 @@ body {
 
 .count-badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: rgba(0,0,0,0.06); }
 .schedule-list-wrap, .history-list-wrap { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.detail-list { max-height: min(62vh, 560px); min-height: 160px; }
+.detail-list .today-history-item { margin-bottom: 0; }
 .schedule-loading { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.schedule-mini-item { padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; gap: 3px; transition: transform .1s ease, border-color .1s ease; }
+.schedule-mini-item:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.today-history-item { padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+.today-history-item:last-child { margin-bottom: 0; }
+.today-history-name { font-size: 13px; font-weight: 800; }
+.today-history-meta { font-size: 11.5px; color: var(--muted); }
+.rk-badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
+.rk-badge.doing { background: var(--info-bg); color: var(--info); }
+.rk-badge.todo { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-strong); }
 
 .schedule-card-item {
   padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px;
@@ -1228,7 +1239,7 @@ tbody tr:last-child td { border-bottom: none; }
             <a href="lichhoc.html" class="btn btn-primary">Xem lưới TKB chi tiết →</a>
           </div>
         </div>
-        <div class="schedule-list-wrap" style="max-height:600px" id="schedulesFullList"></div>
+        <div class="schedule-list-wrap detail-list" id="schedulesFullList"><div class="schedule-loading">Đang tải lịch học hôm nay...</div></div>
       </section>
     </section>
 
@@ -1343,7 +1354,7 @@ tbody tr:last-child td { border-bottom: none; }
             <button class="btn btn-icon" onclick="loadTodayHistory()">↻</button>
           </div>
         </div>
-        <div class="history-list-wrap" style="max-height:650px" id="historyFullList"></div>
+        <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
       </section>
     </section>
 
@@ -2831,19 +2842,19 @@ async function loadTodayHistory(){
   const wrap = document.getElementById('todayHistoryWrap');
   const list = document.getElementById('todayHistoryList');
   const emptyList = document.getElementById('emptyTodayHistoryList');
+  const historyFullList = document.getElementById('historyFullList');
   const kpiPresentRateEl = document.getElementById('kpiPresentRate');
   const kpiAbsentRateEl = document.getElementById('kpiAbsentRate');
 
   if (error || !data?.ok || !data.sessions?.length){
     if (wrap) wrap.style.display = 'none';
-    if (emptyList) {
-      emptyList.innerHTML = `
+    const emptyHtml = `
         <div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px">
           <div style="font-size:26px;margin-bottom:8px">📋</div>
           <b>Chưa có lịch sử phiên nào</b>
           <p style="font-size:12px;margin-top:4px;color:var(--faint)">Các phiên điểm danh gần đây sẽ hiển thị tại đây.</p>
         </div>`;
-    }
+    [emptyList, historyFullList, list].filter(Boolean).forEach(el => { el.innerHTML = emptyHtml; });
     if (kpiPresentRateEl) kpiPresentRateEl.textContent = '—%';
     if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '—%';
     return;
@@ -2903,6 +2914,7 @@ async function loadTodayHistory(){
 
   if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
   if (emptyList) { emptyList.innerHTML = itemsHtml; }
+  if (historyFullList) { historyFullList.innerHTML = itemsHtml; }
 }
 
 async function quickCloseSession(sid){
@@ -2936,29 +2948,26 @@ async function quickReopenSession(sid){
 }
 
 async function loadTodaySchoolSchedule(){
-  const listEl = document.getElementById('todaySchoolScheduleList');
+  const listEls = [document.getElementById('todaySchoolScheduleList'), document.getElementById('schedulesFullList')].filter(Boolean);
   const countBadge = document.getElementById('todaySchoolScheduleCount');
   const kpiBusyEl = document.getElementById('kpiBusyCount');
-  if (!listEl) return;
+  if (!listEls.length) return;
 
   try {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    const startStr = `${y}-${m}-${d}T00:00:00`;
-    const endStr = `${y}-${m}-${d}T23:59:59`;
+    const todayKey = getVietnamDateKey(0);
+    const startStr = new Date(`${todayKey}T00:00:00+07:00`).toISOString();
+    const endStr = new Date(new Date(startStr).getTime() + 86400000).toISOString();
 
     const { data, error } = await supabase
       .from('student_schedules')
       .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
       .gte('start_time', startStr)
-      .lte('start_time', endStr)
+      .lt('start_time', endStr)
       .order('start_time', { ascending: true });
 
     if (error) {
       console.error('Lỗi khi tải lịch học trường:', error);
-      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">Không thể tải lịch học trường</div>';
+      listEls.forEach(el => { el.innerHTML = '<div class="schedule-loading">Không thể tải lịch học trường.</div>'; });
       return;
     }
 
@@ -2973,16 +2982,17 @@ async function loadTodaySchoolSchedule(){
     if (kpiBusyEl) kpiBusyEl.textContent = busyCount;
 
     if (items.length === 0){
-      listEl.innerHTML = `
+      const emptyHtml = `
         <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
           <div style="font-size:26px;margin-bottom:6px">🎉</div>
           <b>Hôm nay cả đội không vướng lịch học trường!</b>
           <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tham gia xưởng đầy đủ.</p>
         </div>`;
+      listEls.forEach(el => { el.innerHTML = emptyHtml; });
       return;
     }
 
-    listEl.innerHTML = items.map(sc => {
+    const itemsHtml = items.map(sc => {
       const sName = studentMap[sc.mssv] || sc.mssv;
       const tStart = new Date(sc.start_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
       const tEnd = new Date(sc.end_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
@@ -3000,8 +3010,10 @@ async function loadTodaySchoolSchedule(){
           </div>
         </div>`;
     }).join('');
+    listEls.forEach(el => { el.innerHTML = itemsHtml; });
   } catch (err) {
     console.error('loadTodaySchoolSchedule error:', err);
+    listEls.forEach(el => { el.innerHTML = '<div class="schedule-loading">Lỗi khi tải lịch học trường.</div>'; });
   }
 }
 
