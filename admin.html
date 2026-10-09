@@ -1714,9 +1714,11 @@ async function loadTodayHistory(){
           excusedText +
         '</div>' +
       '</div>' +
-      '<div style="margin-top:12px; display:grid; grid-template-columns:' + (s.is_open ? '1fr 1fr' : '1fr 1fr 1fr') + '; gap:8px">' +
+      '<div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px">' +
         '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
-        (!s.is_open ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>' : '') +
+        (s.is_open
+          ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#dc2626;color:#fff;border:none" onclick="event.stopPropagation();quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
+          : '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
         '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
       '</div>' +
     '</div>';
@@ -1724,6 +1726,23 @@ async function loadTodayHistory(){
 
   if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
   if (emptyList) { emptyList.innerHTML = itemsHtml; }
+}
+
+async function quickCloseSession(sid){
+  if (!confirm('Đóng phiên điểm danh này? Sinh viên sẽ không thể tiếp tục quét QR.')) return;
+  try {
+    const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể đóng phiên');
+    toast('ok', 'Đã đóng phiên', 'Phiên đã chuyển sang trạng thái đã đóng.');
+    if (currentSession?.id && String(currentSession.id) === String(sid)) {
+      currentSession = null;
+      showEmpty();
+    }
+    await loadTodayHistory();
+    if (typeof refreshAll === 'function') await refreshAll();
+  } catch(e){
+    toast('err', 'Đóng phiên thất bại', e.message);
+  }
 }
 
 async function quickReopenSession(sid){
