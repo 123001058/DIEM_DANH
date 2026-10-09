@@ -866,6 +866,15 @@ tbody tr:last-child td { border-bottom: none; }
   gap: 8px;
   flex-wrap: wrap;
 }
+.zalo-admin-panel { background:#0d1424; color:#eef3ff; border-color:#202b40; }
+.zalo-admin-panel .zalo-admin-description,
+.zalo-admin-panel #zaloImageStatus { color:#aab5c7 !important; }
+.zalo-admin-panel input,
+.zalo-admin-panel select { background:#151e30; color:#eef3ff; border-color:#34435d; }
+.zalo-admin-panel .btn-secondary { background:#202b40; color:#edf2ff; border-color:#34435d; }
+.zalo-admin-panel .btn-primary { background:#7da6ff; color:#0a1426; border-color:#7da6ff; }
+.zalo-admin-panel .btn-primary:hover:not(:disabled) { background:#a5c0ff; }
+.zalo-admin-panel .btn:disabled { opacity:.6; }
 
 </style>
 <script src="js/qrcode.min.js"></script>
@@ -1417,22 +1426,27 @@ tbody tr:last-child td { border-bottom: none; }
          VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION)
          ========================================================== -->
     <section class="app-view" id="view-zalo">
-      <section class="card" style="max-width:900px;margin:0 auto;padding:22px">
+      <section class="card zalo-admin-panel" style="max-width:1380px;margin:0 auto;padding:22px">
         <div style="margin-bottom:16px">
-          <h2 style="font-size:17px;font-weight:800">📋 Lịch Sáng – Chiều – Tối để gửi Zalo</h2>
-          <p style="font-size:12px;color:var(--muted);margin-top:5px">Server tự chuẩn bị lịch ngày mai lúc 20:00, kể cả khi bạn đã đóng web. Mở mục này để xem ảnh, tải xuống và tự gửi vào nhóm Zalo.</p>
+          <h2 style="font-size:17px;font-weight:800">📋 Quản trị lịch gửi Zalo</h2>
+          <p class="zalo-admin-description" style="font-size:12px;margin-top:5px">Lịch theo đúng ca trong Thời khóa biểu LH-NaviX. Chọn ngày và nhóm, kiểm tra danh sách rảnh/bận rồi tải ảnh gửi Zalo.</p>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" id="zaloSyncCopyButton" onclick="syncAndCreateZaloImage()">🔄 Đồng bộ ngay & tạo ảnh</button>
-          <button class="btn btn-secondary" type="button" onclick="loadPreparedZaloSchedule()">↻ Tải bản đã chuẩn bị</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <button class="btn btn-secondary btn-sm" type="button" id="zaloTodayButton" onclick="setZaloDate(0)">Hôm nay</button>
+          <button class="btn btn-secondary btn-sm" type="button" id="zaloTomorrowButton" onclick="setZaloDate(1)">Ngày mai</button>
+          <input id="zaloDateInput" type="date" aria-label="Ngày xem lịch" onchange="loadPreparedZaloSchedule()" style="min-width:155px">
+          <select id="zaloGroupFilter" aria-label="Lọc theo nhóm" onchange="loadPreparedZaloSchedule()" style="min-width:190px">
+            <option value="all">Tất cả nhóm</option>
+          </select>
         </div>
-        <div id="zaloImageStatus" style="margin-top:16px;color:var(--muted);font-size:13px">Đang kiểm tra bản lịch server đã chuẩn bị.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <a class="btn btn-primary" id="zaloImageDownload" download="lich-ranh-zalo.png" style="pointer-events:none;opacity:.55">⬇ Tải ảnh Zalo</a>
+          <button class="btn btn-secondary" type="button" id="zaloCopyCaptionButton" onclick="copyZaloCaption()" disabled>▢ Sao chép lời nhắn</button>
+          <button class="btn btn-secondary" type="button" id="zaloSyncCopyButton" onclick="syncAndCreateZaloImage()">↻ Làm mới dữ liệu ME</button>
+        </div>
+        <div id="zaloImageStatus" style="margin:8px 0 12px;color:var(--muted);font-size:13px">Đang tải lịch học…</div>
         <div id="zaloImageArea" hidden style="margin-top:16px">
-          <img id="zaloImagePreview" alt="Ảnh lịch rảnh và bận ngày mai" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:14px;background:#f3f5f8">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-            <a class="btn btn-primary" id="zaloImageDownload" download="lich-ranh-ngay-mai.png">⬇ Tải ảnh PNG</a>
-            <button class="btn" type="button" onclick="copyZaloCaption()">📋 Sao chép lời nhắn</button>
-          </div>
+          <img id="zaloImagePreview" alt="Lịch học và danh sách rảnh/bận theo ba ca" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:14px;background:#f3f5f8">
           <div class="zalo-bubble" style="margin-top:12px">
             <div class="zalo-bubble-badge">📱 Lời nhắn gửi kèm ảnh</div>
             <div id="zaloCaptionPreview"></div>
@@ -1810,7 +1824,7 @@ function navTo(viewName) {
   else if (viewName === 'requests' && typeof fetchResetRequests === 'function') fetchResetRequests();
   else if (viewName === 'tasks') loadAdminTasks();
   else if (viewName === 'feedback') loadAdminFeedback();
-  else if (viewName === 'zalo') loadPreparedZaloSchedule();
+  else if (viewName === 'zalo') initZaloScheduleView();
 }
 
 function toggleSidebar() {
@@ -1983,11 +1997,35 @@ function getVietnamDateKey(offsetDays=0){
   const val=k=>Number(parts.find(p=>p.type===k).value);
   return new Date(Date.UTC(val('year'),val('month')-1,val('day')+offsetDays)).toISOString().slice(0,10);
 }
-async function loadZaloScheduleData(dateKey=getVietnamDateKey(1)){
+function vietnamDateKeyFromTimestamp(value){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value));
+  const val=k=>parts.find(p=>p.type===k)?.value||'';
+  return `${val('year')}-${val('month')}-${val('day')}`;
+}
+function selectedZaloDate(){return document.getElementById('zaloDateInput')?.value||getVietnamDateKey(1);}
+function selectedZaloGroup(){return document.getElementById('zaloGroupFilter')?.value||'all';}
+async function initZaloScheduleView(){
+  const input=document.getElementById('zaloDateInput');if(input&&!input.value)input.value=getVietnamDateKey(1);
+  await loadZaloGroupOptions();await loadPreparedZaloSchedule();
+}
+async function loadZaloGroupOptions(){
+  const select=document.getElementById('zaloGroupFilter');if(!select)return;
+  const previous=select.value||'all';const {data,error}=await supabase.from('team_groups').select('id,name,field').order('name');
+  if(error){console.warn('Không tải được danh sách nhóm lịch Zalo:',error.message);return;}
+  select.innerHTML='<option value="all">Tất cả nhóm</option>'+(data||[]).map(group=>`<option value="${escapeHtml(group.id)}">${escapeHtml(group.name)}${group.field?' · '+escapeHtml(group.field):''}</option>`).join('');
+  if(previous==='all'||(data||[]).some(group=>group.id===previous))select.value=previous;
+}
+async function setZaloDate(offsetDays){
+  const input=document.getElementById('zaloDateInput');if(input)input.value=getVietnamDateKey(offsetDays);
+  await loadPreparedZaloSchedule();
+}
+async function loadZaloScheduleData(dateKey=selectedZaloDate(),groupId=selectedZaloGroup()){
   const status=document.getElementById('zaloImageStatus');if(!status)return false;status.textContent='Đang đọc lịch đã đồng bộ…';
   const from=new Date(`${dateKey}T00:00:00+07:00`).toISOString(),to=new Date(new Date(from).getTime()+86400000).toISOString();
+  let memberQuery=supabase.from('team_group_members').select('mssv,students(name)').limit(1000);
+  if(groupId&&groupId!=='all')memberQuery=memberQuery.eq('team_id',groupId);
   const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([
-    supabase.from('team_group_members').select('mssv,students(name)').limit(1000),
+    memberQuery,
     supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time').lt('start_time',to).gte('end_time',from).order('start_time')
   ]);
   if(e1||e2){status.textContent='Không đọc được lịch: '+(e1?.message||e2?.message);return false;}
@@ -2015,7 +2053,7 @@ async function loadZaloScheduleData(dateKey=getVietnamDateKey(1)){
     });
     periodsData[period.key]={key:period.key,label:period.label,from:period.from,to:period.to,free_count:free.length,busy_count:busy.length,free,busy};
   });
-  window.zaloScheduleData={dateKey,day,memberCount:list.length,periods:periodsData,generatedAt:new Date().toISOString()};return true;
+  window.zaloScheduleData={dateKey,day,memberCount:list.length,groupId:groupId||'all',periods:periodsData,generatedAt:new Date().toISOString()};return true;
 }
 function renderZaloScheduleImage(data){
   const width=1800,pad=48,gap=18,headerY=48,headerH=178,contentTop=250,contentWidth=width-pad*2,columnWidth=(contentWidth-gap*2)/3,canvas=document.createElement('canvas');
@@ -2048,11 +2086,11 @@ function renderZaloScheduleImage(data){
     return {period,freeLines,busyRows,freeHeight,height};
   });
   const imageHeight=contentTop+Math.max(...sections.map(section=>section.height))+74;
-  canvas.width=width;canvas.height=imageHeight;ctx=canvas.getContext('2d');ctx.fillStyle='#f3f5f8';ctx.fillRect(0,0,width,imageHeight);
+  canvas.width=width;canvas.height=imageHeight;ctx=canvas.getContext('2d');ctx.fillStyle='#080d1b';ctx.fillRect(0,0,width,imageHeight);
   const round=(x,y,w,h,r,color,stroke=null)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}};
-  round(24,24,width-48,imageHeight-48,26,'#ffffff','#e0e5ed');round(pad,headerY,contentWidth,headerH,22,'#15171c');
+  round(24,24,width-48,imageHeight-48,26,'#0d1424','#202b40');round(pad,headerY,contentWidth,headerH,22,'#101a2d');
   ctx.fillStyle='#b8ceff';setFont(19,700);ctx.fillText('LH-NaviX  ·  LỊCH NHÓM',pad+28,headerY+40);
-  ctx.fillStyle='#ffffff';setFont(31,700);ctx.fillText('LỊCH RẢNH / BẬN NGÀY MAI',pad+28,headerY+82);
+  ctx.fillStyle='#ffffff';setFont(31,700);ctx.fillText('LỊCH HỌC & TRẠNG THÁI RẢNH / BẬN',pad+28,headerY+82);
   ctx.fillStyle='#dbe3f0';setFont(22);ctx.fillText(data.day||data.target_date||'',pad+28,headerY+119);
   const updated=data.generatedAt?new Date(data.generatedAt).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'}):'theo lịch ME';
   ctx.fillStyle='#aab5c7';setFont(16);ctx.fillText(`Cập nhật từ ME · ${updated} · Giờ Việt Nam (UTC+7)`,pad+28,headerY+151);
@@ -2060,59 +2098,75 @@ function renderZaloScheduleImage(data){
   sections.forEach(({period,freeLines,busyRows,freeHeight},index)=>{
     const x=pad+index*(columnWidth+gap),y=contentTop,innerX=x+16,innerWidth=columnWidth-32;
     const cardHeight=sections[index].height;
-    round(x,y,columnWidth,cardHeight,20,'#ffffff','#e0e5ed');round(x,y,10,cardHeight,5,accents[index%accents.length]);
-    ctx.fillStyle='#172033';setFont(23,700);ctx.fillText(period.label||'',x+25,y+35);
-    ctx.fillStyle='#667085';setFont(15);ctx.fillText(`${period.from||''} – ${period.to||''}`,x+25,y+62);
-    round(x+25,y+77,Math.floor((columnWidth-62)/2),38,18,'#e8f6ee');ctx.fillStyle='#16784a';setFont(15,700);ctx.fillText(`● ${period.free_count??period.free?.length??0} RẢNH`,x+40,y+101);
-    const busyX=x+25+Math.floor((columnWidth-62)/2)+10;round(busyX,y+77,Math.floor((columnWidth-62)/2),38,18,'#fdeceb');ctx.fillStyle='#c63832';setFont(15,700);ctx.fillText(`● ${period.busy_count??period.busy?.length??0} BẬN`,busyX+14,y+101);
-    const freeY=y+128;round(innerX,freeY,innerWidth,freeHeight,12,'#effaf4');ctx.fillStyle='#14794a';setFont(13,700);ctx.fillText('RẢNH TRONG BUỔI',innerX+14,freeY+21);
-    ctx.fillStyle='#28364a';setFont(15);freeLines.forEach((line,i)=>ctx.fillText(line,innerX+14,freeY+43+i*21));
-    let busyY=freeY+freeHeight+14;ctx.fillStyle='#bc3732';setFont(14,700);ctx.fillText(`CÓ LỊCH HỌC · ${period.busy_count??period.busy?.length??0}`,innerX+4,busyY+16);busyY+=26;
-    if(!busyRows.length){round(innerX,busyY,innerWidth,52,10,'#fff7f6','#f4d8d5');ctx.fillStyle='#65738a';setFont(14);ctx.fillText('Không có thành viên bận trong buổi này.',innerX+12,busyY+31);}
+    round(x,y,columnWidth,cardHeight,20,'#121c30','#26334c');round(x,y,10,cardHeight,5,accents[index%accents.length]);
+    ctx.fillStyle='#f4f7ff';setFont(23,700);ctx.fillText(period.label||'',x+25,y+35);
+    ctx.fillStyle='#9caecb';setFont(15);ctx.fillText(`${period.from||''} – ${period.to||''}`,x+25,y+62);
+    round(x+25,y+77,Math.floor((columnWidth-62)/2),38,18,'#12372f');ctx.fillStyle='#52dfa3';setFont(15,700);ctx.fillText(`● ${period.free_count??period.free?.length??0} RẢNH`,x+40,y+101);
+    const busyX=x+25+Math.floor((columnWidth-62)/2)+10;round(busyX,y+77,Math.floor((columnWidth-62)/2),38,18,'#3a222c');ctx.fillStyle='#ff8791';setFont(15,700);ctx.fillText(`● ${period.busy_count??period.busy?.length??0} BẬN`,busyX+14,y+101);
+    const freeY=y+128;round(innerX,freeY,innerWidth,freeHeight,12,'#102a29','#1d4840');ctx.fillStyle='#52dfa3';setFont(13,700);ctx.fillText('RẢNH TRONG BUỔI',innerX+14,freeY+21);
+    ctx.fillStyle='#d2e9e3';setFont(15);freeLines.forEach((line,i)=>ctx.fillText(line,innerX+14,freeY+43+i*21));
+    let busyY=freeY+freeHeight+14;ctx.fillStyle='#ff8791';setFont(14,700);ctx.fillText(`CÓ LỊCH HỌC · ${period.busy_count??period.busy?.length??0}`,innerX+4,busyY+16);busyY+=26;
+    if(!busyRows.length){round(innerX,busyY,innerWidth,52,10,'#251c2a','#50313c');ctx.fillStyle='#b5bfd1';setFont(14);ctx.fillText('Không có thành viên bận trong buổi này.',innerX+12,busyY+31);}
     else busyRows.forEach(row=>{
-      round(innerX,busyY,innerWidth,row.height,10,'#fff7f6','#f4d8d5');let textY=busyY+23;
-      ctx.fillStyle='#192333';setFont(16,700);row.nameLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=21;});
-      ctx.fillStyle='#596579';setFont(14);row.classLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=19;});busyY+=row.height+8;
+      round(innerX,busyY,innerWidth,row.height,10,'#251c2a','#50313c');let textY=busyY+23;
+      ctx.fillStyle='#f1e8ee';setFont(16,700);row.nameLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=21;});
+      ctx.fillStyle='#c6b9c5';setFont(14);row.classLines.forEach(line=>{ctx.fillText(line,innerX+12,textY);textY+=19;});busyY+=row.height+8;
     });
   });
-  ctx.fillStyle='#8a96a8';setFont(14);ctx.fillText('Trạng thái tính theo tiết học giao với từng buổi · Nguồn thời khóa biểu: ME · LH-NaviX',pad,imageHeight-38);
+  ctx.fillStyle='#8795ad';setFont(14);ctx.fillText('Trạng thái tính theo tiết học giao với từng buổi · Nguồn thời khóa biểu: ME · LH-NaviX',pad,imageHeight-38);
   return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),'image/png'));
 }
 async function showZaloScheduleImage(data){
   const blob=await renderZaloScheduleImage(data);if(!blob)throw new Error('Trình duyệt không tạo được ảnh PNG.');
   if(window.zaloImageObjectUrl)URL.revokeObjectURL(window.zaloImageObjectUrl);window.zaloImageObjectUrl=URL.createObjectURL(blob);
   document.getElementById('zaloImagePreview').src=window.zaloImageObjectUrl;
-  const download=document.getElementById('zaloImageDownload');download.href=window.zaloImageObjectUrl;download.download=`lich-ranh-${data.dateKey||data.target_date}.png`;
-  const periodTotals=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean).map(p=>`${p.label}: ${p.free_count} rảnh, ${p.busy_count} bận`).join(' · ');
-  document.getElementById('zaloCaptionPreview').textContent=`📅 Lịch nhóm ngày ${data.day||data.target_date}: ${periodTotals}. Chi tiết trong ảnh.`;
+  const download=document.getElementById('zaloImageDownload');download.href=window.zaloImageObjectUrl;download.download=`lich-ranh-${data.dateKey||data.target_date}.png`;download.style.pointerEvents='auto';download.style.opacity='1';
+  const periodTotals=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean).map(p=>`${p.label} (${p.from}–${p.to}): ${p.free_count} rảnh, ${p.busy_count} bận`).join(' · ');
+  const groupSelect=document.getElementById('zaloGroupFilter'),groupName=groupSelect?.value&&groupSelect.value!=='all'?groupSelect.selectedOptions?.[0]?.textContent:'nhóm';
+  document.getElementById('zaloCaptionPreview').textContent=`📅 Lịch ${groupName||'nhóm'} ngày ${data.day||data.target_date}: ${periodTotals}. Chi tiết trong ảnh.`;
+  const copyButton=document.getElementById('zaloCopyCaptionButton');if(copyButton)copyButton.disabled=false;
   document.getElementById('zaloImageArea').hidden=false;
 }
+function clearZaloScheduleImage(){
+  const area=document.getElementById('zaloImageArea'),download=document.getElementById('zaloImageDownload'),copyButton=document.getElementById('zaloCopyCaptionButton');
+  if(area)area.hidden=true;
+  if(download){download.removeAttribute('href');download.style.pointerEvents='none';download.style.opacity='.55';}
+  if(copyButton)copyButton.disabled=true;
+}
 async function loadPreparedZaloSchedule(){
-  const status=document.getElementById('zaloImageStatus'),dateKey=getVietnamDateKey(1);if(!status)return;
-  status.textContent='Đang tải bản lịch server đã chuẩn bị…';
-  const {data,error}=await supabase.rpc('admin_get_zalo_schedule_preview',{p_date:dateKey});
-  if(error||!data?.ok){status.textContent='Không tải được bản lịch: '+(error?.message||data?.message||'Lỗi không xác định.');return;}
-  const preview=data.preview;
-  if(!preview){status.textContent=data.last_attempt?.status==='error'?`Server chưa tạo được lịch: ${data.last_attempt.error_message||'hãy thử đồng bộ ngay.'}`:'Chưa có bản chuẩn bị lúc 20:00 cho ngày mai. Bạn có thể đồng bộ ngay.';return;}
-  const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const imageData={dateKey,day,target_date:dateKey,generatedAt:preview.generated_at,periods:preview.periods};
-  try{await showZaloScheduleImage(imageData);status.textContent=`Đã tải bản server chuẩn bị lúc ${new Date(preview.generated_at).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} · ${day}.`;}
+  const status=document.getElementById('zaloImageStatus'),dateKey=selectedZaloDate(),groupId=selectedZaloGroup();if(!status)return;
+  clearZaloScheduleImage();
+  status.textContent='Đang tải thời khóa biểu cho ngày đã chọn…';
+  if(groupId==='all'&&dateKey===getVietnamDateKey(1)){
+    const {data,error}=await supabase.rpc('admin_get_zalo_schedule_preview',{p_date:dateKey});
+    if(!error&&data?.ok&&data.preview){
+      const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+      const preview=data.preview,imageData={dateKey,day,target_date:dateKey,generatedAt:preview.generated_at,periods:preview.periods};
+      try{await showZaloScheduleImage(imageData);status.textContent=`Bản ME chuẩn bị lúc ${new Date(preview.generated_at).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} · ${day}. Muốn lấy lịch mới nhất, bấm “Làm mới dữ liệu ME”.`;return;}
+      catch(e){status.textContent='Không tạo được ảnh: '+(e?.message||e);return;}
+    }
+  }
+  if(!await loadZaloScheduleData(dateKey,groupId))return;
+  try{await showZaloScheduleImage(window.zaloScheduleData);status.textContent=`Đang xem lịch đã đồng bộ trong hệ thống · ${window.zaloScheduleData.day}. Bấm “Làm mới dữ liệu ME” để lấy bản mới nhất.`;}
   catch(e){status.textContent='Không tạo được ảnh: '+(e?.message||e);}
 }
 async function syncAndCreateZaloImage(){
   const btn=document.getElementById('zaloSyncCopyButton');if(!btn)return;const old=btn.innerHTML;btn.disabled=true;
+  clearZaloScheduleImage();
   try{
-    const dateKey=getVietnamDateKey(1);btn.innerHTML='<span class="spin"></span> Đang đồng bộ ME…';
+    const dateKey=selectedZaloDate(),groupId=selectedZaloGroup();btn.innerHTML='<span class="spin"></span> Đang đồng bộ ME…';
     const synced=await syncSchedulesFromME(true,dateKey,true,btn,true);
     if(!synced)return;
     btn.innerHTML='<span class="spin"></span> Đang tạo ảnh…';
-    if(!await loadZaloScheduleData(dateKey))return;
+    if(!await loadZaloScheduleData(dateKey,groupId))return;
     const data=window.zaloScheduleData;
-    const {data:saveResult,error:saveError}=await supabase.rpc('admin_save_zalo_schedule_preview',{p_date:dateKey,p_member_count:data.memberCount,p_periods:data.periods});
-    if(saveError||!saveResult?.ok)throw new Error(saveError?.message||saveResult?.message||'Không lưu được bản lịch.');
+    if(groupId==='all'){
+      const {data:saveResult,error:saveError}=await supabase.rpc('admin_save_zalo_schedule_preview',{p_date:dateKey,p_member_count:data.memberCount,p_periods:data.periods});
+      if(saveError||!saveResult?.ok)throw new Error(saveError?.message||saveResult?.message||'Không lưu được bản lịch.');
+    }
     await showZaloScheduleImage(data);
-    document.getElementById('zaloImageStatus').textContent='Đã đồng bộ ME và lưu ảnh lịch Sáng – Chiều – Tối. Tải ảnh để gửi vào Zalo.';
-    toast('ok','Đã tạo ảnh lịch','Lịch ba buổi đã sẵn sàng để tải xuống và gửi vào Zalo.');
+    document.getElementById('zaloImageStatus').textContent=`Đã đồng bộ ME cho ${data.memberCount} thành viên · ${data.day}. Lịch ca và môn học lấy từ thời khóa biểu của ngày này.`;
+    toast('ok','Đã làm mới lịch ME','Lịch ba ca đã cập nhật theo ngày và nhóm đang chọn.');
   }catch(e){document.getElementById('zaloImageStatus').textContent='Chưa tạo được ảnh: '+(e?.message||e);toast('err','Chưa tạo được ảnh',e?.message||'Vui lòng thử lại.');}
   finally{btn.disabled=false;btn.innerHTML=old;}
 }
@@ -3387,31 +3441,32 @@ async function syncSchedulesFromME(isAuto=false,targetDate=null,preserveOtherDay
       {mssv:'123000375'},{mssv:'123001394'},{mssv:'125000890'},{mssv:'125001087'},
       {mssv:'124001273'},{mssv:'122000426'},{mssv:'125001343'}
     ];
-    const allSchedules=[];let successfulCalendarResponses=0;
+    const allSchedules=[];let successfulCalendarResponses=0;const failedCalendarStudents=[];
     const requestDate=targetDate?`${targetDate}T00:00:00+07:00`:new Date().toISOString();
     for(let i=0;i<list.length;i+=6){
       const chunk=list.slice(i,i+6);
       const results=await Promise.all(chunk.map(async student=>{
         try{
           const res=await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({StudentID:student.mssv,Ngay:requestDate,PageIndex:1,PageSize:100})});
-          if(!res.ok)return [];
-          const json=await res.json(),items=json.data?.[2]??[];if(!Array.isArray(items))return [];
+          if(!res.ok){failedCalendarStudents.push(student.mssv);return [];}
+          const json=await res.json(),items=json.data?.[2];if(!Array.isArray(items)){failedCalendarStudents.push(student.mssv);return [];}
           successfulCalendarResponses++;
           return items.map(c=>{
-            let start=c.ThoiGianBD,end=c.ThoiGianKT;
-            if(start&&!start.includes('+07')&&!start.endsWith('Z'))start+='+07:00';
-            if(end&&!end.includes('+07')&&!end.endsWith('Z'))end+='+07:00';
+            const normalizeTime=value=>{let time=String(value||'').trim().replace(' ','T');if(/[+-]\d{2}$/.test(time))time+=':00';if(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(time))return time;return time+'+07:00';};
+            const start=normalizeTime(c.ThoiGianBD),end=normalizeTime(c.ThoiGianKT);
             return {mssv:student.mssv,subject_name:(c.TenMonHoc||'Chưa rõ').trim(),room_name:(c.TenPhong||'Online').trim(),teacher_name:(c.GiaoVien||'').trim(),start_time:start,end_time:end,day_of_week:c.Thu||0};
           });
-        }catch(e){console.warn('Lỗi lấy lịch MSSV '+student.mssv,e);return [];}
+        }catch(e){failedCalendarStudents.push(student.mssv);console.warn('Lỗi lấy lịch MSSV '+student.mssv,e);return [];}
       }));
       results.forEach(rows=>allSchedules.push(...rows));
     }
     if(!successfulCalendarResponses)throw new Error('Không kết nối được ME hoặc ME không trả dữ liệu hợp lệ.');
     if(preserveOtherDays&&targetDate){
-      const dateRows=allSchedules.filter(r=>r.start_time&&new Date(r.start_time).toLocaleDateString('en-CA',{timeZone:'Asia/Ho_Chi_Minh'})===targetDate);
+      if(failedCalendarStudents.length)throw new Error(`ME chưa trả đủ lịch (${failedCalendarStudents.length}/${list.length} sinh viên). Lịch cũ được giữ nguyên; hãy thử đồng bộ lại.`);
+      const dateRows=allSchedules.filter(r=>r.start_time&&vietnamDateKeyFromTimestamp(r.start_time)===targetDate);
       const {data,error}=await supabase.rpc('admin_sync_student_schedules_for_date',{p_schedules:dateRows,p_date:targetDate});
       if(error||!data?.ok)throw new Error(data?.message||error?.message||'Không thể cập nhật lịch ngày đã chọn.');
+      localStorage.setItem('last_me_sync_'+targetDate,Date.now().toString());
       if(!quietSuccess)toast('ok','Lịch ngày mai đã cập nhật',`Đồng bộ ${data.count} tiết học ngày ${targetDate} từ ME.`);
     }else{
       if(!allSchedules.length)throw new Error('ME không trả về lịch học để đồng bộ.');
