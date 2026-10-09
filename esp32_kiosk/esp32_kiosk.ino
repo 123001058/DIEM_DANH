@@ -3,7 +3,8 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <TFT_eSPI.h>
-#include <qrcode.h>
+#include "qrcode.h"
+#include "qr_display.h"
 
 // 1. Thong tin WiFi & Web
 const char* ssid = "Robocon Sinh Vien";
@@ -18,45 +19,6 @@ TFT_eSPI tft = TFT_eSPI();
 WiFiClientSecure client;
 HTTPClient http;
 String currentQrToken = "";
-
-// Buffer chua du lieu QR (Version 10 du cho URL dai len toi 170 ky tu)
-QRCode qrcode;
-uint8_t qrcodeData[qrcode_getBufferSize(10)];
-
-// Ham ve QR Code phong to 100% kịch trần chieu cao man hinh (240px)
-void drawQRCode(String text) {
-  // Chon version nho nhat phu hop voi do dai URL de o vuong to nhat, de quet nhat
-  int version = 4;
-  if (text.length() > 50) version = 6;
-  if (text.length() > 90) version = 8;
-  if (text.length() > 130) version = 10;
-
-  qrcode_initText(&qrcode, qrcodeData, version, ECC_LOW, text.c_str());
-
-  int size = qrcode.size;
-  int screenH = tft.height(); // Chieu cao man hinh (240px)
-  int screenW = tft.width();  // Chieu rong man hinh (320px)
-  
-  int targetDim = screenH; // Chiem tron 100% chieu cao (240px)
-  int offsetX = (screenW - targetDim) / 2; // Can giua theo chieu ngang
-
-  tft.fillScreen(TFT_WHITE); // Nen trang toan man hinh tao vien Quiet Zone
-
-  for (int y = 0; y < size; y++) {
-    int y0 = (y * targetDim) / size;
-    int y1 = ((y + 1) * targetDim) / size;
-    int h = y1 - y0;
-
-    for (int x = 0; x < size; x++) {
-      if (qrcode_getModule(&qrcode, x, y)) {
-        int x0 = offsetX + (x * targetDim) / size;
-        int x1 = offsetX + ((x + 1) * targetDim) / size;
-        int w = x1 - x0;
-        tft.fillRect(x0, y0, w, h, TFT_BLACK);
-      }
-    }
-  }
-}
 
 void fetchQRCode() {
   if (WiFi.status() != WL_CONNECTED) return;
