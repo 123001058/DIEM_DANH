@@ -294,8 +294,8 @@ body {
 .sidebar-footer-link:hover { background: var(--border); color: var(--text); }
 
 /* APP VIEWS */
-.app-view { display: none; animation: viewFade 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
-.app-view.active { display: block; width: 100%; min-width: 0; }
+.content-area > .app-view { display: none; width: 100%; min-width: 0; animation: viewFade 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+.content-area > .app-view.active { display: block; }
 .content-area { display: block; width: 100%; min-width: 0; }
 @keyframes viewFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -867,37 +867,6 @@ tbody tr:last-child td { border-bottom: none; }
   flex-wrap: wrap;
 }
 
-/* OVERVIEW SHORTCUT CARDS */
-.overview-quick-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-@media (max-width: 800px) {
-  .overview-quick-grid { grid-template-columns: 1fr; }
-}
-.quick-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  text-decoration: none;
-  color: var(--text);
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.quick-action-btn:hover {
-  background: #ffffff;
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-}
-
 </style>
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1096,70 +1065,6 @@ tbody tr:last-child td { border-bottom: none; }
           <div class="rules-list" id="roboconRulesList"><div class="schedule-loading">Đang tải quy định...</div></div>
         </section>
 
-        <!-- Bố cục Tổng quan: Tóm tắt quân số rảnh/bận & Phím tắt tác vụ nhanh -->
-        <div class="overview-quick-grid">
-          <!-- Thẻ Tóm tắt quân số rảnh/bận hôm nay -->
-          <section class="card" style="padding:20px 22px">
-            <div class="widget-head" style="margin-bottom:12px">
-              <div class="widget-title-wrap">
-                <span style="font-size:18px">🏫</span>
-                <div>
-                  <h3 class="widget-title" style="margin:0">Tình hình quân số hôm nay</h3>
-                  <div style="font-size:11.5px;color:var(--muted)" id="overviewDateSummary">Thời gian thực giờ Việt Nam</div>
-                </div>
-              </div>
-              <button class="btn btn-sm btn-secondary" onclick="navTo('schedules')">Xem chi tiết TKB →</button>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-              <div style="padding:12px;background:var(--ok-bg);border:1px solid rgba(15,122,74,0.2);border-radius:9px;text-align:center">
-                <span style="font-size:11px;font-weight:800;color:var(--ok);text-transform:uppercase">Đang rảnh</span>
-                <div style="font-size:24px;font-weight:800;color:var(--ok);line-height:1.2;margin:4px 0" id="overviewFreeCount">—</div>
-                <span style="font-size:11px;color:var(--muted)">Sẵn sàng lên xưởng</span>
-              </div>
-              <div style="padding:12px;background:var(--err-bg);border:1px solid rgba(194,56,46,0.2);border-radius:9px;text-align:center">
-                <span style="font-size:11px;font-weight:800;color:var(--err);text-transform:uppercase">Có lịch học</span>
-                <div style="font-size:24px;font-weight:800;color:var(--err);line-height:1.2;margin:4px 0" id="overviewBusyCount">—</div>
-                <span style="font-size:11px;color:var(--muted)">Có tiết học trường</span>
-              </div>
-            </div>
-            <p style="font-size:12px;color:var(--muted);margin:0">Tiết học đã kết thúc trong ngày tự động tính là đang rảnh.</p>
-          </section>
-
-          <!-- Thẻ Phím tắt tác vụ nhanh -->
-          <section class="card" style="padding:20px 22px">
-            <h3 class="widget-title" style="margin:0 0 14px">⚡ Lối tắt tác vụ xưởng</h3>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="quick-action-btn" onclick="navTo('attendance')">
-                <span style="font-size:20px">📋</span>
-                <div>
-                  <div>Mở điểm danh</div>
-                  <div style="font-size:11px;color:var(--muted);font-weight:500">Quét QR & chấm công</div>
-                </div>
-              </div>
-              <div class="quick-action-btn" onclick="navTo('tasks')">
-                <span style="font-size:20px">📌</span>
-                <div>
-                  <div>Nhiệm vụ xưởng</div>
-                  <div style="font-size:11px;color:var(--muted);font-weight:500">Giao việc nhóm / cá nhân</div>
-                </div>
-              </div>
-              <div class="quick-action-btn" onclick="navTo('teams')">
-                <span style="font-size:20px">👥</span>
-                <div>
-                  <div>Quản lý nhóm</div>
-                  <div style="font-size:11px;color:var(--muted);font-weight:500">Cơ khí, Mạch, Lập trình</div>
-                </div>
-              </div>
-              <div class="quick-action-btn" onclick="navTo('zalo')">
-                <span style="font-size:20px">🤖</span>
-                <div>
-                  <div>Lịch gửi Zalo</div>
-                  <div style="font-size:11px;color:var(--muted);font-weight:500">Báo lịch rảnh ngày mai</div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
       </div>
     </section>
 
@@ -1883,7 +1788,7 @@ const viewTitlesMap = {
 
 function navTo(viewName) {
   currentView = viewName;
-  document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.content-area > .app-view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.sidebar-nav-item').forEach(btn => btn.classList.remove('active'));
 
   const targetView = document.getElementById('view-' + viewName);
@@ -3181,9 +3086,6 @@ async function loadTodaySchoolSchedule(){
   const busyBadge = document.getElementById('schedBusyCountBadge');
   const freeCountEl = document.getElementById('schedFreeCount');
   const busyCountEl = document.getElementById('schedBusyCount');
-  const ovFreeCount = document.getElementById('overviewFreeCount');
-  const ovBusyCount = document.getElementById('overviewBusyCount');
-  const ovDateSummary = document.getElementById('overviewDateSummary');
   const kpiBusyEl = document.getElementById('kpiBusyCount');
 
   try {
@@ -3192,7 +3094,6 @@ async function loadTodaySchoolSchedule(){
     const vnDateStr = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
     const vnTimeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
     if (timeHeader) timeHeader.textContent = `🕒 ${vnDateStr} • ${vnTimeStr}`;
-    if (ovDateSummary) ovDateSummary.textContent = `${vnDateStr} • ${vnTimeStr}`;
 
     const todayKey = getVietnamDateKey(0);
     const startStr = new Date(`${todayKey}T00:00:00+07:00`).toISOString();
@@ -3326,8 +3227,6 @@ async function loadTodaySchoolSchedule(){
     if (busyBadge) busyBadge.textContent = `🔴 ${busyCount} Bạn bận học`;
     if (freeCountEl) freeCountEl.textContent = freeCount;
     if (busyCountEl) busyCountEl.textContent = busyCount;
-    if (ovFreeCount) ovFreeCount.textContent = freeCount;
-    if (ovBusyCount) ovBusyCount.textContent = busyCount;
     if (kpiBusyEl) kpiBusyEl.textContent = totalTodayClasses || busyCount;
 
     // Render Free list
