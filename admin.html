@@ -721,6 +721,177 @@ tbody tr:last-child td { border-bottom: none; }
   .brand-titles .brand-section-badge { display: none; }
   .user-profile-chip span { display: none; }
 }
+
+/* SCHEDULES DETAIL STYLES */
+.schedules-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sched-hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.sched-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sched-pill-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.sched-pill-free { background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(15,122,74,0.25); }
+.sched-pill-busy { background: var(--err-bg); color: var(--err); border: 1px solid rgba(194,56,46,0.25); }
+
+.sched-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .sched-split-grid { grid-template-columns: 1fr; }
+}
+
+.sched-panel {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.sched-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.sched-panel-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sched-student-card {
+  padding: 11px 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+}
+.sched-student-card:hover {
+  background: #ffffff;
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.sched-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.sched-student-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+}
+.sched-student-mssv {
+  font-size: 11.5px;
+  font-family: monospace;
+  color: var(--muted);
+  font-weight: 600;
+}
+.sched-status-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  flex: none;
+}
+.tag-free-now { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.tag-busy-now { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+.tag-busy-future { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
+.tag-busy-past { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+.sched-class-info {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sched-subject-line {
+  font-weight: 700;
+  color: var(--info);
+}
+.sched-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* OVERVIEW SHORTCUT CARDS */
+.overview-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 800px) {
+  .overview-quick-grid { grid-template-columns: 1fr; }
+}
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.quick-action-btn:hover {
+  background: #ffffff;
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
 </style>
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -845,6 +1016,9 @@ tbody tr:last-child td { border-bottom: none; }
     <!-- ==========================================================
          VIEW 1: TỔNG QUAN (OVERVIEW)
          ========================================================== -->
+        <!-- ==========================================================
+         VIEW 1: TỔNG QUAN (OVERVIEW)
+         ========================================================== -->
     <section class="app-view active" id="view-overview">
       <div class="overview-layout">
         <!-- Hero Session Status Box -->
@@ -857,7 +1031,7 @@ tbody tr:last-child td { border-bottom: none; }
             </div>
           </div>
           <div class="hero-session-actions" id="heroSessionActions">
-            <button class="btn btn-primary" onclick="navTo('attendance')" id="btnHeroGoAttendance">Xem điểm danh →</button>
+            <button class="btn btn-primary" onclick="navTo('attendance')" id="btnHeroGoAttendance">Đi tới màn hình Điểm danh →</button>
           </div>
         </div>
 
@@ -918,6 +1092,73 @@ tbody tr:last-child td { border-bottom: none; }
 
           <div class="rules-list" id="roboconRulesList"><div class="schedule-loading">Đang tải quy định...</div></div>
         </section>
+
+        <!-- Bố cục Tổng quan: Tóm tắt quân số rảnh/bận & Phím tắt tác vụ nhanh -->
+        <div class="overview-quick-grid">
+          <!-- Thẻ Tóm tắt quân số rảnh/bận hôm nay -->
+          <section class="card" style="padding:20px 22px">
+            <div class="widget-head" style="margin-bottom:12px">
+              <div class="widget-title-wrap">
+                <span style="font-size:18px">🏫</span>
+                <div>
+                  <h3 class="widget-title" style="margin:0">Tình hình quân số hôm nay</h3>
+                  <div style="font-size:11.5px;color:var(--muted)" id="overviewDateSummary">Thời gian thực giờ Việt Nam</div>
+                </div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="navTo('schedules')">Xem chi tiết TKB →</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div style="padding:12px;background:var(--ok-bg);border:1px solid rgba(15,122,74,0.2);border-radius:9px;text-align:center">
+                <span style="font-size:11px;font-weight:800;color:var(--ok);text-transform:uppercase">Đang rảnh</span>
+                <div style="font-size:24px;font-weight:800;color:var(--ok);line-height:1.2;margin:4px 0" id="overviewFreeCount">—</div>
+                <span style="font-size:11px;color:var(--muted)">Sẵn sàng lên xưởng</span>
+              </div>
+              <div style="padding:12px;background:var(--err-bg);border:1px solid rgba(194,56,46,0.2);border-radius:9px;text-align:center">
+                <span style="font-size:11px;font-weight:800;color:var(--err);text-transform:uppercase">Có lịch học</span>
+                <div style="font-size:24px;font-weight:800;color:var(--err);line-height:1.2;margin:4px 0" id="overviewBusyCount">—</div>
+                <span style="font-size:11px;color:var(--muted)">Có tiết học trường</span>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin:0">Tiết học đã kết thúc trong ngày tự động tính là đang rảnh.</p>
+          </section>
+
+          <!-- Thẻ Phím tắt tác vụ nhanh -->
+          <section class="card" style="padding:20px 22px">
+            <h3 class="widget-title" style="margin:0 0 14px">⚡ Lối tắt tác vụ xưởng</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="quick-action-btn" onclick="navTo('attendance')">
+                <span style="font-size:20px">📋</span>
+                <div>
+                  <div>Mở điểm danh</div>
+                  <div style="font-size:11px;color:var(--muted);font-weight:500">Quét QR & chấm công</div>
+                </div>
+              </div>
+              <div class="quick-action-btn" onclick="navTo('tasks')">
+                <span style="font-size:20px">📌</span>
+                <div>
+                  <div>Nhiệm vụ xưởng</div>
+                  <div style="font-size:11px;color:var(--muted);font-weight:500">Giao việc nhóm / cá nhân</div>
+                </div>
+              </div>
+              <div class="quick-action-btn" onclick="navTo('teams')">
+                <span style="font-size:20px">👥</span>
+                <div>
+                  <div>Quản lý nhóm</div>
+                  <div style="font-size:11px;color:var(--muted);font-weight:500">Cơ khí, Mạch, Lập trình</div>
+                </div>
+              </div>
+              <div class="quick-action-btn" onclick="navTo('zalo')">
+                <span style="font-size:20px">🤖</span>
+                <div>
+                  <div>Lịch gửi Zalo</div>
+                  <div style="font-size:11px;color:var(--muted);font-weight:500">Báo lịch rảnh ngày mai</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
 
         <!-- Bố cục 2 cột Tổng quan -->
         <div class="overview-main-grid">
@@ -991,16 +1232,38 @@ tbody tr:last-child td { border-bottom: none; }
     <!-- ==========================================================
          VIEW 2: ĐIỂM DANH (ATTENDANCE)
          ========================================================== -->
+        <!-- ==========================================================
+         VIEW 2: ĐIỂM DANH (ATTENDANCE)
+         ========================================================== -->
     <section class="app-view" id="view-attendance">
+      <!-- Màn hình khi CHƯA có phiên điểm danh đang mở: Form tạo phiên chuẩn -->
       <div id="emptyState" class="empty-layout" style="display:none">
-        <div class="card" style="padding:40px 24px;text-align:center">
-          <div style="width:64px;height:64px;margin:0 auto 16px;border-radius:18px;background:var(--surface-2);display:grid;place-items:center;font-size:28px">📋</div>
-          <h2 style="font-size:18px;font-weight:800;margin-bottom:6px">Chưa có phiên điểm danh nào đang mở</h2>
-          <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 20px">Hãy quay lại trang Tổng quan để tạo phiên mới hoặc mở lại một phiên cũ từ lịch sử.</p>
-          <button class="btn btn-primary" style="margin:0 auto;width:auto;padding:10px 22px" onclick="navTo('overview')">Quay lại Tổng quan để mở phiên</button>
-        </div>
+        <section class="card session-create-card" id="attendanceSessionCreateCard" style="max-width:680px;margin:0 auto;padding:26px 28px">
+          <div class="scc-header" style="margin-bottom:18px">
+            <div class="scc-icon" style="width:44px;height:44px;font-size:22px">⚡</div>
+            <div>
+              <h2 class="scc-title" style="font-size:17px">Khởi tạo phiên điểm danh mới</h2>
+              <p class="scc-sub">Mã QR đứng yên — thuận tiện chiếu máy chiếu cả buổi cho sinh viên quét.</p>
+            </div>
+          </div>
+
+          <div class="session-form">
+            <div class="form-field" style="margin-bottom:12px">
+              <label for="quickName">Tên phiên điểm danh *</label>
+              <input type="text" id="quickName" placeholder="VD: Buổi làm Robocon C503 - Ca Sáng" style="font-size:14px;padding:11px 14px">
+            </div>
+            <div class="form-row-2">
+              <div class="form-field">
+                <label for="quickDuration">Thời lượng phiên (phút)</label>
+                <input type="number" id="quickDuration" value="90" min="1" style="font-size:14px;padding:11px 14px">
+              </div>
+              <button class="btn btn-primary btn-open-session" onclick="openSession()" style="padding:12px 20px;font-size:14px">▶ Bắt đầu phiên điểm danh</button>
+            </div>
+          </div>
+        </section>
       </div>
 
+      <!-- Màn hình khi ĐANG có phiên mở: Dashboard + QR + Bảng sinh viên -->
       <div class="dashboard" id="dashboard" style="display:none">
         <div class="card session-bar">
           <div class="session-bar-left">
@@ -1123,20 +1386,6 @@ tbody tr:last-child td { border-bottom: none; }
               </div>
             </div>
 
-            <div class="today-history" id="todayHistoryWrap" style="display:none">
-              <div class="today-history-head">
-                <div>
-                  <div class="thead-title">Lịch sử phiên gần đây</div>
-                  <p style="font-size:12px;color:var(--muted);margin-top:2px">7 phiên gần nhất trong 7 ngày qua</p>
-                </div>
-                <div style="display:flex;gap:6px">
-                  <button class="btn btn-danger" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử điểm danh">🗑 Xóa lịch sử</button>
-                  <button class="btn btn-icon" onclick="loadTodayHistory()" title="Làm mới">↻</button>
-                </div>
-              </div>
-              <div id="todayHistoryList"></div>
-            </div>
-
             <div class="danger-zone">
               <div class="danger-zone-txt">
                 <b>⚠️ Đóng phiên điểm danh</b>
@@ -1145,6 +1394,9 @@ tbody tr:last-child td { border-bottom: none; }
               <button class="btn btn-danger" style="padding:9px 18px;font-size:13px" onclick="openCloseModal()">■ Đóng phiên</button>
             </div>
           </section>
+        </div>
+      </div>
+    </section>
         </div>
       </div>
     </section>
@@ -1227,20 +1479,64 @@ tbody tr:last-child td { border-bottom: none; }
     <!-- ==========================================================
          VIEW 5: LỊCH HỌC & RẢNH/BẬN (SCHEDULES)
          ========================================================== -->
+        <!-- ==========================================================
+         VIEW 5: LỊCH HỌC & RẢNH/BẬN (SCHEDULES)
+         ========================================================== -->
     <section class="app-view" id="view-schedules">
-      <section class="card schedule-widget-card" style="margin:0">
-        <div class="widget-head">
+      <div class="schedules-container">
+        <!-- Header Ngày giờ thực tế & Thống kê nhanh -->
+        <div class="sched-hero-header">
           <div>
-            <div class="widget-title">📅 Thời khóa biểu & Sinh viên bận học hôm nay</div>
-            <p class="widget-sub">Đối chiếu ca học để tự động phân phép khi mở xưởng</p>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <h2 style="font-size:17px;font-weight:800;margin:0">📅 Thời khóa biểu & Sinh viên rảnh / bận hôm nay</h2>
+              <span class="sched-time-badge" id="schedRealtimeHeader">🕒 Đang lấy giờ...</span>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
+              Trạng thái rảnh/bận tính theo giờ Việt Nam hiện tại. Tiết học đã kết thúc được tính là đang rảnh.
+            </p>
           </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary" id="btnSyncME" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
-            <a href="lichhoc.html" class="btn btn-primary">Xem lưới TKB chi tiết →</a>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="sched-pill-stat sched-pill-free" id="schedFreeCountBadge">🟢 0 Bạn rảnh</span>
+            <span class="sched-pill-stat sched-pill-busy" id="schedBusyCountBadge">🔴 0 Bạn bận học</span>
+            <button class="btn btn-secondary btn-sm" id="btnSyncME" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
+            <a href="lichhoc.html" class="btn btn-primary btn-sm">Xem lưới TKB tuần →</a>
           </div>
         </div>
-        <div class="schedule-list-wrap detail-list" id="schedulesFullList"><div class="schedule-loading">Đang tải lịch học hôm nay...</div></div>
-      </section>
+
+        <!-- 2 Cột: Đang Rảnh vs Đang Bận học -->
+        <div class="sched-split-grid">
+          <!-- Cột Trái: Danh sách thành viên Đang Rảnh -->
+          <div class="sched-panel">
+            <div class="sched-panel-head">
+              <div class="sched-panel-title">
+                <span style="color:var(--ok)">🟢</span>
+                <span>Thành viên đang rảnh</span>
+                <span class="count-badge" id="schedFreeCount">0</span>
+              </div>
+              <span style="font-size:11.5px;color:var(--muted)">Không có lịch học lúc này</span>
+            </div>
+            <div id="schedFreeListWrap" style="max-height:600px;overflow-y:auto">
+              <div class="schedule-loading">Đang phân tích lịch...</div>
+            </div>
+          </div>
+
+          <!-- Cột Phải: Danh sách thành viên Bận học trường hôm nay -->
+          <div class="sched-panel">
+            <div class="sched-panel-head">
+              <div class="sched-panel-title">
+                <span style="color:var(--err)">🔴</span>
+                <span>Thành viên có lịch học trường</span>
+                <span class="count-badge" id="schedBusyCount">0</span>
+              </div>
+              <span style="font-size:11.5px;color:var(--muted)">Chi tiết môn học & ca học</span>
+            </div>
+            <div id="schedBusyListWrap" style="max-height:600px;overflow-y:auto">
+              <div class="schedule-loading">Đang phân tích lịch...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
     </section>
 
     <!-- ==========================================================
@@ -1326,15 +1622,23 @@ tbody tr:last-child td { border-bottom: none; }
          VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION)
          ========================================================== -->
     <section class="app-view" id="view-zalo">
-      <section class="card" style="max-width:860px;margin:0 auto;padding:22px">
+      <section class="card" style="max-width:900px;margin:0 auto;padding:22px">
         <div style="margin-bottom:16px">
-          <h2 style="font-size:17px;font-weight:800">📋 Lịch rảnh ngày mai để gửi Zalo</h2>
-          <p style="font-size:12px;color:var(--muted);margin-top:5px">Bấm nút để lấy thời khóa biểu ngày mai mới nhất từ ME, cập nhật Supabase, rồi sao chép nội dung để bạn tự gửi vào nhóm Zalo.</p>
+          <h2 style="font-size:17px;font-weight:800">📋 Lịch ngày mai để gửi Zalo</h2>
+          <p style="font-size:12px;color:var(--muted);margin-top:5px">Đồng bộ lịch từ ME, xem trước ảnh gọn gồm người rảnh và bận, rồi tải ảnh để gửi vào Zalo.</p>
         </div>
-        <button class="btn btn-primary" id="zaloSyncCopyButton" onclick="syncAndCopyTomorrowSchedule()">🔄 Đồng bộ lịch ngày mai & sao chép</button>
-        <div class="zalo-bubble" style="margin-top:16px;white-space:pre-wrap">
-          <div class="zalo-bubble-badge">📱 Nội dung để dán vào Zalo</div>
-          <div id="zaloMessagePreview">Bấm nút đồng bộ để cập nhật lịch mới nhất.</div>
+        <button class="btn btn-primary" id="zaloSyncCopyButton" onclick="syncAndCreateZaloImage()">🔄 Đồng bộ lịch ngày mai & tạo ảnh</button>
+        <div id="zaloImageStatus" style="margin-top:16px;color:var(--muted);font-size:13px">Bấm nút đồng bộ để tạo ảnh lịch.</div>
+        <div id="zaloImageArea" hidden style="margin-top:16px">
+          <img id="zaloImagePreview" alt="Ảnh lịch rảnh và bận ngày mai" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:14px;background:#f3f5f8">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <a class="btn btn-primary" id="zaloImageDownload" download="lich-ranh-ngay-mai.png">⬇ Tải ảnh PNG</a>
+            <button class="btn" type="button" onclick="copyZaloCaption()">📋 Sao chép lời nhắn</button>
+          </div>
+          <div class="zalo-bubble" style="margin-top:12px">
+            <div class="zalo-bubble-badge">📱 Lời nhắn gửi kèm ảnh</div>
+            <div id="zaloCaptionPreview"></div>
+          </div>
         </div>
       </section>
     </section>
@@ -1881,36 +2185,71 @@ function getVietnamDateKey(offsetDays=0){
   const val=k=>Number(parts.find(p=>p.type===k).value);
   return new Date(Date.UTC(val('year'),val('month')-1,val('day')+offsetDays)).toISOString().slice(0,10);
 }
-async function generateZaloPreviewText(dateKey=getVietnamDateKey(1)){
-  const el=document.getElementById('zaloMessagePreview');if(!el)return false;el.textContent='Đang đọc lịch đã đồng bộ…';
+async function loadZaloScheduleData(dateKey=getVietnamDateKey(1)){
+  const status=document.getElementById('zaloImageStatus');if(!status)return false;status.textContent='Đang đọc lịch đã đồng bộ…';
   const from=new Date(`${dateKey}T00:00:00+07:00`).toISOString(),to=new Date(new Date(from).getTime()+86400000).toISOString();
   const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([
     supabase.from('team_group_members').select('mssv,students(name)').limit(1000),
     supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time').lt('start_time',to).gte('end_time',from).order('start_time')
   ]);
-  if(e1||e2){el.textContent='Không đọc được lịch: '+(e1?.message||e2?.message);return false;}
+  if(e1||e2){status.textContent='Không đọc được lịch: '+(e1?.message||e2?.message);return false;}
   const byId=new Map();(schedules||[]).forEach(x=>{const a=byId.get(x.mssv)||[];a.push(x);byId.set(x.mssv,a)});
   const list=[...new Map((members||[]).map(m=>[m.mssv,m])).values()];
-  if(!list.length){el.textContent='Chưa có thành viên nhóm. Hãy tạo nhóm và thêm thành viên trước.';return false;}
+  if(!list.length){status.textContent='Chưa có thành viên nhóm. Hãy tạo nhóm và thêm thành viên trước.';return false;}
   const free=list.filter(m=>!byId.has(m.mssv)),busy=list.filter(m=>byId.has(m.mssv));
   const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const lines=[`LỊCH RẢNH NGÀY MAI · ${day}`,`Tổng thành viên: ${list.length} · Rảnh: ${free.length} · Bận: ${busy.length}`,'',`RẢNH (${free.length}):`,...(free.length?free.map(m=>`• ${m.students?.name||m.mssv} (${m.mssv})`):['• Không có']), '',`BẬN (${busy.length}):`,...(busy.length?busy.map(m=>`• ${m.students?.name||m.mssv}: ${byId.get(m.mssv).map(x=>`${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}-${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} ${x.subject_name}${x.room_name?' · '+x.room_name:''}`).join('; ')}`):['• Không có'])];
-  el.textContent=lines.join('\\n');return true;
+  window.zaloScheduleData={dateKey,day,list,free,busy,byId};return true;
 }
-async function syncAndCopyTomorrowSchedule(){
+function renderZaloScheduleImage(data){
+  const width=1200,pad=56,contentWidth=width-pad*2,canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+  const nameOf=m=>m.students?.name||m.mssv;
+  const timeOf=v=>new Date(v).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'});
+  const scheduleLines=m=>(data.byId.get(m.mssv)||[]).map(x=>`${timeOf(x.start_time)}–${timeOf(x.end_time)}  ${x.subject_name||'Lịch bận'}${x.room_name?' · '+x.room_name:''}`);
+  const setFont=(size,weight=400)=>{ctx.font=`${weight} ${size}px Arial, sans-serif`;};
+  const wrap=(text,maxWidth,size=23,weight=400)=>{setFont(size,weight);const words=String(text).split(/\s+/),out=[];let line='';for(const word of words){const next=line?line+' '+word:word;if(ctx.measureText(next).width>maxWidth&&line){out.push(line);line=word;}else line=next;}if(line)out.push(line);return out;};
+  const freeRows=Math.ceil(data.free.length/2),freeHeight=Math.max(100,freeRows*74+18);
+  const busyRowHeights=data.busy.map(m=>Math.max(92,52+scheduleLines(m).reduce((n,line)=>n+wrap(line,contentWidth-52,21,400).length*29,0)));
+  let height=360+freeHeight+74+Math.max(90,busyRowHeights.reduce((a,b)=>a+b+12,0))+68;
+  canvas.width=width;canvas.height=height;ctx.fillStyle='#f3f5f8';ctx.fillRect(0,0,width,height);
+  const round=(x,y,w,h,r,color)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();};
+  round(24,24,width-48,height-48,26,'#ffffff');
+  round(pad,48,contentWidth,224,22,'#111827');
+  ctx.fillStyle='#a9c7ff';setFont(20,700);ctx.fillText('LH-NaviX  ·  LỊCH NHÓM',pad+30,91);
+  ctx.fillStyle='#ffffff';setFont(38,700);ctx.fillText('Lịch rảnh và bận',pad+30,146);
+  ctx.fillStyle='#dbe4f3';setFont(23,400);ctx.fillText(`Cả ngày · ${data.day}`,pad+30,190);
+  const statY=211,statGap=14,statW=(contentWidth-60-statGap*2)/3;
+  [[data.list.length,'THÀNH VIÊN','#ffffff'],[data.free.length,'RẢNH','#d9fbe9'],[data.busy.length,'BẬN','#ffe1e4']].forEach((s,i)=>{const x=pad+30+i*(statW+statGap);round(x,statY,statW,78,15,'rgba(255,255,255,.13)');ctx.fillStyle=s[2];setFont(28,700);ctx.fillText(String(s[0]),x+18,statY+34);ctx.fillStyle='#dbe4f3';setFont(15,700);ctx.fillText(s[1],x+18,statY+60);});
+  let y=310;
+  const section=(title,count,color)=>{ctx.fillStyle=color;setFont(26,700);ctx.fillText(`${title}  ·  ${count}`,pad,y+29);y+=52;};
+  section('🟢 Rảnh',data.free.length,'#137a48');
+  if(!data.free.length){round(pad,y,contentWidth,72,14,'#f4f7fa');ctx.fillStyle='#65738a';setFont(21);ctx.fillText('Không có thành viên rảnh cả ngày.',pad+20,y+44);y+=84;}
+  else {const colGap=14,colW=(contentWidth-colGap)/2;data.free.forEach((m,i)=>{const row=Math.floor(i/2),col=i%2,x=pad+col*(colW+colGap),cy=y+row*74;round(x,cy,colW,62,13,'#f0fbf5');ctx.fillStyle='#172033';setFont(20,700);ctx.fillText(nameOf(m),x+17,cy+27, colW-34);ctx.fillStyle='#637188';setFont(16);ctx.fillText(m.mssv||'',x+17,cy+49);});y+=freeHeight;}
+  y+=8;section('🔴 Bận',data.busy.length,'#c2414b');
+  if(!data.busy.length){round(pad,y,contentWidth,72,14,'#fff5f5');ctx.fillStyle='#65738a';setFont(21);ctx.fillText('Không có thành viên bận cả ngày.',pad+20,y+44);y+=84;}
+  else data.busy.forEach((m,i)=>{const rowH=busyRowHeights[i];round(pad,y,contentWidth,rowH,14,'#fff5f5');ctx.fillStyle='#172033';setFont(20,700);ctx.fillText(`${nameOf(m)}  ·  ${m.mssv||''}`,pad+20,y+31,contentWidth-40);let ty=y+61;ctx.fillStyle='#5f6f86';for(const line of scheduleLines(m)){for(const part of wrap(line,contentWidth-52,19,400)){setFont(19,400);ctx.fillText(part,pad+26,ty);ty+=27;}}y+=rowH+12;});
+  ctx.fillStyle='#8a96a8';setFont(16);ctx.fillText('Lịch được đồng bộ từ ME · LH-NaviX',pad,height-48);
+  return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),'image/png'));
+}
+async function syncAndCreateZaloImage(){
   const btn=document.getElementById('zaloSyncCopyButton');if(!btn)return;const old=btn.innerHTML;btn.disabled=true;
   try{
     const dateKey=getVietnamDateKey(1);btn.innerHTML='<span class="spin"></span> Đang đồng bộ ME…';
     const synced=await syncSchedulesFromME(true,dateKey,true,btn,true);
     if(!synced)return;
-    btn.innerHTML='<span class="spin"></span> Đang tạo nội dung…';
-    if(!await generateZaloPreviewText(dateKey))return;
-    const content=document.getElementById('zaloMessagePreview').textContent;
-    await navigator.clipboard.writeText(content);
-    toast('ok','Đã đồng bộ và sao chép','Đã lấy lịch ngày mai mới nhất từ ME. Mở nhóm Zalo rồi dán tin nhắn.');
-  }catch(e){toast('warn','Đã tạo bản xem trước','Lịch đã đồng bộ. Nếu không tự sao chép được, hãy chọn và sao chép nội dung trong khung.');}
+    btn.innerHTML='<span class="spin"></span> Đang tạo ảnh…';
+    if(!await loadZaloScheduleData(dateKey))return;
+    const data=window.zaloScheduleData,blob=await renderZaloScheduleImage(data);if(!blob)throw new Error('Trình duyệt không tạo được ảnh PNG.');
+    if(window.zaloImageObjectUrl)URL.revokeObjectURL(window.zaloImageObjectUrl);window.zaloImageObjectUrl=URL.createObjectURL(blob);
+    document.getElementById('zaloImagePreview').src=window.zaloImageObjectUrl;
+    const download=document.getElementById('zaloImageDownload');download.href=window.zaloImageObjectUrl;download.download=`lich-ranh-${dateKey}.png`;
+    const caption=`📅 Lịch nhóm ngày ${data.day}: ${data.free.length} người rảnh, ${data.busy.length} người bận. Chi tiết trong ảnh.`;
+    document.getElementById('zaloCaptionPreview').textContent=caption;document.getElementById('zaloImageArea').hidden=false;
+    document.getElementById('zaloImageStatus').textContent='Đã đồng bộ và tạo ảnh lịch ngày mai. Tải ảnh PNG để gửi vào Zalo.';
+    toast('ok','Đã tạo ảnh lịch','Ảnh đã sẵn sàng để tải về và gửi vào Zalo.');
+  }catch(e){document.getElementById('zaloImageStatus').textContent='Chưa tạo được ảnh: '+(e?.message||e);toast('err','Chưa tạo được ảnh',e?.message||'Vui lòng thử lại.');}
   finally{btn.disabled=false;btn.innerHTML=old;}
 }
+async function copyZaloCaption(){const text=document.getElementById('zaloCaptionPreview')?.textContent||'';try{await navigator.clipboard.writeText(text);toast('ok','Đã sao chép','Lời nhắn đã sẵn sàng để dán vào Zalo.');}catch(e){toast('warn','Không sao chép được','Bạn có thể chọn lời nhắn và sao chép thủ công.');}}
 
 let currentSession = null;
 let students = [];
@@ -2023,11 +2362,9 @@ function showEmpty(){
   if (heroCard) {
     document.getElementById('heroSessionIcon').textContent = '⏹';
     document.getElementById('heroSessionTitle').textContent = 'Chưa có phiên điểm danh nào đang mở';
-    document.getElementById('heroSessionSubtitle').textContent = 'Mở phiên mới bên dưới để bắt đầu điểm danh xưởng.';
-    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="document.getElementById(\'quickName\').focus()">＋ Mở phiên mới</button>';
+    document.getElementById('heroSessionSubtitle').textContent = 'Vào mục Điểm danh từ thanh menu để mở phiên và chiếu mã QR.';
+    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="navTo(\'attendance\')">Tạo phiên điểm danh mới →</button>';
   }
-  const createBox = document.getElementById('overviewSessionCreateBox');
-  if (createBox) createBox.style.display = 'block';
 
   const btnBack = document.getElementById('btnBackToActive');
   if (btnBack) btnBack.style.display = 'none';
@@ -2948,12 +3285,26 @@ async function quickReopenSession(sid){
 }
 
 async function loadTodaySchoolSchedule(){
-  const listEls = [document.getElementById('todaySchoolScheduleList'), document.getElementById('schedulesFullList')].filter(Boolean);
-  const countBadge = document.getElementById('todaySchoolScheduleCount');
+  const freeWrap = document.getElementById('schedFreeListWrap');
+  const busyWrap = document.getElementById('schedBusyListWrap');
+  const timeHeader = document.getElementById('schedRealtimeHeader');
+  const freeBadge = document.getElementById('schedFreeCountBadge');
+  const busyBadge = document.getElementById('schedBusyCountBadge');
+  const freeCountEl = document.getElementById('schedFreeCount');
+  const busyCountEl = document.getElementById('schedBusyCount');
+  const ovFreeCount = document.getElementById('overviewFreeCount');
+  const ovBusyCount = document.getElementById('overviewBusyCount');
+  const ovDateSummary = document.getElementById('overviewDateSummary');
   const kpiBusyEl = document.getElementById('kpiBusyCount');
-  if (!listEls.length) return;
 
   try {
+    const now = new Date();
+    // Format Vietnam time header
+    const vnDateStr = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
+    const vnTimeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+    if (timeHeader) timeHeader.textContent = `🕒 ${vnDateStr} • ${vnTimeStr}`;
+    if (ovDateSummary) ovDateSummary.textContent = `${vnDateStr} • ${vnTimeStr}`;
+
     const todayKey = getVietnamDateKey(0);
     const startStr = new Date(`${todayKey}T00:00:00+07:00`).toISOString();
     const endStr = new Date(new Date(startStr).getTime() + 86400000).toISOString();
@@ -2967,53 +3318,196 @@ async function loadTodaySchoolSchedule(){
 
     if (error) {
       console.error('Lỗi khi tải lịch học trường:', error);
-      listEls.forEach(el => { el.innerHTML = '<div class="schedule-loading">Không thể tải lịch học trường.</div>'; });
+      if (freeWrap) freeWrap.innerHTML = '<div class="schedule-loading">Không thể tải dữ liệu thời khóa biểu.</div>';
+      if (busyWrap) busyWrap.innerHTML = '<div class="schedule-loading">Không thể tải dữ liệu thời khóa biểu.</div>';
       return;
     }
 
     const items = data || [];
+    const allStudents = (students && students.length > 0) ? students : [
+      { mssv: '123000555', name: 'Nguyễn Văn A' }, { mssv: '123000078', name: 'Huỳnh Tuấn Tú' },
+      { mssv: '125001343', name: 'Dương Công Mạnh' }, { mssv: '123001058', name: 'Võ Duy Khang' },
+      { mssv: '123000651', name: 'Nguyễn Văn Trung' }
+    ];
+
     const studentMap = {};
-    (students || []).forEach(s => { studentMap[s.mssv] = s.name; });
+    allStudents.forEach(s => { studentMap[s.mssv] = s.name; });
 
-    const busyMssvs = new Set(items.map(s => s.mssv));
-    const busyCount = busyMssvs.size;
+    // Group schedules by MSSV
+    const scheduleByStudent = {};
+    items.forEach(item => {
+      if (!scheduleByStudent[item.mssv]) scheduleByStudent[item.mssv] = [];
+      scheduleByStudent[item.mssv].push(item);
+    });
 
-    if (countBadge) countBadge.textContent = busyCount + ' bạn';
-    if (kpiBusyEl) kpiBusyEl.textContent = busyCount;
+    const nowMs = now.getTime();
+    const freeList = [];
+    const busyList = [];
 
-    if (items.length === 0){
-      const emptyHtml = `
-        <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
-          <div style="font-size:26px;margin-bottom:6px">🎉</div>
-          <b>Hôm nay cả đội không vướng lịch học trường!</b>
-          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tham gia xưởng đầy đủ.</p>
-        </div>`;
-      listEls.forEach(el => { el.innerHTML = emptyHtml; });
-      return;
+    allStudents.forEach(s => {
+      const sMssv = s.mssv;
+      const sName = s.name || studentMap[sMssv] || sMssv;
+      const sScheds = scheduleByStudent[sMssv] || [];
+
+      if (sScheds.length === 0) {
+        freeList.push({
+          mssv: sMssv,
+          name: sName,
+          status: 'free_all_day',
+          statusText: '🟢 Rảnh cả ngày',
+          classes: []
+        });
+      } else {
+        // Has classes today - check real-time state
+        let currentlyInClass = false;
+        let futureClasses = 0;
+        let pastClasses = 0;
+
+        const classDetails = sScheds.map(c => {
+          const cStart = new Date(c.start_time).getTime();
+          const cEnd = new Date(c.end_time).getTime();
+          let stateTag = '';
+          let stateClass = '';
+
+          if (nowMs >= cStart && nowMs < cEnd) {
+            currentlyInClass = true;
+            stateTag = '🔴 Đang trong giờ học';
+            stateClass = 'tag-busy-now';
+          } else if (nowMs < cStart) {
+            futureClasses++;
+            stateTag = '⏳ Sắp học';
+            stateClass = 'tag-busy-future';
+          } else {
+            pastClasses++;
+            stateTag = '✅ Đã kết thúc';
+            stateClass = 'tag-busy-past';
+          }
+
+          const tStart = new Date(c.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+          const tEnd = new Date(c.end_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+
+          return {
+            subject: c.subject_name || 'Môn học',
+            room: c.room_name || 'Chưa xếp phòng',
+            teacher: c.teacher_name || '',
+            timeRange: `${tStart} – ${tEnd}`,
+            stateTag,
+            stateClass,
+            isCurrent: (nowMs >= cStart && nowMs < cEnd)
+          };
+        });
+
+        if (currentlyInClass) {
+          busyList.push({
+            mssv: sMssv,
+            name: sName,
+            status: 'in_class',
+            statusText: '🔴 Đang học',
+            tagClass: 'tag-busy-now',
+            classes: classDetails
+          });
+        } else if (futureClasses > 0) {
+          busyList.push({
+            mssv: sMssv,
+            name: sName,
+            status: 'upcoming_class',
+            statusText: '⏳ Có ca học sắp tới',
+            tagClass: 'tag-busy-future',
+            classes: classDetails
+          });
+        } else {
+          // All classes have ended -> Currently free!
+          freeList.push({
+            mssv: sMssv,
+            name: sName,
+            status: 'finished_classes',
+            statusText: '🟢 Đã xong ca học (Đang rảnh)',
+            classes: classDetails
+          });
+        }
+      }
+    });
+
+    // Update counts
+    const freeCount = freeList.length;
+    const busyCount = busyList.length;
+    const totalTodayClasses = Object.keys(scheduleByStudent).length;
+
+    if (freeBadge) freeBadge.textContent = `🟢 ${freeCount} Bạn đang rảnh`;
+    if (busyBadge) busyBadge.textContent = `🔴 ${busyCount} Bạn bận học`;
+    if (freeCountEl) freeCountEl.textContent = freeCount;
+    if (busyCountEl) busyCountEl.textContent = busyCount;
+    if (ovFreeCount) ovFreeCount.textContent = freeCount;
+    if (ovBusyCount) ovBusyCount.textContent = busyCount;
+    if (kpiBusyEl) kpiBusyEl.textContent = totalTodayClasses || busyCount;
+
+    // Render Free list
+    if (freeWrap) {
+      if (freeList.length === 0) {
+        freeWrap.innerHTML = `
+          <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">
+            <div style="font-size:24px;margin-bottom:6px">📚</div>
+            <b>Hiện tại toàn bộ thành viên đều đang có lịch học!</b>
+          </div>`;
+      } else {
+        freeWrap.innerHTML = freeList.map(s => `
+          <div class="sched-student-card">
+            <div class="sched-card-top">
+              <div>
+                <span class="sched-student-name">${escapeHtml(s.name)}</span>
+                <span class="sched-student-mssv">(${escapeHtml(s.mssv)})</span>
+              </div>
+              <span class="sched-status-tag tag-free-now">${escapeHtml(s.statusText)}</span>
+            </div>
+            ${s.classes && s.classes.length > 0 ? `
+              <div class="sched-class-info">
+                <span style="font-size:11.5px;color:var(--muted)">Đã hoàn thành ${s.classes.length} ca học trước đó trong ngày.</span>
+              </div>` : ''}
+          </div>
+        `).join('');
+      }
     }
 
-    const itemsHtml = items.map(sc => {
-      const sName = studentMap[sc.mssv] || sc.mssv;
-      const tStart = new Date(sc.start_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-      const tEnd = new Date(sc.end_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-      const room = sc.room_name ? `<span class="room-chip">${escapeHtml(sc.room_name)}</span>` : '';
-      return `
-        <div class="schedule-mini-item">
-          <div class="sc-item-header">
-            <span class="sc-student-name">${escapeHtml(sName)}</span>
-            <span class="sc-student-mssv">${escapeHtml(sc.mssv)}</span>
+    // Render Busy list
+    if (busyWrap) {
+      if (busyList.length === 0) {
+        busyWrap.innerHTML = `
+          <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
+            <div style="font-size:26px;margin-bottom:6px">🎉</div>
+            <b>Không có thành viên nào đang bận học lúc này!</b>
+            <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tập trung tại xưởng.</p>
+          </div>`;
+      } else {
+        busyWrap.innerHTML = busyList.map(s => `
+          <div class="sched-student-card" style="${s.status === 'in_class' ? 'border-left:3px solid #dc2626' : ''}">
+            <div class="sched-card-top">
+              <div>
+                <span class="sched-student-name">${escapeHtml(s.name)}</span>
+                <span class="sched-student-mssv">(${escapeHtml(s.mssv)})</span>
+              </div>
+              <span class="sched-status-tag ${s.tagClass}">${escapeHtml(s.statusText)}</span>
+            </div>
+            <div class="sched-class-info">
+              ${s.classes.map(c => `
+                <div style="margin-bottom:4px">
+                  <div class="sched-subject-line">📚 ${escapeHtml(c.subject)}</div>
+                  <div class="sched-meta-line">
+                    <span>⏱ ${c.timeRange}</span>
+                    <span class="room-chip">🚪 ${escapeHtml(c.room)}</span>
+                    <span class="sched-status-tag ${c.stateClass}" style="font-size:9.5px">${c.stateTag}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <div class="sc-item-subject">📚 ${escapeHtml(sc.subject_name)}</div>
-          <div class="sc-item-meta">
-            <span>⏱ ${tStart} – ${tEnd}</span>
-            ${room}
-          </div>
-        </div>`;
-    }).join('');
-    listEls.forEach(el => { el.innerHTML = itemsHtml; });
+        `).join('');
+      }
+    }
+
   } catch (err) {
     console.error('loadTodaySchoolSchedule error:', err);
-    listEls.forEach(el => { el.innerHTML = '<div class="schedule-loading">Lỗi khi tải lịch học trường.</div>'; });
+    if (freeWrap) freeWrap.innerHTML = '<div class="schedule-loading">Lỗi khi phân tích lịch học.</div>';
+    if (busyWrap) busyWrap.innerHTML = '<div class="schedule-loading">Lỗi khi phân tích lịch học.</div>';
   }
 }
 
