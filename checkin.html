@@ -190,7 +190,53 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
       <div class="history-list" id="historyList"></div>
     </section>
 
+    <section class="history" style="margin-top:14px">
+      <button class="history-toggle" onclick="toggleTasksPanel(this)"><span>✅ Nhiệm vụ của tôi</span><span class="chev">⌄</span></button>
+      <div class="history-list open" id="myTasksList"><div class="history-empty">Đang tải nhiệm vụ...</div></div>
+      <div id="leaderTaskForm" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px">
+        <b style="font-size:12px">Giao nhiệm vụ cho nhóm</b>
+        <select id="leaderTaskTeam" style="margin:8px 0"></select>
+        <input id="leaderTaskTitle" placeholder="Tên nhiệm vụ" maxlength="180">
+        <textarea id="leaderTaskDesc" rows="2" placeholder="Mô tả" style="width:100%;margin:8px 0;padding:10px;border:1px solid var(--border-strong);border-radius:8px;font:inherit"></textarea>
+        <button class="btn-main" style="padding:10px" onclick="createLeaderTask()">Giao cho cả nhóm</button>
+      </div>
+    </section>
+
+    <div style="text-align:center;margin-top:14px">
+      <button type="button" style="background:none;border:none;color:var(--info);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px" onclick="document.getElementById('fbModal').style.display='flex'">💬 Gửi phản hồi ẩn danh cho xưởng</button>
+    </div>
+
     <footer class="footer">LH-NaviX · v2.0.0</footer>
+  </div>
+</div>
+
+<!-- Modal Gửi Phản Hồi Ẩn Danh -->
+<div id="fbModal" style="position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;z-index:9999" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:16px;padding:22px;max-width:420px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="width:36px;height:36px;border-radius:10px;background:#e0f2fe;color:#0369a1;display:grid;place-items:center;font-size:16px">💬</div>
+      <div>
+        <b style="font-size:15px;display:block">Phản hồi ẩn danh</b>
+        <span style="font-size:11.5px;color:var(--muted)">Không lưu tên hay MSSV của bạn</span>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Loại góp ý:</label>
+      <select id="fbTypeInput" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px">
+        <option value="gopy">💡 Góp ý xưởng</option>
+        <option value="suco">⚠️ Báo cáo hỏng hóc thiết bị</option>
+        <option value="muasam">🛠 Đề xuất mua linh kiện</option>
+        <option value="khac">💬 Ý kiến khác</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Nội dung:</label>
+      <textarea id="fbContentInput" rows="4" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Ý kiến góp ý hoặc thông tin sự cố..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="button" style="flex:1;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:600;font-family:inherit;cursor:pointer" onclick="document.getElementById('fbModal').style.display='none'">Huỷ</button>
+      <button type="button" id="fbSubmitButton" style="flex:1.2;padding:10px;border-radius:8px;border:none;background:#15171c;color:#fff;font-weight:700;font-family:inherit;cursor:pointer" onclick="submitStudentFeedbackFromCheckin()">🔒 Gửi ẩn danh</button>
+    </div>
   </div>
 </div>
 
@@ -426,6 +472,19 @@ function logoutStudent(){
   localStorage.removeItem('saved_creds');
   supabase.auth.signOut().then(() => location.href = 'index.html');
 }
+function toggleTasksPanel(btn){btn.classList.toggle('open');document.getElementById('myTasksList')?.classList.toggle('open');}
+async function loadMyTasks(){
+  const box=document.getElementById('myTasksList');if(!box)return;
+  const {data,error}=await supabase.rpc('get_my_tasks');
+  if(error||!data?.ok){box.innerHTML='<div class="history-empty">'+escapeHtml(error?.message||data?.message||'Chưa tải được nhiệm vụ.')+'</div>';return;}
+  const tasks=data.tasks||[], teams=data.managed_teams||[];
+  if(teams.length){document.getElementById('leaderTaskForm').style.display='block';document.getElementById('leaderTaskTeam').innerHTML=teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)} · ${escapeHtml(t.field)}</option>`).join('');}
+  box.innerHTML=tasks.length?tasks.map(t=>`<div style="padding:12px;border-bottom:1px solid var(--border)"><b style="font-size:12px">${escapeHtml(t.title)}</b><div style="font-size:11px;color:var(--muted);margin:4px 0">${escapeHtml(t.team_name)} · ${t.scope==='group'?'Nhiệm vụ chung':'Cá nhân'} · Hạn ${t.due_date||'—'}</div><div style="font-size:12px;margin-bottom:7px">${escapeHtml(t.description||'')}</div><div style="display:flex;gap:6px;align-items:center"><select aria-label="Trạng thái nhiệm vụ" onchange="updateStudentTask('${t.id}',this.value)" style="padding:7px;font-size:12px"><option value="todo" ${t.status==='todo'?'selected':''}>Chưa bắt đầu</option><option value="doing" ${t.status==='doing'?'selected':''}>Đang làm</option><option value="done" ${t.status==='done'?'selected':''}>Hoàn thành</option></select>${t.read_at?'':'<small style="color:var(--info)">Mới giao</small>'}</div></div>`).join(''):'<div class="history-empty">Hiện chưa có nhiệm vụ nào được giao cho bạn.</div>';
+  tasks.filter(t=>!t.read_at).forEach(t=>supabase.rpc('update_my_task',{p_task_id:t.id,p_status:null,p_mark_read:true}));
+}
+async function updateStudentTask(id,status){const {data,error}=await supabase.rpc('update_my_task',{p_task_id:id,p_status:status,p_mark_read:true});if(error||!data?.ok){showResult('error',escapeHtml(error?.message||data?.message||'Không lưu được tiến độ.'));return;}await loadMyTasks();showResult('success','Đã cập nhật tiến độ nhiệm vụ.');}
+async function createLeaderTask(){const title=document.getElementById('leaderTaskTitle').value.trim(),team=document.getElementById('leaderTaskTeam').value;if(!title)return showResult('warning','Nhập tên nhiệm vụ trước.');const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('leaderTaskDesc').value,p_scope:'group',p_team_id:team,p_assignee_mssv:null,p_priority:'med',p_due_date:null});if(error||!data?.ok)return showResult('error',escapeHtml(error?.message||data?.message||'Không giao được nhiệm vụ.'));document.getElementById('leaderTaskTitle').value='';document.getElementById('leaderTaskDesc').value='';await loadMyTasks();showResult('success','Đã giao nhiệm vụ chung cho cả nhóm.');}
+async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';document.getElementById('fbModal').style.display='none';showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
 async function init(){
   deviceId = getDeviceId();
   const catSel = document.getElementById('category');
@@ -435,6 +494,7 @@ async function init(){
   const savedCat = localStorage.getItem('saved_category');
   if (savedCat) catSel.value = savedCat;
   if (!await loadProfile()) return;
+  await loadMyTasks();
   await loadSession();
   const url = new URL(location.href);
   const t = url.searchParams.get('t');

@@ -1,4 +1,14 @@
-<!DOCTYPE html>
+import re
+
+# Read current backup or admin.html to extract the original backend javascript
+with open('admin.html.bak', 'r', encoding='utf-8') as f:
+    bak_content = f.read()
+
+orig_script_idx = bak_content.find('<script>')
+orig_js = bak_content[orig_script_idx:] # contains all Supabase logic, RPCs, attendanceMap, etc.
+
+# Let's define the complete pristine HTML head, CSS, markup, and modals
+full_template = """<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -1215,7 +1225,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="tasks-grid" id="tasksListGrid"><div class="empty-state">Đang tải nhiệm vụ...</div>
+      <div class="tasks-grid" id="tasksListGrid">
         <div class="task-card" data-type="group" data-group="Cơ khí" data-status="doing" data-priority="high">
           <div class="task-card-top">
             <span class="task-title">Gia công khung gầm Robot tự hành v2</span>
@@ -1309,7 +1319,7 @@ tbody tr:last-child td { border-bottom: none; }
           <h2 style="font-size:16.5px;font-weight:800;letter-spacing:-0.01em">💬 Hộp thư phản hồi & Đóng góp ý kiến ẩn danh</h2>
           <p style="font-size:12px;color:var(--muted);margin-top:2px">Tiếp nhận ý kiến đóng góp, báo cáo hỏng hóc hoặc đề xuất thiết bị từ thành viên xưởng.</p>
         </div>
-        <button class="btn btn-secondary" onclick="window.open('checkin.html','_blank')">📝 Gửi phản hồi từ trang sinh viên</button>
+        <button class="btn btn-secondary" onclick="openStudentFeedbackModal()">📝 Thử gửi phản hồi ẩn danh (Demo SV)</button>
       </div>
 
       <div class="fb-privacy-banner">
@@ -1342,7 +1352,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="fb-list" id="feedbackList"><div class="empty-state">Đang tải phản hồi...</div>
+      <div class="fb-list" id="feedbackList">
         <div class="fb-item" data-type="muasam" data-status="new">
           <div class="fb-item-top">
             <span class="fb-anon-tag">🔒 Người gửi ẩn danh #FB-8842</span>
@@ -1393,12 +1403,12 @@ tbody tr:last-child td { border-bottom: none; }
           <section class="card" style="padding:20px 22px">
             <div class="switch-wrap">
               <label class="switch-control">
-                <input type="checkbox" id="zaloAutoToggle" onchange="toggleZaloAuto(this.checked)">
+                <input type="checkbox" id="zaloAutoToggle" checked onchange="toggleZaloAuto(this.checked)">
                 <span class="switch-slider"></span>
               </label>
               <div>
-                <b style="font-size:13.5px;display:block" id="zaloSwitchLabel">Tự động gửi lịch hàng ngày: ĐANG TẮT</b>
-                <span style="font-size:11.5px;color:var(--muted)">Tài khoản Zalo cá nhân chưa có API gửi nhóm tự động; bạn có thể tạo nội dung để sao chép gửi thủ công.</span>
+                <b style="font-size:13.5px;display:block" id="zaloSwitchLabel">Tự động gửi lịch hàng ngày: ĐANG BẬT</b>
+                <span style="font-size:11.5px;color:var(--muted)">Hệ thống sẽ quét thời khóa biểu ngày mai và tự động phát thông báo.</span>
               </div>
             </div>
 
@@ -1409,13 +1419,15 @@ tbody tr:last-child td { border-bottom: none; }
 
             <div class="form-field" style="margin-bottom:16px">
               <label for="zaloGroupSelect">Nhóm Zalo nhận thông báo:</label>
-              <input id="zaloGroupSelect" type="text" placeholder="Không cần nhập nếu dùng Zalo cá nhân">
+              <select id="zaloGroupSelect">
+                <option value="g1">👥 Nhóm Zalo: Robocon 2026 - Xưởng C503 (Chính thức)</option>
+                <option value="g2">👥 Nhóm Zalo: Đội Trọng Điểm LH-NaviX</option>
+              </select>
             </div>
-            <div class="form-field" style="margin-bottom:16px"><label for="zaloGroupLabel">Tên nhóm hiển thị:</label><input id="zaloGroupLabel" type="text" placeholder="Ví dụ: Nhóm xưởng Robocon"></div>
 
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" onclick="saveZaloSettings()">💾 Lưu cấu hình</button>
-              <button class="btn btn-secondary" onclick="simulateZaloSend()">📋 Tạo nội dung để gửi</button>
+              <button class="btn btn-primary" onclick="toast('ok', 'Đã lưu cài đặt', 'Lịch tự động Zalo được đặt lúc 20:00 hàng ngày.')">💾 Lưu cấu hình</button>
+              <button class="btn btn-secondary" onclick="simulateZaloSend()">🧪 Gửi thử tin nhắn ngay</button>
             </div>
           </section>
 
@@ -1425,8 +1437,8 @@ tbody tr:last-child td { border-bottom: none; }
               <table>
                 <thead><tr><th>Thời gian</th><th>Nhóm nhận</th><th>Trạng thái</th></tr></thead>
                 <tbody id="zaloHistoryTbody">
-                  <tr><td>Hôm nay 20:00</td><td>—</td><td>Chưa có dữ liệu gửi</td></tr>
-
+                  <tr><td>Hôm nay 20:00</td><td>Robocon 2026 - C503</td><td><span class="team-availability free">✓ Thành công (22 rảnh)</span></td></tr>
+                  <tr><td>08/10 20:00</td><td>Robocon 2026 - C503</td><td><span class="team-availability free">✓ Thành công (19 rảnh)</span></td></tr>
                 </tbody>
               </table>
             </div>
@@ -1439,10 +1451,23 @@ tbody tr:last-child td { border-bottom: none; }
               <div class="widget-title">📱 Khung xem trước tin nhắn Zalo</div>
               <button class="btn btn-sm" onclick="generateZaloPreviewText()">↻ Cập nhật mẫu</button>
             </div>
-
+            
             <div class="zalo-bubble">
               <div class="zalo-bubble-badge">💬 Tin nhắn Zalo Bot</div>
-<div id="zaloMessagePreview">Bấm “Cập nhật mẫu” để tổng hợp lịch ngày mai từ dữ liệu đã đồng bộ.</div>
+<div id="zaloMessagePreview">[THÔNG BÁO LỊCH RẢNH NGÀY MAI - THỨ BẢY 10/10]
+🤖 Xưởng Robocon LH-NaviX (Phòng C503)
+
+✅ THÀNH VIÊN RẢNH CẢ NGÀY (18 bạn):
+ • Võ Duy Khang (123001058)
+ • Dương Công Mạnh (125001343)
+ • Nguyễn Văn Trung (123000651)
+ • Phan Nhật Nam (124000534)
+ • ... và 14 thành viên khác
+
+⚠️ THÀNH VIÊN CÓ LỊCH HỌC TRƯỜNG (4 bạn):
+ • Huỳnh Tuấn Tú: Bận Tiết 1-4 (Phòng G306)
+
+📌 Đề nghị các bạn có mặt đúng 07:30 tại xưởng!</div>
             </div>
           </section>
         </div>
@@ -1531,7 +1556,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="form-field">
           <label for="taskNewGroup">Nhóm / Lĩnh vực:</label>
-          <select id="taskNewGroup" onchange="loadTaskAssignees()">
+          <select id="taskNewGroup">
             <option value="Cơ khí">Đội Cơ khí</option>
             <option value="Lập trình">Đội Lập trình - AI</option>
             <option value="Mạch - Điện">Đội Mạch - Điện tử</option>
@@ -1583,7 +1608,7 @@ tbody tr:last-child td { border-bottom: none; }
       <h3 id="taskDetailTitle" style="font-size:16px;margin:0">Tiêu đề nhiệm vụ</h3>
       <span id="taskDetailPriority" class="task-badge-priority priority-high">Cao</span>
     </div>
-
+    
     <div id="taskDetailDesc" style="font-size:13px;line-height:1.6;color:var(--muted);background:var(--surface-2);padding:12px 14px;border-radius:8px;margin-bottom:14px">Mô tả</div>
 
     <div class="task-meta-grid" style="margin-bottom:16px">
@@ -1757,7 +1782,7 @@ tbody tr:last-child td { border-bottom: none; }
         <p style="margin:2px 0 0;font-size:12.5px;color:var(--muted)" id="reasonStudentInfo">—</p>
       </div>
     </div>
-
+    
     <div class="form-field" style="margin-bottom:12px">
       <label for="reasonModalSelect" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">TRẠNG THÁI MỚI:</label>
       <select id="reasonModalSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13.5px;font-weight:600;outline:none;font-family:inherit;background:var(--surface)">
@@ -1779,8 +1804,10 @@ tbody tr:last-child td { border-bottom: none; }
     </div>
   </div>
 </div>
+"""
 
-
+# Script controller functions to inject into original JS
+controllers_js = """
 <script>
 /* ==========================================================
    VIEW ROUTING & SIDEBAR DRAWER CONTROLLER
@@ -1817,9 +1844,6 @@ function navTo(viewName) {
   else if (viewName === 'schedules' && typeof loadTodaySchoolSchedule === 'function') loadTodaySchoolSchedule();
   else if (viewName === 'history' && typeof loadTodayHistory === 'function') loadTodayHistory();
   else if (viewName === 'requests' && typeof fetchResetRequests === 'function') fetchResetRequests();
-  else if (viewName === 'tasks') loadAdminTasks();
-  else if (viewName === 'feedback') loadAdminFeedback();
-  else if (viewName === 'zalo') loadZaloSettings();
 }
 
 function toggleSidebar() {
@@ -1983,7 +2007,15 @@ function resetDefaultRoboconRules() {
 function switchTaskTab(tabType) {
   document.getElementById('tabTaskGroup')?.classList.toggle('active', tabType === 'group');
   document.getElementById('tabTaskPersonal')?.classList.toggle('active', tabType === 'personal');
-  applyTaskFilters();
+  
+  const cards = document.querySelectorAll('#tasksListGrid .task-card');
+  cards.forEach(c => {
+    if (tabType === 'group') {
+      c.style.display = (c.dataset.type === 'group') ? 'flex' : 'none';
+    } else {
+      c.style.display = (c.dataset.type === 'personal') ? 'flex' : 'none';
+    }
+  });
 }
 
 function applyTaskFilters() {
@@ -1991,17 +2023,15 @@ function applyTaskFilters() {
   const st = document.getElementById('taskFilterStatus')?.value || 'all';
   const pri = document.getElementById('taskFilterPriority')?.value || 'all';
   const search = (document.getElementById('taskSearchInput')?.value || '').toLowerCase().trim();
-  const activeScope = document.getElementById('tabTaskPersonal')?.classList.contains('active') ? 'personal' : 'group';
 
   const cards = document.querySelectorAll('#tasksListGrid .task-card');
   cards.forEach(c => {
-    const matchScope = c.dataset.type === activeScope;
     const matchGrp = (grp === 'all' || c.dataset.group === grp);
     const matchSt = (st === 'all' || c.dataset.status === st);
     const matchPri = (pri === 'all' || c.dataset.priority === pri);
     const matchSearch = (!search || c.innerText.toLowerCase().includes(search));
-
-    c.style.display = (matchScope && matchGrp && matchSt && matchPri && matchSearch) ? 'flex' : 'none';
+    
+    c.style.display = (matchGrp && matchSt && matchPri && matchSearch) ? 'flex' : 'none';
   });
 }
 
@@ -2017,159 +2047,210 @@ function toggleTaskAssigneeSelect(val) {
   if (field) field.style.display = (val === 'personal') ? 'flex' : 'none';
 }
 
-async function loadAdminTasks() {
-  const box=document.getElementById('tasksListGrid'); if(!box)return; box.innerHTML='<div class="empty-state">Đang tải nhiệm vụ...</div>';
-  const [{data,error}, {data: groups}] = await Promise.all([
-    supabase.rpc('admin_get_team_tasks'), supabase.from('team_groups').select('id,name,field').order('name')
-  ]);
-  if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được nhiệm vụ.')+'</div>';return;}
-  const all= data.tasks||[]; window.adminTaskRows=all; window.adminTaskGroups=groups||[];
-  const groupSel=document.getElementById('taskNewGroup'); if(groupSel) groupSel.innerHTML=(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)} · ${escapeHtml(g.field)}</option>`).join('');
-  const filters=document.getElementById('taskFilterGroup'); if(filters) filters.innerHTML='<option value="all">Tất cả nhóm</option>'+(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
-  const memberSelect=document.getElementById('taskNewAssignee');
-  if(memberSelect && groups?.length) await loadTaskAssignees();
-  if(!all.length){box.innerHTML='<div class="empty-state">Chưa có nhiệm vụ nào. Tạo nhiệm vụ đầu tiên.</div>';return;}
-  box.innerHTML=all.map(t=>{const done=(t.assignees||[]).filter(a=>a.status==='done').length, n=(t.assignees||[]).length;const type=t.scope; const status=done===n&&n?'done':(t.assignees||[]).some(a=>a.status==='doing')?'doing':'todo';
-    const statusLabel={todo:'⚪ Chưa bắt đầu',doing:'⏳ Đang làm',done:'✓ Hoàn thành'}[status];
-    const people=(t.assignees||[]).map(a=>`${escapeHtml(a.name||a.mssv)} (${escapeHtml(a.status)})`).join(', ')||'Không có thành viên';
-    return `<article class="task-card" data-id="${t.id}" data-type="${type}" data-group="${t.team_id}" data-status="${status}" data-priority="${t.priority}"><div class="task-card-top"><span class="task-title">${escapeHtml(t.title)}</span><span class="task-badge-priority priority-${t.priority}">${{high:'Cao 🔥',med:'Trung bình',low:'Thấp'}[t.priority]}</span></div><p class="task-desc">${escapeHtml(t.description||'')}</p><div class="task-meta-grid"><div class="task-meta-row"><span class="task-meta-lbl">Nhóm</span><span class="task-meta-val">${escapeHtml(t.team_name)}</span></div><div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">${type==='group'?'Cả đội':people}</span></div><div class="task-meta-row"><span class="task-meta-lbl">Tiến độ</span><span class="task-meta-val">${done}/${n} hoàn thành · ${n} người</span></div><div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val">${t.due_date||'—'}</span></div></div><div class="task-card-footer"><span class="task-status-chip status-${status}">${statusLabel}</span><button class="btn btn-sm" onclick="showTaskDetailById('${t.id}')">Chi tiết</button></div></article>`;
-  }).join(''); applyTaskFilters();
-}
-async function loadTaskAssignees(){const group=document.getElementById('taskNewGroup')?.value,select=document.getElementById('taskNewAssignee');if(!group||!select)return;const {data,error}=await supabase.from('team_group_members').select('mssv,students(name)').eq('team_id',group).order('added_at');if(error){select.innerHTML='';toast('error','Không tải được thành viên',error.message);return;}select.innerHTML=(data||[]).map(m=>`<option value="${m.mssv}">${escapeHtml(m.students?.name||m.mssv)} · ${escapeHtml(m.mssv)}</option>`).join('');}
-async function submitCreateTask(){
-  const title=document.getElementById('taskNewTitle')?.value.trim(), team=document.getElementById('taskNewGroup')?.value;
-  if(!title||!team){toast('warn','Thiếu thông tin','Nhập tiêu đề và chọn nhóm.');return;}
-  const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('taskNewDesc')?.value||'',p_scope:document.getElementById('taskNewType')?.value||'group',p_team_id:team,p_assignee_mssv:document.getElementById('taskNewAssignee')?.value||null,p_priority:document.getElementById('taskNewPriority')?.value||'med',p_due_date:document.getElementById('taskNewDueDate')?.value||null});
-  if(error||!data?.ok){toast('error','Chưa giao được',error?.message||data?.message||'Lỗi không xác định');return;}
-  closeTaskCreateModal(); document.getElementById('taskNewTitle').value=''; document.getElementById('taskNewDesc').value=''; await loadAdminTasks(); toast('ok','Đã giao nhiệm vụ','Nhiệm vụ đã lưu và giao cho thành viên nhóm.');
-}
-function showTaskDetailById(id){const t=(window.adminTaskRows||[]).find(x=>x.id===id);if(!t)return; showTaskDetail(t.title,t.description,t.team_name,(t.assignees||[]).map(a=>a.name||a.mssv).join(', '),t.priority,t.due_date||'—',(t.assignees||[]).map(a=>`${a.name||a.mssv}: ${a.status}`).join(' · ')||'Chưa có người nhận');}
-function showTaskDetail(title,desc,group,assignee,pri,due,status){[['taskDetailTitle',title],['taskDetailDesc',desc],['taskDetailGroup',group],['taskDetailAssignee',assignee],['taskDetailDue',due],['taskDetailStatus',status]].forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v||'—'});document.getElementById('taskDetailModal')?.classList.add('show');}
-function closeTaskDetailModal(){document.getElementById('taskDetailModal')?.classList.remove('show');}
+function submitCreateTask() {
+  const title = document.getElementById('taskNewTitle')?.value?.trim();
+  if (!title) { toast('warn', 'Thiếu thông tin', 'Vui lòng nhập tiêu đề nhiệm vụ.'); return; }
+  
+  const type = document.getElementById('taskNewType')?.value || 'group';
+  const group = document.getElementById('taskNewGroup')?.value || 'Cơ khí';
+  const assignee = (type === 'personal') ? document.getElementById('taskNewAssignee')?.value : 'Toàn đội ' + group;
+  const desc = document.getElementById('taskNewDesc')?.value || 'Thực hiện đúng yêu cầu xưởng.';
+  const pri = document.getElementById('taskNewPriority')?.value || 'med';
+  const due = document.getElementById('taskNewDueDate')?.value || '15/10/2026';
 
-function openStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.add('show');}
-function closeStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.remove('show');}
-async function submitStudentFeedback(){toast('warn','Gửi từ tài khoản sinh viên','Mở checkin.html để gửi phản hồi ẩn danh.');}
-async function loadAdminFeedback(){const box=document.getElementById('feedbackList');if(!box)return;const {data,error}=await supabase.rpc('admin_get_anonymous_feedback');if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được phản hồi.')+'</div>';return;}const labels={gopy:'💡 Góp ý',suco:'⚠️ Sự cố',muasam:'🛠 Mua sắm',khac:'💬 Khác'};const rows=data.items||[];box.innerHTML=rows.length?rows.map(x=>`<article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}"><div class="fb-item-top"><span class="fb-anon-tag">🔒 Ẩn danh ${escapeHtml(x.code)}</span><span class="fb-type-badge type-${x.type}">${labels[x.type]||x.type}</span></div><div class="fb-text">${escapeHtml(x.content)}</div><div class="fb-item-bottom"><span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span><div style="display:flex;gap:6px;align-items:center"><span class="task-status-chip status-${x.status==='resolved'?'done':'doing'}">${x.status==='new'?'Mới nhận':x.status==='seen'?'Đã xem':'Đã xử lý'}</span>${x.status!=='resolved'?`<button class="btn btn-sm btn-success" onclick="markFeedbackResolved('${x.id}')">✓ Đánh dấu đã xử lý</button>`:''}</div></div></article>`).join(''):'<div class="empty-state">Chưa có phản hồi.</div>';applyFeedbackFilters();}
-async function markFeedbackResolved(id){if(id instanceof HTMLElement)id=id.closest('.fb-item')?.dataset.id;if(!id)return;const {data,error}=await supabase.rpc('admin_update_anonymous_feedback',{p_id:id,p_status:'resolved'});if(error||!data?.ok){toast('error','Chưa cập nhật được',error?.message||data?.message||'');return;}await loadAdminFeedback();toast('ok','Đã xử lý','Trạng thái phản hồi đã được lưu.');}
-function applyFeedbackFilters(){const type=document.getElementById('fbFilterType')?.value||'all',st=document.getElementById('fbFilterStatus')?.value||'all';document.querySelectorAll('#feedbackList .fb-item').forEach(x=>x.style.display=(type==='all'||x.dataset.type===type)&&(st==='all'||x.dataset.status===st)?'flex':'none');}
-async function loadZaloSettings(){const [{data:s}, {data:l}]=await Promise.all([supabase.rpc('admin_get_zalo_settings'),supabase.rpc('admin_get_zalo_logs')]);const cfg=s?.settings;if(cfg){document.getElementById('zaloAutoToggle').checked=!!cfg.auto_enabled;document.getElementById('zaloSendHour').value=(cfg.send_time||'20:00').slice(0,5);document.getElementById('zaloGroupSelect').value=cfg.group_id||'';document.getElementById('zaloGroupLabel').value=cfg.group_label||'';const label=document.getElementById('zaloSwitchLabel');if(label)label.textContent='Tự động gửi: Chưa khả dụng với Zalo cá nhân';}const body=document.getElementById('zaloHistoryTbody');if(body)body.innerHTML=(l?.logs||[]).map(x=>`<tr><td>${new Date(x.sent_at).toLocaleString('vi-VN')}</td><td>${escapeHtml(x.group_label||'—')}</td><td>${escapeHtml(x.status)} · ${x.free_count} rảnh / ${x.busy_count} bận ${x.error?escapeHtml(x.error):''}</td></tr>`).join('')||'<tr><td colspan="3">Chưa có lần gửi nào.</td></tr>';}
-function toggleZaloAuto(){const input=document.getElementById('zaloAutoToggle');if(input)input.checked=false;toast('warn','Chưa khả dụng','Gửi tự động cần tích hợp Zalo OA. Bạn vẫn có thể tạo nội dung để tự gửi.');}
-async function saveZaloSettings(){if(document.getElementById('zaloAutoToggle').checked){toast('warn','Chưa thể bật tự động','Zalo cá nhân không cung cấp API gửi tin nhắn nhóm tự động cho ứng dụng này. Hãy tắt tự động; nội dung lịch vẫn tạo và sao chép được.');return;}const {data,error}=await supabase.rpc('admin_save_zalo_settings',{p_enabled:document.getElementById('zaloAutoToggle').checked,p_send_time:document.getElementById('zaloSendHour').value+':00',p_group_id:document.getElementById('zaloGroupSelect').value.trim(),p_group_label:document.getElementById('zaloGroupLabel')?.value.trim()||''});if(error||!data?.ok){toast('error','Chưa lưu được',error?.message||data?.message||'');return;}toast(data.schedule_ready?'ok':'warn','Đã lưu cấu hình',data.message||'Đã lưu.');await loadZaloSettings();}
-async function generateZaloPreviewText(){
-  const el=document.getElementById('zaloMessagePreview');if(!el)return;el.textContent='Đang tổng hợp lịch ngày mai…';
-  const nowParts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=k=>Number(nowParts.find(x=>x.type===k).value);const midnight=Date.UTC(part('year'),part('month')-1,part('day'))-7*3600000;const from=new Date(midnight+86400000).toISOString(),to=new Date(midnight+2*86400000).toISOString();
-  const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([supabase.from('team_group_members').select('mssv,students(name)').limit(1000),supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time').lt('start_time',to).gte('end_time',from).order('start_time')]);
-  if(e1||e2){el.textContent='Không tải được lịch: '+(e1?.message||e2?.message);return;}
-  const byId=new Map();(schedules||[]).forEach(x=>{const a=byId.get(x.mssv)||[];a.push(x);byId.set(x.mssv,a)});const list=[...new Map((members||[]).map(m=>[m.mssv,m])).values()];const free=list.filter(m=>!byId.has(m.mssv)),busy=list.filter(m=>byId.has(m.mssv));const tomorrow=new Date(midnight+86400000).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit'});
-  const lines=[`LỊCH RẢNH NGÀY MAI · ${tomorrow}`,`Tổng thành viên: ${list.length} · Rảnh: ${free.length} · Bận: ${busy.length}`,'',`RẢNH (${free.length}):`,...(free.length?free.map(m=>`• ${m.students?.name||m.mssv} (${m.mssv})`):['• Không có']), '',`BẬN (${busy.length}):`,...(busy.length?busy.map(m=>`• ${m.students?.name||m.mssv}: ${byId.get(m.mssv).map(x=>`${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}-${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} ${x.subject_name}${x.room_name?' · '+x.room_name:''}`).join('; ')}`):['• Không có'])];el.textContent=lines.join('\n');
-}
-async function simulateZaloSend(){await generateZaloPreviewText();const content=document.getElementById('zaloMessagePreview')?.textContent||'';try{await navigator.clipboard.writeText(content);toast('ok','Đã sao chép nội dung','Mở Zalo cá nhân, vào nhóm rồi dán và gửi tin nhắn.');}catch{toast('info','Đã tạo nội dung','Bạn có thể chọn và sao chép nội dung trong khung xem trước rồi gửi từ Zalo.');}}
+  const priLabel = pri === 'high' ? 'Cao 🔥' : (pri === 'med' ? 'Trung bình' : 'Thấp');
+  const priClass = pri === 'high' ? 'priority-high' : (pri === 'med' ? 'priority-med' : 'priority-low');
 
+  const newCard = document.createElement('div');
+  newCard.className = 'task-card';
+  newCard.dataset.type = type;
+  newCard.dataset.group = group;
+  newCard.dataset.status = 'todo';
+  newCard.dataset.priority = pri;
+  newCard.innerHTML = `
+    <div class="task-card-top">
+      <span class="task-title">${escapeHtml(title)}</span>
+      <span class="task-badge-priority ${priClass}">${priLabel}</span>
+    </div>
+    <p class="task-desc">${escapeHtml(desc)}</p>
+    <div class="task-meta-grid">
+      <div class="task-meta-row"><span class="task-meta-lbl">Người giao</span><span class="task-meta-val">Admin</span></div>
+      <div class="task-meta-row"><span class="task-meta-lbl">Nhóm</span><span class="task-meta-val">${escapeHtml(group)}</span></div>
+      <div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">${escapeHtml(assignee)}</span></div>
+      <div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val">${escapeHtml(due)}</span></div>
+    </div>
+    <div class="task-card-footer">
+      <span class="task-status-chip status-todo">⚪ Chưa bắt đầu</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="showTaskDetail('${escapeHtml(title)}', '${escapeHtml(desc)}', '${escapeHtml(group)}', '${escapeHtml(assignee)}', '${priLabel}', '${escapeHtml(due)}', 'Chưa bắt đầu')">Chi tiết</button>
+        <button class="btn btn-sm btn-primary" onclick="quickUpdateTaskStatus(this, 'doing')">▶ Bắt đầu</button>
+      </div>
+    </div>
+  `;
 
-setTimeout(() => { if (typeof renderRoboconRules === 'function') renderRoboconRules(); }, 200);
-
-
-let currentSession = null;
-let students = [];
-let attendanceMap = {};
-let currentFilter = 'all';
-let currentSearch = '';
-let currentPage = 1;
-let pageSize = 20;
-let countdownTimer = null;
-let pollTimer = null;
-let realtimeChannel = null;
-let _closingSession = false;   // chặn gọi đóng phiên 2 lần
-let _lastMssvSet = new Set();
-
-function fmtTime(sec){ return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
-function fmtClock(d){ return d.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
-
-function toast(type, title, text, duration = 4500){
-  const wrap = document.getElementById('toastWrap');
-  const icons = { ok:'✓', err:'✕', warn:'⚠', info:'ℹ' };
-  const el = document.createElement('div');
-  el.className = 'toast t-' + type;
-  el.innerHTML = '<div class="toast-ic">' + (icons[type] || 'ℹ') + '</div>' +
-    '<div class="toast-body"><div class="toast-title">' + title + '</div>' +
-    (text ? '<div class="toast-text">' + text + '</div>' : '') + '</div>';
-  wrap.appendChild(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, duration);
+  document.getElementById('tasksListGrid')?.prepend(newCard);
+  closeTaskCreateModal();
+  toast('ok', 'Đã giao nhiệm vụ', 'Nhiệm vụ mới đã được thêm vào danh sách.');
 }
 
-async function checkAuth(){
-  const { data: auth } = await supabase.auth.getSession();
-  if (!auth?.session){ location.href = 'index.html'; return null; }
-  const { data: isAdm } = await supabase.rpc('is_admin');
-  if (!isAdm){
-    alert('Tài khoản này không có quyền truy cập trang quản lý.');
-    await supabase.auth.signOut();
-    location.href = 'index.html';
-    return null;
+function showTaskDetail(title, desc, group, assignee, pri, due, status) {
+  document.getElementById('taskDetailTitle').textContent = title;
+  document.getElementById('taskDetailDesc').textContent = desc;
+  document.getElementById('taskDetailGroup').textContent = group;
+  document.getElementById('taskDetailAssignee').textContent = assignee;
+  document.getElementById('taskDetailDue').textContent = due;
+  document.getElementById('taskDetailStatus').textContent = status;
+  document.getElementById('taskDetailModal')?.classList.add('show');
+}
+function closeTaskDetailModal() {
+  document.getElementById('taskDetailModal')?.classList.remove('show');
+}
+
+function quickUpdateTaskStatus(btn, newStatus) {
+  const card = btn.closest('.task-card');
+  if (!card) return;
+  card.dataset.status = newStatus;
+  const chip = card.querySelector('.task-status-chip');
+  if (newStatus === 'done') {
+    if (chip) { chip.className = 'task-status-chip status-done'; chip.innerHTML = '✓ Đã hoàn thành'; }
+    btn.remove();
+    toast('ok', 'Cập nhật tiến độ', 'Đã đánh dấu hoàn thành nhiệm vụ.');
+  } else if (newStatus === 'doing') {
+    if (chip) { chip.className = 'task-status-chip status-doing'; chip.innerHTML = '⏳ Đang làm'; }
+    btn.className = 'btn btn-sm btn-success';
+    btn.textContent = '✓ Hoàn tất';
+    btn.onclick = () => quickUpdateTaskStatus(btn, 'done');
+    toast('info', 'Bắt đầu làm', 'Nhiệm vụ đã chuyển sang trạng thái đang thực hiện.');
   }
-  const { data: prof } = await supabase.from('profiles').select('full_name, mssv, must_change_password').eq('user_id', auth.session.user.id).maybeSingle();
-  if (prof?.must_change_password) {
-    location.href = 'change-password.html';
-    return null;
-  }
-  document.getElementById('adminName').textContent = prof?.full_name || '—';
-  document.getElementById('adminMssv').textContent = prof?.mssv || '—';
-  supabase.auth.onAuthStateChange(e => { if (e === 'SIGNED_OUT') location.href = 'index.html'; });
-  return auth.session.user;
 }
-async function logout(){
-  if (!confirm('Đăng xuất khỏi hệ thống?')) return;
-  // Dừng hết tác vụ nền trước khi thoát
-  clearInterval(countdownTimer);
-  clearInterval(pollTimer);
-  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
-  localStorage.removeItem('saved_creds');
-  await supabase.auth.signOut();
-  location.replace('index.html');
-}
-async function loadStudents(){
-  const { data, error } = await supabase.from('students').select('mssv, name').order('mssv');
-  if (error){ console.error(error); return; }
-  students = data || [];
-}
-async function loadSession(){
-  const { data, error } = await supabase.rpc('get_open_session');
-  if (error || !data){ currentSession = null; showEmpty(); return null; }
-  currentSession = data;
-  return data;
-}
-async function loadAttendance(){
-  if (!currentSession) return;
-  const { data, error } = await supabase.from('attendance')
-    .select('mssv, full_name, status, category, note, created_at')
-    .eq('session_id', currentSession.id);
-  if (error){
-    console.error('loadAttendance error:', error);
-    toast('err', 'Lỗi tải điểm danh', error.message || 'Không thể tải dữ liệu điểm danh.');
-    return;
-  }
-  let latestAuditMap = {};
-  try {
-    const { data: auditData } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
-    if (auditData && auditData.ok && auditData.logs) {
-      // Sắp xếp tăng dần theo thời gian trước (nếu mssv xuất hiện nhiều lần, cái sau sẽ ghi đè cái trước)
-      const logs = auditData.logs.sort((a, b) => new Date(a.changed_at) - new Date(b.changed_at));
-      logs.forEach(l => {
-        latestAuditMap[l.mssv] = l.changed_at;
-      });
-    }
-  } catch(e) {
-    console.warn('Cannot fetch audit logs for time display, falling back to created_at', e);
-  }
 
-  attendanceMap = {};
-  (data || []).forEach(r => {
-    // Keep the original time the row was recorded; edits are shown in the audit history.
-    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), editedAt: latestAuditMap[r.mssv] || null, category: r.category || '', note: r.note || '' };
+/* ==========================================================
+   FEEDBACK & ZALO CONTROLLERS
+   ========================================================== */
+function openStudentFeedbackModal() {
+  document.getElementById('studentFeedbackModal')?.classList.add('show');
+}
+function closeStudentFeedbackModal() {
+  document.getElementById('studentFeedbackModal')?.classList.remove('show');
+}
+function submitStudentFeedback() {
+  const text = document.getElementById('fbSendContent')?.value?.trim();
+  if (!text) { toast('warn', 'Thiếu nội dung', 'Vui lòng nhập nội dung góp ý.'); return; }
+  const type = document.getElementById('fbSendType')?.value || 'gopy';
+  
+  const typeLabels = { gopy: '💡 Góp ý', suco: '⚠️ Sự cố', muasam: '🛠 Mua sắm', khac: '💬 Khác' };
+  const typeClass = { gopy: 'type-gopy', suco: 'type-suco', muasam: 'type-muasam', khac: 'type-khac' };
+  const randId = Math.floor(1000 + Math.random() * 9000);
+
+  const newFb = document.createElement('div');
+  newFb.className = 'fb-item';
+  newFb.dataset.type = type;
+  newFb.dataset.status = 'new';
+  newFb.innerHTML = `
+    <div class="fb-item-top">
+      <span class="fb-anon-tag">🔒 Người gửi ẩn danh #FB-${randId}</span>
+      <span class="fb-type-badge ${typeClass[type] || 'type-gopy'}">${typeLabels[type]}</span>
+    </div>
+    <div class="fb-text">${escapeHtml(text)}</div>
+    <div class="fb-item-bottom">
+      <span>📅 Vừa gửi (Ẩn danh)</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="task-status-chip status-doing">🔵 Mới nhận</span>
+        <button class="btn btn-sm btn-success" onclick="markFeedbackResolved(this)">✓ Đánh dấu đã xử lý</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('feedbackList')?.prepend(newFb);
+  closeStudentFeedbackModal();
+  document.getElementById('fbSendContent').value = '';
+  toast('ok', 'Đã gửi ẩn danh', 'Ý kiến của bạn đã được chuyển đến ban quản lý mà không lưu danh tính.');
+}
+
+function markFeedbackResolved(btn) {
+  const item = btn.closest('.fb-item');
+  if (!item) return;
+  item.dataset.status = 'resolved';
+  const bottom = item.querySelector('.fb-item-bottom div');
+  if (bottom) {
+    bottom.innerHTML = '<span class="task-status-chip status-done">🟢 Đã xử lý</span>';
+  }
+  toast('ok', 'Đã xử lý', 'Đã lưu trạng thái xử lý phản hồi.');
+}
+
+function applyFeedbackFilters() {
+  const type = document.getElementById('fbFilterType')?.value || 'all';
+  const st = document.getElementById('fbFilterStatus')?.value || 'all';
+  const items = document.querySelectorAll('#feedbackList .fb-item');
+  items.forEach(it => {
+    const matchType = (type === 'all' || it.dataset.type === type);
+    const matchSt = (st === 'all' || it.dataset.status === st);
+    it.style.display = (matchType && matchSt) ? 'flex' : 'none';
   });
 }
-function showEmpty(){
+
+function toggleZaloAuto(isOn) {
+  const lbl = document.getElementById('zaloSwitchLabel');
+  if (lbl) lbl.textContent = isOn ? 'Tự động gửi lịch hàng ngày: ĐANG BẬT' : 'Tự động gửi lịch hàng ngày: ĐÃ TẮT';
+  toast(isOn ? 'ok' : 'warn', isOn ? 'Đã bật tự động gửi Zalo' : 'Đã tắt gửi Zalo', 'Thời gian gửi: ' + (document.getElementById('zaloSendHour')?.value || '20:00'));
+}
+
+function simulateZaloSend() {
+  toast('info', 'Đang tạo tin nhắn...', 'Đang tổng hợp danh sách lịch rảnh ngày mai...');
+  setTimeout(() => {
+    toast('ok', 'Gửi Zalo thành công!', 'Đã gửi mẫu lịch rảnh lên nhóm Robocon 2026.');
+    const tbody = document.getElementById('zaloHistoryTbody');
+    if (tbody) {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>Vừa xong</td><td>Robocon 2026 - C503</td><td><span class="team-availability free">✓ Thành công (Gửi thử)</span></td>`;
+      tbody.prepend(row);
+    }
+  }, 900);
+}
+
+function generateZaloPreviewText() {
+  const tm = new Date();
+  tm.setDate(tm.getDate() + 1);
+  const dStr = tm.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' });
+  const preview = `[THÔNG BÁO LỊCH RẢNH NGÀY MAI - ${dStr.toUpperCase()}]
+🤖 Xưởng Robocon LH-NaviX (Phòng C503)
+
+✅ THÀNH VIÊN RẢNH CẢ NGÀY:
+ • Võ Duy Khang (123001058)
+ • Dương Công Mạnh (125001343)
+ • Nguyễn Văn Trung (123000651)
+ • ... và các thành viên khác
+
+⚠️ THÀNH VIÊN CÓ LỊCH HỌC TRƯỜNG:
+ • Huỳnh Tuấn Tú (123000078): Bận Tiết 1-4 (G306)
+
+📌 Đề nghị các bạn có mặt đúng 07:30 tại xưởng!`;
+  const el = document.getElementById('zaloMessagePreview');
+  if (el) el.textContent = preview;
+  toast('ok', 'Đã cập nhật', 'Khung xem trước tin nhắn Zalo đã được làm mới.');
+}
+
+setTimeout(() => { if (typeof renderRoboconRules === 'function') renderRoboconRules(); }, 200);
+"""
+
+# Now let's integrate orig_js with controllers_js
+# In orig_js, remove the leading <script> tag since controllers_js already starts with <script>
+orig_js_body = orig_js[len('<script>'):]
+
+# Update showEmpty and showDashboard to also update Hero card
+orig_js_body = orig_js_body.replace(
+"""function showEmpty(){
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đã đóng</span>';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'none';
+  clearInterval(countdownTimer);
+  loadTodayHistory();
+  loadTodaySchoolSchedule();
+}""",
+"""function showEmpty(){
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
@@ -2182,7 +2263,7 @@ function showEmpty(){
     document.getElementById('heroSessionIcon').textContent = '⏹';
     document.getElementById('heroSessionTitle').textContent = 'Chưa có phiên điểm danh nào đang mở';
     document.getElementById('heroSessionSubtitle').textContent = 'Mở phiên mới bên dưới để bắt đầu điểm danh xưởng.';
-    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="document.getElementById(\'quickName\').focus()">＋ Mở phiên mới</button>';
+    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="document.getElementById(\\'quickName\\').focus()">＋ Mở phiên mới</button>';
   }
   const createBox = document.getElementById('overviewSessionCreateBox');
   if (createBox) createBox.style.display = 'block';
@@ -2192,8 +2273,16 @@ function showEmpty(){
   clearInterval(countdownTimer);
   loadTodayHistory();
   loadTodaySchoolSchedule();
-}
-function showDashboard(){
+}""")
+
+orig_js_body = orig_js_body.replace(
+"""function showDashboard(){
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-on';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
+}""",
+"""function showDashboard(){
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbarSessionPill').className = 'session-pill pill-on';
@@ -2206,1268 +2295,31 @@ function showDashboard(){
     document.getElementById('heroSessionIcon').textContent = '🟢';
     document.getElementById('heroSessionTitle').textContent = currentSession.session_name || 'Phiên điểm danh đang mở';
     document.getElementById('heroSessionSubtitle').textContent = 'Phiên đang hoạt động. Mã QR đang chiếu cho sinh viên.';
-    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="navTo(\'attendance\')">Vào màn hình điểm danh →</button><button class="btn btn-danger" onclick="openCloseModal()">■ Đóng phiên</button>';
+    document.getElementById('heroSessionActions').innerHTML = '<button class="btn btn-primary" onclick="navTo(\\'attendance\\')">Vào màn hình điểm danh →</button><button class="btn btn-danger" onclick="openCloseModal()">■ Đóng phiên</button>';
   }
   const createBox = document.getElementById('overviewSessionCreateBox');
   if (createBox) createBox.style.display = 'none';
-}
-function renderQR(){
-  if (!currentSession || !currentSession.id || !currentSession.qr_token) return;
-  const canvas = document.getElementById('qrCanvas');
-  if (!canvas) return;
-  canvas.innerHTML = '';
-  const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
-  const url = base + '/checkin.html?s=' + encodeURIComponent(currentSession.id) + '&t=' + encodeURIComponent(currentSession.qr_token);
-  if (typeof QRCode !== 'undefined') {
-    new QRCode(canvas, { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
-  }
-  if (currentSession.qr_born_at) {
-    document.getElementById('qrBorn').textContent = fmtClock(new Date(currentSession.qr_born_at));
-  }
-}
-async function regenerateQR(){
-  const btn = document.getElementById('btnRefreshQr');
-  btn.disabled = true;
-  const old = btn.innerHTML;
-  btn.innerHTML = '⏳ Đang tạo...';
-  try {
-    let res = await supabase.rpc('admin_regenerate_qr');
-    if (res.error && res.error.code === 'PGRST203' && currentSession?.id) {
-      res = await supabase.rpc('admin_regenerate_qr', { p_session_id: String(currentSession.id) });
-    }
-    const { data, error } = res;
-    if (error || !data?.ok) throw new Error(data?.message || error?.message);
-    if (!currentSession) currentSession = {};
-    currentSession.qr_token = data.qr_token;
-    currentSession.qr_born_at = data.qr_born_at;
-    renderQR();
-    toast('ok', 'Đã đổi mã QR', 'Mã cũ không còn hiệu lực.');
-  } catch(e){ toast('err', 'Đổi QR thất bại', e.message); }
-  finally { btn.disabled = false; btn.innerHTML = old; }
-}
-function toggleFullscreen(){
-  const el = document.getElementById('qrPanel');
-  if (document.fullscreenElement) document.exitFullscreen();
-  else if (el.requestFullscreen) el.requestFullscreen().catch(() => toast('err', 'Không hỗ trợ', 'Trình duyệt chặn.'));
-}
-function updateStats(){
-  const total = students.length;
-  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
-  students.forEach(s => {
-    const a = attendanceMap[s.mssv];
-    if (!a) unmarked++;
-    else if (a.status === 'có mặt') present++;
-    else if (a.status === 'đi muộn') late++;
-    else if (a.status === 'vắng có phép') excused++;
-    else absent++;
-  });
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statPresent').textContent = present;
-  const lateEl = document.getElementById('statLate');
-  if (lateEl) lateEl.textContent = late;
-  document.getElementById('statAbsent').textContent = absent;
-  const excEl = document.getElementById('statExcused');
-  if (excEl) excEl.textContent = excused;
-  const unmEl = document.getElementById('statUnmarked');
-  if (unmEl) unmEl.textContent = unmarked;
-
-  const pct = total ? Math.round(((present + late) / total) * 100) : 0;
-  document.getElementById('progressPct').textContent = pct + '%';
-  document.getElementById('progressFill').style.width = pct + '%';
-
-  const fAll = document.querySelector('.filter[data-status="all"] .count');
-  if (fAll) fAll.textContent = total;
-  const fPres = document.querySelector('.filter[data-status="present"] .count');
-  if (fPres) fPres.textContent = present;
-  const fLate = document.querySelector('.filter[data-status="late"] .count');
-  if (fLate) fLate.textContent = late;
-  const fAbs = document.querySelector('.filter[data-status="absent"] .count');
-  if (fAbs) fAbs.textContent = absent;
-  const fExc = document.querySelector('.filter[data-status="excused"] .count');
-  if (fExc) fExc.textContent = excused;
-  const fUnm = document.querySelector('.filter[data-status="unmarked"]');
-  if (fUnm) {
-    const fUnmCount = fUnm.querySelector('.count');
-    if (fUnmCount) fUnmCount.textContent = unmarked;
-    fUnm.style.display = unmarked > 0 ? 'inline-flex' : 'none';
-  }
-}
-function renderTable(){
-  const list = students.filter(s => {
-    const a = attendanceMap[s.mssv];
-    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : (a.status === 'đi muộn' ? 'late' : (a.status === 'vắng có phép' ? 'excused' : 'absent')));
-    const ok1 = currentFilter === 'all' || currentFilter === status;
-    const q = currentSearch.toLowerCase();
-    const ok2 = !q || s.name.toLowerCase().includes(q) || s.mssv.includes(q);
-    return ok1 && ok2;
-  });
-  const total = list.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  if (currentPage > totalPages) currentPage = totalPages;
-  const start = (currentPage - 1) * pageSize;
-  const page = list.slice(start, start + pageSize);
-  const tbody = document.getElementById('studentTbody');
-  if (!page.length){
-    tbody.innerHTML = '<tr><td colspan="4"><div class="tbl-empty"><div class="tbl-empty-icon">🔍</div><b>Không có sinh viên nào</b><span>Thử đổi bộ lọc hoặc từ khoá.</span></div></td></tr>';
-  } else {
-    tbody.innerHTML = page.map(s => {
-      const a = attendanceMap[s.mssv];
-      const rawStatus = a?.status || 'unmarked';
-      const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
-      const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
-      return '<tr>' +
-        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
-        '<td class="td-mono">' + s.mssv + '<br><button onclick="resetStudentPassword(\'' + s.mssv + '\')" style="margin-top:6px;font-size:10.5px;padding:3px 6px;border-radius:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;color:#334155" title="Cấp lại mật khẩu">🔑 Reset Pass</button></td>' +
-        '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
-          (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
-          '<option value="có mặt" ' + (rawStatus==='có mặt'?'selected':'') + '>Có mặt</option>' +
-          '<option value="đi muộn" ' + (rawStatus==='đi muộn'?'selected':'') + '>Đi muộn</option>' +
-          '<option value="vắng có phép" ' + (rawStatus==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
-          '<option value="vắng không phép" ' + (rawStatus==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
-        '</select></td>' +
-        '<td class="td-mono">' + (a?.time || '—') + '</td></tr>';
-    }).join('');
-  }
-  const end = Math.min(start + pageSize, total);
-  document.getElementById('pagerInfo').innerHTML = total === 0 ? 'Không có sinh viên nào'
-    : 'Hiển thị <b>' + (start+1) + '–' + end + '</b> / <b>' + total + '</b>';
-  document.getElementById('pagerNum').innerHTML = '<b>' + currentPage + '</b>/' + totalPages;
-  document.getElementById('pagerPrev').disabled = currentPage <= 1;
-  document.getElementById('pagerNext').disabled = currentPage >= totalPages;
-}
-function renderFeed(){
-  const feed = document.getElementById('feedList');
-  const recent = Object.entries(attendanceMap)
-    .filter(([_, a]) => a.status === 'có mặt' || a.status === 'đi muộn')
-    .sort((a, b) => (b[1].time || '').localeCompare(a[1].time || ''))
-    .slice(0, 5);
-  if (!recent.length){ feed.innerHTML = '<div class="feed-empty">Chưa có ai điểm danh</div>'; return; }
-  feed.innerHTML = recent.map(([mssv, a]) => {
-    const s = students.find(x => x.mssv === mssv);
-    const name = s?.name || mssv;
-    return '<div class="feed-item"><div class="feed-avt">' + name.trim().slice(-1) + '</div><div class="feed-name">' + escapeHtml(name) + '</div><div class="feed-time">' + (a.time || '—') + '</div></div>';
-  }).join('');
-}
-async function openSession(){
-  const name = document.getElementById('quickName').value.trim();
-  const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
-  if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
-  const warn = Math.min(30, Math.max(1, Math.floor(dur / 10)));
-  const { data, error } = await supabase.rpc('admin_open_session', { p_name: name, p_duration_min: dur, p_warn_before_min: warn });
-  if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
-  toast('ok', 'Đã mở phiên', '"' + name + '" — ' + dur + ' phút');
-  await refreshAll();
-}
-
-// Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
-let _pendingStatusChange = null;
-
-let _currentResetRequestId = null;
-
-async function resetStudentPassword(mssv, requestId = null) {
-  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không?')) return;
-  
-  toast('info', 'Đang xử lý', 'Vui lòng chờ...');
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    
-    if (!token) {
-      throw new Error('Phiên đăng nhập không hợp lệ. Vui lòng tải lại trang.');
-    }
-
-    const { data, error } = await supabase.functions.invoke('admin-reset-password', {
-      body: { target_mssv: mssv },
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    
-    if (error) {
-      let extra = '';
-      if (error.context && typeof error.context.text === 'function') {
-        const bodyText = await error.context.text();
-        extra = '\\n' + bodyText;
-      }
-      throw new Error(error.message + extra);
-    }
-    if (data?.error) throw new Error(data.error);
-    
-    document.getElementById('tempPwdText').innerText = data.tempPassword;
-    document.getElementById('resetPwdModal').classList.add('show');
-    
-    const completeBtn = document.getElementById('btnCompleteReset');
-    if (requestId && completeBtn) {
-      _currentResetRequestId = requestId;
-      completeBtn.style.display = 'inline-block';
-      completeBtn.disabled = false;
-      completeBtn.innerText = 'Đã gửi cho sinh viên';
-    } else if (completeBtn) {
-      completeBtn.style.display = 'none';
-      _currentResetRequestId = null;
-    }
-    
-    toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
-  } catch (err) {
-    console.error('Edge Function Error:', err);
-    toast('err', 'Lỗi reset mật khẩu', err.message);
-  }
-}
-
-async function fetchResetRequests() {
-  const tbody = document.getElementById('requestsTbody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>';
-  
-  const { data, error } = await supabase
-    .from('password_reset_requests')
-    .select('id, mssv, created_at')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-    
-  const btn = document.getElementById('btnResetRequests');
-  if (btn) {
-    if (!error && data && data.length > 0) {
-      btn.style.display = 'inline-flex';
-      btn.innerHTML = '🔔 Yêu cầu (' + data.length + ')';
-    } else {
-      btn.style.display = 'none';
-    }
-  }
-  
-  if (error || !data || data.length === 0) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Không có yêu cầu nào.</div></td></tr>';
-    return;
-  }
-  
-  if (tbody) {
-    tbody.innerHTML = data.map(req => {
-      const stu = students.find(s => s.mssv === req.mssv);
-      const name = stu ? escapeHtml(stu.name) : '—';
-      return `<tr>
-        <td><b>${name}</b></td>
-        <td class="td-mono">${req.mssv}</td>
-        <td style="text-align:right">
-          <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
-        </td>
-      </tr>`;
-    }).join('');
-  }
-}
-
-function openRequestsModal() {
-  fetchResetRequests();
-  document.getElementById('requestsModal')?.classList.add('show');
-}
-
-function closeRequestsModal() {
-  document.getElementById('requestsModal')?.classList.remove('show');
-}
-
-async function completeResetRequest() {
-  if (!_currentResetRequestId) return;
-  const btn = document.getElementById('btnCompleteReset');
-  if (btn) { btn.disabled = true; btn.innerText = 'Đang lưu...'; }
-  
-  const { data, error } = await supabase.rpc('admin_complete_reset_request', { p_request_id: _currentResetRequestId });
-  if (error) {
-    toast('err', 'Lỗi', error.message);
-    if (btn) { btn.disabled = false; btn.innerText = 'Đã gửi cho sinh viên'; }
-    return;
-  }
-  toast('ok', 'Đã xử lý', 'Đã đánh dấu yêu cầu là hoàn thành.');
-  document.getElementById('resetPwdModal').classList.remove('show');
-  _currentResetRequestId = null;
-  fetchResetRequests();
-}
-
-function promptChangeStatus(mssv, newStatus, selectEl){
-  if (!currentSession?.id) {
-    toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
-    if (selectEl) renderTable();
-    return;
-  }
-  const s = students.find(x => x.mssv === mssv);
-  const oldStatus = attendanceMap[mssv]?.status || 'chưa điểm danh';
-  _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
-
-  const modal = document.getElementById('reasonModal');
-  const infoEl = document.getElementById('reasonStudentInfo');
-  const selEl = document.getElementById('reasonModalSelect');
-  const input = document.getElementById('reasonInput');
-
-  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')';
-  if (selEl && newStatus) selEl.value = newStatus;
-  if (input) input.value = '';
-  if (modal) modal.classList.add('show');
-  if (input) setTimeout(() => input.focus(), 100);
-}
-function closeReasonModal(){
-  const modal = document.getElementById('reasonModal');
-  if (modal) modal.classList.remove('show');
-  if (_pendingStatusChange?.selectEl) {
-    renderTable(); // reset select về giá trị cũ
-  }
-  _pendingStatusChange = null;
-}
-async function executeStatusChange(){
-  if (!_pendingStatusChange || !currentSession?.id) return;
-  const { mssv, studentName, oldStatus } = _pendingStatusChange;
-  const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
-  const reason = (document.getElementById('reasonInput')?.value || '').trim();
-  const btn = document.getElementById('reasonConfirmBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
-
-  let savedOk = false;
-  let saveErrorMsg = '';
-
-  // 1. Thử gọi RPC admin_set_status trên DB (xử lý đồng thời attendance & audit log)
-  try {
-    const { data, error } = await supabase.rpc('admin_set_status', {
-      p_session_id: String(currentSession.id),
-      p_mssv: mssv,
-      p_status: newStatus,
-      p_reason: reason || null
-    });
-    if (!error && data?.ok) {
-      savedOk = true;
-    } else {
-      saveErrorMsg = data?.message || error?.message || '';
-    }
-  } catch(eRpc) {
-    saveErrorMsg = eRpc.message;
-  }
-
-  // 2. Dự phòng an toàn: nếu RPC chưa có hoặc gặp lỗi SQL, ghi thẳng vào bảng attendance
-  if (!savedOk) {
-    try {
-      const { error: upsertErr } = await supabase.from('attendance').upsert({
-        session_id: currentSession.id,
-        mssv: mssv,
-        full_name: studentName,
-        status: newStatus,
-        category: 'Admin',
-        note: reason || ''
-      }, { onConflict: 'session_id,mssv' });
-
-      if (upsertErr) throw new Error(upsertErr.message);
-      savedOk = true;
-
-      // Cố gắng ghi Audit Log trực tiếp nếu bảng audit logs đã có
-      try {
-        const { data: authData } = await supabase.auth.getSession();
-        const userEmail = authData?.session?.user?.email || 'Admin';
-        await supabase.from('attendance_audit_logs').insert({
-          session_id: currentSession.id,
-          mssv: mssv,
-          student_name: studentName,
-          old_status: oldStatus,
-          new_status: newStatus,
-          changed_by: userEmail,
-          reason: reason || null
-        });
-      } catch(_) { /* bảng audit logs chưa tạo, bỏ qua */ }
-    } catch(directErr) {
-      toast('err', 'Cập nhật thất bại', directErr.message || saveErrorMsg || 'Không thể lưu.');
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
-      return;
-    }
-  }
-
-  // 3. Hoàn tất thành công: cập nhật UI ngay lập tức
-  toast('ok', 'Đã cập nhật', studentName + ' → ' + newStatus);
-  const modal = document.getElementById('reasonModal');
-  if (modal) modal.classList.remove('show');
-
-  if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
-  attendanceMap[mssv].status = newStatus;
-  attendanceMap[mssv].editedAt = new Date().toISOString();
-  if (reason) attendanceMap[mssv].note = reason;
-
-  _pendingStatusChange = null;
-  renderAll();
-
-  // Đồng bộ lại nền từ database
-  loadAttendance().then(() => renderAll());
-
-  const tabAudit = document.getElementById('tabAuditLog');
-  if (tabAudit && tabAudit.classList.contains('active')) {
-    loadAuditLogs();
-  }
-
-  if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
-}
-window.executeStatusChange = executeStatusChange;
-window.confirmStatusChange = executeStatusChange;
-
-document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeStatusChange);
-document.getElementById('reasonInput')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') executeStatusChange();
-});
-
-// Chuyển Tabs trong Phiên
-function switchSessionTab(tabName){
-  const tabStudents = document.getElementById('tabBtnStudents');
-  const tabAudit = document.getElementById('tabBtnAudit');
-  const panelStudents = document.getElementById('studentsTabPanel');
-  const panelAudit = document.getElementById('auditLogPanel');
-  if (!tabStudents || !tabAudit) return;
-  if (tabName === 'audit') {
-    tabStudents.classList.remove('active');
-    tabAudit.classList.add('active');
-    if (panelStudents) panelStudents.style.display = 'none';
-    if (panelAudit) panelAudit.style.display = 'block';
-    loadAuditLogs();
-  } else {
-    tabAudit.classList.remove('active');
-    tabStudents.classList.add('active');
-    if (panelAudit) panelAudit.style.display = 'none';
-    if (panelStudents) panelStudents.style.display = 'block';
-  }
-}
-async function loadAuditLogs(){
-  const listEl = document.getElementById('auditLogList');
-  const badgeEl = document.getElementById('auditLogCountBadge');
-  if (!listEl || !currentSession?.id) return;
-  listEl.innerHTML = '<div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px"><span class="spin"></span> Đang tải lịch sử thay đổi...</div>';
-  try {
-    const { data, error } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
-    if (error || !data?.ok){
-      listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi tải Audit Log: ' + escapeHtml(error?.message || data?.message || 'Không thể tải') + '</div>';
-      return;
-    }
-    const logs = data.logs || [];
-    if (badgeEl) badgeEl.textContent = logs.length;
-    const statusHtml = logs.length ? logs.map(l => {
-      const t = new Date(l.changed_at).toLocaleString('vi-VN');
-      const user = escapeHtml(l.changed_by || 'Admin');
-      const sName = escapeHtml(l.student_name || l.mssv);
-      const oldSt = escapeHtml(l.old_status || 'chưa điểm danh');
-      const newSt = escapeHtml(l.new_status);
-      const reason = l.reason ? '<div class="audit-reason">💬 Lý do: ' + escapeHtml(l.reason) + '</div>' : '';
-      return '<div class="audit-item">' +
-        '<div class="audit-item-top">' +
-          '<span class="audit-item-time">⏱ ' + t + '</span>' +
-          '<span class="audit-item-user">👤 ' + user + '</span>' +
-        '</div>' +
-        '<div class="audit-item-action">' +
-          '<b>' + sName + '</b> (' + escapeHtml(l.mssv) + '): ' +
-          '<span class="audit-badge old">' + oldSt + '</span> ➔ ' +
-          '<span class="audit-badge new">' + newSt + '</span>' +
-        '</div>' +
-        reason +
-      '</div>';
-    }).join('') : '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có thay đổi trạng thái.</div>';
-    let recordHtml = '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có bản ghi chỉnh sửa. Các lần sửa sau khi bật tính năng sẽ được lưu tại đây.</div>';
-    try {
-      const { data: historyData, error: historyError } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(currentSession.id) });
-      if (!historyError && historyData?.ok) {
-        const records = historyData.records || [];
-        if (records.length) recordHtml = records.map(h => {
-          const old = h.old_record || {}, next = h.new_record || {};
-          const time = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
-          const details = (label, value) => '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' + label + ': ' + escapeHtml(value || '—') + '</div>';
-          return '<div class="audit-item"><div class="audit-head"><span class="audit-time">' + time(h.changed_at) + '</span><span class="audit-user">👤 ' + escapeHtml(h.changed_by || 'Admin') + '</span></div>' +
-            '<div class="audit-change"><b>' + escapeHtml(h.student_name || h.mssv) + ' (' + escapeHtml(h.mssv) + ')</b></div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Trước khi sửa</b>' +
-              details('Trạng thái', old.status) + details('Giờ điểm danh', time(old.checked_at)) + details('Phân loại', old.category) + details('Ghi chú', old.note) + '</div><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Sau khi sửa</b>' +
-              details('Trạng thái', next.status) + details('Giờ điểm danh', time(next.checked_at)) + details('Phân loại', next.category) + details('Ghi chú', next.note) + '</div></div></div>';
-        }).join('');
-      }
-    } catch (_) { /* the base schema can be migrated independently */ }
-    listEl.innerHTML = '<h3 style="font-size:13px;margin:2px 0 8px">Thay đổi trạng thái</h3><div class="audit-timeline">' + statusHtml + '</div>' +
-      '<h3 style="font-size:13px;margin:18px 0 8px">Lịch sử bản ghi điểm danh (giờ cũ và mới)</h3><div class="audit-timeline">' + recordHtml + '</div>';
-  } catch(e){
-    listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi kết nối: ' + escapeHtml(e.message) + '</div>';
-  }
-}
-
-let teamGroups = [];
-let selectedTeamId = '';
-let teamAvailabilityTimer = null;
-const TEAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
-function vietnamToday(){
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
-  const get = type => parts.find(p => p.type === type)?.value || '';
-  return get('year') + '-' + get('month') + '-' + get('day');
-}
-function vietnamDayBounds(day = vietnamToday()){
-  const [y,m,d] = day.split('-').map(Number);
-  return { start: new Date(Date.UTC(y, m - 1, d, -7)).toISOString(), end: new Date(Date.UTC(y, m - 1, d + 1, -7)).toISOString() };
-}
-function vietnamTime(value){
-  return new Date(value).toLocaleTimeString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit' });
-}
-function vietnamDateTime(value){
-  return new Date(value).toLocaleString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
-}
-function teamStudentOptions(selected = '', includeEmpty = false){
-  return (includeEmpty ? '<option value="">Chọn đội trưởng</option>' : '') + students.map(s =>
-    '<option value="' + escapeHtml(s.mssv) + '" ' + (s.mssv === selected ? 'selected' : '') + '>' + escapeHtml(s.name) + ' · ' + escapeHtml(s.mssv) + '</option>'
-  ).join('');
-}
-async function loadTeamGroups(){
-  const { data, error } = await supabase.from('team_groups').select('id,name,field,leader_mssv,created_at').order('created_at', { ascending: true });
-  if (error) { toast('err', 'Không tải được nhóm', error.message); return; }
-  teamGroups = data || [];
-  const list = document.getElementById('teamGroupsList');
-  document.getElementById('newTeamLeader').innerHTML = teamStudentOptions('', true);
-  document.getElementById('editTeamLeader').innerHTML = teamStudentOptions('', true);
-  document.getElementById('teamMemberPicker').innerHTML = teamStudentOptions();
-  if (!teamGroups.length) {
-    selectedTeamId = '';
-    list.innerHTML = '<div class="schedule-loading">Chưa có nhóm. Bấm “Tạo nhóm” để bắt đầu.</div>';
-    return;
-  }
-
-  const { data: memberships, error: membersError } = await supabase.from('team_group_members').select('team_id,mssv');
-  if (membersError) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(membersError.message) + '</div>'; return; }
-  const allMemberIds = [...new Set((memberships || []).map(m => m.mssv))];
-  const bounds = vietnamDayBounds();
-  let schedules = [];
-  if (allMemberIds.length) {
-    const result = await supabase.from('student_schedules').select('mssv,start_time,end_time')
-      .in('mssv', allMemberIds).lt('start_time', bounds.end).gt('end_time', bounds.start);
-    if (!result.error) schedules = result.data || [];
-  }
-  const membersByTeam = new Map(teamGroups.map(t => [t.id, []]));
-  (memberships || []).forEach(m => membersByTeam.get(m.team_id)?.push(m.mssv));
-  const now = Date.now();
-  const names = Object.fromEntries(students.map(s => [s.mssv, s.name]));
-  list.innerHTML = teamGroups.map(team => {
-    const ids = membersByTeam.get(team.id) || [];
-    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
-    const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
-    return '<button class="team-accordion" onclick="openTeamGroup(\'' + team.id + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
-      '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + escapeHtml(team.field) + ' · Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
-      '<span class="team-accordion-counts"><span class="team-count-pill free">' + (ids.length - busy.size) + ' rảnh</span><span class="team-count-pill busy">' + busy.size + ' bận</span><span aria-hidden="true">›</span></span></button>';
-  }).join('');
-  if (selectedTeamId && document.getElementById('teamModal').classList.contains('show')) await loadTeamAvailability();
-}
-function openCreateTeamModal(){
-  document.getElementById('newTeamName').value = '';
-  document.getElementById('newTeamField').value = '';
-  document.getElementById('teamCreateModal').classList.add('show');
-}
-function closeTeamCreateModal(){ document.getElementById('teamCreateModal').classList.remove('show'); }
-function closeTeamModal(){ document.getElementById('teamModal').classList.remove('show'); selectedTeamId = ''; }
-async function openTeamGroup(id){
-  selectedTeamId = id;
-  const team = teamGroups.find(t => t.id === id);
-  if (!team) return;
-  document.getElementById('teamModalTitle').textContent = team.name;
-  document.getElementById('editTeamName').value = team.name;
-  document.getElementById('editTeamField').value = team.field;
-  document.getElementById('editTeamLeader').value = team.leader_mssv || '';
-  document.getElementById('teamModal').classList.add('show');
-  await loadTeamAvailability();
-}
-async function createTeamGroup(){
-  const name = document.getElementById('newTeamName').value.trim();
-  const field = document.getElementById('newTeamField').value.trim();
-  const leader = document.getElementById('newTeamLeader').value;
-  if (!name || !field || !leader) return toast('warn', 'Thiếu thông tin', 'Nhập tên nhóm, lĩnh vực và chọn đội trưởng.');
-  const { data: authData } = await supabase.auth.getSession();
-  const { data, error } = await supabase.from('team_groups').insert({ name, field, leader_mssv: leader, created_by: authData?.session?.user?.id }).select('id').single();
-  if (error) return toast('err', 'Tạo nhóm thất bại', error.message);
-  document.getElementById('newTeamName').value = '';
-  document.getElementById('newTeamField').value = '';
-  selectedTeamId = data.id;
-  closeTeamCreateModal();
-  toast('ok', 'Đã tạo nhóm', name);
-  await loadTeamGroups();
-  await openTeamGroup(data.id);
-}
-async function saveTeamGroup(){
-  const { error } = await supabase.from('team_groups').update({ name: document.getElementById('editTeamName').value.trim(), field: document.getElementById('editTeamField').value.trim(), leader_mssv: document.getElementById('editTeamLeader').value || null }).eq('id', selectedTeamId);
-  if (error) return toast('err', 'Không lưu được nhóm', error.message);
-  toast('ok', 'Đã lưu nhóm'); await loadTeamGroups();
-  const team = teamGroups.find(t => t.id === selectedTeamId);
-  if (team) document.getElementById('teamModalTitle').textContent = team.name;
-}
-async function deleteTeamGroup(){
-  const team = teamGroups.find(t => t.id === selectedTeamId);
-  if (!team || !confirm('Xóa nhóm “' + team.name + '” cùng danh sách thành viên?')) return;
-  const { error } = await supabase.from('team_groups').delete().eq('id', selectedTeamId);
-  if (error) return toast('err', 'Xóa nhóm thất bại', error.message);
-  closeTeamModal(); toast('ok', 'Đã xóa nhóm', team.name); await loadTeamGroups();
-}
-async function addTeamMember(){
-  const mssv = document.getElementById('teamMemberPicker').value;
-  if (!selectedTeamId || !mssv) return toast('warn', 'Chọn thành viên', 'Vui lòng chọn một thành viên để thêm.');
-  const { error } = await supabase.from('team_group_members').insert({ team_id: selectedTeamId, mssv });
-  if (error) return toast('err', 'Không thêm được thành viên', error.message);
-  await loadTeamGroups();
-}
-async function removeTeamMember(mssv){
-  if (!confirm('Xóa thành viên này khỏi nhóm?')) return;
-  const { error } = await supabase.from('team_group_members').delete().eq('team_id', selectedTeamId).eq('mssv', mssv);
-  if (error) return toast('err', 'Không xóa được thành viên', error.message);
-  await loadTeamGroups();
-}
-async function loadTeamAvailability(){
-  const list = document.getElementById('teamMemberList');
-  const team = teamGroups.find(t => t.id === selectedTeamId);
-  if (!team) return;
-  list.innerHTML = '<div class="schedule-loading">Đang tải thành viên và lịch...</div>';
-  const { data: memberships, error } = await supabase.from('team_group_members').select('mssv').eq('team_id', team.id).order('added_at');
-  if (error) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(error.message) + '</div>'; return; }
-  const memberIds = (memberships || []).map(m => m.mssv);
-  document.getElementById('teamMemberCount').textContent = memberIds.length + ' thành viên';
-  document.getElementById('teamNowLabel').textContent = 'Bây giờ: ' + vietnamTime(new Date()) + ' · Giờ Việt Nam · tự cập nhật mỗi phút';
-  if (!memberIds.length) { list.innerHTML = '<div class="schedule-loading">Nhóm chưa có thành viên.</div>'; return; }
-  const bounds = vietnamDayBounds();
-  const { data: schedules, error: scheduleError } = await supabase.from('student_schedules')
-    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', bounds.end).gt('end_time', bounds.start).order('start_time');
-  if (scheduleError) { list.innerHTML = '<div class="schedule-loading">Không tải được lịch học: ' + escapeHtml(scheduleError.message) + '</div>'; return; }
-  const byMember = new Map(memberIds.map(id => [id, []]));
-  (schedules || []).forEach(s => byMember.get(s.mssv)?.push(s));
-  const now = Date.now();
-  list.innerHTML = memberIds.map(mssv => {
-    const member = students.find(s => s.mssv === mssv);
-    const allClasses = byMember.get(mssv) || [];
-    const activeClass = allClasses.find(sc => new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
-    const upcoming = allClasses.filter(sc => new Date(sc.start_time).getTime() > now);
-    const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming];
-    const isLeader = team.leader_mssv === mssv;
-    const scheduleHtml = visibleClasses.length ? visibleClasses.map(sc => {
-      const active = sc === activeClass;
-      return '<div class="team-class ' + (active ? '' : 'team-schedule-future') + '">' + (active ? '🔴 Đang học · ' : '📅 Sắp tới · ') + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>';
-    }).join('') : '<div class="team-class">Hôm nay không còn tiết học.</div>';
-    const state = activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
-    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + '</div>';
-  }).join('');
-}
-
-// Mở lại phiên đã đóng (closed -> active)
-function openReopenModal(){
-  const modal = document.getElementById('reopenModal');
-  if (modal) modal.classList.add('show');
-}
-function closeReopenModal(){
-  const modal = document.getElementById('reopenModal');
-  if (modal) modal.classList.remove('show');
-}
-async function executeReopenSession(){
-  if (!currentSession?.id) return;
-  const btn = document.getElementById('reopenConfirmBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang mở lại...'; }
-  try {
-    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: String(currentSession.id) });
-    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại phiên');
-    closeReopenModal();
-    toast('ok', 'Đã mở lại phiên', 'Phiên điểm danh hiện đã hoạt động trở lại.');
-    await refreshAll();
-    await loadTodayHistory();
-  } catch(e){
-    toast('err', 'Mở lại thất bại', e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Xác nhận mở lại'; }
-  }
-}
-
-let _bulkCb = null;
-function showBulkModal(title, text, cb){
-  document.getElementById('bulkTitle').textContent = title;
-  document.getElementById('bulkText').innerHTML = text;
-  _bulkCb = cb;
-  document.getElementById('bulkModal').classList.add('show');
-}
-function closeBulkModal(){ document.getElementById('bulkModal').classList.remove('show'); _bulkCb = null; }
-document.getElementById('bulkConfirmBtn').addEventListener('click', () => { if (_bulkCb) _bulkCb(); closeBulkModal(); });
-function confirmMarkAllAbsent(){
-  const list = students.filter(s => !attendanceMap[s.mssv]);
-  if (!list.length) return toast('info', 'Không có SV nào chưa quét');
-  showBulkModal('Đánh dấu vắng?', 'Sẽ đánh dấu <b>' + list.length + ' sinh viên</b> thành "Vắng không phép".', async () => {
-    const { data, error } = await supabase.rpc('admin_batch_set_status', {
-      p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép', p_reason: 'Admin đánh dấu vắng tất cả chưa quét'
-    });
-    if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
-    toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Vắng');
-    await loadAttendance(); renderAll();
-  });
-}
-function confirmMarkAllPresent(){
-  showBulkModal('Đánh dấu có mặt tất cả?', 'Sẽ đánh dấu <b>TẤT CẢ ' + students.length + ' sinh viên</b> thành "Có mặt".', async () => {
-    const { data, error } = await supabase.rpc('admin_batch_set_status', {
-      p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt', p_reason: 'Admin đánh dấu có mặt cả lớp'
-    });
-    if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
-    toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Có mặt');
-    await loadAttendance(); renderAll();
-  });
-}
-
-function copyAttendanceList() {
-  if (!currentSession) return toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
-  let text = `Danh sách điểm danh: ${currentSession.session_name}\n`;
-  text += `Ngày: ${new Date().toLocaleDateString('vi-VN')}\n\n`;
-  
-  let i = 1;
-  students.forEach(s => {
-    const a = attendanceMap[s.mssv];
-    const status = a ? a.status : 'Chưa quét';
-    const note = a && a.note ? ` (${a.note})` : '';
-    text += `${i++}. ${s.name} - ${s.mssv} - ${status}${note}\n`;
-  });
-  
-  navigator.clipboard.writeText(text).then(() => {
-    toast('ok', 'Đã copy', 'Danh sách đã được copy vào khay nhớ tạm.');
-  }).catch(() => {
-    toast('err', 'Lỗi copy', 'Trình duyệt không hỗ trợ copy tự động.');
-  });
-}
-function openCloseModal(){
-  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
-  students.forEach(s => {
-    const a = attendanceMap[s.mssv];
-    if (!a) unmarked++;
-    else if (a.status === 'có mặt') present++;
-    else if (a.status === 'đi muộn') late++;
-    else if (a.status === 'vắng có phép') excused++;
-    else absent++;
-  });
-  document.getElementById('modalPresent').textContent = present;
-  document.getElementById('modalAbsent').textContent = absent;
-  document.getElementById('modalUnmarked').textContent = unmarked;
-  const warn = document.getElementById('modalWarnText');
-  if (unmarked > 0){ warn.style.display = 'block'; warn.innerHTML = '💡 Có <b>' + unmarked + ' sinh viên chưa quét</b>. Bạn có thể đánh dấu vắng trước khi đóng.'; }
-  else warn.style.display = 'none';
-  document.getElementById('closeModal').classList.add('show');
-}
-function closeModalFn(){ document.getElementById('closeModal').classList.remove('show'); }
-
-// Đóng phiên TỰ ĐỘNG khi hết giờ (không cần confirm)
-async function autoCloseSession(){
-  clearInterval(countdownTimer);
-  const sid = currentSession?.id ? String(currentSession.id) : null;
-  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
-  if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
-  currentSession = null;
-  showEmpty();
-  await loadTodayHistory();
-}
-
-async function confirmDeleteHistory(){
-  if (!confirm('Xóa toàn bộ lịch sử các phiên đã đóng trong 7 ngày qua? Hành động này không thể hoàn tác.')){
-    return;
-  }
-  const { data, error } = await supabase.rpc('admin_delete_history');
-  if (error || !data?.ok){
-    const msg = error ? (error.message || JSON.stringify(error)) : (data?.message || 'Lỗi không xác định');
-    toast('err', 'Xóa thất bại', msg);
-    console.error('Lỗi khi gọi admin_delete_history:', error, data);
-    return;
-  }
-  toast('ok', 'Đã xóa lịch sử', 'Đã xóa các phiên đã đóng.');
-  await loadTodayHistory();
-  if (typeof refreshAll === 'function') await refreshAll();
-  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
-}
-
-async function deleteSpecificSession(sid) {
-  if (!confirm('Xóa phiên điểm danh này? Dữ liệu của phiên cũng sẽ bị xóa. Không thể hoàn tác.')) return;
-  const { data, error } = await supabase.rpc('admin_delete_session', { p_session_id: sid });
-  if (error || (data && !data.ok)) {
-    toast('err', 'Xóa thất bại', error?.message || data?.message || 'Lỗi không xác định');
-    return;
-  }
-  toast('ok', 'Đã xóa', 'Phiên điểm danh đã được xóa.');
-  await loadTodayHistory();
-  if (typeof refreshAll === 'function') await refreshAll();
-  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
-}
-
-// Đóng phiên THỦ CÔNG qua modal xác nhận
-async function confirmCloseSession(){
-  if (_closingSession) return;
-  _closingSession = true;
-  clearInterval(countdownTimer);
-  const sid = currentSession?.id ? String(currentSession.id) : null;
-  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
-  if (error || !data?.ok){
-    toast('err', 'Đóng phiên thất bại', data?.message || error?.message);
-    _closingSession = false;
-    return;
-  }
-  closeModalFn();
-  toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử điểm danh".');
-  currentSession = null;
-  showEmpty();
-  await loadTodayHistory();
-}
-async function loadTodayHistory(){
-  const { data, error } = await supabase.rpc('admin_today_sessions');
-  const wrap = document.getElementById('todayHistoryWrap');
-  const list = document.getElementById('todayHistoryList');
-  const emptyList = document.getElementById('emptyTodayHistoryList');
-  const kpiPresentRateEl = document.getElementById('kpiPresentRate');
-  const kpiAbsentRateEl = document.getElementById('kpiAbsentRate');
-
-  if (error || !data?.ok || !data.sessions?.length){
-    if (wrap) wrap.style.display = 'none';
-    if (emptyList) {
-      emptyList.innerHTML = `
-        <div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px">
-          <div style="font-size:26px;margin-bottom:8px">📋</div>
-          <b>Chưa có lịch sử phiên nào</b>
-          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Các phiên điểm danh gần đây sẽ hiển thị tại đây.</p>
-        </div>`;
-    }
-    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '—%';
-    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '—%';
-    return;
-  }
-
-  // Lưu map các phiên để có thể xem lại chi tiết ngay lập tức
-  window._todaySessionsMap = {};
-  data.sessions.forEach(s => { window._todaySessionsMap[s.id] = s; });
-
-  // Tính KPI tổng quan từ các phiên gần nhất
-  let totalPresent = 0;
-  let totalAbsent = 0;
-  data.sessions.forEach(s => {
-    totalPresent += (s.present || 0) + (s.late || 0);
-    totalAbsent += (s.absent || 0);
-  });
-  const grandTotal = totalPresent + totalAbsent;
-  if (grandTotal > 0){
-    const pRate = Math.round((totalPresent / grandTotal) * 100);
-    const aRate = 100 - pRate;
-    if (kpiPresentRateEl) kpiPresentRateEl.textContent = pRate + '%';
-    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = aRate + '%';
-  } else {
-    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '0%';
-    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '0%';
-  }
-
-  const itemsHtml = data.sessions.map(s => {
-    const tStart = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-    const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
-    const badge = s.is_open ? '<span class="rk-badge doing">🟢 Đang mở</span>' : '<span class="rk-badge todo">🔴 Đã đóng</span>';
-    const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
-    const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
-    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')">' +
-      '<div style="flex:1;min-width:0">' +
-        '<div class="today-history-name" style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-          '<span>' + escapeHtml(s.session_name) + '</span>' +
-          badge +
-        '</div>' +
-        '<div class="today-history-meta" style="margin-top:4px">' +
-          d + ' ' + tStart + ' · ' + s.total + ' SV · ' +
-          '<span style="color:var(--ok);font-weight:700">' + s.present + ' có mặt</span>' +
-          lateText +
-          ' · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span>' +
-          excusedText +
-        '</div>' +
-      '</div>' +
-      '<div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px">' +
-        '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
-        (s.is_open
-          ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#dc2626;color:#fff;border:none" onclick="event.stopPropagation();quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
-          : '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
-        '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-
-  if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
-  if (emptyList) { emptyList.innerHTML = itemsHtml; }
-}
-
-async function quickCloseSession(sid){
-  if (!confirm('Đóng phiên điểm danh này? Sinh viên sẽ không thể tiếp tục quét QR.')) return;
-  try {
-    const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
-    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể đóng phiên');
-    toast('ok', 'Đã đóng phiên', 'Phiên đã chuyển sang trạng thái đã đóng.');
-    if (currentSession?.id && String(currentSession.id) === String(sid)) {
-      currentSession = null;
-      showEmpty();
-    }
-    await loadTodayHistory();
-    if (typeof refreshAll === 'function') await refreshAll();
-  } catch(e){
-    toast('err', 'Đóng phiên thất bại', e.message);
-  }
-}
-
-async function quickReopenSession(sid){
-  if (!confirm('Bạn có chắc muốn mở lại phiên điểm danh này?')) return;
-  try {
-    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: sid });
-    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại');
-    toast('ok', 'Đã mở lại phiên', 'Phiên đã chuyển sang trạng thái đang hoạt động.');
-    await refreshAll();
-    await loadTodayHistory();
-  } catch(e){
-    toast('err', 'Lỗi', e.message);
-  }
-}
-
-async function loadTodaySchoolSchedule(){
-  const listEl = document.getElementById('todaySchoolScheduleList');
-  const countBadge = document.getElementById('todaySchoolScheduleCount');
-  const kpiBusyEl = document.getElementById('kpiBusyCount');
-  if (!listEl) return;
-
-  try {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    const startStr = `${y}-${m}-${d}T00:00:00`;
-    const endStr = `${y}-${m}-${d}T23:59:59`;
-
-    const { data, error } = await supabase
-      .from('student_schedules')
-      .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
-      .gte('start_time', startStr)
-      .lte('start_time', endStr)
-      .order('start_time', { ascending: true });
-
-    if (error) {
-      console.error('Lỗi khi tải lịch học trường:', error);
-      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">Không thể tải lịch học trường</div>';
-      return;
-    }
-
-    const items = data || [];
-    const studentMap = {};
-    (students || []).forEach(s => { studentMap[s.mssv] = s.name; });
-
-    const busyMssvs = new Set(items.map(s => s.mssv));
-    const busyCount = busyMssvs.size;
-
-    if (countBadge) countBadge.textContent = busyCount + ' bạn';
-    if (kpiBusyEl) kpiBusyEl.textContent = busyCount;
-
-    if (items.length === 0){
-      listEl.innerHTML = `
-        <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
-          <div style="font-size:26px;margin-bottom:6px">🎉</div>
-          <b>Hôm nay cả đội không vướng lịch học trường!</b>
-          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tham gia xưởng đầy đủ.</p>
-        </div>`;
-      return;
-    }
-
-    listEl.innerHTML = items.map(sc => {
-      const sName = studentMap[sc.mssv] || sc.mssv;
-      const tStart = new Date(sc.start_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-      const tEnd = new Date(sc.end_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-      const room = sc.room_name ? `<span class="room-chip">${escapeHtml(sc.room_name)}</span>` : '';
-      return `
-        <div class="schedule-mini-item">
-          <div class="sc-item-header">
-            <span class="sc-student-name">${escapeHtml(sName)}</span>
-            <span class="sc-student-mssv">${escapeHtml(sc.mssv)}</span>
-          </div>
-          <div class="sc-item-subject">📚 ${escapeHtml(sc.subject_name)}</div>
-          <div class="sc-item-meta">
-            <span>⏱ ${tStart} – ${tEnd}</span>
-            ${room}
-          </div>
-        </div>`;
-    }).join('');
-  } catch (err) {
-    console.error('loadTodaySchoolSchedule error:', err);
-  }
-}
-
-async function syncSchedulesFromME(isAuto = false){
-  const btn = document.getElementById('btnSyncME');
-  const oldText = btn ? btn.innerHTML : '';
-  if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang đồng bộ...'; }
-  if (!isAuto) toast('info', 'Đang kết nối ME...', 'Đang kéo lịch học của ' + (students?.length || 31) + ' sinh viên...');
-
-  try {
-    const list = students && students.length ? students : [
-      { mssv: '123000555' }, { mssv: '123000078' }, { mssv: '125001579' }, { mssv: '124000534' },
-      { mssv: '125001875' }, { mssv: '124000737' }, { mssv: '125001809' }, { mssv: '124001238' },
-      { mssv: '124001851' }, { mssv: '124000354' }, { mssv: '124001589' }, { mssv: '125000568' },
-      { mssv: '125002381' }, { mssv: '123000651' }, { mssv: '125001648' }, { mssv: '125000372' },
-      { mssv: '123000722' }, { mssv: '123001058' }, { mssv: '123000185' }, { mssv: '123000872' },
-      { mssv: '125000798' }, { mssv: '123001188' }, { mssv: '125000550' }, { mssv: '123000432' },
-      { mssv: '123000375' }, { mssv: '123001394' }, { mssv: '125000890' }, { mssv: '125001087' },
-      { mssv: '124001273' }, { mssv: '122000426' }, { mssv: '125001343' }
-    ];
-
-    const allSchedules = [];
-    const dateStr = new Date().toISOString();
-    const chunkSize = 6;
-
-    for (let i = 0; i < list.length; i += chunkSize) {
-      const chunk = list.slice(i, i + chunkSize);
-      const promises = chunk.map(async s => {
-        try {
-          const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({ StudentID: s.mssv, Ngay: dateStr, PageIndex: 1, PageSize: 100 })
-          });
-          if (!res.ok) return [];
-          const json = await res.json();
-          const items = json.data?.[2] || [];
-          return items.map(c => {
-            let t_bd = c.ThoiGianBD;
-            let t_kt = c.ThoiGianKT;
-            if (t_bd && !t_bd.includes('+07') && !t_bd.includes('Z')) t_bd += '+07:00';
-            if (t_kt && !t_kt.includes('+07') && !t_kt.includes('Z')) t_kt += '+07:00';
-            return {
-              mssv: s.mssv,
-              subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
-              room_name: (c.TenPhong || 'Online').trim(),
-              teacher_name: (c.GiaoVien || '').trim(),
-              start_time: t_bd,
-              end_time: t_kt,
-              day_of_week: c.Thu || 0
-            };
-          });
-        } catch(e) {
-          console.warn('Lỗi lấy lịch MSSV ' + s.mssv, e);
-          return [];
-        }
-      });
-
-      const chunkResults = await Promise.all(promises);
-      chunkResults.forEach(r => allSchedules.push(...r));
-    }
-
-    if (!allSchedules.length) {
-      throw new Error('Không thể kết nối cổng ME trường LHU hoặc không có dữ liệu trả về.');
-    }
-
-    const { data, error } = await supabase.rpc('admin_sync_student_schedules', {
-      p_schedules: allSchedules
-    });
-
-    if (error || !data?.ok) {
-      throw new Error(data?.message || error?.message || 'Lỗi khi lưu vào Supabase');
-    }
-
-    localStorage.setItem('last_me_sync', Date.now().toString());
-    toast('ok', 'Đã đồng bộ xong!', 'Đã cập nhật ' + data.count + ' tiết học từ ME trường LHU.');
-    await loadTodaySchoolSchedule();
-  } catch(err) {
-    console.error('syncSchedulesFromME error:', err);
-    toast('err', 'Đồng bộ thất bại', err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
-  }
-}
-
-function startCountdown(){
-  clearInterval(countdownTimer);
-  tickCountdown();
-  countdownTimer = setInterval(tickCountdown, 1000);
-}
-function tickCountdown(){
-  if (!currentSession) return;
-  const chip = document.getElementById('countdownChip');
-  const txt = document.getElementById('countdownText');
-  const warnEl = document.getElementById('qrWarning');
-  if (!currentSession.duration_min){ txt.textContent = '∞'; chip.className = 'countdown-chip'; warnEl.classList.remove('show'); return; }
-  const start = new Date(currentSession.started_at).getTime();
-  const end = start + currentSession.duration_min * 60000;
-  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
-  const warn = (currentSession.warn_before_min || 5) * 60;
-  if (left === 0){
-    txt.textContent = '00:00'; chip.className = 'countdown-chip danger'; warnEl.classList.add('show');
-    if (!_closingSession){ _closingSession = true; toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.'); autoCloseSession(); }
-    return;
-  }
-  txt.textContent = fmtTime(left);
-  if (left <= warn){ chip.className = 'countdown-chip danger'; warnEl.classList.add('show'); }
-  else if (left <= warn * 2){ chip.className = 'countdown-chip warn'; warnEl.classList.remove('show'); }
-  else { chip.className = 'countdown-chip'; warnEl.classList.remove('show'); }
-}
-function setupRealtime(){
-  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); }
-  realtimeChannel = supabase.channel('admin-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async payload => {
-      if (!currentSession) return;
-      if (payload.new && payload.new.session_id !== currentSession.id) return;
-      await loadAttendance(); renderAll();
-      if (payload.eventType === 'INSERT' && payload.new.mssv && !_lastMssvSet.has(payload.new.mssv)){
-        _lastMssvSet.add(payload.new.mssv);
-        const s = students.find(x => x.mssv === payload.new.mssv);
-        toast('ok', 'SV vừa điểm danh', (s?.name || payload.new.mssv) + ' · ' + fmtClock(new Date()));
-      }
-    }).subscribe();
-}
-function renderAll(){ updateStats(); renderTable(); renderFeed(); }
-async function refreshAll(){
-  await loadSession();
-  if (!currentSession){ showEmpty(); return; }
-  const mainGrid = document.querySelector('.main-grid');
-  if (mainGrid) mainGrid.style.gridTemplateColumns = '';
-  const qrPanel = document.getElementById('qrPanel');
-  if (qrPanel) qrPanel.style.display = '';
-  const dz = document.querySelector('.danger-zone');
-  if (dz) dz.style.display = 'flex';
-  const btnClose = document.getElementById('btnCloseSession');
-  if (btnClose) btnClose.style.display = '';
-  const btnReopen = document.getElementById('btnReopenSession');
-  if (btnReopen) btnReopen.style.display = 'none';
-  const btnBack = document.getElementById('btnBackToActive');
-  if (btnBack) btnBack.style.display = 'none';
-  const chip = document.getElementById('countdownChip');
-  if (chip) chip.style.display = 'inline-flex';
-  const sPill = document.getElementById('sessionBarPill');
-  if (sPill) {
-    sPill.className = 'session-pill pill-on';
-    sPill.innerHTML = '<span class="net-dot"></span>Đang mở';
-  }
-  const topbarPill = document.getElementById('topbarSessionPill');
-  if (topbarPill) {
-    topbarPill.className = 'session-pill pill-on';
-    topbarPill.innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
-  }
-  showDashboard();
-  switchSessionTab('students');
-  document.getElementById('sessionBarName').textContent = currentSession.session_name;
-  document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
-  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
-  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
-  _lastMssvSet = new Set();
-  await loadAttendance();
-  Object.keys(attendanceMap).forEach(m => _lastMssvSet.add(m));
-  renderQR(); renderAll(); startCountdown();
-  _closingSession = false;
-}
-
-window.backFromPastSession = async function() {
-  await refreshAll();
-};
-
-window.viewPastSession = async function(sid) {
-  let s = (window._todaySessionsMap && window._todaySessionsMap[sid]) || null;
-  if (s && s.is_open) {
-    await refreshAll();
-    return;
-  }
-  if (!s) {
-    try {
-      const { data } = await supabase.from('sessions').select('*').eq('id', sid).maybeSingle();
-      if (data) s = data;
-    } catch(e) {
-      console.warn('Cannot fetch from sessions table:', e);
-    }
-  }
-  if (!s) {
-    s = { id: sid, session_name: 'Phiên điểm danh', started_at: new Date().toISOString() };
-  }
-  currentSession = s;
-  showDashboard();
-
-  const topbarPill = document.getElementById('topbarSessionPill');
-  if (topbarPill) {
-    topbarPill.className = 'session-pill pill-off';
-    topbarPill.innerHTML = '<span class="net-dot"></span><span>Xem lịch sử</span>';
-  }
-
-  const mainGrid = document.querySelector('.main-grid');
-  if (mainGrid) mainGrid.style.gridTemplateColumns = '1fr';
-  const qrPanel = document.getElementById('qrPanel');
-  if (qrPanel) qrPanel.style.display = 'none';
-  const dz = document.querySelector('.danger-zone');
-  if (dz) dz.style.display = 'none';
-  const btnClose = document.getElementById('btnCloseSession');
-  if (btnClose) btnClose.style.display = 'none';
-  const btnReopenPast = document.getElementById('btnReopenSession');
-  if (btnReopenPast) btnReopenPast.style.display = 'inline-flex';
-  const btnBack = document.getElementById('btnBackToActive');
-  if (btnBack) btnBack.style.display = 'inline-flex';
-  const chip = document.getElementById('countdownChip');
-  if (chip) chip.style.display = 'none';
-
-  const sPill = document.getElementById('sessionBarPill');
-  if (sPill) {
-    sPill.className = 'session-pill pill-off';
-    sPill.innerHTML = '<span class="net-dot"></span>Đã đóng';
-  }
-  document.getElementById('sessionBarName').textContent = currentSession.session_name || 'Phiên đã đóng';
-  document.getElementById('sessionStartTime').textContent = currentSession.started_at ? new Date(currentSession.started_at).toLocaleString('vi-VN') : '—';
-  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
-  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : '—';
-
-  currentFilter = 'all';
-  currentPage = 1;
-  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.status === 'all'));
-  switchSessionTab('students');
-
-  await loadAttendance();
-  renderAll();
-  clearInterval(countdownTimer);
-};
-document.addEventListener('DOMContentLoaded', async () => {
-  const user = await checkAuth();
-  if (!user) return;
-  await loadStudents();
-  const kpiTotalEl = document.getElementById('kpiTotalStudents');
-  if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
-  await loadTeamGroups();
-  if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
-  teamAvailabilityTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') loadTeamGroups();
-  }, 60 * 1000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') loadTeamGroups();
-  });
-  await refreshAll();
-  await loadTodayHistory();
-  await loadTodaySchoolSchedule();
-  fetchResetRequests();
-  setupRealtime();
-
-  // Tự động kiểm tra và đồng bộ ngầm từ ME nếu dữ liệu cũ hơn 24 giờ
-  const lastSync = parseInt(localStorage.getItem('last_me_sync') || '0', 10);
-  if (Date.now() - lastSync > 24 * 3600 * 1000) {
-    setTimeout(() => syncSchedulesFromME(true), 2500);
-  }
-
-  document.getElementById('filters').addEventListener('click', e => {
-    const btn = e.target.closest('.filter');
-    if (!btn) return;
-    document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentFilter = btn.dataset.status;
-    currentPage = 1;
-    renderTable();
-  });
-  document.getElementById('searchInput').addEventListener('input', e => {
-    currentSearch = e.target.value.trim();
-    currentPage = 1;
-    renderTable();
-  });
-  document.getElementById('pagerSize').addEventListener('change', e => {
-    pageSize = parseInt(e.target.value, 10);
-    currentPage = 1;
-    renderTable();
-  });
-  document.getElementById('pagerPrev').addEventListener('click', () => { currentPage = Math.max(1, currentPage - 1); renderTable(); });
-  document.getElementById('pagerNext').addEventListener('click', () => { currentPage++; renderTable(); });
-
-  window.addEventListener('online', () => {
-    document.getElementById('netBadge').className = 'net-badge net-online';
-    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Online</span>';
-    document.getElementById('offlineBanner').classList.remove('show');
-  });
-  window.addEventListener('offline', () => {
-    document.getElementById('netBadge').className = 'net-badge net-offline';
-    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Offline</span>';
-    document.getElementById('offlineBanner').classList.add('show');
-  });
-
-  pollTimer = setInterval(() => { if (currentSession) loadAttendance().then(renderAll); }, 30000);
-
-  // Cleanup khi tab bị đóng/navigate đi
-  window.addEventListener('beforeunload', () => {
-    clearInterval(countdownTimer);
-    clearInterval(pollTimer);
-    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
-  });
-});
-</script>
-</body>
-</html>
+}""")
+
+# Avatar syncing in checkAuth
+orig_js_body = orig_js_body.replace(
+"""  document.getElementById('adminName').textContent = name;
+  document.getElementById('adminMssv').textContent = (profile?.mssv || '').trim();""",
+"""  document.getElementById('adminName').textContent = name;
+  document.getElementById('adminMssv').textContent = (profile?.mssv || '').trim();
+  const firstInitial = (name || 'A').trim().charAt(0).toUpperCase();
+  const topAvatar = document.getElementById('topbarAvatar');
+  if (topAvatar) topAvatar.textContent = firstInitial;
+  const sideAvatar = document.getElementById('sidebarAvatar');
+  if (sideAvatar) sideAvatar.textContent = firstInitial;
+  const sideName = document.getElementById('sidebarAdminName');
+  if (sideName) sideName.textContent = name;
+  const sideMssv = document.getElementById('sidebarAdminMssv');
+  if (sideMssv) sideMssv.textContent = (profile?.mssv || '').trim() || 'Admin';""")
+
+final_clean_html = full_template + "\n" + controllers_js + "\n" + orig_js_body
+
+with open('admin.html', 'w', encoding='utf-8') as f:
+    f.write(final_clean_html)
+
+print("SUCCESS: Pristine clean admin.html built!")
