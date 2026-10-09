@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LH-NaviX — Quản Lý Điểm Danh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<style>
+body{background:var(--bg);color:var(--text);line-height:1.55;padding:20px;min-height:100vh}
+.wrapper{max-width:1320px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;margin-bottom:14px;flex-wrap:wrap;gap:12px}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center;object-fit:contain}
+.topbar h1{font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.topbar .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.net-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.net-online{background:var(--ok-bg);color:var(--ok);border:1px solid rgba(15,122,74,.25)}
+.net-offline{background:var(--err-bg);color:var(--err);border:1px solid rgba(194,56,46,.25)}
+.net-dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.net-online .net-dot{animation:pulse 1.6s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(15,122,74,.45)}100%{box-shadow:0 0 0 8px rgba(15,122,74,0)}}
+.session-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.pill-on{background:var(--ok-bg);color:var(--ok);border:1px solid rgba(15,122,74,.25)}
+.pill-off{background:var(--surface-2);color:var(--muted);border:1px solid var(--border)}
+.btn{padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit;transition:.15s;text-decoration:none}
+.btn:hover:not(:disabled){background:var(--surface-2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--text);color:#fff;border-color:var(--text)}
+.btn-primary:hover:not(:disabled){background:#2b2f37}
+.btn-danger{background:var(--err-bg);color:var(--err);border-color:rgba(194,56,46,.28)}
+.btn-danger:hover:not(:disabled){background:rgba(194,56,46,.15)}
+.btn-success{background:var(--ok-bg);color:var(--ok);border-color:rgba(15,122,74,.28)}
+.btn-success:hover:not(:disabled){background:rgba(15,122,74,.15)}
+.btn-icon{padding:8px;width:34px;height:34px;justify-content:center}
+.offline-banner{padding:11px 18px;margin-bottom:14px;background:var(--warn-bg);color:var(--warn);border:1px solid rgba(161,92,0,.28);border-radius:var(--radius-sm);font-size:13px;font-weight:600;display:none;align-items:center;gap:10px}
+.offline-banner.show{display:flex;animation:slideDown .3s ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.empty-state{padding:56px 32px 40px;text-align:center}
+.empty-icon{width:88px;height:88px;margin:0 auto 20px;border-radius:24px;background:linear-gradient(135deg,#eef3fd,#e0e9ff);display:grid;place-items:center;color:#3b82f6}
+.empty-state h2{font-size:20px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em}
+.empty-state p{color:var(--muted);font-size:13.5px;max-width:420px;margin:0 auto 26px}
+.quick-form{max-width:520px;margin:0 auto;display:grid;grid-template-columns:1.6fr 1fr auto;gap:10px;align-items:end}
+@media(max-width:600px){.quick-form{grid-template-columns:1fr}}
+.quick-field label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;text-align:left}
+.quick-field input{width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--border-strong);font-size:13.5px;outline:none;background:var(--surface);transition:.15s;font-family:inherit}
+.quick-field input:focus{border-color:var(--text);box-shadow:0 0 0 4px #eceef2}
+.session-bar{padding:14px 20px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.session-bar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-width:0}
+.session-bar-name{font-size:15px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
+.session-bar-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:3px}
+.session-bar-meta code{font-family:ui-monospace,monospace;font-size:11px;background:var(--surface-2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+.countdown-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;background:var(--ok-bg);color:var(--ok);border:1px solid rgba(15,122,74,.22)}
+.countdown-chip.warn{background:var(--warn-bg);color:var(--warn);border-color:rgba(161,92,0,.28)}
+.countdown-chip.danger{background:var(--err-bg);color:var(--err);border-color:rgba(194,56,46,.28);animation:pulseRed 1.6s ease-out infinite}
+@keyframes pulseRed{0%{box-shadow:0 0 0 0 rgba(194,56,46,.35)}100%{box-shadow:0 0 0 10px rgba(194,56,46,0)}}
+.main-grid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+@media(max-width:1000px){.main-grid{grid-template-columns:1fr}}
+.qr-panel{padding:20px;text-align:center;position:sticky;top:20px}
+.qr-panel-title{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.qr-frame{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px;display:inline-block;box-shadow:var(--shadow)}
+#qrCanvas{width:220px;height:220px;display:flex;align-items:center;justify-content:center;background:#fff}
+#qrCanvas img,#qrCanvas canvas{width:100%!important;height:100%!important;display:block;image-rendering:crisp-edges}
+.qr-timestamp{margin-top:12px;font-size:11.5px;color:var(--muted);display:flex;justify-content:center;align-items:center;gap:6px}
+.qr-timestamp b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+.qr-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.qr-actions .btn{width:100%;justify-content:center;padding:11px 10px}
+.btn-refresh{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;border:none;font-weight:800;box-shadow:0 8px 20px -10px rgba(59,130,246,.75)}
+.btn-refresh:hover{opacity:.92}
+.qr-hint{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.5;text-align:left;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px dashed var(--border-strong)}
+.qr-warning{margin-top:12px;padding:10px 12px;background:var(--warn-bg);color:var(--warn);border:1px solid rgba(161,92,0,.28);border-radius:9px;font-size:12px;font-weight:700;display:none;align-items:center;gap:8px;text-align:left;line-height:1.4}
+.qr-warning.show{display:flex;animation:rise .35s ease both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.main-panel{padding:20px 22px;min-width:0}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.stat{padding:14px 12px;text-align:center;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);transition:.2s}
+.stat-label{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.stat-num{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums}
+.stat-num.blue{color:var(--info)}
+.stat-num.green{color:var(--ok)}
+.stat-num.red{color:var(--err)}
+.stat-num.purple{color:#7c3aed}
+.stat-num.amber{color:#d97706}
+.stat-num.gray{color:var(--faint)}
+.status-select.st-late{background-color:#fef3c7;color:#b45309;border-color:rgba(217,119,6,.28)}
+.session-tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.session-tab{padding:9px 16px;border:none;background:transparent;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.session-tab:hover{color:var(--text)}
+.session-tab.active{color:var(--text);border-bottom-color:var(--text)}
+.audit-timeline{display:flex;flex-direction:column;gap:10px}
+.audit-item{padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px}
+.audit-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap}
+.audit-user{font-weight:700;color:var(--text)}
+.audit-time{font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+.audit-change{display:flex;align-items:center;gap:8px;font-weight:600}
+.audit-reason{margin-top:6px;padding:6px 10px;background:#fff;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-size:12px}
+.progress-wrap{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px}
+.progress-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.progress-lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.progress-pct{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.progress-track{height:9px;background:var(--border);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#10b981,#059669);border-radius:99px;transition:width .6s cubic-bezier(.22,1,.36,1)}
+.feed-wrap{margin-bottom:18px;padding:12px 14px;background:linear-gradient(180deg,rgba(59,130,246,.04),rgba(59,130,246,.01));border:1px solid rgba(59,130,246,.15);border-radius:var(--radius-sm)}
+.feed-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.feed-title{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--info);display:flex;align-items:center;gap:6px}
+.feed-live-dot{width:7px;height:7px;background:var(--info);border-radius:50%;animation:pulse 1.4s ease-out infinite}
+.feed-list{display:flex;flex-direction:column;gap:6px;max-height:130px;overflow-y:auto}
+.feed-item{display:flex;align-items:center;gap:10px;padding:7px 10px;background:#fff;border:1px solid var(--border);border-radius:8px;animation:slideInRight .4s cubic-bezier(.22,1,.36,1) both}
+@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.feed-avt{width:26px;height:26px;border-radius:50%;flex:none;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:11px;font-weight:800}
+.feed-name{font-size:12.5px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+.feed-empty{padding:14px;text-align:center;font-size:12px;color:var(--muted);font-style:italic}
+.thead-block{margin-bottom:14px}
+.thead-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.thead-title{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.filter{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s;font-family:inherit}
+.filter:hover{background:var(--border)}
+.filter.active{background:var(--text);color:#fff;border-color:var(--text)}
+.filter .count{font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.2)}
+.filter:not(.active) .count{background:rgba(0,0,0,.06);color:var(--muted)}
+.thead-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.search-wrap{position:relative;display:flex;align-items:center}
+.search-wrap input{width:220px;padding:9px 12px 9px 32px;border-radius:8px;border:1px solid var(--border-strong);font-size:13px;outline:none;background:var(--surface);transition:.15s;font-family:inherit}
+.search-wrap input:focus{border-color:var(--text);box-shadow:0 0 0 4px #eceef2}
+.search-wrap svg{position:absolute;left:10px;color:var(--faint);pointer-events:none}
+.tbl-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.tbl-scroll{max-height:440px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{position:sticky;top:0;z-index:2;text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:11px 14px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover td{background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:none}
+.student-cell{display:flex;align-items:center;gap:10px;font-weight:600;min-width:0}
+.avt{width:30px;height:30px;border-radius:50%;flex:none;background:var(--text);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;text-transform:uppercase}
+.td-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-mono{font-variant-numeric:tabular-nums;color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}
+.status-select{padding:5px 26px 5px 11px;border-radius:99px;font-size:11.5px;font-weight:800;border:1px solid var(--border);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");background-repeat:no-repeat;background-position:right 7px center;background-size:11px;transition:.15s;font-family:inherit}
+.status-select.st-ok{background-color:var(--ok-bg);color:var(--ok);border-color:rgba(15,122,74,.28)}
+.status-select.st-warn{background-color:#f5f3ff;color:#7c3aed;border-color:rgba(124,58,237,.28)}
+.status-select.st-no{background-color:var(--err-bg);color:var(--err);border-color:rgba(194,56,46,.28)}
+.status-select.st-none{background-color:var(--surface-2);color:var(--muted)}
+.tbl-empty{padding:44px 20px;text-align:center;color:var(--muted);font-size:13px}
+.tbl-empty-icon{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;color:var(--faint)}
+.tbl-empty b{display:block;color:var(--text);font-size:14px;margin-bottom:4px}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:var(--surface-2);border-top:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.pager-info{font-size:12px;color:var(--muted);font-weight:600}
+.pager-info b{color:var(--text);font-weight:800}
+.pager-ctrl{display:flex;align-items:center;gap:8px}
+.pager-ctrl select{padding:6px 10px;font-size:12px;font-weight:700;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;outline:none;font-family:inherit}
+.pager-btn{padding:6px 10px;font-size:12px;font-weight:700;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;transition:.15s;font-family:inherit}
+.pager-btn:hover:not(:disabled){background:var(--surface-2)}
+.pager-btn:disabled{opacity:.4;cursor:not-allowed}
+.today-history{margin-top:16px;padding:14px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.today-history-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.today-history-item{padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
+.today-history-item:last-child{margin-bottom:0}
+.today-history-name{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}
+.today-history-meta{font-size:11.5px;color:var(--muted);margin-top:3px}
+.rk-badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:800}
+.rk-badge.doing{background:var(--info-bg);color:var(--info)}
+.rk-badge.todo{background:var(--surface-2);color:var(--muted);border:1px solid var(--border-strong)}
+.danger-zone{margin-top:16px;padding:14px 18px;background:var(--err-bg);border:1px solid rgba(194,56,46,.2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.danger-zone-txt b{color:var(--err);font-size:13.5px;display:flex;align-items:center;gap:6px}
+.danger-zone-txt p{font-size:12px;color:var(--muted);margin-top:2px}
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:360px;pointer-events:none}
+.toast{padding:12px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;align-items:flex-start;gap:11px;font-size:13px;line-height:1.5;pointer-events:auto;animation:toastIn .35s cubic-bezier(.22,1,.36,1) both}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.toast.out{animation:toastOut .28s ease forwards}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px) scale(.96)}}
+.toast-ic{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:14px;font-weight:800}
+.toast.t-ok .toast-ic{background:var(--ok-bg);color:var(--ok)}
+.toast.t-err .toast-ic{background:var(--err-bg);color:var(--err)}
+.toast.t-warn .toast-ic{background:var(--warn-bg);color:var(--warn)}
+.toast.t-info .toast-ic{background:var(--info-bg);color:var(--info)}
+.toast-body{flex:1;min-width:0}
+.toast-title{font-weight:800;font-size:13px;color:var(--text)}
+.toast-text{font-size:12px;color:var(--muted);margin-top:2px;word-break:break-word}
+.modal-bg{position:fixed;inset:0;z-index:9000;background:rgba(21,23,28,.5);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.show{display:flex;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);max-width:440px;width:100%;padding:26px 24px 22px;animation:modalIn .3s cubic-bezier(.22,1,.36,1) both}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+.modal-ic{width:48px;height:48px;margin-bottom:14px;border-radius:14px;display:grid;place-items:center}
+.modal-ic.err{background:var(--err-bg);color:var(--err);font-size:22px}
+.modal-ic.warn{background:var(--warn-bg);color:var(--warn);font-size:22px}
+.modal h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.modal p{font-size:13.5px;color:var(--muted);line-height:1.6}
+.modal-stats{margin:16px 0 14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.modal-stat{padding:11px 8px;border-radius:9px;text-align:center;background:var(--surface-2);border:1px solid var(--border)}
+.modal-stat b{display:block;font-size:20px;font-weight:800;line-height:1.15}
+.modal-stat span{display:block;font-size:10px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.modal-actions{display:flex;gap:10px}
+.modal-actions button{flex:1;padding:12px;border-radius:9px;font-size:13.5px;font-weight:800;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);transition:.15s;font-family:inherit;cursor:pointer}
+.modal-actions button:hover{background:var(--surface-2)}
+.modal-actions button.danger{background:var(--err);color:#fff;border-color:var(--err)}
+.modal-actions button.danger:hover{background:#a83029}
+.qr-panel:fullscreen,.qr-panel:-webkit-full-screen{padding:0;border-radius:0;position:static;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;height:100vh;width:100vw}
+.qr-panel:fullscreen .qr-panel-title{font-size:22px;letter-spacing:.15em;margin-bottom:24px}
+.qr-panel:fullscreen .qr-frame{padding:24px;border-radius:20px;box-shadow:none;border:2px solid #eee}
+.qr-panel:fullscreen #qrCanvas{width:min(70vh,80vw);height:min(70vh,80vw)}
+.qr-panel:fullscreen .qr-timestamp{font-size:16px;margin-top:20px}
+.qr-panel:fullscreen .qr-timestamp b{font-size:20px}
+.qr-panel:fullscreen .qr-actions{max-width:min(70vh,80vw);gap:12px}
+.qr-panel:fullscreen .qr-actions .btn{padding:14px;font-size:15px}
+.qr-panel:fullscreen .qr-hint{max-width:min(70vh,80vw);font-size:13px;padding:12px 16px}
+@media(max-width:900px){body{padding:12px}.session-bar-name{max-width:220px}.thead-actions{justify-content:stretch;width:100%}.search-wrap,.search-wrap input{width:100%}}
+
+/* ==========================================================
+   EMPTY STATE REVAMP & WIDGETS
+   ========================================================== */
+.empty-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.25s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+}
+.kpi-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.kpi-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.kpi-icon-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.kpi-icon-badge.blue { background: #eff6ff; }
+.kpi-icon-badge.green { background: var(--ok-bg); }
+.kpi-icon-badge.red { background: var(--err-bg); }
+.kpi-icon-badge.purple { background: #f3e8ff; }
+.kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-top: 4px;
+}
+.kpi-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* 2-Column Main Layout */
+.empty-main-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1.15fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .empty-main-grid { grid-template-columns: 1fr; }
+}
+.empty-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.empty-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Session Create Card */
+.session-create-card {
+  padding: 22px 24px;
+}
+.scc-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.scc-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #2563eb;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.scc-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.scc-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.session-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+.form-field input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  font-size: 13.5px;
+  outline: none;
+  background: var(--surface);
+  transition: .15s;
+  font-family: inherit;
+}
+.form-field input:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 12px;
+  align-items: end;
+}
+@media (max-width: 500px) {
+  .form-row-2 { grid-template-columns: 1fr; }
+}
+.btn-open-session {
+  height: 42px;
+  font-size: 13.5px;
+  justify-content: center;
+}
+
+/* Widgets Header */
+.widget-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.widget-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.widget-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.widget-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.widget-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--info);
+  text-decoration: none;
+}
+.widget-link:hover { text-decoration: underline; }
+.count-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* Schedule Widget Card */
+.schedule-widget-card {
+  padding: 20px 22px;
+}
+.schedule-list-wrap {
+  max-height: 290px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.schedule-mini-item {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: transform .1s ease, border-color .1s ease;
+}
+.schedule-mini-item:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.sc-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sc-student-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sc-student-mssv {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--muted);
+}
+.sc-item-subject {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--info);
+}
+.sc-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.room-chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.06);
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+/* History Widget Card */
+.history-widget-card {
+  padding: 20px 22px;
+}
+.history-list-wrap {
+  max-height: 480px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.btn-sm {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+.btn-icon.btn-sm {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.schedule-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.team-admin{margin:14px 0;padding:20px 22px}
+.team-admin-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.team-admin-title{font-size:16px;font-weight:800}
+.team-admin-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.team-create-grid,.team-edit-grid{display:grid;grid-template-columns:1.2fr 1fr 1.2fr auto;gap:9px;align-items:end}
+.team-field label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.team-field input,.team-field select,.team-select{width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);font:inherit;font-size:12.5px}
+.team-tools{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:9px;align-items:end;margin-top:14px}
+.team-members{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.team-member{padding:11px 13px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)}
+.team-member-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.team-member-name{font-size:12.5px;font-weight:800}
+.team-availability{display:inline-flex;padding:3px 8px;border-radius:99px;font-size:10.5px;font-weight:800}
+.team-availability.free{background:var(--ok-bg);color:var(--ok)}
+.team-availability.busy{background:var(--warn-bg);color:var(--warn)}
+.team-class{font-size:11.5px;color:var(--muted);margin-top:5px}
+.team-groups-list{display:flex;flex-direction:column;gap:7px}
+.team-accordion{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;color:var(--text);font:inherit;cursor:pointer;transition:.15s}
+.team-accordion:hover{border-color:var(--border-strong);background:#fff}
+.team-accordion-main{min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.team-accordion-name{font-size:13px;font-weight:800}
+.team-accordion-meta{font-size:11.5px;color:var(--muted)}
+.team-accordion-counts{display:flex;align-items:center;gap:6px;flex:none}
+.team-count-pill{padding:4px 8px;border-radius:99px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.team-count-pill.free{background:var(--ok-bg);color:var(--ok)}
+.team-count-pill.busy{background:var(--warn-bg);color:var(--warn)}
+.team-modal-shell{width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+.team-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+.team-modal-title{font-size:17px;font-weight:800}
+.team-now{font-size:11.5px;color:var(--muted);margin-top:3px}
+.team-modal-section{border-top:1px solid var(--border);margin-top:15px;padding-top:14px}
+.team-schedule-state{display:inline-flex;align-items:center;gap:6px}
+.team-schedule-future{opacity:.82}
+@media(max-width:700px){.team-create-grid,.team-edit-grid,.team-tools{grid-template-columns:1fr}}
+
+</style>
+<script src="js/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=6"></script>
+</head>
+<body>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<div class="wrapper">
+  <header class="card topbar">
+    <div class="topbar-left">
+      <img src="images/logo.png" alt="" class="topbar-logo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'topbar-logo',textContent:'LH'}))">
+      <div>
+        <h1>Quản Lý Điểm Danh</h1>
+        <div class="sub">Admin: <b id="adminName">—</b> (<span id="adminMssv">—</span>)</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="net-badge net-online" id="netBadge"><span class="net-dot"></span><span>Online</span></span>
+      <span class="session-pill pill-off" id="topbarSessionPill"><span class="net-dot"></span><span>Đã đóng</span></span>
+      <button class="btn" id="btnResetRequests" style="background:#fef3c7;border:none;color:#d97706;font-weight:700;display:none" onclick="openRequestsModal()">🔔 Yêu cầu (0)</button>
+      <a class="btn" href="lichhoc.html" style="text-decoration:none;">📅 Lịch học</a>
+      <a class="btn" href="change-password.html" style="text-decoration:none;">🔒 Đổi mật khẩu</a>
+      <button class="btn btn-danger" onclick="logout()">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div class="offline-banner" id="offlineBanner">
+    <span>⚠️</span><span><b>Mất kết nối mạng.</b> Đang thử kết nối lại...</span>
+  </div>
+
+  <section class="card team-admin" id="teamManagement">
+    <div class="team-admin-head">
+      <div><div class="team-admin-title">👥 Quản lý nhóm</div><div class="team-admin-sub">Tạo nhóm theo lĩnh vực, chọn đội trưởng và theo dõi lịch rảnh / bận của thành viên.</div></div>
+      <button class="btn btn-primary" onclick="openCreateTeamModal()">＋ Tạo nhóm</button>
+    </div>
+    <div id="teamGroupsList" class="team-groups-list"><div class="schedule-loading">Đang tải nhóm...</div></div>
+  </section>
+
+  <div class="modal-bg" id="teamCreateModal" onclick="if(event.target===this)closeTeamCreateModal()">
+    <div class="team-modal-shell" style="max-width:520px">
+      <div class="team-modal-head"><div><div class="team-modal-title">Tạo nhóm mới</div><div class="team-now">Chọn tên, lĩnh vực và đội trưởng.</div></div><button class="btn btn-icon" onclick="closeTeamCreateModal()">✕</button></div>
+      <div class="team-create-grid" style="grid-template-columns:1fr;margin-top:12px">
+        <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="VD: Đội cơ khí"></div>
+        <div class="team-field"><label for="newTeamField">Lĩnh vực</label><input id="newTeamField" maxlength="120" placeholder="VD: Cơ khí"></div>
+        <div class="team-field"><label for="newTeamLeader">Đội trưởng</label><select id="newTeamLeader"></select></div>
+        <button class="btn btn-primary" onclick="createTeamGroup()">＋ Tạo nhóm</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-bg" id="teamModal" onclick="if(event.target===this)closeTeamModal()">
+    <div class="team-modal-shell">
+      <div class="team-modal-head"><div><div class="team-modal-title" id="teamModalTitle">Quản lý nhóm</div><div class="team-now" id="teamNowLabel">Đang cập nhật lịch theo giờ Việt Nam</div></div><button class="btn btn-icon" onclick="closeTeamModal()">✕</button></div>
+      <div class="team-edit-grid">
+        <div class="team-field"><label for="editTeamName">Tên nhóm</label><input id="editTeamName" maxlength="100"></div>
+        <div class="team-field"><label for="editTeamField">Lĩnh vực</label><input id="editTeamField" maxlength="120"></div>
+        <div class="team-field"><label for="editTeamLeader">Đội trưởng</label><select id="editTeamLeader"></select></div>
+        <div style="display:flex;gap:6px"><button class="btn btn-success" onclick="saveTeamGroup()">Lưu</button><button class="btn btn-danger" onclick="deleteTeamGroup()">Xóa</button></div>
+      </div>
+      <div class="team-modal-section">
+        <div class="team-tools" style="margin-top:0">
+          <div class="team-field"><label for="teamMemberPicker">Thêm thành viên</label><select class="team-select" id="teamMemberPicker"></select></div>
+          <button class="btn btn-primary" onclick="addTeamMember()">＋ Thêm thành viên</button>
+          <span class="team-admin-sub" id="teamMemberCount"></span>
+        </div>
+      </div>
+      <div class="team-modal-section"><div class="team-modal-title" style="font-size:13px">Lịch hôm nay <span style="font-weight:500;color:var(--muted)">· giờ Việt Nam</span></div>
+        <div id="teamMemberList" class="team-members"><div class="schedule-loading">Đang tải thành viên và lịch...</div></div>
+      </div>
+    </div>
+  </div>
+
+    <div id="emptyState" class="empty-layout" style="display:none">
+    <!-- Dải KPI thống kê tổng quan -->
+    <div class="kpi-grid">
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tổng quân số</span>
+          <span class="kpi-icon-badge blue">👥</span>
+        </div>
+        <div class="kpi-val" id="kpiTotalStudents">31</div>
+        <div class="kpi-sub">Thành viên đội Robocon (23TD111)</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tỉ lệ có mặt</span>
+          <span class="kpi-icon-badge green">📈</span>
+        </div>
+        <div class="kpi-val" id="kpiPresentRate" style="color:var(--ok)">--%</div>
+        <div class="kpi-sub">Trung bình các phiên gần đây</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Tỉ lệ vắng</span>
+          <span class="kpi-icon-badge red">📉</span>
+        </div>
+        <div class="kpi-val" id="kpiAbsentRate" style="color:var(--err)">--%</div>
+        <div class="kpi-sub">Cần cải thiện chuyên cần</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">Lịch học trường hôm nay</span>
+          <span class="kpi-icon-badge purple">🏫</span>
+        </div>
+        <div class="kpi-val" id="kpiBusyCount" style="color:var(--info)">--</div>
+        <div class="kpi-sub">SV có lịch học trên trường</div>
+      </div>
+    </div>
+
+    <!-- Bố cục 2 cột chính -->
+    <div class="empty-main-grid">
+      <!-- Cột Trái: Tạo phiên + Lịch học hôm nay -->
+      <div class="empty-col-left">
+        <!-- Khởi tạo phiên -->
+        <section class="card session-create-card">
+          <div class="scc-header">
+            <div class="scc-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
+            </div>
+            <div>
+              <h2 class="scc-title">Khởi tạo phiên điểm danh mới</h2>
+              <p class="scc-sub">Mã QR đứng yên — thuận tiện chiếu máy chiếu cả buổi.</p>
+            </div>
+          </div>
+
+          <div class="session-form">
+            <div class="form-field">
+              <label for="quickName">Tên phiên điểm danh *</label>
+              <input type="text" id="quickName" placeholder="VD: Buổi làm Robocon C503">
+            </div>
+            <div class="form-row-2">
+              <div class="form-field">
+                <label for="quickDuration">Thời lượng (phút)</label>
+                <input type="number" id="quickDuration" value="90" min="1">
+              </div>
+              <button class="btn btn-primary btn-open-session" onclick="openSession()">▶ Mở phiên điểm danh</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Widget: Lịch học trường hôm nay -->
+        <section class="card schedule-widget-card">
+          <div class="widget-head">
+            <div class="widget-title-wrap">
+              <span class="widget-title">🏫 Sinh viên bận học trường hôm nay</span>
+              <span class="count-badge" id="todaySchoolScheduleCount">0 bạn</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="btn btn-secondary" id="btnSyncME" onclick="syncSchedulesFromME()" style="padding:5px 10px;font-size:11.5px;font-weight:700" title="Kéo dữ liệu thời khóa biểu mới nhất từ cổng thông tin ME của trường LHU">🔄 Đồng bộ từ ME</button>
+              <a href="lichhoc.html" class="widget-link" title="Xem thời khóa biểu chi tiết">Chi tiết TKB →</a>
+            </div>
+          </div>
+          <div class="schedule-list-wrap" id="todaySchoolScheduleList">
+            <div class="schedule-loading">Đang tải lịch học hôm nay...</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Cột Phải: Lịch sử phiên gần đây -->
+      <div class="empty-col-right">
+        <section class="card history-widget-card">
+          <div class="widget-head">
+            <div>
+              <div class="widget-title">📋 Lịch sử phiên gần đây</div>
+              <p class="widget-sub">7 phiên gần nhất trong 7 ngày qua</p>
+            </div>
+            <div class="widget-actions">
+              <button class="btn btn-danger btn-sm" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử các phiên đã đóng">🗑 Xóa lịch sử</button>
+              <button class="btn btn-icon btn-sm" onclick="loadTodayHistory()" title="Làm mới">↻</button>
+            </div>
+          </div>
+          <div class="history-list-wrap" id="emptyTodayHistoryList">
+            <div class="schedule-loading">Đang tải lịch sử...</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard" id="dashboard" style="display:none">
+    <div class="card session-bar">
+      <div class="session-bar-left">
+        <span class="session-pill pill-on" id="sessionBarPill"><span class="net-dot"></span>Đang mở</span>
+        <div style="min-width:0">
+          <div class="session-bar-name" id="sessionBarName">—</div>
+          <div class="session-bar-meta">
+            <span>📅 <span id="sessionStartTime">—</span></span>
+            <span>🔑 ID: <code id="sessionIdDisplay">—</code></span>
+            <span>⏱ <span id="sessionDurationDisplay">—</span></span>
+          </div>
+        </div>
+        <div class="countdown-chip" id="countdownChip">⏱ <span id="countdownText">--:--</span></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnBackToActive" onclick="backFromPastSession()" style="display:none;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-weight:600">← Quay lại</button>
+        <button class="btn btn-primary" id="btnReopenSession" onclick="confirmReopenSession()" style="display:none;background:var(--info);border:none;color:#fff;font-weight:700">🔄 Mở lại phiên</button>
+        <button class="btn btn-danger" id="btnCloseSession" onclick="openCloseModal()">■ Đóng phiên</button>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <aside class="card qr-panel" id="qrPanel">
+        <div class="qr-panel-title">Mã QR điểm danh</div>
+        <div class="qr-frame"><div id="qrCanvas"></div></div>
+        <div class="qr-timestamp">🔒 Sinh lúc <b id="qrBorn">—</b></div>
+        <div class="qr-actions">
+          <button class="btn btn-refresh" id="btnRefreshQr" onclick="regenerateQR()">🔄 Đổi mã QR</button>
+          <button class="btn" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
+        </div>
+        <div class="qr-hint">💡 QR này <b>đứng yên</b> cho đến khi bạn bấm "Đổi mã QR". Phù hợp chiếu lên máy chiếu.</div>
+        <div class="qr-warning" id="qrWarning"><span>⚠️</span><span><b>Phiên sắp kết thúc.</b> Hãy nhắc sinh viên khẩn trương quét mã.</span></div>
+      </aside>
+
+      <section class="card main-panel">
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-label">Tổng SV</div><div class="stat-num blue" id="statTotal">0</div></div>
+          <div class="stat"><div class="stat-label">Có mặt</div><div class="stat-num green" id="statPresent">0</div></div>
+          <div class="stat"><div class="stat-label">Đi muộn</div><div class="stat-num amber" id="statLate">0</div></div>
+          <div class="stat"><div class="stat-label">Vắng K.phép</div><div class="stat-num red" id="statAbsent">0</div></div>
+          <div class="stat"><div class="stat-label">Có phép</div><div class="stat-num purple" id="statExcused">0</div></div>
+          <div class="stat" id="statUnmarkedCard" style="display:none"><div class="stat-label">Chưa quét</div><div class="stat-num gray" id="statUnmarked">0</div></div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-row">
+            <span class="progress-lbl">Tỉ lệ điểm danh</span>
+            <span class="progress-pct" id="progressPct">0%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        </div>
+
+        <div class="feed-wrap">
+          <div class="feed-header">
+            <div class="feed-title"><span class="feed-live-dot"></span><span>Vừa điểm danh</span></div>
+          </div>
+          <div class="feed-list" id="feedList"><div class="feed-empty">Chưa có ai điểm danh</div></div>
+        </div>
+
+        <div class="session-tabs">
+          <button class="session-tab active" id="tabBtnStudents" onclick="switchSessionTab('students')">📋 Danh sách điểm danh</button>
+          <button class="session-tab" id="tabBtnAudit" onclick="switchSessionTab('audit')">🕒 Lịch sử thay đổi (Audit Log) <span id="auditLogCountBadge" style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.07)">0</span></button>
+        </div>
+
+        <div id="studentsTabPanel">
+          <div class="thead-block">
+            <div class="thead-top">
+              <div>
+                <div class="thead-title">Danh sách sinh viên</div>
+                <div class="filters" id="filters">
+                  <button class="filter active" data-status="all">Tất cả <span class="count">0</span></button>
+                  <button class="filter" data-status="present">Có mặt <span class="count">0</span></button>
+                  <button class="filter" data-status="late">Đi muộn <span class="count">0</span></button>
+                  <button class="filter" data-status="absent">Vắng K.phép <span class="count">0</span></button>
+                  <button class="filter" data-status="excused">Có phép <span class="count">0</span></button>
+                  <button class="filter" data-status="unmarked" id="filterUnmarked" style="display:none">Chưa điểm danh <span class="count">0</span></button>
+                </div>
+              </div>
+              <div class="thead-actions">
+                <div class="search-wrap">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
+                </div>
+                <button class="btn" style="background:#0ea5e9;color:#fff;border:none" onclick="copyAttendanceList()">📋 Copy danh sách</button>
+                <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả chưa quét</button>
+                <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tbl-wrap">
+            <div class="tbl-scroll">
+              <table>
+                <thead><tr><th style="width:40%">Sinh viên</th><th style="width:18%">MSSV</th><th style="width:24%">Trạng thái</th><th style="width:18%">Thời gian</th></tr></thead>
+                <tbody id="studentTbody"></tbody>
+              </table>
+            </div>
+            <div class="pager">
+              <div class="pager-info" id="pagerInfo">—</div>
+              <div class="pager-ctrl">
+                <select id="pagerSize">
+                  <option value="10">10 / trang</option>
+                  <option value="20" selected>20 / trang</option>
+                  <option value="50">50 / trang</option>
+                  <option value="100">100 / trang</option>
+                </select>
+                <button class="pager-btn" id="pagerPrev">‹ Trước</button>
+                <span class="pager-info" style="padding:0 4px" id="pagerNum"><b>1</b>/1</span>
+                <button class="pager-btn" id="pagerNext">Sau ›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="auditLogPanel" style="display:none">
+          <div class="tbl-wrap" style="padding:16px;background:var(--surface)">
+            <div id="auditLogList">
+              <div style="text-align:center;padding:24px;color:var(--muted);font-style:italic">Đang tải lịch sử thay đổi...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="today-history" id="todayHistoryWrap" style="display:none">
+          <div class="today-history-head">
+            <div>
+              <div class="thead-title">Lịch sử phiên gần đây</div>
+              <p style="font-size:12px;color:var(--muted);margin-top:2px">7 phiên gần nhất trong 7 ngày qua</p>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-danger" onclick="confirmDeleteHistory()" title="Xóa toàn bộ lịch sử điểm danh">🗑 Xóa lịch sử</button>
+              <button class="btn btn-icon" onclick="loadTodayHistory()" title="Làm mới">↻</button>
+            </div>
+          </div>
+          <div id="todayHistoryList"></div>
+        </div>
+
+        <div class="danger-zone">
+          <div class="danger-zone-txt">
+            <b>⚠️ Đóng phiên điểm danh</b>
+            <p>Sau khi đóng, sinh viên không thể điểm danh được nữa.</p>
+          </div>
+          <button class="btn btn-danger" style="padding:11px 20px;font-size:13.5px" onclick="openCloseModal()">■ Đóng phiên</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="closeModal">
+  <div class="modal">
+    <div class="modal-ic err">⚠</div>
+    <h3>Đóng phiên điểm danh?</h3>
+    <p>Sinh viên sẽ không thể điểm danh được nữa. Bạn vẫn xem được lịch sử trong mục "Lịch sử hôm nay".</p>
+    <div class="modal-stats">
+      <div class="modal-stat"><b class="stat-num green" style="font-size:22px" id="modalPresent">0</b><span>Đã ĐD</span></div>
+      <div class="modal-stat"><b class="stat-num red" style="font-size:22px" id="modalAbsent">0</b><span>Vắng</span></div>
+      <div class="modal-stat"><b class="stat-num gray" style="font-size:22px" id="modalUnmarked">0</b><span>Chưa quét</span></div>
+    </div>
+    <p id="modalWarnText" style="font-size:12.5px;color:var(--err);background:var(--err-bg);padding:10px 12px;border-radius:8px;border:1px solid rgba(194,56,46,.18);display:none"></p>
+    <div class="modal-actions" style="margin-top:16px">
+      <button onclick="closeModalFn()">Huỷ</button>
+      <button class="danger" onclick="confirmCloseSession()">■ Đóng phiên</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="bulkModal">
+  <div class="modal">
+    <div class="modal-ic warn">⚠</div>
+    <h3 id="bulkTitle">Xác nhận</h3>
+    <p id="bulkText">Bạn có chắc không?</p>
+    <div class="modal-actions" style="margin-top:20px">
+      <button onclick="closeBulkModal()">Huỷ</button>
+      <button class="danger" id="bulkConfirmBtn">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal xác nhận mở lại phiên -->
+<div class="modal-bg" id="reopenModal">
+  <div class="modal">
+    <div class="modal-ic" style="background:var(--info-bg);color:var(--info)">🔄</div>
+    <h3>Mở lại phiên điểm danh</h3>
+    <p>Bạn có chắc muốn mở lại phiên này? Phiên sẽ chuyển thành <b>Đang mở</b>, sinh viên có thể tiếp tục quét mã QR.</p>
+    <div class="modal-actions" style="margin-top:20px">
+      <button onclick="closeReopenModal()">Huỷ</button>
+      <button class="primary" style="background:var(--info);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer" onclick="executeReopenSession()">✓ Mở lại phiên</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal kết quả Reset Mật khẩu -->
+<div class="modal-bg" id="resetPwdModal">
+  <div class="modal">
+    <div class="modal-ic" style="background:#dcfce7;color:#16a34a">🔑</div>
+    <h3>Đã cấp mật khẩu mới</h3>
+    <p style="color:var(--err); font-weight: 600;">⚠️ Chỉ gửi password này cho đúng sinh viên.</p>
+    <div style="background:#f1f5f9;padding:12px;border-radius:8px;margin:16px 0;font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:1px;color:#0f172a;display:flex;justify-content:space-between;align-items:center;">
+      <span id="tempPwdText"></span>
+      <button class="btn" style="background:#e2e8f0;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer" onclick="navigator.clipboard.writeText(document.getElementById('tempPwdText').innerText).then(()=>toast('ok','Đã copy','Mật khẩu tạm đã được copy'))">Copy</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ok" onclick="document.getElementById('resetPwdModal').classList.remove('show')">Đóng</button>
+      <button class="btn" style="background:#3b82f6;color:#fff;border:none;display:none" id="btnCompleteReset" onclick="completeResetRequest()">Đã gửi cho sinh viên</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reset Password Requests -->
+<div class="modal-bg" id="requestsModal" onclick="if(event.target===this)closeRequestsModal()">
+  <div class="modal" style="max-width: 600px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h3 style="margin:0;">🔔 Yêu cầu cấp mật khẩu</h3>
+      <button class="btn btn-icon btn-sm" onclick="fetchResetRequests()" title="Làm mới">↻</button>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-scroll" style="max-height:300px;">
+        <table>
+          <thead><tr><th style="width:40%">Sinh viên</th><th style="width:30%">MSSV</th><th style="width:30%; text-align:right;">Thao tác</th></tr></thead>
+          <tbody id="requestsTbody">
+            <tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button onclick="closeRequestsModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cập nhật trạng thái kèm Lý do (Audit Log) -->
+<div class="modal-bg" id="reasonModal">
+  <div class="modal" style="text-align:left;max-width:440px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="modal-ic" style="margin:0;width:40px;height:40px;font-size:18px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;border-radius:10px">✏️</div>
+      <div>
+        <h3 style="margin:0;font-size:16px">Cập nhật điểm danh</h3>
+        <p style="margin:2px 0 0;font-size:12.5px;color:var(--muted)" id="reasonStudentInfo">—</p>
+      </div>
+    </div>
+    
+    <div class="form-field" style="margin-bottom:12px">
+      <label for="reasonModalSelect" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">TRẠNG THÁI MỚI:</label>
+      <select id="reasonModalSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13.5px;font-weight:600;outline:none;font-family:inherit;background:var(--surface)">
+        <option value="có mặt">🟢 Có mặt</option>
+        <option value="đi muộn">🟡 Đi muộn</option>
+        <option value="vắng có phép">🟣 Vắng có phép</option>
+        <option value="vắng không phép">🔴 Vắng không phép</option>
+      </select>
+    </div>
+
+    <div class="form-field" style="margin-bottom:14px">
+      <label for="reasonInput" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">LÝ DO THAY ĐỔI (LƯU VÀO AUDIT LOG):</label>
+      <input type="text" id="reasonInput" placeholder="VD: SV xin vào muộn, điểm danh bù, nhầm lẫn..." style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+    </div>
+
+    <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeReasonModal()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-family:inherit;font-weight:600">Huỷ</button>
+      <button id="reasonConfirmBtn" onclick="executeStatusChange()" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Lưu thay đổi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentSession = null;
+let students = [];
+let attendanceMap = {};
+let currentFilter = 'all';
+let currentSearch = '';
+let currentPage = 1;
+let pageSize = 20;
+let countdownTimer = null;
+let pollTimer = null;
+let realtimeChannel = null;
+let _closingSession = false;   // chặn gọi đóng phiên 2 lần
+let _lastMssvSet = new Set();
+
+function fmtTime(sec){ return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0'); }
+function fmtClock(d){ return d.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
+
+function toast(type, title, text, duration = 4500){
+  const wrap = document.getElementById('toastWrap');
+  const icons = { ok:'✓', err:'✕', warn:'⚠', info:'ℹ' };
+  const el = document.createElement('div');
+  el.className = 'toast t-' + type;
+  el.innerHTML = '<div class="toast-ic">' + (icons[type] || 'ℹ') + '</div>' +
+    '<div class="toast-body"><div class="toast-title">' + title + '</div>' +
+    (text ? '<div class="toast-text">' + text + '</div>' : '') + '</div>';
+  wrap.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, duration);
+}
+
+async function checkAuth(){
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth?.session){ location.href = 'index.html'; return null; }
+  const { data: isAdm } = await supabase.rpc('is_admin');
+  if (!isAdm){
+    alert('Tài khoản này không có quyền truy cập trang quản lý.');
+    await supabase.auth.signOut();
+    location.href = 'index.html';
+    return null;
+  }
+  const { data: prof } = await supabase.from('profiles').select('full_name, mssv, must_change_password').eq('user_id', auth.session.user.id).maybeSingle();
+  if (prof?.must_change_password) {
+    location.href = 'change-password.html';
+    return null;
+  }
+  document.getElementById('adminName').textContent = prof?.full_name || '—';
+  document.getElementById('adminMssv').textContent = prof?.mssv || '—';
+  supabase.auth.onAuthStateChange(e => { if (e === 'SIGNED_OUT') location.href = 'index.html'; });
+  return auth.session.user;
+}
+async function logout(){
+  if (!confirm('Đăng xuất khỏi hệ thống?')) return;
+  // Dừng hết tác vụ nền trước khi thoát
+  clearInterval(countdownTimer);
+  clearInterval(pollTimer);
+  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+  localStorage.removeItem('saved_creds');
+  await supabase.auth.signOut();
+  location.replace('index.html');
+}
+async function loadStudents(){
+  const { data, error } = await supabase.from('students').select('mssv, name').order('mssv');
+  if (error){ console.error(error); return; }
+  students = data || [];
+}
+async function loadSession(){
+  const { data, error } = await supabase.rpc('get_open_session');
+  if (error || !data){ currentSession = null; showEmpty(); return null; }
+  currentSession = data;
+  return data;
+}
+async function loadAttendance(){
+  if (!currentSession) return;
+  const { data, error } = await supabase.from('attendance')
+    .select('mssv, full_name, status, category, note, created_at')
+    .eq('session_id', currentSession.id);
+  if (error){
+    console.error('loadAttendance error:', error);
+    toast('err', 'Lỗi tải điểm danh', error.message || 'Không thể tải dữ liệu điểm danh.');
+    return;
+  }
+  let latestAuditMap = {};
+  try {
+    const { data: auditData } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
+    if (auditData && auditData.ok && auditData.logs) {
+      // Sắp xếp tăng dần theo thời gian trước (nếu mssv xuất hiện nhiều lần, cái sau sẽ ghi đè cái trước)
+      const logs = auditData.logs.sort((a, b) => new Date(a.changed_at) - new Date(b.changed_at));
+      logs.forEach(l => {
+        latestAuditMap[l.mssv] = l.changed_at;
+      });
+    }
+  } catch(e) {
+    console.warn('Cannot fetch audit logs for time display, falling back to created_at', e);
+  }
+
+  attendanceMap = {};
+  (data || []).forEach(r => {
+    // Keep the original time the row was recorded; edits are shown in the audit history.
+    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), editedAt: latestAuditMap[r.mssv] || null, category: r.category || '', note: r.note || '' };
+  });
+}
+function showEmpty(){
+  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-off';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đã đóng</span>';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'none';
+  clearInterval(countdownTimer);
+  loadTodayHistory();
+  loadTodaySchoolSchedule();
+}
+function showDashboard(){
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('topbarSessionPill').className = 'session-pill pill-on';
+  document.getElementById('topbarSessionPill').innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
+}
+function renderQR(){
+  if (!currentSession || !currentSession.id || !currentSession.qr_token) return;
+  const canvas = document.getElementById('qrCanvas');
+  if (!canvas) return;
+  canvas.innerHTML = '';
+  const base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '');
+  const url = base + '/checkin.html?s=' + encodeURIComponent(currentSession.id) + '&t=' + encodeURIComponent(currentSession.qr_token);
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(canvas, { text: url, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
+  }
+  if (currentSession.qr_born_at) {
+    document.getElementById('qrBorn').textContent = fmtClock(new Date(currentSession.qr_born_at));
+  }
+}
+async function regenerateQR(){
+  const btn = document.getElementById('btnRefreshQr');
+  btn.disabled = true;
+  const old = btn.innerHTML;
+  btn.innerHTML = '⏳ Đang tạo...';
+  try {
+    let res = await supabase.rpc('admin_regenerate_qr');
+    if (res.error && res.error.code === 'PGRST203' && currentSession?.id) {
+      res = await supabase.rpc('admin_regenerate_qr', { p_session_id: String(currentSession.id) });
+    }
+    const { data, error } = res;
+    if (error || !data?.ok) throw new Error(data?.message || error?.message);
+    if (!currentSession) currentSession = {};
+    currentSession.qr_token = data.qr_token;
+    currentSession.qr_born_at = data.qr_born_at;
+    renderQR();
+    toast('ok', 'Đã đổi mã QR', 'Mã cũ không còn hiệu lực.');
+  } catch(e){ toast('err', 'Đổi QR thất bại', e.message); }
+  finally { btn.disabled = false; btn.innerHTML = old; }
+}
+function toggleFullscreen(){
+  const el = document.getElementById('qrPanel');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen().catch(() => toast('err', 'Không hỗ trợ', 'Trình duyệt chặn.'));
+}
+function updateStats(){
+  const total = students.length;
+  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    if (!a) unmarked++;
+    else if (a.status === 'có mặt') present++;
+    else if (a.status === 'đi muộn') late++;
+    else if (a.status === 'vắng có phép') excused++;
+    else absent++;
+  });
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statPresent').textContent = present;
+  const lateEl = document.getElementById('statLate');
+  if (lateEl) lateEl.textContent = late;
+  document.getElementById('statAbsent').textContent = absent;
+  const excEl = document.getElementById('statExcused');
+  if (excEl) excEl.textContent = excused;
+  const unmEl = document.getElementById('statUnmarked');
+  if (unmEl) unmEl.textContent = unmarked;
+
+  const pct = total ? Math.round(((present + late) / total) * 100) : 0;
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  const fAll = document.querySelector('.filter[data-status="all"] .count');
+  if (fAll) fAll.textContent = total;
+  const fPres = document.querySelector('.filter[data-status="present"] .count');
+  if (fPres) fPres.textContent = present;
+  const fLate = document.querySelector('.filter[data-status="late"] .count');
+  if (fLate) fLate.textContent = late;
+  const fAbs = document.querySelector('.filter[data-status="absent"] .count');
+  if (fAbs) fAbs.textContent = absent;
+  const fExc = document.querySelector('.filter[data-status="excused"] .count');
+  if (fExc) fExc.textContent = excused;
+  const fUnm = document.querySelector('.filter[data-status="unmarked"]');
+  if (fUnm) {
+    const fUnmCount = fUnm.querySelector('.count');
+    if (fUnmCount) fUnmCount.textContent = unmarked;
+    fUnm.style.display = unmarked > 0 ? 'inline-flex' : 'none';
+  }
+}
+function renderTable(){
+  const list = students.filter(s => {
+    const a = attendanceMap[s.mssv];
+    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : (a.status === 'đi muộn' ? 'late' : (a.status === 'vắng có phép' ? 'excused' : 'absent')));
+    const ok1 = currentFilter === 'all' || currentFilter === status;
+    const q = currentSearch.toLowerCase();
+    const ok2 = !q || s.name.toLowerCase().includes(q) || s.mssv.includes(q);
+    return ok1 && ok2;
+  });
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const page = list.slice(start, start + pageSize);
+  const tbody = document.getElementById('studentTbody');
+  if (!page.length){
+    tbody.innerHTML = '<tr><td colspan="4"><div class="tbl-empty"><div class="tbl-empty-icon">🔍</div><b>Không có sinh viên nào</b><span>Thử đổi bộ lọc hoặc từ khoá.</span></div></td></tr>';
+  } else {
+    tbody.innerHTML = page.map(s => {
+      const a = attendanceMap[s.mssv];
+      const rawStatus = a?.status || 'unmarked';
+      const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
+      const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
+      return '<tr>' +
+        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
+        '<td class="td-mono">' + s.mssv + '<br><button onclick="resetStudentPassword(\'' + s.mssv + '\')" style="margin-top:6px;font-size:10.5px;padding:3px 6px;border-radius:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;color:#334155" title="Cấp lại mật khẩu">🔑 Reset Pass</button></td>' +
+        '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
+          (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
+          '<option value="có mặt" ' + (rawStatus==='có mặt'?'selected':'') + '>Có mặt</option>' +
+          '<option value="đi muộn" ' + (rawStatus==='đi muộn'?'selected':'') + '>Đi muộn</option>' +
+          '<option value="vắng có phép" ' + (rawStatus==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
+          '<option value="vắng không phép" ' + (rawStatus==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
+        '</select></td>' +
+        '<td class="td-mono">' + (a?.time || '—') + '</td></tr>';
+    }).join('');
+  }
+  const end = Math.min(start + pageSize, total);
+  document.getElementById('pagerInfo').innerHTML = total === 0 ? 'Không có sinh viên nào'
+    : 'Hiển thị <b>' + (start+1) + '–' + end + '</b> / <b>' + total + '</b>';
+  document.getElementById('pagerNum').innerHTML = '<b>' + currentPage + '</b>/' + totalPages;
+  document.getElementById('pagerPrev').disabled = currentPage <= 1;
+  document.getElementById('pagerNext').disabled = currentPage >= totalPages;
+}
+function renderFeed(){
+  const feed = document.getElementById('feedList');
+  const recent = Object.entries(attendanceMap)
+    .filter(([_, a]) => a.status === 'có mặt' || a.status === 'đi muộn')
+    .sort((a, b) => (b[1].time || '').localeCompare(a[1].time || ''))
+    .slice(0, 5);
+  if (!recent.length){ feed.innerHTML = '<div class="feed-empty">Chưa có ai điểm danh</div>'; return; }
+  feed.innerHTML = recent.map(([mssv, a]) => {
+    const s = students.find(x => x.mssv === mssv);
+    const name = s?.name || mssv;
+    return '<div class="feed-item"><div class="feed-avt">' + name.trim().slice(-1) + '</div><div class="feed-name">' + escapeHtml(name) + '</div><div class="feed-time">' + (a.time || '—') + '</div></div>';
+  }).join('');
+}
+async function openSession(){
+  const name = document.getElementById('quickName').value.trim();
+  const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
+  if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
+  const warn = Math.min(30, Math.max(1, Math.floor(dur / 10)));
+  const { data, error } = await supabase.rpc('admin_open_session', { p_name: name, p_duration_min: dur, p_warn_before_min: warn });
+  if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
+  toast('ok', 'Đã mở phiên', '"' + name + '" — ' + dur + ' phút');
+  await refreshAll();
+}
+
+// Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log
+let _pendingStatusChange = null;
+
+let _currentResetRequestId = null;
+
+async function resetStudentPassword(mssv, requestId = null) {
+  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không?')) return;
+  
+  toast('info', 'Đang xử lý', 'Vui lòng chờ...');
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    
+    if (!token) {
+      throw new Error('Phiên đăng nhập không hợp lệ. Vui lòng tải lại trang.');
+    }
+
+    const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+      body: { target_mssv: mssv },
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    
+    if (error) {
+      let extra = '';
+      if (error.context && typeof error.context.text === 'function') {
+        const bodyText = await error.context.text();
+        extra = '\\n' + bodyText;
+      }
+      throw new Error(error.message + extra);
+    }
+    if (data?.error) throw new Error(data.error);
+    
+    document.getElementById('tempPwdText').innerText = data.tempPassword;
+    document.getElementById('resetPwdModal').classList.add('show');
+    
+    const completeBtn = document.getElementById('btnCompleteReset');
+    if (requestId && completeBtn) {
+      _currentResetRequestId = requestId;
+      completeBtn.style.display = 'inline-block';
+      completeBtn.disabled = false;
+      completeBtn.innerText = 'Đã gửi cho sinh viên';
+    } else if (completeBtn) {
+      completeBtn.style.display = 'none';
+      _currentResetRequestId = null;
+    }
+    
+    toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
+  } catch (err) {
+    console.error('Edge Function Error:', err);
+    toast('err', 'Lỗi reset mật khẩu', err.message);
+  }
+}
+
+async function fetchResetRequests() {
+  const tbody = document.getElementById('requestsTbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>';
+  
+  const { data, error } = await supabase
+    .from('password_reset_requests')
+    .select('id, mssv, created_at')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+    
+  const btn = document.getElementById('btnResetRequests');
+  if (btn) {
+    if (!error && data && data.length > 0) {
+      btn.style.display = 'inline-flex';
+      btn.innerHTML = '🔔 Yêu cầu (' + data.length + ')';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+  
+  if (error || !data || data.length === 0) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Không có yêu cầu nào.</div></td></tr>';
+    return;
+  }
+  
+  if (tbody) {
+    tbody.innerHTML = data.map(req => {
+      const stu = students.find(s => s.mssv === req.mssv);
+      const name = stu ? escapeHtml(stu.name) : '—';
+      return `<tr>
+        <td><b>${name}</b></td>
+        <td class="td-mono">${req.mssv}</td>
+        <td style="text-align:right">
+          <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function openRequestsModal() {
+  fetchResetRequests();
+  document.getElementById('requestsModal')?.classList.add('show');
+}
+
+function closeRequestsModal() {
+  document.getElementById('requestsModal')?.classList.remove('show');
+}
+
+async function completeResetRequest() {
+  if (!_currentResetRequestId) return;
+  const btn = document.getElementById('btnCompleteReset');
+  if (btn) { btn.disabled = true; btn.innerText = 'Đang lưu...'; }
+  
+  const { data, error } = await supabase.rpc('admin_complete_reset_request', { p_request_id: _currentResetRequestId });
+  if (error) {
+    toast('err', 'Lỗi', error.message);
+    if (btn) { btn.disabled = false; btn.innerText = 'Đã gửi cho sinh viên'; }
+    return;
+  }
+  toast('ok', 'Đã xử lý', 'Đã đánh dấu yêu cầu là hoàn thành.');
+  document.getElementById('resetPwdModal').classList.remove('show');
+  _currentResetRequestId = null;
+  fetchResetRequests();
+}
+
+function promptChangeStatus(mssv, newStatus, selectEl){
+  if (!currentSession?.id) {
+    toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
+    if (selectEl) renderTable();
+    return;
+  }
+  const s = students.find(x => x.mssv === mssv);
+  const oldStatus = attendanceMap[mssv]?.status || 'chưa điểm danh';
+  _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
+
+  const modal = document.getElementById('reasonModal');
+  const infoEl = document.getElementById('reasonStudentInfo');
+  const selEl = document.getElementById('reasonModalSelect');
+  const input = document.getElementById('reasonInput');
+
+  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')';
+  if (selEl && newStatus) selEl.value = newStatus;
+  if (input) input.value = '';
+  if (modal) modal.classList.add('show');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+function closeReasonModal(){
+  const modal = document.getElementById('reasonModal');
+  if (modal) modal.classList.remove('show');
+  if (_pendingStatusChange?.selectEl) {
+    renderTable(); // reset select về giá trị cũ
+  }
+  _pendingStatusChange = null;
+}
+async function executeStatusChange(){
+  if (!_pendingStatusChange || !currentSession?.id) return;
+  const { mssv, studentName, oldStatus } = _pendingStatusChange;
+  const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
+  const reason = (document.getElementById('reasonInput')?.value || '').trim();
+  const btn = document.getElementById('reasonConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
+
+  let savedOk = false;
+  let saveErrorMsg = '';
+
+  // 1. Thử gọi RPC admin_set_status trên DB (xử lý đồng thời attendance & audit log)
+  try {
+    const { data, error } = await supabase.rpc('admin_set_status', {
+      p_session_id: String(currentSession.id),
+      p_mssv: mssv,
+      p_status: newStatus,
+      p_reason: reason || null
+    });
+    if (!error && data?.ok) {
+      savedOk = true;
+    } else {
+      saveErrorMsg = data?.message || error?.message || '';
+    }
+  } catch(eRpc) {
+    saveErrorMsg = eRpc.message;
+  }
+
+  // 2. Dự phòng an toàn: nếu RPC chưa có hoặc gặp lỗi SQL, ghi thẳng vào bảng attendance
+  if (!savedOk) {
+    try {
+      const { error: upsertErr } = await supabase.from('attendance').upsert({
+        session_id: currentSession.id,
+        mssv: mssv,
+        full_name: studentName,
+        status: newStatus,
+        category: 'Admin',
+        note: reason || ''
+      }, { onConflict: 'session_id,mssv' });
+
+      if (upsertErr) throw new Error(upsertErr.message);
+      savedOk = true;
+
+      // Cố gắng ghi Audit Log trực tiếp nếu bảng audit logs đã có
+      try {
+        const { data: authData } = await supabase.auth.getSession();
+        const userEmail = authData?.session?.user?.email || 'Admin';
+        await supabase.from('attendance_audit_logs').insert({
+          session_id: currentSession.id,
+          mssv: mssv,
+          student_name: studentName,
+          old_status: oldStatus,
+          new_status: newStatus,
+          changed_by: userEmail,
+          reason: reason || null
+        });
+      } catch(_) { /* bảng audit logs chưa tạo, bỏ qua */ }
+    } catch(directErr) {
+      toast('err', 'Cập nhật thất bại', directErr.message || saveErrorMsg || 'Không thể lưu.');
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+      return;
+    }
+  }
+
+  // 3. Hoàn tất thành công: cập nhật UI ngay lập tức
+  toast('ok', 'Đã cập nhật', studentName + ' → ' + newStatus);
+  const modal = document.getElementById('reasonModal');
+  if (modal) modal.classList.remove('show');
+
+  if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
+  attendanceMap[mssv].status = newStatus;
+  attendanceMap[mssv].editedAt = new Date().toISOString();
+  if (reason) attendanceMap[mssv].note = reason;
+
+  _pendingStatusChange = null;
+  renderAll();
+
+  // Đồng bộ lại nền từ database
+  loadAttendance().then(() => renderAll());
+
+  const tabAudit = document.getElementById('tabAuditLog');
+  if (tabAudit && tabAudit.classList.contains('active')) {
+    loadAuditLogs();
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+}
+window.executeStatusChange = executeStatusChange;
+window.confirmStatusChange = executeStatusChange;
+
+document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeStatusChange);
+document.getElementById('reasonInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') executeStatusChange();
+});
+
+// Chuyển Tabs trong Phiên
+function switchSessionTab(tabName){
+  const tabStudents = document.getElementById('tabBtnStudents');
+  const tabAudit = document.getElementById('tabBtnAudit');
+  const panelStudents = document.getElementById('studentsTabPanel');
+  const panelAudit = document.getElementById('auditLogPanel');
+  if (!tabStudents || !tabAudit) return;
+  if (tabName === 'audit') {
+    tabStudents.classList.remove('active');
+    tabAudit.classList.add('active');
+    if (panelStudents) panelStudents.style.display = 'none';
+    if (panelAudit) panelAudit.style.display = 'block';
+    loadAuditLogs();
+  } else {
+    tabAudit.classList.remove('active');
+    tabStudents.classList.add('active');
+    if (panelAudit) panelAudit.style.display = 'none';
+    if (panelStudents) panelStudents.style.display = 'block';
+  }
+}
+async function loadAuditLogs(){
+  const listEl = document.getElementById('auditLogList');
+  const badgeEl = document.getElementById('auditLogCountBadge');
+  if (!listEl || !currentSession?.id) return;
+  listEl.innerHTML = '<div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px"><span class="spin"></span> Đang tải lịch sử thay đổi...</div>';
+  try {
+    const { data, error } = await supabase.rpc('admin_get_audit_logs', { p_session_id: String(currentSession.id) });
+    if (error || !data?.ok){
+      listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi tải Audit Log: ' + escapeHtml(error?.message || data?.message || 'Không thể tải') + '</div>';
+      return;
+    }
+    const logs = data.logs || [];
+    if (badgeEl) badgeEl.textContent = logs.length;
+    const statusHtml = logs.length ? logs.map(l => {
+      const t = new Date(l.changed_at).toLocaleString('vi-VN');
+      const user = escapeHtml(l.changed_by || 'Admin');
+      const sName = escapeHtml(l.student_name || l.mssv);
+      const oldSt = escapeHtml(l.old_status || 'chưa điểm danh');
+      const newSt = escapeHtml(l.new_status);
+      const reason = l.reason ? '<div class="audit-reason">💬 Lý do: ' + escapeHtml(l.reason) + '</div>' : '';
+      return '<div class="audit-item">' +
+        '<div class="audit-item-top">' +
+          '<span class="audit-item-time">⏱ ' + t + '</span>' +
+          '<span class="audit-item-user">👤 ' + user + '</span>' +
+        '</div>' +
+        '<div class="audit-item-action">' +
+          '<b>' + sName + '</b> (' + escapeHtml(l.mssv) + '): ' +
+          '<span class="audit-badge old">' + oldSt + '</span> ➔ ' +
+          '<span class="audit-badge new">' + newSt + '</span>' +
+        '</div>' +
+        reason +
+      '</div>';
+    }).join('') : '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có thay đổi trạng thái.</div>';
+    let recordHtml = '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có bản ghi chỉnh sửa. Các lần sửa sau khi bật tính năng sẽ được lưu tại đây.</div>';
+    try {
+      const { data: historyData, error: historyError } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(currentSession.id) });
+      if (!historyError && historyData?.ok) {
+        const records = historyData.records || [];
+        if (records.length) recordHtml = records.map(h => {
+          const old = h.old_record || {}, next = h.new_record || {};
+          const time = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
+          const details = (label, value) => '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' + label + ': ' + escapeHtml(value || '—') + '</div>';
+          return '<div class="audit-item"><div class="audit-head"><span class="audit-time">' + time(h.changed_at) + '</span><span class="audit-user">👤 ' + escapeHtml(h.changed_by || 'Admin') + '</span></div>' +
+            '<div class="audit-change"><b>' + escapeHtml(h.student_name || h.mssv) + ' (' + escapeHtml(h.mssv) + ')</b></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Trước khi sửa</b>' +
+              details('Trạng thái', old.status) + details('Giờ điểm danh', time(old.checked_at)) + details('Phân loại', old.category) + details('Ghi chú', old.note) + '</div><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Sau khi sửa</b>' +
+              details('Trạng thái', next.status) + details('Giờ điểm danh', time(next.checked_at)) + details('Phân loại', next.category) + details('Ghi chú', next.note) + '</div></div></div>';
+        }).join('');
+      }
+    } catch (_) { /* the base schema can be migrated independently */ }
+    listEl.innerHTML = '<h3 style="font-size:13px;margin:2px 0 8px">Thay đổi trạng thái</h3><div class="audit-timeline">' + statusHtml + '</div>' +
+      '<h3 style="font-size:13px;margin:18px 0 8px">Lịch sử bản ghi điểm danh (giờ cũ và mới)</h3><div class="audit-timeline">' + recordHtml + '</div>';
+  } catch(e){
+    listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi kết nối: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+let teamGroups = [];
+let selectedTeamId = '';
+let teamAvailabilityTimer = null;
+const TEAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+function vietnamToday(){
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TEAM_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type)?.value || '';
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+function vietnamDayBounds(day = vietnamToday()){
+  const [y,m,d] = day.split('-').map(Number);
+  return { start: new Date(Date.UTC(y, m - 1, d, -7)).toISOString(), end: new Date(Date.UTC(y, m - 1, d + 1, -7)).toISOString() };
+}
+function vietnamTime(value){
+  return new Date(value).toLocaleTimeString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit' });
+}
+function vietnamDateTime(value){
+  return new Date(value).toLocaleString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+}
+function teamStudentOptions(selected = '', includeEmpty = false){
+  return (includeEmpty ? '<option value="">Chọn đội trưởng</option>' : '') + students.map(s =>
+    '<option value="' + escapeHtml(s.mssv) + '" ' + (s.mssv === selected ? 'selected' : '') + '>' + escapeHtml(s.name) + ' · ' + escapeHtml(s.mssv) + '</option>'
+  ).join('');
+}
+async function loadTeamGroups(){
+  const { data, error } = await supabase.from('team_groups').select('id,name,field,leader_mssv,created_at').order('created_at', { ascending: true });
+  if (error) { toast('err', 'Không tải được nhóm', error.message); return; }
+  teamGroups = data || [];
+  const list = document.getElementById('teamGroupsList');
+  document.getElementById('newTeamLeader').innerHTML = teamStudentOptions('', true);
+  document.getElementById('editTeamLeader').innerHTML = teamStudentOptions('', true);
+  document.getElementById('teamMemberPicker').innerHTML = teamStudentOptions();
+  if (!teamGroups.length) {
+    selectedTeamId = '';
+    list.innerHTML = '<div class="schedule-loading">Chưa có nhóm. Bấm “Tạo nhóm” để bắt đầu.</div>';
+    return;
+  }
+
+  const { data: memberships, error: membersError } = await supabase.from('team_group_members').select('team_id,mssv');
+  if (membersError) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(membersError.message) + '</div>'; return; }
+  const allMemberIds = [...new Set((memberships || []).map(m => m.mssv))];
+  const bounds = vietnamDayBounds();
+  let schedules = [];
+  if (allMemberIds.length) {
+    const result = await supabase.from('student_schedules').select('mssv,start_time,end_time')
+      .in('mssv', allMemberIds).lt('start_time', bounds.end).gt('end_time', bounds.start);
+    if (!result.error) schedules = result.data || [];
+  }
+  const membersByTeam = new Map(teamGroups.map(t => [t.id, []]));
+  (memberships || []).forEach(m => membersByTeam.get(m.team_id)?.push(m.mssv));
+  const now = Date.now();
+  const names = Object.fromEntries(students.map(s => [s.mssv, s.name]));
+  list.innerHTML = teamGroups.map(team => {
+    const ids = membersByTeam.get(team.id) || [];
+    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
+    const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
+    return '<button class="team-accordion" onclick="openTeamGroup(\'' + team.id + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
+      '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + escapeHtml(team.field) + ' · Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
+      '<span class="team-accordion-counts"><span class="team-count-pill free">' + (ids.length - busy.size) + ' rảnh</span><span class="team-count-pill busy">' + busy.size + ' bận</span><span aria-hidden="true">›</span></span></button>';
+  }).join('');
+  if (selectedTeamId && document.getElementById('teamModal').classList.contains('show')) await loadTeamAvailability();
+}
+function openCreateTeamModal(){
+  document.getElementById('newTeamName').value = '';
+  document.getElementById('newTeamField').value = '';
+  document.getElementById('teamCreateModal').classList.add('show');
+}
+function closeTeamCreateModal(){ document.getElementById('teamCreateModal').classList.remove('show'); }
+function closeTeamModal(){ document.getElementById('teamModal').classList.remove('show'); selectedTeamId = ''; }
+async function openTeamGroup(id){
+  selectedTeamId = id;
+  const team = teamGroups.find(t => t.id === id);
+  if (!team) return;
+  document.getElementById('teamModalTitle').textContent = team.name;
+  document.getElementById('editTeamName').value = team.name;
+  document.getElementById('editTeamField').value = team.field;
+  document.getElementById('editTeamLeader').value = team.leader_mssv || '';
+  document.getElementById('teamModal').classList.add('show');
+  await loadTeamAvailability();
+}
+async function createTeamGroup(){
+  const name = document.getElementById('newTeamName').value.trim();
+  const field = document.getElementById('newTeamField').value.trim();
+  const leader = document.getElementById('newTeamLeader').value;
+  if (!name || !field || !leader) return toast('warn', 'Thiếu thông tin', 'Nhập tên nhóm, lĩnh vực và chọn đội trưởng.');
+  const { data: authData } = await supabase.auth.getSession();
+  const { data, error } = await supabase.from('team_groups').insert({ name, field, leader_mssv: leader, created_by: authData?.session?.user?.id }).select('id').single();
+  if (error) return toast('err', 'Tạo nhóm thất bại', error.message);
+  document.getElementById('newTeamName').value = '';
+  document.getElementById('newTeamField').value = '';
+  selectedTeamId = data.id;
+  closeTeamCreateModal();
+  toast('ok', 'Đã tạo nhóm', name);
+  await loadTeamGroups();
+  await openTeamGroup(data.id);
+}
+async function saveTeamGroup(){
+  const { error } = await supabase.from('team_groups').update({ name: document.getElementById('editTeamName').value.trim(), field: document.getElementById('editTeamField').value.trim(), leader_mssv: document.getElementById('editTeamLeader').value || null }).eq('id', selectedTeamId);
+  if (error) return toast('err', 'Không lưu được nhóm', error.message);
+  toast('ok', 'Đã lưu nhóm'); await loadTeamGroups();
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (team) document.getElementById('teamModalTitle').textContent = team.name;
+}
+async function deleteTeamGroup(){
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (!team || !confirm('Xóa nhóm “' + team.name + '” cùng danh sách thành viên?')) return;
+  const { error } = await supabase.from('team_groups').delete().eq('id', selectedTeamId);
+  if (error) return toast('err', 'Xóa nhóm thất bại', error.message);
+  closeTeamModal(); toast('ok', 'Đã xóa nhóm', team.name); await loadTeamGroups();
+}
+async function addTeamMember(){
+  const mssv = document.getElementById('teamMemberPicker').value;
+  if (!selectedTeamId || !mssv) return toast('warn', 'Chọn thành viên', 'Vui lòng chọn một thành viên để thêm.');
+  const { error } = await supabase.from('team_group_members').insert({ team_id: selectedTeamId, mssv });
+  if (error) return toast('err', 'Không thêm được thành viên', error.message);
+  await loadTeamGroups();
+}
+async function removeTeamMember(mssv){
+  if (!confirm('Xóa thành viên này khỏi nhóm?')) return;
+  const { error } = await supabase.from('team_group_members').delete().eq('team_id', selectedTeamId).eq('mssv', mssv);
+  if (error) return toast('err', 'Không xóa được thành viên', error.message);
+  await loadTeamGroups();
+}
+async function loadTeamAvailability(){
+  const list = document.getElementById('teamMemberList');
+  const team = teamGroups.find(t => t.id === selectedTeamId);
+  if (!team) return;
+  list.innerHTML = '<div class="schedule-loading">Đang tải thành viên và lịch...</div>';
+  const { data: memberships, error } = await supabase.from('team_group_members').select('mssv').eq('team_id', team.id).order('added_at');
+  if (error) { list.innerHTML = '<div class="schedule-loading">' + escapeHtml(error.message) + '</div>'; return; }
+  const memberIds = (memberships || []).map(m => m.mssv);
+  document.getElementById('teamMemberCount').textContent = memberIds.length + ' thành viên';
+  document.getElementById('teamNowLabel').textContent = 'Bây giờ: ' + vietnamTime(new Date()) + ' · Giờ Việt Nam · tự cập nhật mỗi phút';
+  if (!memberIds.length) { list.innerHTML = '<div class="schedule-loading">Nhóm chưa có thành viên.</div>'; return; }
+  const bounds = vietnamDayBounds();
+  const { data: schedules, error: scheduleError } = await supabase.from('student_schedules')
+    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', bounds.end).gt('end_time', bounds.start).order('start_time');
+  if (scheduleError) { list.innerHTML = '<div class="schedule-loading">Không tải được lịch học: ' + escapeHtml(scheduleError.message) + '</div>'; return; }
+  const byMember = new Map(memberIds.map(id => [id, []]));
+  (schedules || []).forEach(s => byMember.get(s.mssv)?.push(s));
+  const now = Date.now();
+  list.innerHTML = memberIds.map(mssv => {
+    const member = students.find(s => s.mssv === mssv);
+    const allClasses = byMember.get(mssv) || [];
+    const activeClass = allClasses.find(sc => new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
+    const upcoming = allClasses.filter(sc => new Date(sc.start_time).getTime() > now);
+    const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming];
+    const isLeader = team.leader_mssv === mssv;
+    const scheduleHtml = visibleClasses.length ? visibleClasses.map(sc => {
+      const active = sc === activeClass;
+      return '<div class="team-class ' + (active ? '' : 'team-schedule-future') + '">' + (active ? '🔴 Đang học · ' : '📅 Sắp tới · ') + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>';
+    }).join('') : '<div class="team-class">Hôm nay không còn tiết học.</div>';
+    const state = activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
+    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + '</div>';
+  }).join('');
+}
+
+// Mở lại phiên đã đóng (closed -> active)
+function openReopenModal(){
+  const modal = document.getElementById('reopenModal');
+  if (modal) modal.classList.add('show');
+}
+function closeReopenModal(){
+  const modal = document.getElementById('reopenModal');
+  if (modal) modal.classList.remove('show');
+}
+async function executeReopenSession(){
+  if (!currentSession?.id) return;
+  const btn = document.getElementById('reopenConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang mở lại...'; }
+  try {
+    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: String(currentSession.id) });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại phiên');
+    closeReopenModal();
+    toast('ok', 'Đã mở lại phiên', 'Phiên điểm danh hiện đã hoạt động trở lại.');
+    await refreshAll();
+    await loadTodayHistory();
+  } catch(e){
+    toast('err', 'Mở lại thất bại', e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Xác nhận mở lại'; }
+  }
+}
+
+let _bulkCb = null;
+function showBulkModal(title, text, cb){
+  document.getElementById('bulkTitle').textContent = title;
+  document.getElementById('bulkText').innerHTML = text;
+  _bulkCb = cb;
+  document.getElementById('bulkModal').classList.add('show');
+}
+function closeBulkModal(){ document.getElementById('bulkModal').classList.remove('show'); _bulkCb = null; }
+document.getElementById('bulkConfirmBtn').addEventListener('click', () => { if (_bulkCb) _bulkCb(); closeBulkModal(); });
+function confirmMarkAllAbsent(){
+  const list = students.filter(s => !attendanceMap[s.mssv]);
+  if (!list.length) return toast('info', 'Không có SV nào chưa quét');
+  showBulkModal('Đánh dấu vắng?', 'Sẽ đánh dấu <b>' + list.length + ' sinh viên</b> thành "Vắng không phép".', async () => {
+    const { data, error } = await supabase.rpc('admin_batch_set_status', {
+      p_session_id: String(currentSession.id), p_mssv_list: list.map(s => s.mssv), p_status: 'vắng không phép', p_reason: 'Admin đánh dấu vắng tất cả chưa quét'
+    });
+    if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+    toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Vắng');
+    await loadAttendance(); renderAll();
+  });
+}
+function confirmMarkAllPresent(){
+  showBulkModal('Đánh dấu có mặt tất cả?', 'Sẽ đánh dấu <b>TẤT CẢ ' + students.length + ' sinh viên</b> thành "Có mặt".', async () => {
+    const { data, error } = await supabase.rpc('admin_batch_set_status', {
+      p_session_id: String(currentSession.id), p_mssv_list: students.map(s => s.mssv), p_status: 'có mặt', p_reason: 'Admin đánh dấu có mặt cả lớp'
+    });
+    if (error || !data?.ok) return toast('err', 'Lỗi', data?.message || error?.message);
+    toast('ok', 'Đã cập nhật', data.count + ' sinh viên → Có mặt');
+    await loadAttendance(); renderAll();
+  });
+}
+
+function copyAttendanceList() {
+  if (!currentSession) return toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
+  let text = `Danh sách điểm danh: ${currentSession.session_name}\n`;
+  text += `Ngày: ${new Date().toLocaleDateString('vi-VN')}\n\n`;
+  
+  let i = 1;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    const status = a ? a.status : 'Chưa quét';
+    const note = a && a.note ? ` (${a.note})` : '';
+    text += `${i++}. ${s.name} - ${s.mssv} - ${status}${note}\n`;
+  });
+  
+  navigator.clipboard.writeText(text).then(() => {
+    toast('ok', 'Đã copy', 'Danh sách đã được copy vào khay nhớ tạm.');
+  }).catch(() => {
+    toast('err', 'Lỗi copy', 'Trình duyệt không hỗ trợ copy tự động.');
+  });
+}
+function openCloseModal(){
+  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
+  students.forEach(s => {
+    const a = attendanceMap[s.mssv];
+    if (!a) unmarked++;
+    else if (a.status === 'có mặt') present++;
+    else if (a.status === 'đi muộn') late++;
+    else if (a.status === 'vắng có phép') excused++;
+    else absent++;
+  });
+  document.getElementById('modalPresent').textContent = present;
+  document.getElementById('modalAbsent').textContent = absent;
+  document.getElementById('modalUnmarked').textContent = unmarked;
+  const warn = document.getElementById('modalWarnText');
+  if (unmarked > 0){ warn.style.display = 'block'; warn.innerHTML = '💡 Có <b>' + unmarked + ' sinh viên chưa quét</b>. Bạn có thể đánh dấu vắng trước khi đóng.'; }
+  else warn.style.display = 'none';
+  document.getElementById('closeModal').classList.add('show');
+}
+function closeModalFn(){ document.getElementById('closeModal').classList.remove('show'); }
+
+// Đóng phiên TỰ ĐỘNG khi hết giờ (không cần confirm)
+async function autoCloseSession(){
+  clearInterval(countdownTimer);
+  const sid = currentSession?.id ? String(currentSession.id) : null;
+  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
+  if (error || !data?.ok){ toast('err', 'Đóng phiên thất bại', data?.message || error?.message); _closingSession = false; return; }
+  currentSession = null;
+  showEmpty();
+  await loadTodayHistory();
+}
+
+async function confirmDeleteHistory(){
+  if (!confirm('Xóa toàn bộ lịch sử các phiên đã đóng trong 7 ngày qua? Hành động này không thể hoàn tác.')){
+    return;
+  }
+  const { data, error } = await supabase.rpc('admin_delete_history');
+  if (error || !data?.ok){
+    const msg = error ? (error.message || JSON.stringify(error)) : (data?.message || 'Lỗi không xác định');
+    toast('err', 'Xóa thất bại', msg);
+    console.error('Lỗi khi gọi admin_delete_history:', error, data);
+    return;
+  }
+  toast('ok', 'Đã xóa lịch sử', 'Đã xóa các phiên đã đóng.');
+  await loadTodayHistory();
+  if (typeof refreshAll === 'function') await refreshAll();
+  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
+}
+
+async function deleteSpecificSession(sid) {
+  if (!confirm('Xóa phiên điểm danh này? Dữ liệu của phiên cũng sẽ bị xóa. Không thể hoàn tác.')) return;
+  const { data, error } = await supabase.rpc('admin_delete_session', { p_session_id: sid });
+  if (error || (data && !data.ok)) {
+    toast('err', 'Xóa thất bại', error?.message || data?.message || 'Lỗi không xác định');
+    return;
+  }
+  toast('ok', 'Đã xóa', 'Phiên điểm danh đã được xóa.');
+  await loadTodayHistory();
+  if (typeof refreshAll === 'function') await refreshAll();
+  else if (typeof loadAttendance === 'function') { await loadAttendance(); renderAll(); }
+}
+
+// Đóng phiên THỦ CÔNG qua modal xác nhận
+async function confirmCloseSession(){
+  if (_closingSession) return;
+  _closingSession = true;
+  clearInterval(countdownTimer);
+  const sid = currentSession?.id ? String(currentSession.id) : null;
+  const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
+  if (error || !data?.ok){
+    toast('err', 'Đóng phiên thất bại', data?.message || error?.message);
+    _closingSession = false;
+    return;
+  }
+  closeModalFn();
+  toast('ok', 'Đã đóng phiên', 'Lịch sử được lưu trong mục "Lịch sử điểm danh".');
+  currentSession = null;
+  showEmpty();
+  await loadTodayHistory();
+}
+async function loadTodayHistory(){
+  const { data, error } = await supabase.rpc('admin_today_sessions');
+  const wrap = document.getElementById('todayHistoryWrap');
+  const list = document.getElementById('todayHistoryList');
+  const emptyList = document.getElementById('emptyTodayHistoryList');
+  const kpiPresentRateEl = document.getElementById('kpiPresentRate');
+  const kpiAbsentRateEl = document.getElementById('kpiAbsentRate');
+
+  if (error || !data?.ok || !data.sessions?.length){
+    if (wrap) wrap.style.display = 'none';
+    if (emptyList) {
+      emptyList.innerHTML = `
+        <div style="padding:36px 16px;text-align:center;color:var(--muted);font-size:13px">
+          <div style="font-size:26px;margin-bottom:8px">📋</div>
+          <b>Chưa có lịch sử phiên nào</b>
+          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Các phiên điểm danh gần đây sẽ hiển thị tại đây.</p>
+        </div>`;
+    }
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '—%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '—%';
+    return;
+  }
+
+  // Lưu map các phiên để có thể xem lại chi tiết ngay lập tức
+  window._todaySessionsMap = {};
+  data.sessions.forEach(s => { window._todaySessionsMap[s.id] = s; });
+
+  // Tính KPI tổng quan từ các phiên gần nhất
+  let totalPresent = 0;
+  let totalAbsent = 0;
+  data.sessions.forEach(s => {
+    totalPresent += (s.present || 0) + (s.late || 0);
+    totalAbsent += (s.absent || 0);
+  });
+  const grandTotal = totalPresent + totalAbsent;
+  if (grandTotal > 0){
+    const pRate = Math.round((totalPresent / grandTotal) * 100);
+    const aRate = 100 - pRate;
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = pRate + '%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = aRate + '%';
+  } else {
+    if (kpiPresentRateEl) kpiPresentRateEl.textContent = '0%';
+    if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '0%';
+  }
+
+  const itemsHtml = data.sessions.map(s => {
+    const tStart = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+    const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
+    const badge = s.is_open ? '<span class="rk-badge doing">🟢 Đang mở</span>' : '<span class="rk-badge todo">🔴 Đã đóng</span>';
+    const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
+    const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
+    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="today-history-name" style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+          '<span>' + escapeHtml(s.session_name) + '</span>' +
+          badge +
+        '</div>' +
+        '<div class="today-history-meta" style="margin-top:4px">' +
+          d + ' ' + tStart + ' · ' + s.total + ' SV · ' +
+          '<span style="color:var(--ok);font-weight:700">' + s.present + ' có mặt</span>' +
+          lateText +
+          ' · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span>' +
+          excusedText +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px">' +
+        '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
+        (s.is_open
+          ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#dc2626;color:#fff;border:none" onclick="event.stopPropagation();quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
+          : '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
+        '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
+  if (emptyList) { emptyList.innerHTML = itemsHtml; }
+}
+
+async function quickCloseSession(sid){
+  if (!confirm('Đóng phiên điểm danh này? Sinh viên sẽ không thể tiếp tục quét QR.')) return;
+  try {
+    const { data, error } = await supabase.rpc('admin_close_session', { p_session_id: sid });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể đóng phiên');
+    toast('ok', 'Đã đóng phiên', 'Phiên đã chuyển sang trạng thái đã đóng.');
+    if (currentSession?.id && String(currentSession.id) === String(sid)) {
+      currentSession = null;
+      showEmpty();
+    }
+    await loadTodayHistory();
+    if (typeof refreshAll === 'function') await refreshAll();
+  } catch(e){
+    toast('err', 'Đóng phiên thất bại', e.message);
+  }
+}
+
+async function quickReopenSession(sid){
+  if (!confirm('Bạn có chắc muốn mở lại phiên điểm danh này?')) return;
+  try {
+    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: sid });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại');
+    toast('ok', 'Đã mở lại phiên', 'Phiên đã chuyển sang trạng thái đang hoạt động.');
+    await refreshAll();
+    await loadTodayHistory();
+  } catch(e){
+    toast('err', 'Lỗi', e.message);
+  }
+}
+
+async function loadTodaySchoolSchedule(){
+  const listEl = document.getElementById('todaySchoolScheduleList');
+  const countBadge = document.getElementById('todaySchoolScheduleCount');
+  const kpiBusyEl = document.getElementById('kpiBusyCount');
+  if (!listEl) return;
+
+  try {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const startStr = `${y}-${m}-${d}T00:00:00`;
+    const endStr = `${y}-${m}-${d}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('student_schedules')
+      .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
+      .gte('start_time', startStr)
+      .lte('start_time', endStr)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error('Lỗi khi tải lịch học trường:', error);
+      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">Không thể tải lịch học trường</div>';
+      return;
+    }
+
+    const items = data || [];
+    const studentMap = {};
+    (students || []).forEach(s => { studentMap[s.mssv] = s.name; });
+
+    const busyMssvs = new Set(items.map(s => s.mssv));
+    const busyCount = busyMssvs.size;
+
+    if (countBadge) countBadge.textContent = busyCount + ' bạn';
+    if (kpiBusyEl) kpiBusyEl.textContent = busyCount;
+
+    if (items.length === 0){
+      listEl.innerHTML = `
+        <div style="padding:28px 16px;text-align:center;color:var(--muted);font-size:13px">
+          <div style="font-size:26px;margin-bottom:6px">🎉</div>
+          <b>Hôm nay cả đội không vướng lịch học trường!</b>
+          <p style="font-size:12px;margin-top:4px;color:var(--faint)">Tất cả thành viên đều có thể tham gia xưởng đầy đủ.</p>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = items.map(sc => {
+      const sName = studentMap[sc.mssv] || sc.mssv;
+      const tStart = new Date(sc.start_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const tEnd = new Date(sc.end_time).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const room = sc.room_name ? `<span class="room-chip">${escapeHtml(sc.room_name)}</span>` : '';
+      return `
+        <div class="schedule-mini-item">
+          <div class="sc-item-header">
+            <span class="sc-student-name">${escapeHtml(sName)}</span>
+            <span class="sc-student-mssv">${escapeHtml(sc.mssv)}</span>
+          </div>
+          <div class="sc-item-subject">📚 ${escapeHtml(sc.subject_name)}</div>
+          <div class="sc-item-meta">
+            <span>⏱ ${tStart} – ${tEnd}</span>
+            ${room}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('loadTodaySchoolSchedule error:', err);
+  }
+}
+
+async function syncSchedulesFromME(isAuto = false){
+  const btn = document.getElementById('btnSyncME');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang đồng bộ...'; }
+  if (!isAuto) toast('info', 'Đang kết nối ME...', 'Đang kéo lịch học của ' + (students?.length || 31) + ' sinh viên...');
+
+  try {
+    const list = students && students.length ? students : [
+      { mssv: '123000555' }, { mssv: '123000078' }, { mssv: '125001579' }, { mssv: '124000534' },
+      { mssv: '125001875' }, { mssv: '124000737' }, { mssv: '125001809' }, { mssv: '124001238' },
+      { mssv: '124001851' }, { mssv: '124000354' }, { mssv: '124001589' }, { mssv: '125000568' },
+      { mssv: '125002381' }, { mssv: '123000651' }, { mssv: '125001648' }, { mssv: '125000372' },
+      { mssv: '123000722' }, { mssv: '123001058' }, { mssv: '123000185' }, { mssv: '123000872' },
+      { mssv: '125000798' }, { mssv: '123001188' }, { mssv: '125000550' }, { mssv: '123000432' },
+      { mssv: '123000375' }, { mssv: '123001394' }, { mssv: '125000890' }, { mssv: '125001087' },
+      { mssv: '124001273' }, { mssv: '122000426' }, { mssv: '125001343' }
+    ];
+
+    const allSchedules = [];
+    const dateStr = new Date().toISOString();
+    const chunkSize = 6;
+
+    for (let i = 0; i < list.length; i += chunkSize) {
+      const chunk = list.slice(i, i + chunkSize);
+      const promises = chunk.map(async s => {
+        try {
+          const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ StudentID: s.mssv, Ngay: dateStr, PageIndex: 1, PageSize: 100 })
+          });
+          if (!res.ok) return [];
+          const json = await res.json();
+          const items = json.data?.[2] || [];
+          return items.map(c => {
+            let t_bd = c.ThoiGianBD;
+            let t_kt = c.ThoiGianKT;
+            if (t_bd && !t_bd.includes('+07') && !t_bd.includes('Z')) t_bd += '+07:00';
+            if (t_kt && !t_kt.includes('+07') && !t_kt.includes('Z')) t_kt += '+07:00';
+            return {
+              mssv: s.mssv,
+              subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
+              room_name: (c.TenPhong || 'Online').trim(),
+              teacher_name: (c.GiaoVien || '').trim(),
+              start_time: t_bd,
+              end_time: t_kt,
+              day_of_week: c.Thu || 0
+            };
+          });
+        } catch(e) {
+          console.warn('Lỗi lấy lịch MSSV ' + s.mssv, e);
+          return [];
+        }
+      });
+
+      const chunkResults = await Promise.all(promises);
+      chunkResults.forEach(r => allSchedules.push(...r));
+    }
+
+    if (!allSchedules.length) {
+      throw new Error('Không thể kết nối cổng ME trường LHU hoặc không có dữ liệu trả về.');
+    }
+
+    const { data, error } = await supabase.rpc('admin_sync_student_schedules', {
+      p_schedules: allSchedules
+    });
+
+    if (error || !data?.ok) {
+      throw new Error(data?.message || error?.message || 'Lỗi khi lưu vào Supabase');
+    }
+
+    localStorage.setItem('last_me_sync', Date.now().toString());
+    toast('ok', 'Đã đồng bộ xong!', 'Đã cập nhật ' + data.count + ' tiết học từ ME trường LHU.');
+    await loadTodaySchoolSchedule();
+  } catch(err) {
+    console.error('syncSchedulesFromME error:', err);
+    toast('err', 'Đồng bộ thất bại', err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
+function startCountdown(){
+  clearInterval(countdownTimer);
+  tickCountdown();
+  countdownTimer = setInterval(tickCountdown, 1000);
+}
+function tickCountdown(){
+  if (!currentSession) return;
+  const chip = document.getElementById('countdownChip');
+  const txt = document.getElementById('countdownText');
+  const warnEl = document.getElementById('qrWarning');
+  if (!currentSession.duration_min){ txt.textContent = '∞'; chip.className = 'countdown-chip'; warnEl.classList.remove('show'); return; }
+  const start = new Date(currentSession.started_at).getTime();
+  const end = start + currentSession.duration_min * 60000;
+  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
+  const warn = (currentSession.warn_before_min || 5) * 60;
+  if (left === 0){
+    txt.textContent = '00:00'; chip.className = 'countdown-chip danger'; warnEl.classList.add('show');
+    if (!_closingSession){ _closingSession = true; toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.'); autoCloseSession(); }
+    return;
+  }
+  txt.textContent = fmtTime(left);
+  if (left <= warn){ chip.className = 'countdown-chip danger'; warnEl.classList.add('show'); }
+  else if (left <= warn * 2){ chip.className = 'countdown-chip warn'; warnEl.classList.remove('show'); }
+  else { chip.className = 'countdown-chip'; warnEl.classList.remove('show'); }
+}
+function setupRealtime(){
+  if (realtimeChannel) { supabase.removeChannel(realtimeChannel); }
+  realtimeChannel = supabase.channel('admin-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async payload => {
+      if (!currentSession) return;
+      if (payload.new && payload.new.session_id !== currentSession.id) return;
+      await loadAttendance(); renderAll();
+      if (payload.eventType === 'INSERT' && payload.new.mssv && !_lastMssvSet.has(payload.new.mssv)){
+        _lastMssvSet.add(payload.new.mssv);
+        const s = students.find(x => x.mssv === payload.new.mssv);
+        toast('ok', 'SV vừa điểm danh', (s?.name || payload.new.mssv) + ' · ' + fmtClock(new Date()));
+      }
+    }).subscribe();
+}
+function renderAll(){ updateStats(); renderTable(); renderFeed(); }
+async function refreshAll(){
+  await loadSession();
+  if (!currentSession){ showEmpty(); return; }
+  const mainGrid = document.querySelector('.main-grid');
+  if (mainGrid) mainGrid.style.gridTemplateColumns = '';
+  const qrPanel = document.getElementById('qrPanel');
+  if (qrPanel) qrPanel.style.display = '';
+  const dz = document.querySelector('.danger-zone');
+  if (dz) dz.style.display = 'flex';
+  const btnClose = document.getElementById('btnCloseSession');
+  if (btnClose) btnClose.style.display = '';
+  const btnReopen = document.getElementById('btnReopenSession');
+  if (btnReopen) btnReopen.style.display = 'none';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'none';
+  const chip = document.getElementById('countdownChip');
+  if (chip) chip.style.display = 'inline-flex';
+  const sPill = document.getElementById('sessionBarPill');
+  if (sPill) {
+    sPill.className = 'session-pill pill-on';
+    sPill.innerHTML = '<span class="net-dot"></span>Đang mở';
+  }
+  const topbarPill = document.getElementById('topbarSessionPill');
+  if (topbarPill) {
+    topbarPill.className = 'session-pill pill-on';
+    topbarPill.innerHTML = '<span class="net-dot"></span><span>Đang mở</span>';
+  }
+  showDashboard();
+  switchSessionTab('students');
+  document.getElementById('sessionBarName').textContent = currentSession.session_name;
+  document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
+  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
+  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
+  _lastMssvSet = new Set();
+  await loadAttendance();
+  Object.keys(attendanceMap).forEach(m => _lastMssvSet.add(m));
+  renderQR(); renderAll(); startCountdown();
+  _closingSession = false;
+}
+
+window.backFromPastSession = async function() {
+  await refreshAll();
+};
+
+window.viewPastSession = async function(sid) {
+  let s = (window._todaySessionsMap && window._todaySessionsMap[sid]) || null;
+  if (s && s.is_open) {
+    await refreshAll();
+    return;
+  }
+  if (!s) {
+    try {
+      const { data } = await supabase.from('sessions').select('*').eq('id', sid).maybeSingle();
+      if (data) s = data;
+    } catch(e) {
+      console.warn('Cannot fetch from sessions table:', e);
+    }
+  }
+  if (!s) {
+    s = { id: sid, session_name: 'Phiên điểm danh', started_at: new Date().toISOString() };
+  }
+  currentSession = s;
+  showDashboard();
+
+  const topbarPill = document.getElementById('topbarSessionPill');
+  if (topbarPill) {
+    topbarPill.className = 'session-pill pill-off';
+    topbarPill.innerHTML = '<span class="net-dot"></span><span>Xem lịch sử</span>';
+  }
+
+  const mainGrid = document.querySelector('.main-grid');
+  if (mainGrid) mainGrid.style.gridTemplateColumns = '1fr';
+  const qrPanel = document.getElementById('qrPanel');
+  if (qrPanel) qrPanel.style.display = 'none';
+  const dz = document.querySelector('.danger-zone');
+  if (dz) dz.style.display = 'none';
+  const btnClose = document.getElementById('btnCloseSession');
+  if (btnClose) btnClose.style.display = 'none';
+  const btnReopenPast = document.getElementById('btnReopenSession');
+  if (btnReopenPast) btnReopenPast.style.display = 'inline-flex';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) btnBack.style.display = 'inline-flex';
+  const chip = document.getElementById('countdownChip');
+  if (chip) chip.style.display = 'none';
+
+  const sPill = document.getElementById('sessionBarPill');
+  if (sPill) {
+    sPill.className = 'session-pill pill-off';
+    sPill.innerHTML = '<span class="net-dot"></span>Đã đóng';
+  }
+  document.getElementById('sessionBarName').textContent = currentSession.session_name || 'Phiên đã đóng';
+  document.getElementById('sessionStartTime').textContent = currentSession.started_at ? new Date(currentSession.started_at).toLocaleString('vi-VN') : '—';
+  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
+  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : '—';
+
+  currentFilter = 'all';
+  currentPage = 1;
+  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.status === 'all'));
+  switchSessionTab('students');
+
+  await loadAttendance();
+  renderAll();
+  clearInterval(countdownTimer);
+};
+document.addEventListener('DOMContentLoaded', async () => {
+  const user = await checkAuth();
+  if (!user) return;
+  await loadStudents();
+  const kpiTotalEl = document.getElementById('kpiTotalStudents');
+  if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
+  await loadTeamGroups();
+  if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
+  teamAvailabilityTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') loadTeamGroups();
+  }, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadTeamGroups();
+  });
+  await refreshAll();
+  await loadTodayHistory();
+  await loadTodaySchoolSchedule();
+  fetchResetRequests();
+  setupRealtime();
+
+  // Tự động kiểm tra và đồng bộ ngầm từ ME nếu dữ liệu cũ hơn 24 giờ
+  const lastSync = parseInt(localStorage.getItem('last_me_sync') || '0', 10);
+  if (Date.now() - lastSync > 24 * 3600 * 1000) {
+    setTimeout(() => syncSchedulesFromME(true), 2500);
+  }
+
+  document.getElementById('filters').addEventListener('click', e => {
+    const btn = e.target.closest('.filter');
+    if (!btn) return;
+    document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.status;
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('searchInput').addEventListener('input', e => {
+    currentSearch = e.target.value.trim();
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('pagerSize').addEventListener('change', e => {
+    pageSize = parseInt(e.target.value, 10);
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('pagerPrev').addEventListener('click', () => { currentPage = Math.max(1, currentPage - 1); renderTable(); });
+  document.getElementById('pagerNext').addEventListener('click', () => { currentPage++; renderTable(); });
+
+  window.addEventListener('online', () => {
+    document.getElementById('netBadge').className = 'net-badge net-online';
+    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Online</span>';
+    document.getElementById('offlineBanner').classList.remove('show');
+  });
+  window.addEventListener('offline', () => {
+    document.getElementById('netBadge').className = 'net-badge net-offline';
+    document.getElementById('netBadge').innerHTML = '<span class="net-dot"></span><span>Offline</span>';
+    document.getElementById('offlineBanner').classList.add('show');
+  });
+
+  pollTimer = setInterval(() => { if (currentSession) loadAttendance().then(renderAll); }, 30000);
+
+  // Cleanup khi tab bị đóng/navigate đi
+  window.addEventListener('beforeunload', () => {
+    clearInterval(countdownTimer);
+    clearInterval(pollTimer);
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+  });
+});
+</script>
+</body>
+</html>
