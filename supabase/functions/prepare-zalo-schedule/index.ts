@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.14.0";
 
 const timeZone = "Asia/Ho_Chi_Minh";
 const periodSpecs = [
-  { key: "morning", label: "SÁNG", from: "05:00", to: "11:59", start: "05:00", end: "12:00" },
-  { key: "afternoon", label: "CHIỀU", from: "12:00", to: "17:59", start: "12:00", end: "18:00" },
-  { key: "evening", label: "TỐI", from: "18:00", to: "23:59", start: "18:00", end: "00:00" },
+  { key: "morning", label: "SÁNG", from: "07:30", to: "11:25", start: "07:30", end: "11:25" },
+  { key: "afternoon", label: "CHIỀU", from: "12:50", to: "16:45", start: "12:50", end: "16:45" },
+  { key: "evening", label: "TỐI", from: "17:30", to: "20:50", start: "17:30", end: "20:50" },
 ];
 
 function json(data: unknown, status = 200) {
@@ -28,9 +28,7 @@ function vietnamDateKey(date = new Date(), dayOffset = 0) {
 }
 
 function isoAtVietnamTime(dateKey: string, time: string) {
-  const day = time === "00:00" ? new Date(`${dateKey}T12:00:00+07:00`) : null;
-  const base = day ? vietnamDateKey(day, 1) : dateKey;
-  return new Date(`${base}T${time}:00+07:00`).getTime();
+  return new Date(`${dateKey}T${time}:00+07:00`).getTime();
 }
 
 function normalizeMeDateTime(value: unknown) {

@@ -1,0 +1,15 @@
+{
+  "name": "zalo-auto-schedule",
+  "version": "1.0.0",
+  "description": "Tự động gửi lịch rảnh/bận vào nhóm Zalo xưởng Robocon qua GitHub Actions",
+  "main": "send_schedule.js",
+  "scripts": {
+    "login": "node login.js",
+    "send": "node send_schedule.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "qrcode-terminal": "^0.12.0",
+    "zca-js": "^1.4.3"
+  }
+}

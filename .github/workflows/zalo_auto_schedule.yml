@@ -1,0 +1,37 @@
+name: Tự động gửi lịch Zalo xưởng Robocon 20:00
+
+on:
+  schedule:
+    # 13:00 UTC = 20:00 Giờ Việt Nam (UTC+7) mỗi ngày
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Cho phép bấm nút test chạy ngay trên GitHub bất cứ lúc nào
+
+jobs:
+  send-zalo-schedule:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Tải mã nguồn
+        uses: actions/checkout@v4
+
+      - name: 🟢 Cài đặt Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: 'zalo_automation/package.json'
+
+      - name: 📦 Cài đặt thư viện Zalo Bot
+        run: |
+          cd zalo_automation
+          npm install
+
+      - name: 🚀 Quét lịch và gửi tin nhắn Zalo xưởng
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://nhjkpknhybenkxwadvzv.supabase.co' }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8' }}
+          ZALO_CREDENTIALS: ${{ secrets.ZALO_CREDENTIALS }}
+          ZALO_GROUP_ID: ${{ secrets.ZALO_GROUP_ID }}
+        run: |
+          cd zalo_automation
+          node send_schedule.js
