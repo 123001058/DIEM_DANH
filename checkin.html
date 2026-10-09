@@ -202,6 +202,11 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
       </div>
     </section>
 
+    <section class="history" style="margin-top:14px">
+      <button class="history-toggle" onclick="toggleRulesPanel(this)"><span>📜 Luật & nội quy xưởng</span><span class="chev">⌄</span></button>
+      <div class="history-list" id="studentRulesList"><div class="history-empty">Đang tải nội quy...</div></div>
+    </section>
+
     <div style="text-align:center;margin-top:14px">
       <button type="button" style="background:none;border:none;color:var(--info);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px" onclick="document.getElementById('fbModal').style.display='flex'">💬 Gửi phản hồi ẩn danh cho xưởng</button>
     </div>
@@ -473,6 +478,13 @@ function logoutStudent(){
   supabase.auth.signOut().then(() => location.href = 'index.html');
 }
 function toggleTasksPanel(btn){btn.classList.toggle('open');document.getElementById('myTasksList')?.classList.toggle('open');}
+function toggleRulesPanel(btn){btn.classList.toggle('open');document.getElementById('studentRulesList')?.classList.toggle('open');}
+async function loadStudentRules(){
+  const box=document.getElementById('studentRulesList');if(!box)return;
+  const {data,error}=await supabase.from('workshop_rules').select('id,title,content').order('created_at',{ascending:true});
+  if(error){box.innerHTML='<div class="history-empty">Không tải được nội quy. Vui lòng thử tải lại trang.</div>';return;}
+  box.innerHTML=(data||[]).length?(data||[]).map(r=>`<article style="padding:12px;border-bottom:1px solid var(--border)"><b style="font-size:12px">${escapeHtml(r.title)}</b><div style="font-size:12px;color:var(--muted);line-height:1.55;margin-top:5px;white-space:pre-wrap">${escapeHtml(r.content)}</div></article>`).join(''):'<div class="history-empty">Chưa có nội quy nào.</div>';
+}
 async function loadMyTasks(){
   const box=document.getElementById('myTasksList');if(!box)return;
   const {data,error}=await supabase.rpc('get_my_tasks');
@@ -495,11 +507,13 @@ async function init(){
   if (savedCat) catSel.value = savedCat;
   if (!await loadProfile()) return;
   await loadMyTasks();
+  await loadStudentRules();
   await loadSession();
   const url = new URL(location.href);
   const t = url.searchParams.get('t');
   if (t){ sessionToken = t; updateScanBtn(); }
   setInterval(loadSession, 15000);
+  setInterval(() => { if(document.visibilityState==='visible'){loadMyTasks();loadStudentRules();} }, 60*1000);
   document.getElementById('note').addEventListener('keydown', e => { if (e.key === 'Enter') doCheckin(); });
   supabase.channel('session_changes')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions' }, payload => {

@@ -752,7 +752,7 @@ tbody tr:last-child td { border-bottom: none; }
     <button class="sidebar-nav-item" id="nav-tasks" onclick="navTo('tasks')">
       <span class="nav-icon">📌</span>
       <span class="nav-label">Nhiệm vụ</span>
-      <span class="nav-badge" id="navTasksBadge">5</span>
+      <span class="nav-badge" id="navTasksBadge">0</span>
     </button>
     <button class="sidebar-nav-item" id="nav-schedules" onclick="navTo('schedules')">
       <span class="nav-icon">📅</span>
@@ -905,9 +905,7 @@ tbody tr:last-child td { border-bottom: none; }
             </div>
           </div>
 
-          <div class="rules-list" id="roboconRulesList">
-            <!-- Dynamically populated from localStorage/default -->
-          </div>
+          <div class="rules-list" id="roboconRulesList"><div class="schedule-loading">Đang tải quy định...</div></div>
         </section>
 
         <!-- Bố cục 2 cột Tổng quan -->
@@ -948,7 +946,6 @@ tbody tr:last-child td { border-bottom: none; }
                   <span class="count-badge" id="todaySchoolScheduleCount">0 bạn</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px">
-                  <button class="btn btn-secondary" id="btnSyncME" onclick="syncSchedulesFromME()" style="padding:4px 9px;font-size:11.5px;font-weight:700" title="Kéo dữ liệu thời khóa biểu mới nhất từ cổng thông tin ME của trường LHU">🔄 Đồng bộ ME</button>
                   <a href="lichhoc.html" class="widget-link" title="Xem thời khóa biểu chi tiết">Xem TKB →</a>
                 </div>
               </div>
@@ -1171,10 +1168,10 @@ tbody tr:last-child td { border-bottom: none; }
 
       <div class="tasks-tabs">
         <button class="tasks-tab active" id="tabTaskGroup" onclick="switchTaskTab('group')">
-          👥 Nhiệm vụ chung (Nhóm/Xưởng) <span class="count-badge" id="countGroupTasks">3</span>
+          👥 Nhiệm vụ chung (Nhóm/Xưởng) <span class="count-badge" id="countGroupTasks">0</span>
         </button>
         <button class="tasks-tab" id="tabTaskPersonal" onclick="switchTaskTab('personal')">
-          👤 Nhiệm vụ cá nhân <span class="count-badge" id="countPersonalTasks">2</span>
+          👤 Nhiệm vụ cá nhân <span class="count-badge" id="countPersonalTasks">0</span>
         </button>
       </div>
 
@@ -1183,9 +1180,6 @@ tbody tr:last-child td { border-bottom: none; }
           <label>Nhóm:</label>
           <select id="taskFilterGroup" onchange="applyTaskFilters()">
             <option value="all">Tất cả nhóm</option>
-            <option value="Cơ khí">Đội Cơ khí</option>
-            <option value="Lập trình">Đội Lập trình - AI</option>
-            <option value="Mạch - Điện">Đội Phần cứng - Điện tử</option>
           </select>
         </div>
 
@@ -1215,69 +1209,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="tasks-grid" id="tasksListGrid"><div class="empty-state">Đang tải nhiệm vụ...</div>
-        <div class="task-card" data-type="group" data-group="Cơ khí" data-status="doing" data-priority="high">
-          <div class="task-card-top">
-            <span class="task-title">Gia công khung gầm Robot tự hành v2</span>
-            <span class="task-badge-priority priority-high">Cao 🔥</span>
-          </div>
-          <p class="task-desc">Cắt nhôm định hình 2020, phay mặt bích động cơ bước và lắp ráp hoàn chỉnh hệ thống treo bánh omni.</p>
-          <div class="task-meta-grid">
-            <div class="task-meta-row"><span class="task-meta-lbl">Người giao</span><span class="task-meta-val">Admin (Võ Duy Khang)</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Nhóm / Lĩnh vực</span><span class="task-meta-val">Đội Cơ khí</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">Toàn đội Cơ khí (4 SV)</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val" style="color:var(--err)">12/10/2026</span></div>
-          </div>
-          <div class="task-card-footer">
-            <span class="task-status-chip status-doing">⏳ Đang làm</span>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-sm" onclick="showTaskDetail('Gia công khung gầm Robot tự hành v2', 'Cắt nhôm định hình 2020, phay mặt bích động cơ bước và lắp ráp hoàn chỉnh hệ thống treo bánh omni.', 'Đội Cơ khí', 'Toàn đội Cơ khí', 'Cao', '12/10/2026', 'Đang làm')">Chi tiết</button>
-              <button class="btn btn-sm btn-success" onclick="quickUpdateTaskStatus(this, 'done')">✓ Hoàn tất</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="task-card" data-type="group" data-group="Lập trình" data-status="doing" data-priority="high">
-          <div class="task-card-top">
-            <span class="task-title">Tối ưu thuật toán quét LiDAR & Định vị SLAM</span>
-            <span class="task-badge-priority priority-high">Cao 🔥</span>
-          </div>
-          <p class="task-desc">Xử lý lọc nhiễu pointcloud từ cảm biến LiDAR RPLIDAR A1 và kết hợp bộ lọc Kalman cho IMU 9 trục.</p>
-          <div class="task-meta-grid">
-            <div class="task-meta-row"><span class="task-meta-lbl">Người giao</span><span class="task-meta-val">Đội trưởng (Huỳnh Tuấn Tú)</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Nhóm / Lĩnh vực</span><span class="task-meta-val">Lập trình - AI</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">Cả nhóm Lập trình</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val">15/10/2026</span></div>
-          </div>
-          <div class="task-card-footer">
-            <span class="task-status-chip status-doing">⏳ Đang làm</span>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-sm" onclick="showTaskDetail('Tối ưu thuật toán quét LiDAR & Định vị SLAM', 'Xử lý lọc nhiễu pointcloud từ cảm biến LiDAR RPLIDAR A1 và kết hợp bộ lọc Kalman cho IMU 9 trục.', 'Lập trình - AI', 'Cả nhóm Lập trình', 'Cao', '15/10/2026', 'Đang làm')">Chi tiết</button>
-              <button class="btn btn-sm btn-success" onclick="quickUpdateTaskStatus(this, 'done')">✓ Hoàn tất</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="task-card" data-type="personal" data-group="Cơ khí" data-status="doing" data-priority="med">
-          <div class="task-card-top">
-            <span class="task-title">Vẽ 3D cụm gắp bóng khí nén trên SolidWorks</span>
-            <span class="task-badge-priority priority-med">Trung bình</span>
-          </div>
-          <p class="task-desc">Thiết kế ngàm kẹp 3 chấu ăn khớp xi lanh dẫn hướng SMC và xuất file in 3D nhựa PETG.</p>
-          <div class="task-meta-grid">
-            <div class="task-meta-row"><span class="task-meta-lbl">Người giao</span><span class="task-meta-val">Đội trưởng Cơ khí</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Nhóm</span><span class="task-meta-val">Cơ khí</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">Dương Công Mạnh (125001343)</span></div>
-            <div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val">11/10/2026</span></div>
-          </div>
-          <div class="task-card-footer">
-            <span class="task-status-chip status-doing">⏳ Đang làm</span>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-sm" onclick="showTaskDetail('Vẽ 3D cụm gắp bóng khí nén trên SolidWorks', 'Thiết kế ngàm kẹp 3 chấu ăn khớp xi lanh dẫn hướng SMC và xuất file in 3D nhựa PETG.', 'Cơ khí', 'Dương Công Mạnh (125001343)', 'Trung bình', '11/10/2026', 'Đang làm')">Chi tiết</button>
-              <button class="btn btn-sm btn-success" onclick="quickUpdateTaskStatus(this, 'done')">✓ Xong</button>
-            </div>
-          </div>
-        </div>
+      <div class="tasks-grid" id="tasksListGrid"><div class="empty-state">Chọn mục Nhiệm vụ để tải dữ liệu.</div>
       </div>
     </section>
 
@@ -1292,7 +1224,7 @@ tbody tr:last-child td { border-bottom: none; }
             <p class="widget-sub">Đối chiếu ca học để tự động phân phép khi mở xưởng</p>
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
+            <button class="btn btn-secondary" id="btnSyncME" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
             <a href="lichhoc.html" class="btn btn-primary">Xem lưới TKB chi tiết →</a>
           </div>
         </div>
@@ -1383,73 +1315,20 @@ tbody tr:last-child td { border-bottom: none; }
          VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION)
          ========================================================== -->
     <section class="app-view" id="view-zalo">
-      <div style="margin-bottom:16px">
-        <h2 style="font-size:16.5px;font-weight:800;letter-spacing:-0.01em">🤖 Cài đặt tự động gửi lịch rảnh ngày mai lên Zalo</h2>
-        <p style="font-size:12px;color:var(--muted);margin-top:2px">Tự động tổng hợp danh sách thành viên rảnh vào ngày mai và gửi tin nhắn lên nhóm Zalo xưởng vào khung giờ cố định.</p>
-      </div>
-
-      <div class="zalo-grid">
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <section class="card" style="padding:20px 22px">
-            <div class="switch-wrap">
-              <label class="switch-control">
-                <input type="checkbox" id="zaloAutoToggle" onchange="toggleZaloAuto(this.checked)">
-                <span class="switch-slider"></span>
-              </label>
-              <div>
-                <b style="font-size:13.5px;display:block" id="zaloSwitchLabel">Tự động gửi lịch hàng ngày: ĐANG TẮT</b>
-                <span style="font-size:11.5px;color:var(--muted)">Tài khoản Zalo cá nhân chưa có API gửi nhóm tự động; bạn có thể tạo nội dung để sao chép gửi thủ công.</span>
-              </div>
-            </div>
-
-            <div class="form-field" style="margin-bottom:12px">
-              <label for="zaloSendHour">Khung giờ gửi hàng ngày:</label>
-              <input type="time" id="zaloSendHour" value="20:00" style="font-weight:700;font-size:15px;width:160px">
-            </div>
-
-            <div class="form-field" style="margin-bottom:16px">
-              <label for="zaloGroupSelect">Nhóm Zalo nhận thông báo:</label>
-              <input id="zaloGroupSelect" type="text" placeholder="Không cần nhập nếu dùng Zalo cá nhân">
-            </div>
-            <div class="form-field" style="margin-bottom:16px"><label for="zaloGroupLabel">Tên nhóm hiển thị:</label><input id="zaloGroupLabel" type="text" placeholder="Ví dụ: Nhóm xưởng Robocon"></div>
-
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" onclick="saveZaloSettings()">💾 Lưu cấu hình</button>
-              <button class="btn btn-secondary" onclick="simulateZaloSend()">📋 Tạo nội dung để gửi</button>
-            </div>
-          </section>
-
-          <section class="card" style="padding:20px 22px">
-            <h3 style="font-size:14px;font-weight:800;margin-bottom:12px">📜 Lịch sử các lần tự động gửi tin</h3>
-            <div class="tbl-wrap">
-              <table>
-                <thead><tr><th>Thời gian</th><th>Nhóm nhận</th><th>Trạng thái</th></tr></thead>
-                <tbody id="zaloHistoryTbody">
-                  <tr><td>Hôm nay 20:00</td><td>—</td><td>Chưa có dữ liệu gửi</td></tr>
-
-                </tbody>
-              </table>
-            </div>
-          </section>
+      <section class="card" style="max-width:860px;margin:0 auto;padding:22px">
+        <div style="margin-bottom:16px">
+          <h2 style="font-size:17px;font-weight:800">📋 Lịch rảnh ngày mai để gửi Zalo</h2>
+          <p style="font-size:12px;color:var(--muted);margin-top:5px">Bấm nút để lấy thời khóa biểu ngày mai mới nhất từ ME, cập nhật Supabase, rồi sao chép nội dung để bạn tự gửi vào nhóm Zalo.</p>
         </div>
-
-        <div>
-          <section class="card" style="padding:20px 22px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div class="widget-title">📱 Khung xem trước tin nhắn Zalo</div>
-              <button class="btn btn-sm" onclick="generateZaloPreviewText()">↻ Cập nhật mẫu</button>
-            </div>
-
-            <div class="zalo-bubble">
-              <div class="zalo-bubble-badge">💬 Tin nhắn Zalo Bot</div>
-<div id="zaloMessagePreview">Bấm “Cập nhật mẫu” để tổng hợp lịch ngày mai từ dữ liệu đã đồng bộ.</div>
-            </div>
-          </section>
+        <button class="btn btn-primary" id="zaloSyncCopyButton" onclick="syncAndCopyTomorrowSchedule()">🔄 Đồng bộ lịch ngày mai & sao chép</button>
+        <div class="zalo-bubble" style="margin-top:16px;white-space:pre-wrap">
+          <div class="zalo-bubble-badge">📱 Nội dung để dán vào Zalo</div>
+          <div id="zaloMessagePreview">Bấm nút đồng bộ để cập nhật lịch mới nhất.</div>
         </div>
-      </div>
+      </section>
     </section>
 
-    <!-- ==========================================================
+        <!-- ==========================================================
          VIEW 8: LỊCH SỬ (HISTORY)
          ========================================================== -->
     <section class="app-view" id="view-history">
@@ -1819,7 +1698,6 @@ function navTo(viewName) {
   else if (viewName === 'requests' && typeof fetchResetRequests === 'function') fetchResetRequests();
   else if (viewName === 'tasks') loadAdminTasks();
   else if (viewName === 'feedback') loadAdminFeedback();
-  else if (viewName === 'zalo') loadZaloSettings();
 }
 
 function toggleSidebar() {
@@ -1868,113 +1746,44 @@ const DEFAULT_ROBOCON_RULES = [
   }
 ];
 
-function getRoboconRules() {
-  try {
-    const saved = localStorage.getItem('robocon_rules_notes');
-    if (saved) return JSON.parse(saved);
-  } catch (e) {
-    console.warn('Cannot parse robocon rules', e);
+let roboconRulesCache = [];
+function getRoboconRules(){return roboconRulesCache;}
+function renderRoboconRules(){
+  const container=document.getElementById('roboconRulesList');if(!container)return;
+  if(!roboconRulesCache.length){container.innerHTML='<div style="padding:18px;text-align:center;color:var(--muted);font-size:13px">Chưa có quy định nào được ghi lại.</div>';return;}
+  container.innerHTML=roboconRulesCache.map(r=>`<div class="rule-item" id="rule_item_${r.id}"><div class="rule-item-content"><div class="rule-item-title">${escapeHtml(r.title)}</div><div class="rule-item-desc">${escapeHtml(r.desc)}</div></div><div class="rule-item-actions"><button class="btn btn-sm btn-secondary" onclick="openEditRuleModal('${r.id}')" title="Chỉnh sửa">✏️ Sửa</button><button class="btn btn-sm btn-danger" onclick="deleteRoboconRule('${r.id}')" title="Xóa">🗑 Xóa</button></div></div>`).join('');
+}
+async function loadRoboconRules(){
+  const container=document.getElementById('roboconRulesList');if(container)container.innerHTML='<div class="schedule-loading">Đang tải quy định…</div>';
+  const {data,error}=await supabase.from('workshop_rules').select('id,title,content,created_at').order('created_at',{ascending:true});
+  if(error){if(container)container.innerHTML='<div class="schedule-loading">Không tải được quy định: '+escapeHtml(error.message)+'</div>';return;}
+  let rows=data||[];
+  if(!rows.length){
+    let seed=DEFAULT_ROBOCON_RULES;
+    try{const legacy=JSON.parse(localStorage.getItem('robocon_rules_notes')||'null');if(Array.isArray(legacy)&&legacy.length)seed=legacy;}catch{}
+    const {data:inserted,error:seedError}=await supabase.from('workshop_rules').insert(seed.map(r=>({title:r.title,content:r.desc}))).select('id,title,content,created_at');
+    if(seedError){if(container)container.innerHTML='<div class="schedule-loading">Không khởi tạo được quy định: '+escapeHtml(seedError.message)+'</div>';return;}
+    rows=inserted||[];
   }
-  return DEFAULT_ROBOCON_RULES;
+  roboconRulesCache=rows.map(r=>({id:r.id,title:r.title,desc:r.content}));renderRoboconRules();
 }
 
-function saveRoboconRulesArray(arr) {
-  localStorage.setItem('robocon_rules_notes', JSON.stringify(arr));
-  renderRoboconRules();
+function openAddRuleModal(){document.getElementById('editRuleId').value='';document.getElementById('ruleModalHeading').textContent='Thêm quy định / ghi chú mới';document.getElementById('ruleTitleInput').value='';document.getElementById('ruleContentInput').value='';document.getElementById('ruleEditModal')?.classList.add('show');}
+function openEditRuleModal(ruleId){const rule=getRoboconRules().find(x=>x.id===ruleId);if(!rule)return;document.getElementById('editRuleId').value=rule.id;document.getElementById('ruleModalHeading').textContent='Chỉnh sửa quy định / ghi chú';document.getElementById('ruleTitleInput').value=rule.title;document.getElementById('ruleContentInput').value=rule.desc;document.getElementById('ruleEditModal')?.classList.add('show');}
+function closeRuleEditModal(){document.getElementById('ruleEditModal')?.classList.remove('show');}
+async function saveRoboconRule(){
+  const id=document.getElementById('editRuleId').value.trim(),title=document.getElementById('ruleTitleInput').value.trim(),content=document.getElementById('ruleContentInput').value.trim();
+  if(!title||!content){toast('warn','Thiếu thông tin','Vui lòng điền tiêu đề và nội dung quy định.');return;}
+  const result=id?await supabase.from('workshop_rules').update({title,content,updated_at:new Date().toISOString()}).eq('id',id):await supabase.from('workshop_rules').insert({title,content});
+  if(result.error){toast('err','Chưa lưu được',result.error.message);return;}
+  closeRuleEditModal();await loadRoboconRules();toast('ok',id?'Đã cập nhật luật':'Đã thêm luật','Sinh viên sẽ xem được sau khi tải lại hoặc đồng bộ trang.');
 }
-
-function renderRoboconRules() {
-  const container = document.getElementById('roboconRulesList');
-  if (!container) return;
-  const rules = getRoboconRules();
-
-  if (!rules || rules.length === 0) {
-    container.innerHTML = `
-      <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">
-        <div style="font-size:24px;margin-bottom:6px">📝</div>
-        <b>Chưa có quy định nào được ghi lại.</b>
-        <p style="font-size:12px;margin-top:2px;color:var(--faint)">Bấm "+ Thêm quy định / Ghi chú" để tạo mới.</p>
-      </div>`;
-    return;
-  }
-
-  container.innerHTML = rules.map((r, idx) => `
-    <div class="rule-item" id="rule_item_${r.id}">
-      <div class="rule-item-content">
-        <div class="rule-item-title">${escapeHtml(r.title)}</div>
-        <div class="rule-item-desc">${escapeHtml(r.desc)}</div>
-      </div>
-      <div class="rule-item-actions">
-        <button class="btn btn-sm btn-secondary" onclick="openEditRuleModal('${r.id}')" title="Chỉnh sửa">✏️ Sửa</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteRoboconRule('${r.id}')" title="Xóa">🗑 Xóa</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function openAddRuleModal() {
-  document.getElementById('editRuleId').value = '';
-  document.getElementById('ruleModalHeading').textContent = 'Thêm quy định / ghi chú mới';
-  document.getElementById('ruleTitleInput').value = '';
-  document.getElementById('ruleContentInput').value = '';
-  document.getElementById('ruleEditModal')?.classList.add('show');
-}
-
-function openEditRuleModal(ruleId) {
-  const rules = getRoboconRules();
-  const rule = rules.find(x => x.id === ruleId);
-  if (!rule) return;
-  document.getElementById('editRuleId').value = rule.id;
-  document.getElementById('ruleModalHeading').textContent = 'Chỉnh sửa quy định / ghi chú';
-  document.getElementById('ruleTitleInput').value = rule.title;
-  document.getElementById('ruleContentInput').value = rule.desc;
-  document.getElementById('ruleEditModal')?.classList.add('show');
-}
-
-function closeRuleEditModal() {
-  document.getElementById('ruleEditModal')?.classList.remove('show');
-}
-
-function saveRoboconRule() {
-  const id = document.getElementById('editRuleId').value.trim();
-  const title = document.getElementById('ruleTitleInput').value.trim();
-  const desc = document.getElementById('ruleContentInput').value.trim();
-
-  if (!title || !desc) {
-    toast('warn', 'Thiếu thông tin', 'Vui lòng điền đầy đủ tiêu đề và nội dung quy định.');
-    return;
-  }
-
-  let rules = getRoboconRules();
-  if (id) {
-    const idx = rules.findIndex(x => x.id === id);
-    if (idx !== -1) {
-      rules[idx].title = title;
-      rules[idx].desc = desc;
-    }
-    toast('ok', 'Đã lưu', 'Cập nhật quy định điểm danh thành công.');
-  } else {
-    const newId = 'r_' + Date.now().toString(36);
-    rules.unshift({ id: newId, title, desc });
-    toast('ok', 'Đã thêm mới', 'Quy định / Ghi chú mới đã được thêm vào bảng.');
-  }
-
-  saveRoboconRulesArray(rules);
-  closeRuleEditModal();
-}
-
-function deleteRoboconRule(ruleId) {
-  if (!confirm('Bạn có chắc muốn xóa quy định / ghi chú này?')) return;
-  let rules = getRoboconRules();
-  rules = rules.filter(x => x.id !== ruleId);
-  saveRoboconRulesArray(rules);
-  toast('ok', 'Đã xóa', 'Đã xóa quy định khỏi bảng.');
-}
-
-function resetDefaultRoboconRules() {
-  if (!confirm('Khôi phục lại 5 quy định điểm danh mẫu của xưởng Robocon?')) return;
-  saveRoboconRulesArray(DEFAULT_ROBOCON_RULES);
-  toast('ok', 'Đã khôi phục', 'Đã nạp lại nội quy điểm danh Robocon mặc định.');
+async function deleteRoboconRule(ruleId){if(!confirm('Bạn có chắc muốn xóa quy định này?'))return;const {error}=await supabase.from('workshop_rules').delete().eq('id',ruleId);if(error){toast('err','Chưa xóa được',error.message);return;}await loadRoboconRules();toast('ok','Đã xóa','Quy định đã được gỡ khỏi trang sinh viên.');}
+async function resetDefaultRoboconRules(){
+  if(!confirm('Khôi phục lại 5 quy định mẫu? Các quy định hiện tại sẽ bị thay thế.'))return;
+  const {error:delError}=await supabase.from('workshop_rules').delete().not('id','is',null);if(delError){toast('err','Không thể khôi phục',delError.message);return;}
+  const {error}=await supabase.from('workshop_rules').insert(DEFAULT_ROBOCON_RULES.map(r=>({title:r.title,content:r.desc})));if(error){toast('err','Không thể khôi phục',error.message);return;}
+  await loadRoboconRules();toast('ok','Đã khôi phục','Đã thay thế bằng 5 quy định mẫu.');
 }
 
 /* ==========================================================
@@ -2024,6 +1833,9 @@ async function loadAdminTasks() {
   ]);
   if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được nhiệm vụ.')+'</div>';return;}
   const all= data.tasks||[]; window.adminTaskRows=all; window.adminTaskGroups=groups||[];
+  document.getElementById('navTasksBadge').textContent=all.length;
+  document.getElementById('countGroupTasks').textContent=all.filter(t=>t.scope==='group').length;
+  document.getElementById('countPersonalTasks').textContent=all.filter(t=>t.scope==='personal').length;
   const groupSel=document.getElementById('taskNewGroup'); if(groupSel) groupSel.innerHTML=(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)} · ${escapeHtml(g.field)}</option>`).join('');
   const filters=document.getElementById('taskFilterGroup'); if(filters) filters.innerHTML='<option value="all">Tất cả nhóm</option>'+(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
   const memberSelect=document.getElementById('taskNewAssignee');
@@ -2053,22 +1865,41 @@ async function submitStudentFeedback(){toast('warn','Gửi từ tài khoản sin
 async function loadAdminFeedback(){const box=document.getElementById('feedbackList');if(!box)return;const {data,error}=await supabase.rpc('admin_get_anonymous_feedback');if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được phản hồi.')+'</div>';return;}const labels={gopy:'💡 Góp ý',suco:'⚠️ Sự cố',muasam:'🛠 Mua sắm',khac:'💬 Khác'};const rows=data.items||[];box.innerHTML=rows.length?rows.map(x=>`<article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}"><div class="fb-item-top"><span class="fb-anon-tag">🔒 Ẩn danh ${escapeHtml(x.code)}</span><span class="fb-type-badge type-${x.type}">${labels[x.type]||x.type}</span></div><div class="fb-text">${escapeHtml(x.content)}</div><div class="fb-item-bottom"><span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span><div style="display:flex;gap:6px;align-items:center"><span class="task-status-chip status-${x.status==='resolved'?'done':'doing'}">${x.status==='new'?'Mới nhận':x.status==='seen'?'Đã xem':'Đã xử lý'}</span>${x.status!=='resolved'?`<button class="btn btn-sm btn-success" onclick="markFeedbackResolved('${x.id}')">✓ Đánh dấu đã xử lý</button>`:''}</div></div></article>`).join(''):'<div class="empty-state">Chưa có phản hồi.</div>';applyFeedbackFilters();}
 async function markFeedbackResolved(id){if(id instanceof HTMLElement)id=id.closest('.fb-item')?.dataset.id;if(!id)return;const {data,error}=await supabase.rpc('admin_update_anonymous_feedback',{p_id:id,p_status:'resolved'});if(error||!data?.ok){toast('error','Chưa cập nhật được',error?.message||data?.message||'');return;}await loadAdminFeedback();toast('ok','Đã xử lý','Trạng thái phản hồi đã được lưu.');}
 function applyFeedbackFilters(){const type=document.getElementById('fbFilterType')?.value||'all',st=document.getElementById('fbFilterStatus')?.value||'all';document.querySelectorAll('#feedbackList .fb-item').forEach(x=>x.style.display=(type==='all'||x.dataset.type===type)&&(st==='all'||x.dataset.status===st)?'flex':'none');}
-async function loadZaloSettings(){const [{data:s}, {data:l}]=await Promise.all([supabase.rpc('admin_get_zalo_settings'),supabase.rpc('admin_get_zalo_logs')]);const cfg=s?.settings;if(cfg){document.getElementById('zaloAutoToggle').checked=!!cfg.auto_enabled;document.getElementById('zaloSendHour').value=(cfg.send_time||'20:00').slice(0,5);document.getElementById('zaloGroupSelect').value=cfg.group_id||'';document.getElementById('zaloGroupLabel').value=cfg.group_label||'';const label=document.getElementById('zaloSwitchLabel');if(label)label.textContent='Tự động gửi: Chưa khả dụng với Zalo cá nhân';}const body=document.getElementById('zaloHistoryTbody');if(body)body.innerHTML=(l?.logs||[]).map(x=>`<tr><td>${new Date(x.sent_at).toLocaleString('vi-VN')}</td><td>${escapeHtml(x.group_label||'—')}</td><td>${escapeHtml(x.status)} · ${x.free_count} rảnh / ${x.busy_count} bận ${x.error?escapeHtml(x.error):''}</td></tr>`).join('')||'<tr><td colspan="3">Chưa có lần gửi nào.</td></tr>';}
-function toggleZaloAuto(){const input=document.getElementById('zaloAutoToggle');if(input)input.checked=false;toast('warn','Chưa khả dụng','Gửi tự động cần tích hợp Zalo OA. Bạn vẫn có thể tạo nội dung để tự gửi.');}
-async function saveZaloSettings(){if(document.getElementById('zaloAutoToggle').checked){toast('warn','Chưa thể bật tự động','Zalo cá nhân không cung cấp API gửi tin nhắn nhóm tự động cho ứng dụng này. Hãy tắt tự động; nội dung lịch vẫn tạo và sao chép được.');return;}const {data,error}=await supabase.rpc('admin_save_zalo_settings',{p_enabled:document.getElementById('zaloAutoToggle').checked,p_send_time:document.getElementById('zaloSendHour').value+':00',p_group_id:document.getElementById('zaloGroupSelect').value.trim(),p_group_label:document.getElementById('zaloGroupLabel')?.value.trim()||''});if(error||!data?.ok){toast('error','Chưa lưu được',error?.message||data?.message||'');return;}toast(data.schedule_ready?'ok':'warn','Đã lưu cấu hình',data.message||'Đã lưu.');await loadZaloSettings();}
-async function generateZaloPreviewText(){
-  const el=document.getElementById('zaloMessagePreview');if(!el)return;el.textContent='Đang tổng hợp lịch ngày mai…';
-  const nowParts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=k=>Number(nowParts.find(x=>x.type===k).value);const midnight=Date.UTC(part('year'),part('month')-1,part('day'))-7*3600000;const from=new Date(midnight+86400000).toISOString(),to=new Date(midnight+2*86400000).toISOString();
-  const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([supabase.from('team_group_members').select('mssv,students(name)').limit(1000),supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time').lt('start_time',to).gte('end_time',from).order('start_time')]);
-  if(e1||e2){el.textContent='Không tải được lịch: '+(e1?.message||e2?.message);return;}
-  const byId=new Map();(schedules||[]).forEach(x=>{const a=byId.get(x.mssv)||[];a.push(x);byId.set(x.mssv,a)});const list=[...new Map((members||[]).map(m=>[m.mssv,m])).values()];const free=list.filter(m=>!byId.has(m.mssv)),busy=list.filter(m=>byId.has(m.mssv));const tomorrow=new Date(midnight+86400000).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit'});
-  const lines=[`LỊCH RẢNH NGÀY MAI · ${tomorrow}`,`Tổng thành viên: ${list.length} · Rảnh: ${free.length} · Bận: ${busy.length}`,'',`RẢNH (${free.length}):`,...(free.length?free.map(m=>`• ${m.students?.name||m.mssv} (${m.mssv})`):['• Không có']), '',`BẬN (${busy.length}):`,...(busy.length?busy.map(m=>`• ${m.students?.name||m.mssv}: ${byId.get(m.mssv).map(x=>`${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}-${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} ${x.subject_name}${x.room_name?' · '+x.room_name:''}`).join('; ')}`):['• Không có'])];el.textContent=lines.join('\n');
+function getVietnamDateKey(offsetDays=0){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const val=k=>Number(parts.find(p=>p.type===k).value);
+  return new Date(Date.UTC(val('year'),val('month')-1,val('day')+offsetDays)).toISOString().slice(0,10);
 }
-async function simulateZaloSend(){await generateZaloPreviewText();const content=document.getElementById('zaloMessagePreview')?.textContent||'';try{await navigator.clipboard.writeText(content);toast('ok','Đã sao chép nội dung','Mở Zalo cá nhân, vào nhóm rồi dán và gửi tin nhắn.');}catch{toast('info','Đã tạo nội dung','Bạn có thể chọn và sao chép nội dung trong khung xem trước rồi gửi từ Zalo.');}}
-
-
-setTimeout(() => { if (typeof renderRoboconRules === 'function') renderRoboconRules(); }, 200);
-
+async function generateZaloPreviewText(dateKey=getVietnamDateKey(1)){
+  const el=document.getElementById('zaloMessagePreview');if(!el)return false;el.textContent='Đang đọc lịch đã đồng bộ…';
+  const from=new Date(`${dateKey}T00:00:00+07:00`).toISOString(),to=new Date(new Date(from).getTime()+86400000).toISOString();
+  const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([
+    supabase.from('team_group_members').select('mssv,students(name)').limit(1000),
+    supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time').lt('start_time',to).gte('end_time',from).order('start_time')
+  ]);
+  if(e1||e2){el.textContent='Không đọc được lịch: '+(e1?.message||e2?.message);return false;}
+  const byId=new Map();(schedules||[]).forEach(x=>{const a=byId.get(x.mssv)||[];a.push(x);byId.set(x.mssv,a)});
+  const list=[...new Map((members||[]).map(m=>[m.mssv,m])).values()];
+  if(!list.length){el.textContent='Chưa có thành viên nhóm. Hãy tạo nhóm và thêm thành viên trước.';return false;}
+  const free=list.filter(m=>!byId.has(m.mssv)),busy=list.filter(m=>byId.has(m.mssv));
+  const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+  const lines=[`LỊCH RẢNH NGÀY MAI · ${day}`,`Tổng thành viên: ${list.length} · Rảnh: ${free.length} · Bận: ${busy.length}`,'',`RẢNH (${free.length}):`,...(free.length?free.map(m=>`• ${m.students?.name||m.mssv} (${m.mssv})`):['• Không có']), '',`BẬN (${busy.length}):`,...(busy.length?busy.map(m=>`• ${m.students?.name||m.mssv}: ${byId.get(m.mssv).map(x=>`${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}-${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} ${x.subject_name}${x.room_name?' · '+x.room_name:''}`).join('; ')}`):['• Không có'])];
+  el.textContent=lines.join('\\n');return true;
+}
+async function syncAndCopyTomorrowSchedule(){
+  const btn=document.getElementById('zaloSyncCopyButton');if(!btn)return;const old=btn.innerHTML;btn.disabled=true;
+  try{
+    const dateKey=getVietnamDateKey(1);btn.innerHTML='<span class="spin"></span> Đang đồng bộ ME…';
+    const synced=await syncSchedulesFromME(true,dateKey,true,btn,true);
+    if(!synced)return;
+    btn.innerHTML='<span class="spin"></span> Đang tạo nội dung…';
+    if(!await generateZaloPreviewText(dateKey))return;
+    const content=document.getElementById('zaloMessagePreview').textContent;
+    await navigator.clipboard.writeText(content);
+    toast('ok','Đã đồng bộ và sao chép','Đã lấy lịch ngày mai mới nhất từ ME. Mở nhóm Zalo rồi dán tin nhắn.');
+  }catch(e){toast('warn','Đã tạo bản xem trước','Lịch đã đồng bộ. Nếu không tự sao chép được, hãy chọn và sao chép nội dung trong khung.');}
+  finally{btn.disabled=false;btn.innerHTML=old;}
+}
 
 let currentSession = null;
 let students = [];
@@ -3174,88 +3005,59 @@ async function loadTodaySchoolSchedule(){
   }
 }
 
-async function syncSchedulesFromME(isAuto = false){
-  const btn = document.getElementById('btnSyncME');
-  const oldText = btn ? btn.innerHTML : '';
-  if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang đồng bộ...'; }
-  if (!isAuto) toast('info', 'Đang kết nối ME...', 'Đang kéo lịch học của ' + (students?.length || 31) + ' sinh viên...');
-
-  try {
-    const list = students && students.length ? students : [
-      { mssv: '123000555' }, { mssv: '123000078' }, { mssv: '125001579' }, { mssv: '124000534' },
-      { mssv: '125001875' }, { mssv: '124000737' }, { mssv: '125001809' }, { mssv: '124001238' },
-      { mssv: '124001851' }, { mssv: '124000354' }, { mssv: '124001589' }, { mssv: '125000568' },
-      { mssv: '125002381' }, { mssv: '123000651' }, { mssv: '125001648' }, { mssv: '125000372' },
-      { mssv: '123000722' }, { mssv: '123001058' }, { mssv: '123000185' }, { mssv: '123000872' },
-      { mssv: '125000798' }, { mssv: '123001188' }, { mssv: '125000550' }, { mssv: '123000432' },
-      { mssv: '123000375' }, { mssv: '123001394' }, { mssv: '125000890' }, { mssv: '125001087' },
-      { mssv: '124001273' }, { mssv: '122000426' }, { mssv: '125001343' }
+async function syncSchedulesFromME(isAuto=false,targetDate=null,preserveOtherDays=false,sourceButton=null,quietSuccess=false){
+  const btn=sourceButton||document.getElementById('btnSyncME');const oldText=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Đang đồng bộ…';}
+  if(!isAuto)toast('info','Đang kết nối ME…','Đang lấy thời khóa biểu '+(targetDate?'ngày '+targetDate:'mới nhất')+' cho '+(students?.length||31)+' sinh viên.');
+  try{
+    const list=students?.length?students:[
+      {mssv:'123000555'},{mssv:'123000078'},{mssv:'125001579'},{mssv:'124000534'},
+      {mssv:'125001875'},{mssv:'124000737'},{mssv:'125001809'},{mssv:'124001238'},
+      {mssv:'124001851'},{mssv:'124000354'},{mssv:'124001589'},{mssv:'125000568'},
+      {mssv:'125002381'},{mssv:'123000651'},{mssv:'125001648'},{mssv:'125000372'},
+      {mssv:'123000722'},{mssv:'123001058'},{mssv:'123000185'},{mssv:'123000872'},
+      {mssv:'125000798'},{mssv:'123001188'},{mssv:'125000550'},{mssv:'123000432'},
+      {mssv:'123000375'},{mssv:'123001394'},{mssv:'125000890'},{mssv:'125001087'},
+      {mssv:'124001273'},{mssv:'122000426'},{mssv:'125001343'}
     ];
-
-    const allSchedules = [];
-    const dateStr = new Date().toISOString();
-    const chunkSize = 6;
-
-    for (let i = 0; i < list.length; i += chunkSize) {
-      const chunk = list.slice(i, i + chunkSize);
-      const promises = chunk.map(async s => {
-        try {
-          const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({ StudentID: s.mssv, Ngay: dateStr, PageIndex: 1, PageSize: 100 })
+    const allSchedules=[];let successfulCalendarResponses=0;
+    const requestDate=targetDate?`${targetDate}T00:00:00+07:00`:new Date().toISOString();
+    for(let i=0;i<list.length;i+=6){
+      const chunk=list.slice(i,i+6);
+      const results=await Promise.all(chunk.map(async student=>{
+        try{
+          const res=await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien',{method:'POST',headers:{'Content-Type':'application/json; charset=utf-8'},body:JSON.stringify({StudentID:student.mssv,Ngay:requestDate,PageIndex:1,PageSize:100})});
+          if(!res.ok)return [];
+          const json=await res.json(),items=json.data?.[2]??[];if(!Array.isArray(items))return [];
+          successfulCalendarResponses++;
+          return items.map(c=>{
+            let start=c.ThoiGianBD,end=c.ThoiGianKT;
+            if(start&&!start.includes('+07')&&!start.endsWith('Z'))start+='+07:00';
+            if(end&&!end.includes('+07')&&!end.endsWith('Z'))end+='+07:00';
+            return {mssv:student.mssv,subject_name:(c.TenMonHoc||'Chưa rõ').trim(),room_name:(c.TenPhong||'Online').trim(),teacher_name:(c.GiaoVien||'').trim(),start_time:start,end_time:end,day_of_week:c.Thu||0};
           });
-          if (!res.ok) return [];
-          const json = await res.json();
-          const items = json.data?.[2] || [];
-          return items.map(c => {
-            let t_bd = c.ThoiGianBD;
-            let t_kt = c.ThoiGianKT;
-            if (t_bd && !t_bd.includes('+07') && !t_bd.includes('Z')) t_bd += '+07:00';
-            if (t_kt && !t_kt.includes('+07') && !t_kt.includes('Z')) t_kt += '+07:00';
-            return {
-              mssv: s.mssv,
-              subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
-              room_name: (c.TenPhong || 'Online').trim(),
-              teacher_name: (c.GiaoVien || '').trim(),
-              start_time: t_bd,
-              end_time: t_kt,
-              day_of_week: c.Thu || 0
-            };
-          });
-        } catch(e) {
-          console.warn('Lỗi lấy lịch MSSV ' + s.mssv, e);
-          return [];
-        }
-      });
-
-      const chunkResults = await Promise.all(promises);
-      chunkResults.forEach(r => allSchedules.push(...r));
+        }catch(e){console.warn('Lỗi lấy lịch MSSV '+student.mssv,e);return [];}
+      }));
+      results.forEach(rows=>allSchedules.push(...rows));
     }
-
-    if (!allSchedules.length) {
-      throw new Error('Không thể kết nối cổng ME trường LHU hoặc không có dữ liệu trả về.');
+    if(!successfulCalendarResponses)throw new Error('Không kết nối được ME hoặc ME không trả dữ liệu hợp lệ.');
+    if(preserveOtherDays&&targetDate){
+      const dateRows=allSchedules.filter(r=>r.start_time&&new Date(r.start_time).toLocaleDateString('en-CA',{timeZone:'Asia/Ho_Chi_Minh'})===targetDate);
+      const {data,error}=await supabase.rpc('admin_sync_student_schedules_for_date',{p_schedules:dateRows,p_date:targetDate});
+      if(error||!data?.ok)throw new Error(data?.message||error?.message||'Không thể cập nhật lịch ngày đã chọn.');
+      if(!quietSuccess)toast('ok','Lịch ngày mai đã cập nhật',`Đồng bộ ${data.count} tiết học ngày ${targetDate} từ ME.`);
+    }else{
+      if(!allSchedules.length)throw new Error('ME không trả về lịch học để đồng bộ.');
+      const {data,error}=await supabase.rpc('admin_sync_student_schedules',{p_schedules:allSchedules});
+      if(error||!data?.ok)throw new Error(data?.message||error?.message||'Lỗi khi lưu vào Supabase.');
+      localStorage.setItem('last_me_sync',Date.now().toString());
+      toast('ok','Đã đồng bộ xong!',`Đã cập nhật ${data.count} tiết học từ ME.`);
     }
-
-    const { data, error } = await supabase.rpc('admin_sync_student_schedules', {
-      p_schedules: allSchedules
-    });
-
-    if (error || !data?.ok) {
-      throw new Error(data?.message || error?.message || 'Lỗi khi lưu vào Supabase');
-    }
-
-    localStorage.setItem('last_me_sync', Date.now().toString());
-    toast('ok', 'Đã đồng bộ xong!', 'Đã cập nhật ' + data.count + ' tiết học từ ME trường LHU.');
     await loadTodaySchoolSchedule();
-  } catch(err) {
-    console.error('syncSchedulesFromME error:', err);
-    toast('err', 'Đồng bộ thất bại', err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
-  }
+    return true;
+  }catch(err){console.error('syncSchedulesFromME error:',err);toast('err','Đồng bộ thất bại',err.message);return false;}
+  finally{if(btn){btn.disabled=false;btn.innerHTML=oldText;}}
 }
-
 function startCountdown(){
   clearInterval(countdownTimer);
   tickCountdown();
@@ -3403,6 +3205,7 @@ window.viewPastSession = async function(sid) {
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await checkAuth();
   if (!user) return;
+  await loadRoboconRules();
   await loadStudents();
   const kpiTotalEl = document.getElementById('kpiTotalStudents');
   if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
