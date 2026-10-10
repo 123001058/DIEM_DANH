@@ -3550,6 +3550,7 @@ async function loadTodayHistory(){
           : '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
         '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
       '</div>' +
+      '<div class="past-session-detail" data-session-detail="' + escapeHtml(String(s.id)) + '" onclick="event.stopPropagation()"></div>' +
     '</div>';
   }).join('');
 
@@ -3970,67 +3971,26 @@ window.backFromPastSession = async function() {
 };
 
 window.viewPastSession = async function(sid) {
-  // The session dashboard lives in the attendance view. Navigate there before
-  // rendering it so clicks from the separate history view become visible.
-  navTo('attendance');
-  let s = (window._todaySessionsMap && window._todaySessionsMap[sid]) || null;
-  if (s && s.is_open) {
-    await refreshAll();
+  const targets = Array.from(document.querySelectorAll('.past-session-detail'))
+    .filter(el => el.dataset.sessionDetail === String(sid));
+  if (!targets.length) return;
+  const alreadyOpen = targets.some(el => el.dataset.loaded === 'true');
+  if (alreadyOpen) {
+    targets.forEach(el => { el.innerHTML = ''; el.dataset.loaded = 'false'; });
     return;
   }
-  if (!s) {
-    try {
-      const { data } = await supabase.from('sessions').select('*').eq('id', sid).maybeSingle();
-      if (data) s = data;
-    } catch(e) {
-      console.warn('Cannot fetch from sessions table:', e);
-    }
+  targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Đang tải chi tiết phiên...</div>'; });
+  const { data, error } = await supabase.from('attendance')
+    .select('mssv, full_name, status, category, note, created_at')
+    .eq('session_id', sid)
+    .order('mssv');
+  if (error) {
+    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--err)">Không tải được chi tiết phiên: ' + escapeHtml(error.message) + '</div>'; });
+    return;
   }
-  if (!s) {
-    s = { id: sid, session_name: 'Phiên điểm danh', started_at: new Date().toISOString() };
-  }
-  currentSession = s;
-  showDashboard();
-
-  const topbarPill = document.getElementById('topbarSessionPill');
-  if (topbarPill) {
-    topbarPill.className = 'session-pill pill-off';
-    topbarPill.innerHTML = '<span class="net-dot"></span><span>Xem lịch sử</span>';
-  }
-
-  const mainGrid = document.querySelector('.main-grid');
-  if (mainGrid) mainGrid.style.gridTemplateColumns = '1fr';
-  const qrPanel = document.getElementById('qrPanel');
-  if (qrPanel) qrPanel.style.display = 'none';
-  const dz = document.querySelector('.danger-zone');
-  if (dz) dz.style.display = 'none';
-  const btnClose = document.getElementById('btnCloseSession');
-  if (btnClose) btnClose.style.display = 'none';
-  const btnReopenPast = document.getElementById('btnReopenSession');
-  if (btnReopenPast) btnReopenPast.style.display = 'inline-flex';
-  const btnBack = document.getElementById('btnBackToActive');
-  if (btnBack) btnBack.style.display = 'inline-flex';
-  const chip = document.getElementById('countdownChip');
-  if (chip) chip.style.display = 'none';
-
-  const sPill = document.getElementById('sessionBarPill');
-  if (sPill) {
-    sPill.className = 'session-pill pill-off';
-    sPill.innerHTML = '<span class="net-dot"></span>Đã đóng';
-  }
-  document.getElementById('sessionBarName').textContent = currentSession.session_name || 'Phiên đã đóng';
-  document.getElementById('sessionStartTime').textContent = currentSession.started_at ? new Date(currentSession.started_at).toLocaleString('vi-VN') : '—';
-  document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
-  document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : '—';
-
-  currentFilter = 'all';
-  currentPage = 1;
-  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.status === 'all'));
-  switchSessionTab('students');
-
-  await loadAttendance();
-  renderAll();
-  clearInterval(countdownTimer);
+  const rows = data || [];
+  const detailHtml = rows.length ? '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:360px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface-2);text-align:left"><th style="padding:8px">MSSV</th><th style="padding:8px">Họ tên</th><th style="padding:8px">Trạng thái</th><th style="padding:8px">Ghi chú</th></tr></thead><tbody>' + rows.map(r => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + escapeHtml(r.mssv || '') + '</td><td style="padding:8px">' + escapeHtml(r.full_name || '') + '</td><td style="padding:8px">' + escapeHtml(r.status || '') + (r.category ? ' · ' + escapeHtml(r.category) : '') + '</td><td style="padding:8px">' + escapeHtml(r.note || '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div style="margin-top:10px;padding:14px;color:var(--muted)">Phiên này chưa có bản ghi điểm danh.</div>';
+  targets.forEach(el => { el.innerHTML = detailHtml; el.dataset.loaded = 'true'; });
 };
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await checkAuth();
