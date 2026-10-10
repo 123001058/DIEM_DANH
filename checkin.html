@@ -197,12 +197,10 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
 
     <section class="leave-panel" id="studentLeavePanel">
       <h3>📝 Xin nghỉ</h3>
-      <p>Mọi người có thể xem đơn. Gửi đơn cho một phiên; lý do bắt buộc, ảnh tùy chọn. Bạn sửa hoặc hủy đơn của mình khi còn chờ duyệt.</p>
-      <div class="leave-field"><label for="leaveSession">Phiên điểm danh</label><select id="leaveSession"></select></div>
-      <div class="leave-field"><label for="leaveType">Loại đơn</label><select id="leaveType" onchange="toggleLeaveRange()"><option value="full_session">Nghỉ cả buổi</option><option value="late">Đi muộn</option><option value="early">Về sớm</option><option value="partial">Vắng một phần phiên</option></select></div>
-      <div class="leave-grid" id="leaveRangeFields" style="display:none">
-        <div class="leave-field"><label for="leaveStart">Bắt đầu vắng</label><input id="leaveStart" type="datetime-local" onchange="checkLeaveConflict()"></div>
-        <div class="leave-field"><label for="leaveEnd">Kết thúc vắng</label><input id="leaveEnd" type="datetime-local" onchange="checkLeaveConflict()"></div>
+      <p>Chọn ngày và buổi nghỉ. Lý do bắt buộc, ảnh minh chứng có thể gửi thêm. Bạn sửa hoặc hủy đơn khi còn chờ duyệt.</p>
+      <div class="leave-grid">
+        <div class="leave-field"><label for="leaveDate">Ngày nghỉ</label><input id="leaveDate" type="date" onchange="checkLeaveConflict()"></div>
+        <div class="leave-field"><label for="leavePeriod">Buổi nghỉ</label><select id="leavePeriod" onchange="checkLeaveConflict()"><option value="full_day">Cả ngày</option><option value="morning">Buổi sáng</option><option value="afternoon">Buổi chiều</option><option value="evening">Buổi tối</option></select></div>
       </div>
       <div class="leave-notice" id="leaveConflictNotice"></div>
       <div class="leave-field"><label for="leaveReason">Lý do *</label><textarea id="leaveReason" rows="2" maxlength="1000" placeholder="Nhập lý do xin nghỉ"></textarea></div>
@@ -275,7 +273,7 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
 let currentUser = null, currentProfile = null;
 let currentSession = null, sessionToken = null;
 let deviceId = '', scanner = null, isScanning = false, refreshTimer = null;
-let leaveSessions = [], myLeaveCache = [];
+let myLeaveCache = [];
 
 function getDeviceId(){
   let id = localStorage.getItem('device_id');
@@ -487,27 +485,12 @@ async function loadHistory(){
 }
 const leaveTypeLabels={full_session:'Nghỉ cả buổi',late:'Đi muộn',early:'Về sớm',partial:'Vắng một phần'};
 const leaveStatusLabels={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Từ chối',cancelled:'Đã hủy'};
-function localDateTimeValue(value){if(!value)return '';const d=new Date(value);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
-function toggleLeaveRange(){const type=document.getElementById('leaveType').value;document.getElementById('leaveRangeFields').style.display=type==='full_session'?'none':'grid';checkLeaveConflict();}
-async function loadLeaveSessions(){
-  const select=document.getElementById('leaveSession');if(!select)return;
-  const {data,error}=await supabase.rpc('get_leave_sessions');
-  if(error||!data?.ok){select.innerHTML='<option value="">Không tải được phiên</option>';return;}
-  leaveSessions=data.sessions||[];
-  select.innerHTML=leaveSessions.length?leaveSessions.map(s=>`<option value="${s.id}">${escapeHtml(s.session_name)} · ${new Date(s.started_at).toLocaleString('vi-VN')}${s.is_open?' · Đang mở':''}</option>`).join(''):'<option value="">Chưa có phiên điểm danh</option>';
-  select.addEventListener('change',checkLeaveConflict);checkLeaveConflict();
-}
+const leavePeriodLabels={full_day:'Cả ngày',morning:'Buổi sáng',afternoon:'Buổi chiều',evening:'Buổi tối'};
+function leavePeriodBounds(date,period){if(!date)return null;const hours={full_day:[0,24],morning:[0,12],afternoon:[12,17],evening:[17,24]}[period];if(!hours)return null;const start=new Date(`${date}T00:00:00`);start.setHours(hours[0],0,0,0);const end=new Date(`${date}T00:00:00`);end.setHours(hours[1],0,0,0);return {start,end};}
 async function checkLeaveConflict(){
   const notice=document.getElementById('leaveConflictNotice');if(!notice)return;
-  const session=leaveSessions.find(s=>s.id===document.getElementById('leaveSession')?.value);
-  if(!session||!currentProfile?.mssv){notice.classList.remove('show');return;}
-  let start,end;
-  if(document.getElementById('leaveType').value==='full_session'){
-    start=new Date(session.started_at);end=new Date(start.getTime()+(Number(session.duration_min)||240)*60000);
-  }else{
-    start=new Date(document.getElementById('leaveStart').value);end=new Date(document.getElementById('leaveEnd').value);
-    if(!document.getElementById('leaveStart').value||!document.getElementById('leaveEnd').value||end<=start){notice.classList.remove('show');return;}
-  }
+  const bounds=leavePeriodBounds(document.getElementById('leaveDate')?.value,document.getElementById('leavePeriod')?.value);
+  if(!bounds||!currentProfile?.mssv){notice.classList.remove('show');return;}const {start,end}=bounds;
   const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time')
     .eq('mssv',currentProfile.mssv).limit(300);
   if(error){notice.textContent='Chưa kiểm tra được lịch học.';notice.classList.add('show');return;}
@@ -516,26 +499,18 @@ async function checkLeaveConflict(){
   notice.textContent=conflicts.length?`⚠️ Thời gian xin nghỉ trùng lịch học: ${conflicts.map(s=>s.subject_name).join(', ')}. Đơn vẫn được gửi để quản lý xem xét.`:'Không thấy lịch học trùng thời gian.';
   notice.classList.add('show');
 }
-function resetLeaveForm(){document.getElementById('editingLeaveId').value='';document.getElementById('leaveType').value='full_session';document.getElementById('leaveReason').value='';document.getElementById('leaveEvidence').value='';document.getElementById('leaveStart').value='';document.getElementById('leaveEnd').value='';document.getElementById('leaveSubmitButton').textContent='Gửi đơn xin nghỉ';document.getElementById('leaveCancelEdit').style.display='none';toggleLeaveRange();}
+function resetLeaveForm(){document.getElementById('editingLeaveId').value='';document.getElementById('leaveDate').value='';document.getElementById('leavePeriod').value='full_day';document.getElementById('leaveReason').value='';document.getElementById('leaveEvidence').value='';document.getElementById('leaveSubmitButton').textContent='Gửi đơn xin nghỉ';document.getElementById('leaveCancelEdit').style.display='none';checkLeaveConflict();}
 function editLeaveRequest(id){
   const r=myLeaveCache.find(x=>x.id===id);if(!r||r.status!=='pending'||r.requested_by!==currentUser.id)return;
-  document.getElementById('editingLeaveId').value=id;document.getElementById('leaveSession').value=r.session_id;
-  document.getElementById('leaveType').value=r.leave_type;document.getElementById('leaveReason').value=r.reason;
-  document.getElementById('leaveStart').value=localDateTimeValue(r.starts_at);document.getElementById('leaveEnd').value=localDateTimeValue(r.ends_at);
-  document.getElementById('leaveSubmitButton').textContent='Lưu thay đổi';document.getElementById('leaveCancelEdit').style.display='block';toggleLeaveRange();
+  document.getElementById('editingLeaveId').value=id;document.getElementById('leaveDate').value=r.leave_date||'';document.getElementById('leavePeriod').value=r.leave_period||'full_day';document.getElementById('leaveReason').value=r.reason;
+  document.getElementById('leaveSubmitButton').textContent='Lưu thay đổi';document.getElementById('leaveCancelEdit').style.display='block';checkLeaveConflict();
   document.getElementById('studentLeavePanel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function submitLeaveRequest(){
-  const sessionId=document.getElementById('leaveSession').value,type=document.getElementById('leaveType').value;
+  const leaveDate=document.getElementById('leaveDate').value,leavePeriod=document.getElementById('leavePeriod').value;
   const reason=document.getElementById('leaveReason').value.trim(),file=document.getElementById('leaveEvidence').files?.[0];
-  if(!sessionId)return showResult('warning','Chọn phiên điểm danh trước khi gửi đơn.');
+  if(!leaveDate)return showResult('warning','Chọn ngày nghỉ.');
   if(!reason)return showResult('warning','Nhập lý do xin nghỉ.');
-  let startsAt=null,endsAt=null;
-  if(type!=='full_session'){
-    const start=document.getElementById('leaveStart').value,end=document.getElementById('leaveEnd').value;
-    if(!start||!end||new Date(end)<=new Date(start))return showResult('warning','Chọn khoảng giờ hợp lệ.');
-    startsAt=new Date(start).toISOString();endsAt=new Date(end).toISOString();
-  }
   const id=document.getElementById('editingLeaveId').value;
   const btn=document.getElementById('leaveSubmitButton');btn.disabled=true;
   try{
@@ -545,7 +520,7 @@ async function submitLeaveRequest(){
       const ext=file.type==='image/jpeg'?'jpg':file.type.split('/')[1];evidencePath=`${currentUser.id}/${crypto.randomUUID()}.${ext}`;
       const {error:uploadError}=await supabase.storage.from('leave-evidence').upload(evidencePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;
     }
-    const row={session_id:sessionId,mssv:currentProfile.mssv,leave_type:type,starts_at:startsAt,ends_at:endsAt,reason,evidence_path:evidencePath};
+    const row={session_id:null,leave_date:leaveDate,leave_period:leavePeriod,mssv:currentProfile.mssv,leave_type:'full_session',starts_at:null,ends_at:null,reason,evidence_path:evidencePath};
     const result=id?await supabase.from('leave_requests').update(row).eq('id',id):await supabase.from('leave_requests').insert(row);
     if(result.error)throw result.error;
     resetLeaveForm();await loadMyLeaveRequests();showResult('success',id?'Đã cập nhật đơn xin nghỉ.':'Đã gửi đơn xin nghỉ.');
@@ -560,9 +535,9 @@ async function loadMyLeaveRequests(){
   myLeaveCache=data||[];if(!myLeaveCache.length){box.innerHTML='<div class="history-empty">Bạn chưa gửi đơn nào.</div>';return;}
   box.innerHTML=await Promise.all(myLeaveCache.map(async r=>{
     let evidence='';if(r.evidence_path){const {data:signed}=await supabase.storage.from('leave-evidence').createSignedUrl(r.evidence_path,3600);if(signed?.signedUrl)evidence=`<a target="_blank" rel="noopener" href="${signed.signedUrl}">Xem ảnh minh chứng</a>`;}
-    const time=r.leave_type==='full_session'?'Cả phiên':`${new Date(r.starts_at).toLocaleString('vi-VN')} – ${new Date(r.ends_at).toLocaleTimeString('vi-VN')}`;
+    const time=r.leave_date?`${new Date(`${r.leave_date}T00:00:00`).toLocaleDateString('vi-VN')} · ${leavePeriodLabels[r.leave_period]||'Cả ngày'}`:`${escapeHtml(r.sessions?.session_name||'Phiên cũ')} · ${leaveTypeLabels[r.leave_type]||''}`;
     const edits=(r.leave_request_history||[]).map(h=>{const val=h.new_record||{};return `<div style="font-size:10.5px;color:var(--muted)">${new Date(h.changed_at).toLocaleString('vi-VN')} · ${leaveStatusLabels[val.status]||'Đã cập nhật'}</div>`;}).join('');
-    return `<div class="leave-card"><div style="display:flex;justify-content:space-between;gap:8px"><strong>${escapeHtml(r.students?.name||r.mssv)} ${r.requested_by===currentUser.id?'(Bạn)':''}</strong><span class="leave-chip">${leaveStatusLabels[r.status]||r.status}</span></div><div style="margin-top:4px;color:var(--muted)">${escapeHtml(r.sessions?.session_name||'Phiên điểm danh')} · ${leaveTypeLabels[r.leave_type]} · ${time}</div><div style="margin-top:5px">${escapeHtml(r.reason)}</div><div style="margin-top:5px">${evidence}</div>${r.reviewer_note?`<div style="margin-top:5px;color:var(--muted)">Ghi chú: ${escapeHtml(r.reviewer_note)}</div>`:''}${edits?`<details style="margin-top:6px"><summary>Lịch sử đơn</summary>${edits}</details>`:''}${r.status==='pending'&&r.requested_by===currentUser.id?`<div style="display:flex;gap:8px;margin-top:8px"><button type="button" onclick="editLeaveRequest('${r.id}')">Sửa</button><button type="button" onclick="cancelLeaveRequest('${r.id}')">Hủy đơn</button></div>`:''}</div>`;
+    return `<div class="leave-card"><div style="display:flex;justify-content:space-between;gap:8px"><strong>${escapeHtml(r.students?.name||r.mssv)} ${r.requested_by===currentUser.id?'(Bạn)':''}</strong><span class="leave-chip">${leaveStatusLabels[r.status]||r.status}</span></div><div style="margin-top:4px;color:var(--muted)">${time}</div><div style="margin-top:5px">${escapeHtml(r.reason)}</div><div style="margin-top:5px">${evidence}</div>${r.reviewer_note?`<div style="margin-top:5px;color:var(--muted)">Ghi chú: ${escapeHtml(r.reviewer_note)}</div>`:''}${edits?`<details style="margin-top:6px"><summary>Lịch sử đơn</summary>${edits}</details>`:''}${r.status==='pending'&&r.requested_by===currentUser.id?`<div style="display:flex;gap:8px;margin-top:8px"><button type="button" onclick="editLeaveRequest('${r.id}')">Sửa</button><button type="button" onclick="cancelLeaveRequest('${r.id}')">Hủy đơn</button></div>`:''}</div>`;
   })).then(items=>{box.innerHTML=items.join('');});
 }
 async function loadStudentLeaveNotifications(){
@@ -621,7 +596,6 @@ async function init(){
   if (!await loadProfile()) return;
   await loadMyTasks();
   await loadStudentRules();
-  await loadLeaveSessions();
   await loadMyLeaveRequests();
   await loadStudentLeaveNotifications();
   await loadSession();
