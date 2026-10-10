@@ -1338,7 +1338,6 @@ tbody tr:last-child td { border-bottom: none; }
           <span id="leaveRequestCount" style="font-size:12px;color:var(--muted)"></span>
         </div>
         <div id="leaveRequestDays"><div class="schedule-loading">Đang tải đơn xin nghỉ...</div></div>
-        <div id="leaveRequestList" style="margin-top:12px"><div class="empty-state">Chọn một ngày và buổi để xem đơn.</div></div>
       </section>
     </section>
 
@@ -1902,31 +1901,214 @@ async function loadLeaveManagement(){
   adminLeaveSchedules=schedules;renderLeaveRequests();
 }
 function renderLeaveRequests(){
-  const list=document.getElementById('leaveRequestDays'),detail=document.getElementById('leaveRequestList');if(!list||!detail)return;
-  const rows=adminLeaveCache.filter(r=>document.getElementById('leaveFilterStatus')?.value==='all'||r.status===document.getElementById('leaveFilterStatus')?.value);
+  const list=document.getElementById('leaveRequestDays');if(!list)return;
+  const filterStatus=document.getElementById('leaveFilterStatus')?.value||'all';
+  const rows=adminLeaveCache.filter(r=>filterStatus==='all'||r.status===filterStatus);
   const count=document.getElementById('leaveRequestCount');if(count)count.textContent=`${rows.length} đơn`;
   const badge=document.getElementById('navLeaveBadge');if(badge)badge.textContent=adminLeaveCache.filter(r=>r.status==='pending').length;
-  if(!rows.length){list.innerHTML='<div class="empty-state">Chưa có đơn xin nghỉ.</div>';detail.innerHTML='<div class="empty-state">Chưa có đơn trong bộ lọc.</div>';return;}
+
+  if(!rows.length){
+    list.innerHTML='<div class="empty-state">Chưa có đơn xin nghỉ nào phù hợp bộ lọc.</div>';
+    return;
+  }
+
   const days=[...new Set(rows.map(leaveRowDate))].sort().reverse();
-  list.innerHTML=days.map(day=>`<div style="border:1px solid var(--border);border-radius:10px;padding:11px;margin:8px 0"><b>${new Date(`${day}T00:00:00`).toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</b><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">${Object.entries(adminLeavePeriodNames).filter(([p])=>p!=='full_day').map(([period,label])=>{const amount=rows.filter(r=>leaveRowDate(r)===day&&(leaveRowPeriod(r)===period||leaveRowPeriod(r)==='full_day')).length;return `<button class="btn ${selectedLeaveDay===day&&selectedLeavePeriod===period?'btn-primary':'btn-secondary'}" onclick="showLeaveDayPeriod('${day}','${period}')">${label}${amount?` · ${amount}`:''}</button>`;}).join('')}</div></div>`).join('');
-  if(selectedLeaveDay&&!days.includes(selectedLeaveDay)){selectedLeaveDay=null;selectedLeavePeriod=null;}
-  if(selectedLeaveDay&&selectedLeavePeriod)renderSelectedLeaveRequests();
-  else detail.innerHTML='<div class="empty-state">Bấm vào một buổi để xem những người đã gửi đơn.</div>';
-}
-function showLeaveDayPeriod(day,period){selectedLeaveDay=day;selectedLeavePeriod=period;renderLeaveRequests();}
-function renderSelectedLeaveRequests(){
-  const detail=document.getElementById('leaveRequestList');if(!detail||!selectedLeaveDay||!selectedLeavePeriod)return;
-  const rows=adminLeaveCache.filter(r=>(document.getElementById('leaveFilterStatus')?.value==='all'||r.status===document.getElementById('leaveFilterStatus')?.value)&&leaveRowDate(r)===selectedLeaveDay&&(leaveRowPeriod(r)===selectedLeavePeriod||leaveRowPeriod(r)==='full_day'));
-  if(!rows.length){detail.innerHTML=`<div class="empty-state">${new Date(`${selectedLeaveDay}T00:00:00`).toLocaleDateString('vi-VN')} · ${adminLeavePeriodNames[selectedLeavePeriod]}: không có đơn xin nghỉ.</div>`;return;}
-  detail.innerHTML=`<h3 style="font-size:14px;margin:10px 0">${new Date(`${selectedLeaveDay}T00:00:00`).toLocaleDateString('vi-VN')} · ${adminLeavePeriodNames[selectedLeavePeriod]}</h3>`+rows.map(r=>{
-    const bounds=adminLeaveBounds(selectedLeaveDay,selectedLeavePeriod),matches=adminLeaveSchedules.filter(s=>s.mssv===r.mssv&&bounds&&new Date(s.start_time)<bounds.end&&new Date(s.end_time)>bounds.start);
-    const hasCalendar=adminLeaveSchedules.some(s=>s.mssv===r.mssv);
-    const availability=!hasCalendar?'⚪ Chưa có dữ liệu lịch; vẫn có thể xem xét đơn.':matches.length?`⚠️ Bận học: ${matches.map(s=>escapeHtml(s.subject_name)).join(', ')}`:'🟢 Không thấy lịch học trùng';
-    const statusOptions=Object.entries(leaveStatusNames).map(([v,n])=>`<option value="${v}" ${r.status===v?'selected':''}>${n}</option>`).join('');
-    const historyHtml=(r.leave_request_history||[]).map(h=>{const v=h.new_record||{};return `<div style="font-size:10.5px;color:var(--muted)">${new Date(h.changed_at).toLocaleString('vi-VN')} · ${leaveStatusNames[v.status]||'Đã cập nhật'} · ${leaveTypeNames[v.leave_type]||''}</div>`;}).join('');
-    return `<article style="border:1px solid var(--border);border-radius:12px;padding:14px;margin:10px 0;background:var(--surface)"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><b>${escapeHtml(r.students?.name||r.mssv)}</b> · ${escapeHtml(r.mssv)}<div style="font-size:12px;color:var(--muted);margin-top:3px">${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'} · Gửi ${new Date(r.created_at).toLocaleString('vi-VN')}</div></div><span style="font-size:11px;font-weight:800;padding:4px 9px;background:#f1f5f9;border-radius:99px">${leaveStatusNames[r.status]}</span></div><div style="font-size:12px;margin:8px 0;color:${matches.length?'var(--warn)':'var(--ok)'}">${availability}</div><div style="font-size:12px;margin-bottom:8px">Lý do: ${escapeHtml(r.reason)}</div>${r.evidence_path?`<button class="btn btn-secondary" onclick="openLeaveEvidence('${r.id}')">Xem ảnh minh chứng</button>`:''}<details style="margin:8px 0"><summary style="font-size:11px;cursor:pointer">Lịch sử chỉnh sửa (${(r.leave_request_history||[]).length})</summary>${historyHtml}</details><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:10px"><label style="font-size:11px">Ngày nghỉ<input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:8px;margin-top:4px"></label><label style="font-size:11px">Buổi nghỉ<select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:8px;margin-top:4px">${Object.entries(adminLeavePeriodNames).map(([v,n])=>`<option value="${v}" ${(r.leave_period||'full_day')===v?'selected':''}>${n}</option>`).join('')}</select></label><label style="font-size:11px">Trạng thái<select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:8px;margin-top:4px">${statusOptions}</select></label></div><label style="display:block;font-size:11px;margin-top:8px">Lý do<textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:8px;margin-top:4px">${escapeHtml(r.reason)}</textarea></label><label style="display:block;font-size:11px;margin-top:8px">Ghi chú quản lý<textarea id="leaveNote_${r.id}" rows="2" style="display:block;width:100%;padding:8px;margin-top:4px" placeholder="Không bắt buộc">${escapeHtml(r.reviewer_note||'')}</textarea></label><div style="display:flex;justify-content:flex-end;align-items:center;margin-top:9px;gap:8px;flex-wrap:wrap"><small style="margin-right:auto;color:var(--muted)">Cập nhật ${new Date(r.updated_at).toLocaleString('vi-VN')}</small><button class="btn btn-primary" onclick="saveLeaveReview('${r.id}')">Lưu / cập nhật đơn</button></div></article>`;
+  if(selectedLeaveDay&&!days.includes(selectedLeaveDay)){
+    selectedLeaveDay=null;
+    selectedLeavePeriod=null;
+  }
+
+  list.innerHTML=days.map(day=>{
+    const dayRows=rows.filter(r=>leaveRowDate(r)===day);
+    const dayPending=dayRows.filter(r=>r.status==='pending').length;
+    const isExpanded=(selectedLeaveDay===day);
+
+    const dayDateObj=new Date(`${day}T00:00:00`);
+    const dayFormatted=isNaN(dayDateObj)?day:dayDateObj.toLocaleDateString('vi-VN',{
+      weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'
+    });
+
+    let bodyHtml='';
+    if(isExpanded){
+      const periodFilter=selectedLeavePeriod||'all';
+      const periods=[
+        {id:'all',label:'Tất cả các buổi'},
+        {id:'morning',label:'Buổi sáng'},
+        {id:'afternoon',label:'Buổi chiều'},
+        {id:'evening',label:'Buổi tối'}
+      ];
+
+      const periodPills=periods.map(p=>{
+        const countP=(p.id==='all')
+          ?dayRows.length
+          :dayRows.filter(r=>leaveRowPeriod(r)===p.id||leaveRowPeriod(r)==='full_day').length;
+        const activeClass=(periodFilter===p.id)?'btn-primary':'btn-secondary';
+        return `<button type="button" class="btn btn-sm ${activeClass}" onclick="selectLeavePeriod('${day}','${p.id}',event)">${p.label} · ${countP}</button>`;
+      }).join('');
+
+      const filteredDayRows=(periodFilter==='all')
+        ?dayRows
+        :dayRows.filter(r=>leaveRowPeriod(r)===periodFilter||leaveRowPeriod(r)==='full_day');
+
+      const cardsHtml=filteredDayRows.length?filteredDayRows.map(r=>{
+        const currentPeriod=leaveRowPeriod(r);
+        const bounds=adminLeaveBounds(day,currentPeriod==='full_day'?'full_day':currentPeriod);
+        const matches=adminLeaveSchedules.filter(s=>s.mssv===r.mssv&&bounds&&new Date(s.start_time)<bounds.end&&new Date(s.end_time)>bounds.start);
+        const hasCalendar=adminLeaveSchedules.some(s=>s.mssv===r.mssv);
+        const availability=!hasCalendar
+          ?'⚪ Chưa có dữ liệu lịch; vẫn có thể xem xét đơn.'
+          :matches.length
+            ?`⚠️ Bận học: ${matches.map(s=>escapeHtml(s.subject_name)).join(', ')}`
+            : '🟢 Không thấy lịch học trùng';
+
+        const statusOptions=Object.entries(leaveStatusNames)
+          .map(([v,n])=>`<option value="${v}" ${r.status===v?'selected':''}>${n}</option>`)
+          .join('');
+
+        const historyHtml=(r.leave_request_history||[]).map(h=>{
+          const v=h.new_record||{};
+          return `<div style="font-size:10.5px;color:var(--muted)">${new Date(h.changed_at).toLocaleString('vi-VN')} · ${leaveStatusNames[v.status]||'Đã cập nhật'} · ${leaveTypeNames[v.leave_type]||''}</div>`;
+        }).join('');
+
+        const statusBadgeBg=r.status==='approved'?'var(--ok-bg)':r.status==='rejected'?'var(--err-bg)':r.status==='pending'?'#fef3c7':'#f1f5f9';
+        const statusBadgeColor=r.status==='approved'?'var(--ok)':r.status==='rejected'?'var(--err)':r.status==='pending'?'#b45309':'var(--muted)';
+
+        return `
+          <article style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">
+              <div>
+                <strong style="font-size:13.5px">${escapeHtml(r.students?.name||r.mssv)}</strong>
+                <span style="font-size:12px;color:var(--muted)"> · ${escapeHtml(r.mssv)}</span>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
+                  ${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'} · Gửi lúc ${new Date(r.created_at).toLocaleString('vi-VN')}
+                </div>
+              </div>
+              <span style="font-size:11.5px;font-weight:700;padding:3px 10px;background:${statusBadgeBg};color:${statusBadgeColor};border-radius:99px">
+                ${leaveStatusNames[r.status]||r.status}
+              </span>
+            </div>
+
+            <div style="font-size:12px;margin:8px 0;color:${matches.length?'var(--warn)':'var(--ok)'}">
+              ${availability}
+            </div>
+
+            <div style="font-size:12px;margin-bottom:8px">
+              <b>Lý do:</b> ${escapeHtml(r.reason)}
+            </div>
+
+            ${r.evidence_path?`<div style="margin-bottom:8px"><button type="button" class="btn btn-secondary btn-sm" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
+
+            ${historyHtml?`<details style="margin:8px 0;font-size:11.5px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử chỉnh sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:4px;padding:6px;background:var(--surface-2);border-radius:6px">${historyHtml}</div></details>`:''}
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+              <label style="font-size:11px">Ngày nghỉ
+                <input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
+              </label>
+              <label style="font-size:11px">Buổi nghỉ
+                <select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
+                  ${Object.entries(adminLeavePeriodNames).map(([v,n])=>`<option value="${v}" ${(r.leave_period||'full_day')===v?'selected':''}>${n}</option>`).join('')}
+                </select>
+              </label>
+              <label style="font-size:11px">Trạng thái
+                <select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
+                  ${statusOptions}
+                </select>
+              </label>
+            </div>
+
+            <label style="display:block;font-size:11px;margin-top:8px">Lý do
+              <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">${escapeHtml(r.reason)}</textarea>
+            </label>
+
+            <label style="display:block;font-size:11px;margin-top:8px">Ghi chú quản lý
+              <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px" placeholder="Không bắt buộc">${escapeHtml(r.reviewer_note||'')}</textarea>
+            </label>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap">
+              <small style="color:var(--muted)">Cập nhật: ${new Date(r.updated_at).toLocaleString('vi-VN')}</small>
+              <div style="display:flex;gap:8px">
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa đơn</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveLeaveReview('${r.id}')">💾 Lưu cập nhật</button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join(''):'<div class="empty-state" style="padding:14px">Không có đơn xin nghỉ trong buổi này.</div>';
+
+      bodyHtml=`
+        <div style="padding:14px;border-top:1px solid var(--border);background:var(--surface-2, #fafafa)">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <span style="font-size:11.5px;color:var(--muted);margin-right:4px">Lọc buổi:</span>
+            ${periodPills}
+          </div>
+          <div>${cardsHtml}</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface)">
+        <div onclick="toggleLeaveDay('${day}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;user-select:none;background:${isExpanded?'var(--surface-2, #f8fafc)':'var(--surface)'};transition:background .15s">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:15px">${isExpanded?'📂':'📁'}</span>
+            <strong style="font-size:13.5px">${dayFormatted}</strong>
+            <span style="font-size:11.5px;padding:2px 8px;border-radius:99px;background:#f1f5f9;color:var(--text)">${dayRows.length} đơn</span>
+            ${dayPending?`<span style="font-size:11.5px;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#b45309;font-weight:700">⏳ ${dayPending} chờ duyệt</span>`:''}
+          </div>
+          <span style="font-size:12px;color:var(--muted);font-weight:600">${isExpanded?'Thu gọn ▲':'Bấm xem đơn ▼'}</span>
+        </div>
+        ${bodyHtml}
+      </div>
+    `;
   }).join('');
 }
+
+function toggleLeaveDay(day){
+  if(selectedLeaveDay===day){
+    selectedLeaveDay=null;
+    selectedLeavePeriod=null;
+  } else {
+    selectedLeaveDay=day;
+    selectedLeavePeriod='all';
+  }
+  renderLeaveRequests();
+}
+
+function selectLeavePeriod(day,period,event){
+  if(event)event.stopPropagation();
+  selectedLeaveDay=day;
+  selectedLeavePeriod=period;
+  renderLeaveRequests();
+}
+
+async function deleteLeaveRequest(id,studentName){
+  const row=adminLeaveCache.find(r=>r.id===id);
+  const name=studentName||row?.students?.name||row?.mssv||'sinh viên này';
+  if(!confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn đơn xin nghỉ của ${name}?\n\nThao tác này sẽ xóa đơn và ảnh minh chứng khỏi hệ thống, không thể hoàn tác.`)){
+    return;
+  }
+  try{
+    if(row?.evidence_path){
+      try{
+        await supabase.storage.from('leave-evidence').remove([row.evidence_path]);
+      }catch(storageErr){
+        console.warn('Lỗi khi xóa ảnh storage:',storageErr);
+      }
+    }
+    const {data,error}=await supabase.rpc('admin_delete_leave_request',{p_request_id:id});
+    if(error){
+      const {error:delErr}=await supabase.from('leave_requests').delete().eq('id',id);
+      if(delErr)throw delErr;
+    } else if(data&&!data.ok){
+      throw new Error(data.message||'Không thể xóa đơn.');
+    }
+    toast('ok','Đã xóa đơn','Đã xóa vĩnh viễn đơn xin nghỉ thành công.');
+    await loadLeaveManagement();
+  }catch(e){
+    toast('err','Không xóa được đơn',e.message||'Lỗi không xác định.');
+  }
+}
+
 async function saveLeaveReview(id){
   const row=adminLeaveCache.find(r=>r.id===id);if(!row)return;
   const leave_date=document.getElementById(`leaveDate_${id}`).value,leave_period=document.getElementById(`leavePeriod_${id}`).value,status=document.getElementById(`leaveStatus_${id}`).value,reason=document.getElementById(`leaveReason_${id}`).value.trim();
