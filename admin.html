@@ -3970,6 +3970,9 @@ window.backFromPastSession = async function() {
 };
 
 window.viewPastSession = async function(sid) {
+  // The session dashboard lives in the attendance view. Navigate there before
+  // rendering it so clicks from the separate history view become visible.
+  navTo('attendance');
   let s = (window._todaySessionsMap && window._todaySessionsMap[sid]) || null;
   if (s && s.is_open) {
     await refreshAll();
