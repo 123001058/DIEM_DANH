@@ -592,10 +592,14 @@ async function loadMyTasks(){
     else if(group) statusLabel='Nhiệm vụ nhóm · Chưa ai hoàn thành';
 
     let actions='';
-    if(global&&!completed&&!claimedByOther){
-      actions=claimedByMe
-        ? `<button type="button" onclick="completeMyTask('${t.id}')" style="padding:8px 12px;border:0;border-radius:8px;background:var(--ok);color:#fff;font-weight:700;cursor:pointer">✓ Hoàn thành</button><button type="button" onclick="releaseGlobalTask('${t.id}')" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font-weight:700;cursor:pointer">Hủy nhận</button>`
-        : `<button type="button" onclick="claimGlobalTask('${t.id}')" style="padding:8px 12px;border:0;border-radius:8px;background:var(--primary);color:#fff;font-weight:700;cursor:pointer">Nhận làm</button>`;
+    if(global&&!completed){
+      if(claimedByMe){
+        actions=`<button type="button" onclick="completeMyTask('${t.id}')" style="padding:8px 12px;border:0;border-radius:8px;background:var(--ok);color:#fff;font-weight:700;cursor:pointer">✓ Hoàn thành</button><button type="button" onclick="releaseGlobalTask('${t.id}')" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font-weight:700;cursor:pointer">Hủy nhận</button>`;
+      }else if(claimedByOther){
+        actions=`<button type="button" disabled title="${escapeHtml(t.claimed_by_name||t.claimed_by_mssv)} đang nhận nhiệm vụ này" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);color:var(--muted);font-weight:700;cursor:not-allowed">Đang có người nhận</button>`;
+      }else{
+        actions=`<button type="button" onclick="claimGlobalTask('${t.id}')" style="padding:8px 12px;border:0;border-radius:8px;background:var(--primary);color:#fff;font-weight:700;cursor:pointer">Nhận làm</button>`;
+      }
     }else if(group&&!completed){
       actions=`<button type="button" onclick="completeMyTask('${t.id}')" style="padding:8px 12px;border:0;border-radius:8px;background:var(--ok);color:#fff;font-weight:700;cursor:pointer">✓ Hoàn thành</button>`;
     }else if(!shared){
