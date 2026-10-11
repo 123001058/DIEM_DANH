@@ -4076,26 +4076,63 @@ window.viewPastSession = async function(sid) {
   const detailHtml = rows.length ? '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:360px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface-2);text-align:left"><th style="padding:8px">MSSV</th><th style="padding:8px">Họ tên</th><th style="padding:8px">Trạng thái</th><th style="padding:8px">Ghi chú</th></tr></thead><tbody>' + rows.map(r => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + escapeHtml(r.mssv || '') + '</td><td style="padding:8px">' + escapeHtml(r.full_name || '') + '</td><td style="padding:8px">' + escapeHtml(r.status || '') + (r.category ? ' · ' + escapeHtml(r.category) : '') + '</td><td style="padding:8px">' + escapeHtml(r.note || '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div style="margin-top:10px;padding:14px;color:var(--muted)">Phiên này chưa có bản ghi điểm danh.</div>';
   targets.forEach(el => { el.innerHTML = detailHtml; el.dataset.loaded = 'true'; });
 };
-document.addEventListener('DOMContentLoaded', async () => {
-  const user = await checkAuth();
-  if (!user) return;
-  await loadRoboconRules();
-  await loadStudents();
-  const kpiTotalEl = document.getElementById('kpiTotalStudents');
-  if (kpiTotalEl && students) kpiTotalEl.textContent = students.length;
-  await loadTeamGroups();
-  if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
-  teamAvailabilityTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') loadTeamGroups();
-  }, 60 * 1000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') loadTeamGroups();
+function runAdminStartupTask(name, task, onTimeout) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${name} phản hồi quá lâu.`)), 12000);
   });
-  await refreshAll();
-  await loadTodayHistory();
-  await loadTodaySchoolSchedule();
-  await loadOverviewGroupTasks();
-  fetchResetRequests();
+  return Promise.race([task, timeout]).catch(error => {
+    console.error(`[admin startup] ${name}:`, error);
+    if (onTimeout) onTimeout(error);
+  }).finally(() => clearTimeout(timer));
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  let user;
+  try {
+    user = await runAdminStartupTask('Xác thực tài khoản', checkAuth(), error => {
+      const subtitle = document.getElementById('heroSessionSubtitle');
+      if (subtitle) subtitle.textContent = 'Không kết nối được máy chủ xác thực. Vui lòng tải lại trang.';
+      const rules = document.getElementById('roboconRulesList');
+      if (rules) rules.innerHTML = '<div class="schedule-loading">Máy chủ xác thực phản hồi quá lâu. Vui lòng tải lại trang.</div>';
+    });
+  } catch (error) {
+    console.error('[admin startup] authentication failed:', error);
+    return;
+  }
+  if (!user) return;
+
+  const rulesContainer = document.getElementById('roboconRulesList');
+  runAdminStartupTask('Nội quy xưởng', loadRoboconRules(), error => {
+    if (rulesContainer) rulesContainer.innerHTML = `<div class="schedule-loading">${escapeHtml(error.message)} Vui lòng thử tải lại.</div>`;
+  });
+
+  runAdminStartupTask('Danh sách sinh viên và nhóm', (async () => {
+    await loadStudents();
+    const kpiTotalEl = document.getElementById('kpiTotalStudents');
+    if (kpiTotalEl) kpiTotalEl.textContent = students.length;
+    await loadTeamGroups();
+    if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
+    teamAvailabilityTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadTeamGroups();
+    }, 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') loadTeamGroups();
+    });
+    renderAll();
+  })(), error => toast('err', 'Tải dữ liệu chậm', escapeHtml(error.message)));
+
+  runAdminStartupTask('Phiên điểm danh', refreshAll(), error => {
+    const subtitle = document.getElementById('heroSessionSubtitle');
+    if (subtitle) subtitle.textContent = `${error.message} Vui lòng thử tải lại.`;
+  });
+  runAdminStartupTask('Lịch sử điểm danh', loadTodayHistory());
+  runAdminStartupTask('Lịch học hôm nay', loadTodaySchoolSchedule());
+  runAdminStartupTask('Nhiệm vụ chung', loadOverviewGroupTasks(), error => {
+    const summary = document.getElementById('overviewGroupTasksSummary');
+    if (summary) summary.textContent = `${error.message} Vui lòng thử tải lại.`;
+  });
+  runAdminStartupTask('Yêu cầu đặt lại mật khẩu', fetchResetRequests());
   setupRealtime();
 
   // Tự động kiểm tra và đồng bộ ngầm từ ME nếu dữ liệu cũ hơn 24 giờ
