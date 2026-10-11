@@ -3266,7 +3266,12 @@ async function addTeamMember(){
   const mssv = document.getElementById('teamMemberPicker').value;
   if (!selectedTeamId || !mssv) return toast('warn', 'Chọn thành viên', 'Vui lòng chọn một thành viên để thêm.');
   const { error } = await supabase.from('team_group_members').insert({ team_id: selectedTeamId, mssv });
-  if (error) return toast('err', 'Không thêm được thành viên', error.message);
+  if (error) {
+    if (error.code === '23505') {
+      return toast('info', 'Thành viên đã có trong nhóm', 'Thành viên này đã được thêm vào nhóm rồi.');
+    }
+    return toast('err', 'Không thêm được thành viên', error.message);
+  }
   await loadTeamGroups();
 }
 async function removeTeamMember(mssv){
