@@ -1864,6 +1864,16 @@ tbody tr:last-child td { border-bottom: none; }
 
 
 <script>
+window.addEventListener('error', event => {
+  console.error('[admin runtime error]', event.message, event.filename, event.lineno);
+  const summary = document.getElementById('overviewGroupTasksSummary');
+  if (summary && /Đang tải/.test(summary.textContent)) {
+    summary.textContent = 'Trang gặp lỗi JavaScript. Mở Console để xem dòng lỗi đầu tiên.';
+  }
+});
+window.addEventListener('unhandledrejection', event => {
+  console.error('[admin unhandled rejection]', event.reason);
+});
 /* ==========================================================
    VIEW ROUTING & SIDEBAR DRAWER CONTROLLER
    ========================================================== */
@@ -4095,6 +4105,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (subtitle) subtitle.textContent = 'Không kết nối được máy chủ xác thực. Vui lòng tải lại trang.';
       const rules = document.getElementById('roboconRulesList');
       if (rules) rules.innerHTML = '<div class="schedule-loading">Máy chủ xác thực phản hồi quá lâu. Vui lòng tải lại trang.</div>';
+      const tasks = document.getElementById('overviewGroupTasksSummary');
+      if (tasks) tasks.textContent = 'Chưa xác thực được tài khoản nên chưa thể tải nhiệm vụ.';
+      const total = document.getElementById('kpiTotalStudents');
+      if (total) total.textContent = '—';
     });
   } catch (error) {
     console.error('[admin startup] authentication failed:', error);
