@@ -127,20 +127,37 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 11px;
+  padding: 9px 12px;
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 .student-sidebar-nav button:hover {
   background: var(--surface-2);
   border-color: var(--border);
+}
+.student-sidebar-nav button.active {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.student-view {
+  display: none;
+}
+.student-view.active {
+  display: block;
+  animation: fadeInView 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes fadeInView {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 body.student-menu-open { overflow: hidden; }
 .header-logo-wrap {
@@ -715,12 +732,12 @@ body.student-menu-open { overflow: hidden; }
     <button type="button" class="student-sidebar-close" id="studentMenuClose" aria-label="Đóng menu" onclick="closeStudentSidebar()">×</button>
   </div>
   <nav class="student-sidebar-nav" aria-label="Các mục trên trang">
-    <button type="button" onclick="navigateStudentSection('sessionBox')"><span aria-hidden="true">📷</span>Điểm danh</button>
-    <button type="button" onclick="navigateStudentSection('studentHistorySection')"><span aria-hidden="true">📋</span>Lịch sử điểm danh</button>
-    <button type="button" onclick="navigateStudentSection('studentLeavePanel')"><span aria-hidden="true">📝</span>Xin nghỉ</button>
-    <button type="button" onclick="navigateStudentSection('studentTasksSection')"><span aria-hidden="true">✅</span>Nhiệm vụ của tôi</button>
-    <button type="button" onclick="navigateStudentSection('studentRulesSection')"><span aria-hidden="true">📜</span>Nội quy xưởng</button>
-    <button type="button" onclick="openStudentFeedbackFromMenu()"><span aria-hidden="true">💬</span>Gửi phản hồi ẩn danh</button>
+    <button type="button" class="active" id="snav-checkin" onclick="switchStudentView('checkin')"><span aria-hidden="true">📷</span> Điểm danh</button>
+    <button type="button" id="snav-history" onclick="switchStudentView('history')"><span aria-hidden="true">📋</span> Lịch sử điểm danh</button>
+    <button type="button" id="snav-leave" onclick="switchStudentView('leave')"><span aria-hidden="true">📝</span> Xin nghỉ</button>
+    <button type="button" id="snav-tasks" onclick="switchStudentView('tasks')"><span aria-hidden="true">✅</span> Nhiệm vụ của tôi</button>
+    <button type="button" id="snav-rules" onclick="switchStudentView('rules')"><span aria-hidden="true">📜</span> Nội quy xưởng</button>
+    <button type="button" id="snav-feedback" onclick="switchStudentView('feedback')"><span aria-hidden="true">💬</span> Gửi phản hồi ẩn danh</button>
   </nav>
 </aside>
 <div class="wrap">
@@ -731,7 +748,7 @@ body.student-menu-open { overflow: hidden; }
       </button>
       <div class="student-brand">
         <div class="logo">LH-NaviX</div>
-        <div class="sub">Điểm danh sinh viên</div>
+        <div class="sub" id="studentCurrentSection">Điểm danh</div>
       </div>
       <span class="student-menu-spacer" aria-hidden="true"></span>
     </header>
@@ -746,103 +763,131 @@ body.student-menu-open { overflow: hidden; }
       <button class="logout" onclick="logoutStudent()">Đăng xuất</button>
     </section>
 
-    <section class="session state-loading" id="sessionBox">
-      <div class="session-top">
-        <div class="status"><span class="status-dot"></span><span id="sessionStatusText">Đang kiểm tra...</span></div>
-        <div class="session-time" id="sessionTime"></div>
-      </div>
-      <div class="session-name" id="sessionName">—</div>
-      <div class="session-meta" id="sessionMeta"></div>
-      <div class="session-countdown" id="sessionCountdown"></div>
-    </section>
-
-    <div class="qr-zone">
-      <button class="scan-btn" id="scanBtn" onclick="toggleCameraScanner()">📷 Bật camera quét mã QR</button>
-      <div class="qr-status no-token" id="qrStatus">⚠️ Chưa có mã QR</div>
-    </div>
-
-    <div class="scanner" id="scannerWrapper" style="display:none">
-      <div class="scanner-head">
-        <span>🎥 Đưa camera vào mã QR trên màn hình Admin</span>
-        <button onclick="stopCameraScanner()">✕ Đóng</button>
-      </div>
-      <div id="qrReader"></div>
-    </div>
-
-    <div class="field">
-      <label class="label">MSSV <span class="req">*</span></label>
-      <input type="text" id="mssv" readonly>
-      <span class="hint">🔒 Tài khoản hiện tại</span>
-    </div>
-
-    <div class="field">
-      <label class="label">Lĩnh vực <span class="req">*</span></label>
-      <select id="category"><option value="">-- Chọn lĩnh vực --</option></select>
-    </div>
-
-    <div class="field">
-      <label class="label">Ghi chú</label>
-      <input type="text" id="note" placeholder="Không bắt buộc" maxlength="200">
-    </div>
-
-    <button class="btn-main" id="btnCheckin" onclick="doCheckin()">✓ Xác nhận điểm danh</button>
+    <!-- Global Result Box -->
     <div class="result" id="resultBox"></div>
 
-    <div class="wake">
-      <div>
-        <div class="wake-text">☀️ Giữ màn hình sáng</div>
-        <div class="wake-desc">Không tự tắt màn hình khi đang điểm danh</div>
+    <!-- VIEW 1: ĐIỂM DANH -->
+    <main class="student-view active" id="view-checkin">
+      <section class="session state-loading" id="sessionBox">
+        <div class="session-top">
+          <div class="status"><span class="status-dot"></span><span id="sessionStatusText">Đang kiểm tra...</span></div>
+          <div class="session-time" id="sessionTime"></div>
+        </div>
+        <div class="session-name" id="sessionName">—</div>
+        <div class="session-meta" id="sessionMeta"></div>
+        <div class="session-countdown" id="sessionCountdown"></div>
+      </section>
+
+      <div class="qr-zone">
+        <button class="scan-btn" id="scanBtn" onclick="toggleCameraScanner()">📷 Bật camera quét mã QR</button>
+        <div class="qr-status no-token" id="qrStatus">⚠️ Chưa có mã QR</div>
       </div>
-      <button class="switch" id="wakeSwitch" onclick="toggleWakeLock()"></button>
-    </div>
 
-    <section class="history" id="studentHistorySection">
-      <button class="history-toggle" onclick="toggleHistory(this)">
-        <span>📋 Lịch sử điểm danh</span>
-        <span class="chev">⌄</span>
-      </button>
-      <div class="history-list" id="historyList"></div>
-    </section>
-
-    <section class="leave-panel" id="studentLeavePanel">
-      <h3>📝 Xin nghỉ</h3>
-      <p>Chọn ngày và buổi nghỉ. Lý do bắt buộc, ảnh minh chứng có thể gửi thêm. Bạn sửa hoặc hủy đơn khi còn chờ duyệt.</p>
-      <div class="leave-grid">
-        <div class="leave-field"><label for="leaveDate">Ngày nghỉ</label><input id="leaveDate" type="date" onchange="checkLeaveConflict()"></div>
-        <div class="leave-field"><label for="leavePeriod">Buổi nghỉ</label><select id="leavePeriod" onchange="checkLeaveConflict()"><option value="full_day">Cả ngày</option><option value="morning">Buổi sáng</option><option value="afternoon">Buổi chiều</option><option value="evening">Buổi tối</option></select></div>
+      <div class="scanner" id="scannerWrapper" style="display:none">
+        <div class="scanner-head">
+          <span>🎥 Đưa camera vào mã QR trên màn hình Admin</span>
+          <button onclick="stopCameraScanner()">✕ Đóng</button>
+        </div>
+        <div id="qrReader"></div>
       </div>
-      <div class="leave-notice" id="leaveConflictNotice"></div>
-      <div class="leave-field"><label for="leaveReason">Lý do *</label><textarea id="leaveReason" rows="2" maxlength="1000" placeholder="Nhập lý do xin nghỉ"></textarea></div>
-      <div class="leave-field"><label for="leaveEvidence">Ảnh minh chứng (nếu có)</label><input id="leaveEvidence" type="file" accept="image/jpeg,image/png,image/webp"></div>
-      <input type="hidden" id="editingLeaveId">
-      <button class="btn-main" style="padding:10px" id="leaveSubmitButton" onclick="submitLeaveRequest()">Gửi đơn xin nghỉ</button>
-      <button type="button" id="leaveCancelEdit" style="display:none;width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:var(--muted);font:inherit" onclick="resetLeaveForm()">Hủy sửa</button>
-      <div style="margin-top:15px;font-size:12px;font-weight:800">Danh sách đơn xin nghỉ</div>
-      <div id="myLeaveRequests"><div class="history-empty">Đang tải đơn nghỉ...</div></div>
-      <div style="margin-top:14px;font-size:12px;font-weight:800">Thông báo</div>
-      <div id="studentLeaveNotifications"><div class="history-empty">Đang tải thông báo...</div></div>
+
+      <div class="field">
+        <label class="label">MSSV <span class="req">*</span></label>
+        <input type="text" id="mssv" readonly>
+        <span class="hint">🔒 Tài khoản hiện tại</span>
+      </div>
+
+      <div class="field">
+        <label class="label">Lĩnh vực <span class="req">*</span></label>
+        <select id="category"><option value="">-- Chọn lĩnh vực --</option></select>
+      </div>
+
+      <div class="field">
+        <label class="label">Ghi chú</label>
+        <input type="text" id="note" placeholder="Không bắt buộc" maxlength="200">
+      </div>
+
+      <button class="btn-main" id="btnCheckin" onclick="doCheckin()">✓ Xác nhận điểm danh</button>
+
+      <div class="wake">
+        <div>
+          <div class="wake-text">☀️ Giữ màn hình sáng</div>
+          <div class="wake-desc">Không tự tắt màn hình khi đang điểm danh</div>
+        </div>
+        <button class="switch" id="wakeSwitch" onclick="toggleWakeLock()"></button>
+      </div>
+    </main>
+
+    <!-- VIEW 2: LỊCH SỬ ĐIỂM DANH -->
+    <section class="student-view" id="view-history">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px">📋 Lịch sử điểm danh</div>
+      <div class="history-list open" id="historyList"></div>
     </section>
 
-    <section class="history" id="studentTasksSection" style="margin-top:14px">
-      <button class="history-toggle" onclick="toggleTasksPanel(this)"><span>✅ Nhiệm vụ của tôi</span><span class="chev">⌄</span></button>
-      <div class="history-list open" id="myTasksList"><div class="history-empty">Đang tải nhiệm vụ...</div></div>
-      <div id="leaderTaskForm" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px">
-        <b style="font-size:12px">Giao nhiệm vụ cho nhóm</b>
-        <select id="leaderTaskTeam" style="margin:8px 0"></select>
-        <input id="leaderTaskTitle" placeholder="Tên nhiệm vụ" maxlength="180">
-        <textarea id="leaderTaskDesc" rows="2" placeholder="Mô tả" style="width:100%;margin:8px 0;padding:10px;border:1px solid var(--border-strong);border-radius:8px;font:inherit"></textarea>
-        <button class="btn-main" style="padding:10px" onclick="createLeaderTask()">Giao cho cả nhóm</button>
+    <!-- VIEW 3: XIN NGHỈ -->
+    <section class="student-view" id="view-leave">
+      <div class="leave-panel" id="studentLeavePanel" style="margin-top:0">
+        <h3>📝 Xin nghỉ</h3>
+        <p>Chọn ngày và buổi nghỉ. Lý do bắt buộc, ảnh minh chứng có thể gửi thêm. Bạn sửa hoặc hủy đơn khi còn chờ duyệt.</p>
+        <div class="leave-grid">
+          <div class="leave-field"><label for="leaveDate">Ngày nghỉ</label><input id="leaveDate" type="date" onchange="checkLeaveConflict()"></div>
+          <div class="leave-field"><label for="leavePeriod">Buổi nghỉ</label><select id="leavePeriod" onchange="checkLeaveConflict()"><option value="full_day">Cả ngày</option><option value="morning">Buổi sáng</option><option value="afternoon">Buổi chiều</option><option value="evening">Buổi tối</option></select></div>
+        </div>
+        <div class="leave-notice" id="leaveConflictNotice"></div>
+        <div class="leave-field"><label for="leaveReason">Lý do *</label><textarea id="leaveReason" rows="2" maxlength="1000" placeholder="Nhập lý do xin nghỉ"></textarea></div>
+        <div class="leave-field"><label for="leaveEvidence">Ảnh minh chứng (nếu có)</label><input id="leaveEvidence" type="file" accept="image/jpeg,image/png,image/webp"></div>
+        <input type="hidden" id="editingLeaveId">
+        <button class="btn-main" style="padding:10px" id="leaveSubmitButton" onclick="submitLeaveRequest()">Gửi đơn xin nghỉ</button>
+        <button type="button" id="leaveCancelEdit" style="display:none;width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:var(--muted);font:inherit" onclick="resetLeaveForm()">Hủy sửa</button>
+        <div style="margin-top:15px;font-size:12px;font-weight:800">Danh sách đơn xin nghỉ</div>
+        <div id="myLeaveRequests"><div class="history-empty">Đang tải đơn nghỉ...</div></div>
+        <div style="margin-top:14px;font-size:12px;font-weight:800">Thông báo</div>
+        <div id="studentLeaveNotifications"><div class="history-empty">Đang tải thông báo...</div></div>
       </div>
     </section>
 
-    <section class="history" id="studentRulesSection" style="margin-top:14px">
-      <button class="history-toggle" onclick="toggleRulesPanel(this)"><span>📜 Luật & nội quy xưởng</span><span class="chev">⌄</span></button>
-      <div class="history-list" id="studentRulesList"><div class="history-empty">Đang tải nội quy...</div></div>
+    <!-- VIEW 4: NHIỆM VỤ CỦA TÔI -->
+    <section class="student-view" id="view-tasks">
+      <div class="history" id="studentTasksSection" style="margin-top:0">
+        <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px">✅ Nhiệm vụ của tôi</div>
+        <div class="history-list open" id="myTasksList"><div class="history-empty">Đang tải nhiệm vụ...</div></div>
+        <div id="leaderTaskForm" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px">
+          <b style="font-size:12px">Giao nhiệm vụ cho nhóm</b>
+          <select id="leaderTaskTeam" style="margin:8px 0"></select>
+          <input id="leaderTaskTitle" placeholder="Tên nhiệm vụ" maxlength="180">
+          <textarea id="leaderTaskDesc" rows="2" placeholder="Mô tả" style="width:100%;margin:8px 0;padding:10px;border:1px solid var(--border-strong);border-radius:8px;font:inherit"></textarea>
+          <button class="btn-main" style="padding:10px" onclick="createLeaderTask()">Giao cho cả nhóm</button>
+        </div>
+      </div>
     </section>
 
-    <div style="text-align:center;margin-top:14px">
-      <button type="button" style="background:none;border:none;color:var(--info);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px" onclick="document.getElementById('fbModal').style.display='flex'">💬 Gửi phản hồi ẩn danh cho xưởng</button>
-    </div>
+    <!-- VIEW 5: NỘI QUY XƯỞNG -->
+    <section class="student-view" id="view-rules">
+      <div class="history" id="studentRulesSection" style="margin-top:0">
+        <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px">📜 Luật & nội quy xưởng</div>
+        <div class="history-list open" id="studentRulesList"><div class="history-empty">Đang tải nội quy...</div></div>
+      </div>
+    </section>
+
+    <!-- VIEW 6: PHẢN HỒI ẨN DANH -->
+    <section class="student-view" id="view-feedback">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:6px">💬 Gửi phản hồi ẩn danh</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Ý kiến của bạn là ẩn danh hoàn toàn, không lưu tên hay MSSV.</p>
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Loại góp ý:</label>
+        <select id="fbTypeInput" style="width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+          <option value="gopy">💡 Góp ý xưởng</option>
+          <option value="suco">⚠️ Báo cáo hỏng hóc thiết bị</option>
+          <option value="muasam">🛠 Đề xuất mua linh kiện</option>
+          <option value="khac">💬 Ý kiến khác</option>
+        </select>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Nội dung chi tiết *:</label>
+        <textarea id="fbContentInput" rows="4" maxlength="1500" placeholder="Viết phản hồi hoặc báo cáo sự cố tại đây..." style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border-strong);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;background:var(--surface);color:var(--text)"></textarea>
+      </div>
+      <button type="button" class="btn-main" id="fbSubmitButton" onclick="submitStudentFeedbackFromCheckin()" style="padding:10px">Gửi phản hồi</button>
+    </section>
 
     <footer class="footer">LH-NaviX · v2.0.0</footer>
   </div>
@@ -1087,24 +1132,56 @@ function setStudentSidebarOpen(open,restoreFocus=true){
 }
 function toggleStudentSidebar(){setStudentSidebarOpen(!document.getElementById('studentSidebar')?.classList.contains('open'));}
 function closeStudentSidebar(){setStudentSidebarOpen(false);}
-function navigateStudentSection(sectionId){
-  const target = document.getElementById(sectionId);
-  if (!target) return;
-  const toggle = target.querySelector('.history-toggle');
-  if (toggle && !toggle.classList.contains('open')) {
-    toggle.click();
+const studentViewTitles = {
+  checkin: 'Điểm danh',
+  history: 'Lịch sử điểm danh',
+  leave: 'Đơn xin nghỉ',
+  tasks: 'Nhiệm vụ của tôi',
+  rules: 'Nội quy xưởng',
+  feedback: 'Phản hồi ẩn danh'
+};
+
+function switchStudentView(viewName) {
+  document.querySelectorAll('.student-view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById('view-' + viewName);
+  if (target) target.classList.add('active');
+
+  document.querySelectorAll('.student-sidebar-nav button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('snav-' + viewName)?.classList.add('active');
+
+  const titleEl = document.getElementById('studentCurrentSection');
+  if (titleEl) titleEl.textContent = studentViewTitles[viewName] || 'Điểm danh';
+
+  if (viewName === 'history') {
+    loadHistory();
+  } else if (viewName === 'tasks') {
+    loadMyTasks();
+  } else if (viewName === 'rules') {
+    loadStudentRules();
+  } else if (viewName === 'leave') {
+    loadMyLeaveRequests();
+    loadStudentLeaveNotifications();
   }
-  setStudentSidebarOpen(false, false);
-  window.setTimeout(() => {
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 50);
+
+  closeStudentSidebar();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-function openStudentFeedbackFromMenu(){
-  setStudentSidebarOpen(false, false);
-  const fbModal = document.getElementById('fbModal');
-  if (fbModal) fbModal.style.display = 'flex';
-  window.setTimeout(() => document.getElementById('fbContentInput')?.focus(), 50);
+
+function navigateStudentSection(sectionId) {
+  const map = {
+    sessionBox: 'checkin',
+    studentHistorySection: 'history',
+    studentLeavePanel: 'leave',
+    studentTasksSection: 'tasks',
+    studentRulesSection: 'rules'
+  };
+  switchStudentView(map[sectionId] || 'checkin');
 }
+
+function openStudentFeedbackFromMenu() {
+  switchStudentView('feedback');
+}
+
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     if (document.getElementById('studentSidebar')?.classList.contains('open')) {
