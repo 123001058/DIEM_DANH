@@ -31,6 +31,114 @@ body {
   text-align: center;
   margin-bottom: 20px;
 }
+.header.student-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.student-brand { min-width: 0; text-align: center; }
+.student-menu-button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(20,24,32,.08);
+}
+.student-menu-button:hover { background: var(--accent-soft); }
+.student-menu-button:focus-visible,
+.student-sidebar button:focus-visible,
+.student-sidebar-close:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.student-menu-button span {
+  width: 17px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.student-menu-spacer { width: 40px; height: 40px; }
+.student-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(15,23,42,.44);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease, visibility .2s ease;
+}
+.student-menu-overlay.show { opacity: 1; visibility: visible; }
+.student-sidebar {
+  position: fixed;
+  z-index: 1101;
+  inset: 0 auto 0 0;
+  width: min(300px, 86vw);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: 12px 0 34px rgba(15,23,42,.16);
+  transform: translateX(-105%);
+  transition: transform .22s ease;
+}
+.student-sidebar.open { transform: translateX(0); }
+.student-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 5px 15px;
+  border-bottom: 1px solid var(--border);
+}
+.student-sidebar-title { font-size: 15px; font-weight: 800; color: var(--text); }
+.student-sidebar-subtitle { margin-top: 2px; font-size: 11px; color: var(--muted); }
+.student-sidebar-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+}
+.student-sidebar-nav {
+  display: grid;
+  gap: 5px;
+  padding-top: 12px;
+  overflow-y: auto;
+}
+.student-sidebar-nav button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.student-sidebar-nav button:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+body.student-menu-open { overflow: hidden; }
 .header-logo-wrap {
   display: inline-flex;
   align-items: center;
@@ -593,11 +701,35 @@ body {
 </head>
 <body>
 <div class="bg-grid"></div>
+<div class="student-menu-overlay" id="studentMenuOverlay" aria-hidden="true" onclick="closeStudentSidebar()"></div>
+<aside class="student-sidebar" id="studentSidebar" aria-label="Điều hướng sinh viên" aria-hidden="true">
+  <div class="student-sidebar-head">
+    <div>
+      <div class="student-sidebar-title">LH-NaviX</div>
+      <div class="student-sidebar-subtitle">Điều hướng sinh viên</div>
+    </div>
+    <button type="button" class="student-sidebar-close" id="studentMenuClose" aria-label="Đóng menu" onclick="closeStudentSidebar()">×</button>
+  </div>
+  <nav class="student-sidebar-nav" aria-label="Các mục trên trang">
+    <button type="button" onclick="navigateStudentSection('sessionBox')"><span aria-hidden="true">📷</span>Điểm danh</button>
+    <button type="button" onclick="navigateStudentSection('studentHistorySection')"><span aria-hidden="true">📋</span>Lịch sử điểm danh</button>
+    <button type="button" onclick="navigateStudentSection('studentLeavePanel')"><span aria-hidden="true">📝</span>Xin nghỉ</button>
+    <button type="button" onclick="navigateStudentSection('studentTasksSection')"><span aria-hidden="true">✅</span>Nhiệm vụ của tôi</button>
+    <button type="button" onclick="navigateStudentSection('studentRulesSection')"><span aria-hidden="true">📜</span>Nội quy xưởng</button>
+    <button type="button" onclick="openStudentFeedbackFromMenu()"><span aria-hidden="true">💬</span>Gửi phản hồi ẩn danh</button>
+  </nav>
+</aside>
 <div class="wrap">
   <div class="card">
-    <header class="header">
-      <div class="logo">LH-NaviX</div>
-      <div class="sub">Điểm danh sinh viên</div>
+    <header class="header student-header">
+      <button type="button" class="student-menu-button" id="studentMenuButton" aria-label="Mở menu điều hướng" aria-controls="studentSidebar" aria-expanded="false" onclick="toggleStudentSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="student-brand">
+        <div class="logo">LH-NaviX</div>
+        <div class="sub">Điểm danh sinh viên</div>
+      </div>
+      <span class="student-menu-spacer" aria-hidden="true"></span>
     </header>
 
     <section class="user-box">
@@ -660,7 +792,7 @@ body {
       <button class="switch" id="wakeSwitch" onclick="toggleWakeLock()"></button>
     </div>
 
-    <section class="history">
+    <section class="history" id="studentHistorySection">
       <button class="history-toggle" onclick="toggleHistory(this)">
         <span>📋 Lịch sử điểm danh</span>
         <span class="chev">⌄</span>
@@ -687,7 +819,7 @@ body {
       <div id="studentLeaveNotifications"><div class="history-empty">Đang tải thông báo...</div></div>
     </section>
 
-    <section class="history" style="margin-top:14px">
+    <section class="history" id="studentTasksSection" style="margin-top:14px">
       <button class="history-toggle" onclick="toggleTasksPanel(this)"><span>✅ Nhiệm vụ của tôi</span><span class="chev">⌄</span></button>
       <div class="history-list open" id="myTasksList"><div class="history-empty">Đang tải nhiệm vụ...</div></div>
       <div id="leaderTaskForm" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px">
@@ -699,7 +831,7 @@ body {
       </div>
     </section>
 
-    <section class="history" style="margin-top:14px">
+    <section class="history" id="studentRulesSection" style="margin-top:14px">
       <button class="history-toggle" onclick="toggleRulesPanel(this)"><span>📜 Luật & nội quy xưởng</span><span class="chev">⌄</span></button>
       <div class="history-list" id="studentRulesList"><div class="history-empty">Đang tải nội quy...</div></div>
     </section>
@@ -936,6 +1068,42 @@ async function toggleHistory(btn){
   list.classList.toggle('open');
   if (list.classList.contains('open')) await loadHistory();
 }
+function setStudentSidebarOpen(open,restoreFocus=true){
+  const drawer=document.getElementById('studentSidebar');
+  const overlay=document.getElementById('studentMenuOverlay');
+  const trigger=document.getElementById('studentMenuButton');
+  if(!drawer)return;
+  drawer.classList.toggle('open',open);
+  overlay?.classList.toggle('show',open);
+  document.body.classList.toggle('student-menu-open',open);
+  drawer.setAttribute('aria-hidden',String(!open));
+  trigger?.setAttribute('aria-expanded',String(open));
+  if(open)document.getElementById('studentMenuClose')?.focus();
+  else if(restoreFocus)trigger?.focus();
+}
+function toggleStudentSidebar(){setStudentSidebarOpen(!document.getElementById('studentSidebar')?.classList.contains('open'));}
+function closeStudentSidebar(){setStudentSidebarOpen(false);}
+function navigateStudentSection(sectionId){
+  const target=document.getElementById(sectionId);
+  if(!target)return;
+  if(sectionId==='studentHistorySection'){
+    const toggle=target.querySelector('.history-toggle');
+    if(toggle&&!toggle.classList.contains('open'))toggle.click();
+  }else if(sectionId==='studentRulesSection'){
+    const toggle=target.querySelector('.history-toggle');
+    if(toggle&&!toggle.classList.contains('open'))toggle.click();
+  }
+  setStudentSidebarOpen(false,false);
+  window.setTimeout(()=>target.scrollIntoView({behavior:'smooth',block:'start'}),40);
+}
+function openStudentFeedbackFromMenu(){
+  setStudentSidebarOpen(false,false);
+  document.getElementById('fbModal').style.display='flex';
+  window.setTimeout(()=>document.getElementById('fbContentInput')?.focus(),40);
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&document.getElementById('studentSidebar')?.classList.contains('open'))closeStudentSidebar();
+});
 async function loadHistory(){
   const list = document.getElementById('historyList');
   list.innerHTML = '<div class="history-empty">Đang tải...</div>';
