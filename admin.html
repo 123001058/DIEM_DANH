@@ -261,6 +261,7 @@ body {
     max-width: calc(100vw - 260px);
     width: auto;
     padding: 16px 28px 48px;
+    transition: margin-left 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), max-width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   body.sidebar-collapsed .app-wrapper {
     margin-left: 0;
@@ -2331,7 +2332,7 @@ function syncSidebarViewport() {
 window.addEventListener('resize', syncSidebarViewport);
 syncSidebarViewport();
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !window.matchMedia('(min-width: 1024px)').matches && document.getElementById('sidebarDrawer')?.classList.contains('open')) closeSidebar();
+  if (event.key === 'Escape' && document.getElementById('sidebarDrawer')?.classList.contains('open')) closeSidebar();
 });
 
 /* ==========================================================

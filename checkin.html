@@ -42,8 +42,10 @@ body {
 .student-menu-button {
   width: 40px;
   height: 40px;
-  display: grid;
-  place-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 0;
   border: 1px solid var(--border-strong);
@@ -52,8 +54,9 @@ body {
   color: var(--text);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(20,24,32,.08);
+  flex: none;
 }
-.student-menu-button:hover { background: var(--accent-soft); }
+.student-menu-button:hover { background: var(--surface-hover); }
 .student-menu-button:focus-visible,
 .student-sidebar button:focus-visible,
 .student-sidebar-close:focus-visible {
@@ -61,8 +64,9 @@ body {
   outline-offset: 2px;
 }
 .student-menu-button span {
-  width: 17px;
-  height: 2px;
+  display: block;
+  width: 18px;
+  height: 2.2px;
   border-radius: 2px;
   background: currentColor;
 }
@@ -1084,25 +1088,33 @@ function setStudentSidebarOpen(open,restoreFocus=true){
 function toggleStudentSidebar(){setStudentSidebarOpen(!document.getElementById('studentSidebar')?.classList.contains('open'));}
 function closeStudentSidebar(){setStudentSidebarOpen(false);}
 function navigateStudentSection(sectionId){
-  const target=document.getElementById(sectionId);
-  if(!target)return;
-  if(sectionId==='studentHistorySection'){
-    const toggle=target.querySelector('.history-toggle');
-    if(toggle&&!toggle.classList.contains('open'))toggle.click();
-  }else if(sectionId==='studentRulesSection'){
-    const toggle=target.querySelector('.history-toggle');
-    if(toggle&&!toggle.classList.contains('open'))toggle.click();
+  const target = document.getElementById(sectionId);
+  if (!target) return;
+  const toggle = target.querySelector('.history-toggle');
+  if (toggle && !toggle.classList.contains('open')) {
+    toggle.click();
   }
-  setStudentSidebarOpen(false,false);
-  window.setTimeout(()=>target.scrollIntoView({behavior:'smooth',block:'start'}),40);
+  setStudentSidebarOpen(false, false);
+  window.setTimeout(() => {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
 }
 function openStudentFeedbackFromMenu(){
-  setStudentSidebarOpen(false,false);
-  document.getElementById('fbModal').style.display='flex';
-  window.setTimeout(()=>document.getElementById('fbContentInput')?.focus(),40);
+  setStudentSidebarOpen(false, false);
+  const fbModal = document.getElementById('fbModal');
+  if (fbModal) fbModal.style.display = 'flex';
+  window.setTimeout(() => document.getElementById('fbContentInput')?.focus(), 50);
 }
-document.addEventListener('keydown',event=>{
-  if(event.key==='Escape'&&document.getElementById('studentSidebar')?.classList.contains('open'))closeStudentSidebar();
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    if (document.getElementById('studentSidebar')?.classList.contains('open')) {
+      closeStudentSidebar();
+    }
+    const fbModal = document.getElementById('fbModal');
+    if (fbModal && fbModal.style.display !== 'none') {
+      fbModal.style.display = 'none';
+    }
+  }
 });
 async function loadHistory(){
   const list = document.getElementById('historyList');
