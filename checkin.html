@@ -113,6 +113,34 @@ input[readonly]{background:var(--surface-2);color:var(--muted)}
 .leave-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.leave-card{padding:11px 0;border-top:1px solid var(--border);font-size:12px}.leave-card strong{font-size:12px}.leave-chip{font-size:10px;font-weight:800;border-radius:99px;padding:3px 8px;background:#f1f5f9}.leave-notice{display:none;padding:8px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:11px;margin:6px 0 10px}.leave-notice.show{display:block}
 .footer{text-align:center;margin-top:20px;color:var(--faint);font-size:10.5px}
 @media(max-width:480px){body{padding:10px}.card{padding:22px 17px 18px;border-radius:14px}.logo{font-size:21px}}
+  .task-action-row button,
+  .task-action-row select {
+    min-height: 38px;
+    padding: 8px 12px !important;
+    border: 1px solid var(--text) !important;
+    border-radius: 8px !important;
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(20,24,32,.12);
+  }
+  .task-action-row button:not(:disabled) { cursor: pointer; }
+  .task-action-row button:not(:disabled):hover,
+  .task-action-row select:hover { background: var(--accent-soft) !important; }
+  .task-action-row button:focus-visible,
+  .task-action-row select:focus-visible {
+    outline: 3px solid var(--accent-soft);
+    outline-offset: 2px;
+  }
+  .task-action-row button:disabled {
+    border-color: var(--border-strong) !important;
+    background: var(--surface-2) !important;
+    color: var(--muted) !important;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
 </style>
 <script src="js/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
