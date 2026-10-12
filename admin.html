@@ -989,6 +989,11 @@ tbody tr:last-child td { border-bottom: none; }
       </span>
       <span class="nav-label">Phản hồi ẩn danh</span>
     </button>
+    <button class="sidebar-nav-item" id="nav-password-reset" onclick="navTo('password-reset')">
+      <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path><circle cx="12" cy="16" r="1"></circle></svg></span>
+      <span class="nav-label">Reset mật khẩu</span>
+      <span class="nav-badge" id="navPasswordResetBadge" style="display:none">0</span>
+    </button>
     <button class="sidebar-nav-item" id="nav-zalo" onclick="navTo('zalo')">
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
@@ -1563,6 +1568,36 @@ tbody tr:last-child td { border-bottom: none; }
       <div class="fb-list" id="feedbackList"><div class="empty-state">Đang tải phản hồi...</div></div>
     </section>
 
+    <section class="app-view" id="view-password-reset">
+      <section class="card history-widget-card" style="margin:0">
+        <div class="widget-head">
+          <div>
+            <div class="widget-title">🔑 Reset mật khẩu sinh viên</div>
+            <p class="widget-sub">Tìm theo MSSV hoặc tên, cấp mật khẩu tạm và tự gửi cho sinh viên.</p>
+          </div>
+          <button class="btn btn-icon" onclick="loadPasswordResetView()" title="Làm mới">↻</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0">
+          <input id="passwordResetSearch" type="search" placeholder="🔍 Tìm MSSV hoặc tên sinh viên..." oninput="renderPasswordResetStudents()" style="flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit">
+          <span id="passwordResetStudentCount" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div class="tbl-wrap"><div class="tbl-scroll" style="max-height:440px"><table>
+          <thead><tr><th>Sinh viên</th><th style="width:180px">MSSV</th><th style="width:145px;text-align:right">Thao tác</th></tr></thead>
+          <tbody id="passwordResetStudentRows"><tr><td colspan="3"><div class="tbl-empty">Đang tải danh sách...</div></td></tr></tbody>
+        </table></div></div>
+      </section>
+      <section class="card history-widget-card" style="margin:14px 0 0">
+        <div class="widget-head">
+          <div><div class="widget-title">🕒 Lịch sử reset mật khẩu</div><p class="widget-sub">Sinh viên, người thực hiện và thời điểm reset.</p></div>
+          <div class="widget-actions"><button class="btn btn-danger" onclick="clearPasswordResetHistory()">🗑 Xóa lịch sử</button><button class="btn btn-icon" onclick="loadPasswordResetHistory()" title="Làm mới">↻</button></div>
+        </div>
+        <div class="tbl-wrap"><div class="tbl-scroll" style="max-height:320px"><table>
+          <thead><tr><th>Sinh viên</th><th>MSSV</th><th>Mật khẩu đã cấp</th><th>Người reset</th><th>Thời điểm</th></tr></thead>
+          <tbody id="passwordResetHistoryRows"><tr><td colspan="5"><div class="tbl-empty">Đang tải lịch sử...</div></td></tr></tbody>
+        </table></div></div>
+      </section>
+    </section>
+
     <!-- ==========================================================
          VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION)
          ========================================================== -->
@@ -1955,6 +1990,7 @@ const viewTitlesMap = {
   leave: 'Quản lý đơn xin nghỉ',
   schedules: 'Lịch học & rảnh/bận',
   feedback: 'Phản hồi ẩn danh',
+  'password-reset': 'Reset mật khẩu',
   zalo: 'Lịch gửi Zalo',
   history: 'Lịch sử'
 };
@@ -1978,6 +2014,7 @@ function navTo(viewName) {
   else if (viewName === 'teams' && typeof loadTeamGroups === 'function') loadTeamGroups();
   else if (viewName === 'schedules' && typeof loadTodaySchoolSchedule === 'function') loadTodaySchoolSchedule();
   else if (viewName === 'history' && typeof loadTodayHistory === 'function') { loadTodayHistory(); initializeAttendanceReportDates(); loadAttendanceReport(); }
+  else if (viewName === 'password-reset') loadPasswordResetView();
   else if (viewName === 'leave' && typeof loadLeaveManagement === 'function') loadLeaveManagement();
   else if (viewName === 'requests' && typeof fetchResetRequests === 'function') fetchResetRequests();
   else if (viewName === 'tasks') loadAdminTasks();
@@ -2939,12 +2976,14 @@ function renderTable(){
   } else {
     tbody.innerHTML = page.map(s => {
       const a = attendanceMap[s.mssv];
+      const resetRequest = window._pendingResetRequestsByMssv?.[s.mssv];
+      const resetRequestLabel = resetRequest ? '<div style="margin-top:4px;font-size:10.5px;font-weight:700;color:#b45309">🔔 Có yêu cầu reset</div>' : '';
       const rawStatus = a?.status || 'unmarked';
       const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
       const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
       return '<tr>' +
-        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + '</div></div></td>' +
-        '<td class="td-mono">' + s.mssv + '<br><button onclick="resetStudentPassword(\'' + s.mssv + '\')" style="margin-top:6px;font-size:10.5px;padding:3px 6px;border-radius:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;color:#334155" title="Cấp lại mật khẩu">🔑 Reset Pass</button></td>' +
+        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + resetRequestLabel + '</div></div></td>' +
+        '<td class="td-mono">' + escapeHtml(s.mssv) + resetRequestLabel + '</td>' +
         '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
           (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
           '<option value="có mặt" ' + (rawStatus==='có mặt'?'selected':'') + '>Có mặt</option>' +
@@ -2990,9 +3029,11 @@ async function openSession(){
 let _pendingStatusChange = null;
 
 let _currentResetRequestId = null;
+window._pendingResetRequestsByMssv = window._pendingResetRequestsByMssv || {};
 
-async function resetStudentPassword(mssv, requestId = null) {
-  if (!confirm('Bạn có chắc muốn cấp lại mật khẩu cho sinh viên ' + mssv + ' không?')) return;
+async function resetStudentPassword(mssv, requestId = null, studentName = null) {
+  const label = studentName ? `${studentName} (${mssv})` : mssv;
+  if (!confirm('Bạn có chắc muốn cấp mật khẩu tạm mới cho ' + label + ' không?')) return;
   
   toast('info', 'Đang xử lý', 'Vui lòng chờ...');
   try {
@@ -3004,7 +3045,7 @@ async function resetStudentPassword(mssv, requestId = null) {
     }
 
     const { data, error } = await supabase.functions.invoke('admin-reset-password', {
-      body: { target_mssv: mssv },
+      body: { target_mssv: mssv, request_id: requestId || null },
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -3035,6 +3076,7 @@ async function resetStudentPassword(mssv, requestId = null) {
     }
     
     toast('ok', 'Thành công', 'Đã tạo mật khẩu tạm.');
+    if (data.historySaved === false) toast('warn', 'Đã reset nhưng chưa ghi lịch sử', 'Vui lòng báo quản trị hệ thống kiểm tra bảng lịch sử reset.');
   } catch (err) {
     console.error('Edge Function Error:', err);
     toast('err', 'Lỗi reset mật khẩu', err.message);
@@ -3051,6 +3093,13 @@ async function fetchResetRequests() {
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
     
+  window._pendingResetRequestsByMssv = Object.fromEntries((!error && data ? data : []).map(req => [req.mssv, req]));
+  const pendingCount = Object.keys(window._pendingResetRequestsByMssv).length;
+  const menuBadge = document.getElementById('navPasswordResetBadge');
+  if (menuBadge) { menuBadge.textContent = pendingCount; menuBadge.style.display = pendingCount ? 'inline-flex' : 'none'; }
+  if (typeof renderTable === 'function' && document.getElementById('studentTbody')) renderTable();
+  if (typeof renderPasswordResetStudents === 'function' && document.getElementById('passwordResetStudentRows')) renderPasswordResetStudents();
+
   const btn = document.getElementById('btnResetRequests');
   if (btn) {
     if (!error && data && data.length > 0) {
@@ -3075,13 +3124,69 @@ async function fetchResetRequests() {
         <td class="td-mono">${req.mssv}</td>
         <td style="text-align:right">
           <div style="display:inline-flex;gap:6px;justify-content:flex-end">
-            <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
+            <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer" onclick="resetStudentPassword('${req.mssv}', '${req.id}', '${escapeHtml(stu?.name || req.mssv)}')">Xử lý</button>
             <button class="btn" style="background:#ef4444;color:#fff;border:none;padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer" onclick="deleteResetRequest('${req.id}', '${req.mssv}')">Xóa</button>
           </div>
         </td>
       </tr>`;
     }).join('');
   }
+}
+
+function resetRequestBadge(request) {
+  return request ? '<div style="margin-top:4px;font-size:10.5px;font-weight:700;color:#b45309">🔔 Có yêu cầu reset</div>' : '';
+}
+
+function renderPasswordResetStudents() {
+  const tbody = document.getElementById('passwordResetStudentRows');
+  if (!tbody) return;
+  const q = (document.getElementById('passwordResetSearch')?.value || '').trim().toLocaleLowerCase('vi');
+  const filtered = students.filter(s => !q || String(s.mssv).toLocaleLowerCase('vi').includes(q) || String(s.name || '').toLocaleLowerCase('vi').includes(q));
+  const count = document.getElementById('passwordResetStudentCount');
+  if (count) count.textContent = `${filtered.length} / ${students.length} sinh viên`;
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="3"><div class="tbl-empty">Không tìm thấy sinh viên phù hợp.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(s => {
+    const req = window._pendingResetRequestsByMssv?.[s.mssv];
+    return `<tr><td><b>${escapeHtml(s.name || '')}</b>${resetRequestBadge(req)}</td><td class="td-mono">${escapeHtml(s.mssv)}${resetRequestBadge(req)}</td><td style="text-align:right"><button class="btn btn-primary" style="padding:6px 10px;font-size:12px" onclick="resetStudentPassword('${escapeHtml(s.mssv)}', ${req ? `'${req.id}'` : 'null'}, '${escapeHtml(s.name || s.mssv)}')">🔑 Reset Pass</button></td></tr>`;
+  }).join('');
+}
+
+async function loadPasswordResetView() {
+  if (!students.length) await loadStudents();
+  renderPasswordResetStudents();
+  await Promise.all([fetchResetRequests(), loadPasswordResetHistory()]);
+}
+
+async function loadPasswordResetHistory() {
+  const tbody = document.getElementById('passwordResetHistoryRows');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4"><div class="tbl-empty">Đang tải lịch sử...</div></td></tr>';
+  const { data, error } = await supabase.from('password_reset_history')
+    .select('id, mssv, student_name, temp_password, reset_by_name, created_at')
+    .order('created_at', { ascending: false }).limit(200);
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="tbl-empty">Không tải được lịch sử: ${escapeHtml(error.message)}</div></td></tr>`;
+    return;
+  }
+  if (!data?.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="tbl-empty">Chưa có lịch sử reset.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(row => `<tr><td><b>${escapeHtml(row.student_name || '')}</b></td><td class="td-mono">${escapeHtml(row.mssv || '')}</td><td class="td-mono">${row.temp_password ? `<button class="btn btn-secondary" style="padding:4px 7px;font-family:monospace" onclick="navigator.clipboard.writeText('${escapeHtml(row.temp_password)}').then(()=>toast('ok','Đã copy','Mật khẩu đã được copy'))">${escapeHtml(row.temp_password)} · Copy</button>` : '—'}</td><td>${escapeHtml(row.reset_by_name || 'Admin')}</td><td>${new Date(row.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</td></tr>`).join('');
+}
+
+async function clearPasswordResetHistory() {
+  if (!confirm('Xóa toàn bộ lịch sử reset mật khẩu? Thao tác này không thể hoàn tác.')) return;
+  const { data, error } = await supabase.rpc('admin_clear_password_reset_history');
+  if (error || data?.ok === false) {
+    toast('err', 'Không xóa được lịch sử', error?.message || data?.message || 'Vui lòng thử lại.');
+    return;
+  }
+  toast('ok', 'Đã xóa lịch sử', 'Lịch sử reset mật khẩu đã được xóa.');
+  await loadPasswordResetHistory();
 }
 
 async function deleteResetRequest(requestId, mssv) {

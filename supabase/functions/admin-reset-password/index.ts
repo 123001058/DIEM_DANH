@@ -6,6 +6,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function makeTemporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  const random = new Uint8Array(12)
+  crypto.getRandomValues(random)
+  return Array.from(random, value => alphabet[value % alphabet.length]).join('')
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -38,9 +45,29 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Permission denied (Not Admin)' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 })
     }
 
-    const { target_mssv } = await req.json()
+    const { target_mssv, request_id } = await req.json()
     if (!target_mssv) {
       return new Response(JSON.stringify({ error: 'Missing target_mssv' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+    }
+
+    const { data: targetStudent } = await supabaseAdmin
+      .from('students')
+      .select('name')
+      .eq('mssv', target_mssv)
+      .maybeSingle()
+    if (!targetStudent) {
+      return new Response(JSON.stringify({ error: 'Không tìm thấy sinh viên này trong danh sách lớp.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
+    }
+
+    if (request_id) {
+      const { data: resetRequest, error: requestError } = await supabaseAdmin
+        .from('password_reset_requests')
+        .select('id, mssv, status')
+        .eq('id', request_id)
+        .maybeSingle()
+      if (requestError || !resetRequest || resetRequest.mssv !== target_mssv || resetRequest.status !== 'pending') {
+        return new Response(JSON.stringify({ error: 'Yêu cầu reset không còn hợp lệ. Hãy làm mới danh sách.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+      }
     }
 
     // Get target user_id from profiles
@@ -63,17 +90,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Cannot reset another Admin's password" }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 })
     }
 
-    // Generate temporary password
-    const tempPassword = Math.random().toString(36).slice(-8)
+    // Generate a temporary password using cryptographically secure randomness.
+    const tempPassword = makeTemporaryPassword()
 
     if (!targetUserId) {
       // Missing in profiles/Auth. Check if exists in students table
-      const { data: student } = await supabaseAdmin.from('students').select('name').eq('mssv', target_mssv).maybeSingle()
-      
-      if (!student) {
-        return new Response(JSON.stringify({ error: 'Không tìm thấy sinh viên này trong danh sách lớp (students table).' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 })
-      }
-
       // Try to list users to see if they already exist in Auth but missing profile
       const emailToFind = `${target_mssv}@sv.local`;
       const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
@@ -110,7 +131,7 @@ serve(async (req) => {
       const { error: upsertErr } = await supabaseAdmin.from('profiles').upsert({
         user_id: targetUserId,
         mssv: target_mssv,
-        full_name: student.name,
+        full_name: targetStudent.name,
         is_admin: false
       })
 
@@ -128,7 +149,18 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ tempPassword }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('full_name').eq('user_id', callerId).maybeSingle()
+    const resetByName = callerProfile?.full_name || userData.user.email || 'Admin'
+    const { error: historyError } = await supabaseAdmin.from('password_reset_history').insert({
+      mssv: target_mssv,
+      student_name: targetStudent.name || target_mssv,
+      temp_password: tempPassword,
+      reset_by: callerId,
+      reset_by_name: resetByName,
+      request_id: request_id || null
+    })
+
+    return new Response(JSON.stringify({ tempPassword, historySaved: !historyError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
     return new Response(JSON.stringify({ error: 'Lỗi máy chủ: ' + err.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
   }
