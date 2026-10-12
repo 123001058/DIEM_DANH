@@ -117,20 +117,53 @@
   }
 
   // Generate Weeks from Semester Range
-  function buildSemesterWeeks() {
-    // Semester range: 28/09/2026 -> 29/11/2026 (9 weeks)
-    // Find Monday of first week: 2026-09-28
-    const startDate = new Date(2026, 8, 28); // Sep is month 8 in JS
-    semesterWeeks = [];
+  // Generate Weeks from Semester Range
+  function buildSemesterWeeks(customStart, customEnd) {
+    let startStr = customStart;
+    let endStr = customEnd;
+    if (!startStr || !endStr) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('me_sync_date_range') || '{}');
+        if (cached.start && cached.end) {
+          startStr = cached.start;
+          endStr = cached.end;
+        }
+      } catch (e) {}
+    }
+    if (!startStr) startStr = '2026-10-12';
+    if (!endStr) endStr = '2027-02-03';
 
-    for (let w = 0; w < 10; w++) {
-      const mon = new Date(startDate);
-      mon.setDate(startDate.getDate() + w * 7);
+    const sParts = startStr.split('-').map(Number);
+    const eParts = endStr.split('-').map(Number);
+    const rawStart = new Date(sParts[0], sParts[1] - 1, sParts[2]);
+    const rawEnd = new Date(eParts[0], eParts[1] - 1, eParts[2]);
+
+    // Align rawStart to its Monday
+    const startDay = rawStart.getDay();
+    const diffToMon = startDay === 0 ? -6 : 1 - startDay;
+    const firstMonday = new Date(rawStart);
+    firstMonday.setDate(rawStart.getDate() + diffToMon);
+    firstMonday.setHours(0, 0, 0, 0);
+
+    // Align rawEnd to its Sunday
+    const endDay = rawEnd.getDay();
+    const diffToSun = endDay === 0 ? 0 : 7 - endDay;
+    const lastSunday = new Date(rawEnd);
+    lastSunday.setDate(rawEnd.getDate() + diffToSun);
+    lastSunday.setHours(23, 59, 59, 999);
+
+    const totalDays = Math.round((lastSunday.getTime() - firstMonday.getTime()) / (24 * 3600 * 1000));
+    const totalWeeks = Math.max(1, Math.ceil(totalDays / 7));
+
+    semesterWeeks = [];
+    for (let w = 0; w < totalWeeks; w++) {
+      const mon = new Date(firstMonday);
+      mon.setDate(firstMonday.getDate() + w * 7);
       mon.setHours(0, 0, 0, 0);
 
       const sun = new Date(mon);
       sun.setDate(mon.getDate() + 6);
-      sun.setHours(23, 59, 59, 999); // Khớp trọn vẹn cả ngày Chủ Nhật
+      sun.setHours(23, 59, 59, 999);
 
       // 7 days of the week: Mon -> Sun
       const days = [];
@@ -145,7 +178,7 @@
         weekNum: w + 1,
         startDate: mon,
         endDate: sun,
-        label: `Tuần ${w + 1} (Học kỳ 1, 2026-2027)`,
+        label: `Tuần ${w + 1} (${formatDateVN(mon)} – ${formatDateVN(sun)})`,
         dateRangeText: `${formatDateVN(mon)} – ${formatDateVN(sun)}`,
         days: days
       });
@@ -176,9 +209,29 @@
         if (prof?.mssv) localStorage.setItem('selected_tkb_mssv', prof.mssv);
       }
 
-      // Lấy từ Supabase thay vì JSON tĩnh
+      // Lấy cấu hình học kỳ từ Supabase hoặc localStorage
+      let semStart = '2026-10-12';
+      let semEnd = '2027-02-03';
+      try {
+        const { data: semSettings } = await window.supabase.rpc('get_semester_settings');
+        if (semSettings && semSettings.ok && semSettings.start_date && semSettings.end_date) {
+          semStart = semSettings.start_date;
+          semEnd = semSettings.end_date;
+          localStorage.setItem('me_sync_date_range', JSON.stringify({ start: semStart, end: semEnd }));
+        } else {
+          const cached = JSON.parse(localStorage.getItem('me_sync_date_range') || '{}');
+          if (cached.start && cached.end) { semStart = cached.start; semEnd = cached.end; }
+        }
+      } catch (e) {
+        const cached = JSON.parse(localStorage.getItem('me_sync_date_range') || '{}');
+        if (cached.start && cached.end) { semStart = cached.start; semEnd = cached.end; }
+      }
+
+      // Lấy từ Supabase thay vì JSON tĩnh (chỉ lấy sinh viên đang hoạt động)
       const { data: studentsData, error: stuErr } = await window.supabase.from('students').select('*').order('mssv');
       if (stuErr) throw stuErr;
+
+      const activeStudents = (studentsData || []).filter(st => st.is_active !== false);
 
       const { data: schedulesData, error: schErr } = await window.supabase.from('student_schedules').select('*');
       if (schErr) throw schErr;
@@ -205,13 +258,13 @@
         });
       });
 
-      allStudentsData = (studentsData || []).map(st => ({
+      allStudentsData = activeStudents.map(st => ({
         mssv: st.mssv,
         name: st.name,
         schedule: schedMap[st.mssv] || []
       }));
 
-      buildSemesterWeeks();
+      buildSemesterWeeks(semStart, semEnd);
       renderStudentDropdown();
 
       const savedMssv = localStorage.getItem('selected_tkb_mssv') || '123001058';

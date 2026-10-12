@@ -1,15 +1,16 @@
 -- =====================================================================
--- LH-NaviX — Database Schema Snapshot (Synchronized with Supabase Remote)
--- Generated: 2026-10-12
+-- LH-NaviX — Database Schema Snapshot (Verified against Supabase Remote)
+-- Synchronized: 2026-10-12
 -- Database Engine: PostgreSQL 17 (Supabase)
--- Note: Contains only schema definitions (DDL). NO REAL USER DATA.
+-- Note: Contains only verified working schema definitions (DDL). NO REAL USER DATA.
+-- Ghost/abandoned functions referencing non-existent tables (teams, tasks) are omitted.
 -- =====================================================================
 
 create extension if not exists pgcrypto with schema extensions;
 create extension if not exists "uuid-ossp" with schema extensions;
 
 -- =====================================================================
--- 1. TABLES & COLUMNS
+-- 1. TABLES & COLUMNS (23 verified tables)
 -- =====================================================================
 
 create table if not exists public.admin_mssv (
@@ -155,7 +156,15 @@ create table if not exists public.student_schedules (
 
 create table if not exists public.students (
   mssv text not null,
-  name text not null
+  name text not null,
+  is_active boolean default true not null
+);
+
+create table if not exists public.semester_settings (
+  id boolean default true not null primary key check (id),
+  start_date date not null default '2026-10-12',
+  end_date date not null default '2027-02-03',
+  updated_at timestamp with time zone default now() not null
 );
 
 create table if not exists public.team_group_members (
@@ -243,7 +252,7 @@ create table if not exists public.zalo_schedule_settings (
 );
 
 -- =====================================================================
--- 2. CONSTRAINTS (Primary Keys, Foreign Keys, Unique, Check)
+-- 2. CONSTRAINTS (74 verified constraints: Primary Keys, Foreign Keys, Unique, Check)
 -- =====================================================================
 alter table only public.sessions drop constraint if exists sessions_pkey;
 alter table only public.sessions add constraint sessions_pkey PRIMARY KEY (id);
@@ -395,7 +404,7 @@ alter table only public.password_reset_history drop constraint if exists passwor
 alter table only public.password_reset_history add constraint password_reset_history_reset_by_fkey FOREIGN KEY (reset_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- =====================================================================
--- 3. INDEXES
+-- 3. INDEXES (42 verified indexes)
 -- =====================================================================
 CREATE UNIQUE INDEX attendance_session_device_uq ON public.attendance USING btree (session_id, device_id) WHERE (device_id IS NOT NULL);
 CREATE INDEX attendance_session_idx ON public.attendance USING btree (session_id, created_at DESC);
@@ -428,6 +437,7 @@ alter table public.password_reset_history enable row level security;
 alter table public.password_reset_requests enable row level security;
 alter table public.profiles enable row level security;
 alter table public.sessions enable row level security;
+alter table public.semester_settings enable row level security;
 alter table public.student_schedules enable row level security;
 alter table public.students enable row level security;
 alter table public.team_group_members enable row level security;
@@ -441,7 +451,7 @@ alter table public.zalo_schedule_previews enable row level security;
 alter table public.zalo_schedule_settings enable row level security;
 
 -- =====================================================================
--- 5. RLS POLICIES
+-- 5. RLS POLICIES (29 verified policies)
 -- =====================================================================
 drop policy if exists "admin_feedback_read" on public.anonymous_feedback;
 create policy "admin_feedback_read" on public.anonymous_feedback
@@ -566,6 +576,19 @@ create policy "read_students" on public.students
   to public
   using (true);
 
+drop policy if exists "semester_settings_read" on public.semester_settings;
+create policy "semester_settings_read" on public.semester_settings
+  for select
+  to public
+  using (true);
+
+drop policy if exists "semester_settings_admin_write" on public.semester_settings;
+create policy "semester_settings_admin_write" on public.semester_settings
+  for all
+  to authenticated
+  using (is_admin())
+  with check (is_admin());
+
 drop policy if exists "admin_manage_team_group_members" on public.team_group_members;
 create policy "admin_manage_team_group_members" on public.team_group_members
   for all
@@ -638,23 +661,8 @@ create policy "zalo_schedule_previews_admin_read" on public.zalo_schedule_previe
 
 
 -- =====================================================================
--- 6. FUNCTIONS / STORED PROCEDURES & RPC (Total: 76)
+-- 6. FUNCTIONS / STORED PROCEDURES & RPC (Total: 51 verified functions)
 -- =====================================================================
-
--- Function: _qr_sig(p_secret text, p_session text, p_win bigint)
-CREATE OR REPLACE FUNCTION public._qr_sig(p_secret text, p_session text, p_win bigint)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
-AS $function$
-  select left(
-    encode(
-      hmac(p_session || ':' || p_win::text, p_secret, 'sha256'),
-      'hex'
-    ),
-    24
-  )
-$function$;
 
 -- Function: add_team_leader_as_member()
 CREATE OR REPLACE FUNCTION public.add_team_leader_as_member()
@@ -770,35 +778,6 @@ begin
   where id = p_request_id and status = 'pending';
 
   return true;
-end;
-$function$;
-
--- Function: admin_create_team(p_name text, p_description text)
-CREATE OR REPLACE FUNCTION public.admin_create_team(p_name text, p_description text DEFAULT NULL::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_name text := btrim(coalesce(p_name, ''));
-  v_team public.teams;
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được tạo nhóm.');
-  end if;
-
-  if v_name = '' then
-    return jsonb_build_object('ok', false, 'message', 'Tên nhóm không được để trống.');
-  end if;
-
-  insert into public.teams (name, description)
-  values (v_name, nullif(btrim(coalesce(p_description, '')), ''))
-  returning * into v_team;
-
-  return jsonb_build_object('ok', true, 'team', jsonb_build_object(
-    'id', v_team.id, 'name', v_team.name, 'description', v_team.description
-  ));
 end;
 $function$;
 
@@ -925,36 +904,6 @@ begin
 exception
   when others then
     return jsonb_build_object('ok', false, 'message', sqlerrm);
-end;
-$function$;
-
--- Function: admin_delete_team(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.admin_delete_team(p_team_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được xóa nhóm.');
-  end if;
-
-  perform 1 from public.teams where id = p_team_id for update;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
-  end if;
-
-  if exists (select 1 from public.team_members where team_id = p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Nhóm còn thành viên, hãy gỡ hết trước khi xóa.');
-  end if;
-
-  if exists (select 1 from public.tasks where team_id = p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Nhóm còn công việc, hãy xử lý công việc trước khi xóa.');
-  end if;
-
-  delete from public.teams where id = p_team_id;
-  return jsonb_build_object('ok', true, 'message', 'Đã xóa nhóm thành công.');
 end;
 $function$;
 
@@ -1121,38 +1070,6 @@ AS $function$ begin
  return jsonb_build_object('ok',true,'settings',(select to_jsonb(s) from public.zalo_schedule_settings s where id=true));
 end; $function$;
 
--- Function: admin_list_users()
-CREATE OR REPLACE FUNCTION public.admin_list_users()
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được xem danh sách tài khoản.');
-  end if;
-
-  return jsonb_build_object('ok', true, 'users', (
-    select coalesce(jsonb_agg(
-      jsonb_build_object(
-        'user_id', p.user_id,
-        'username', p.username,
-        'full_name', p.full_name,
-        'mssv', p.mssv,
-        'role', p.role,
-        'team_id', tm.team_id,
-        'team_name', t.name,
-        'team_role', coalesce(tm.team_role, 'member')
-      ) order by p.role, coalesce(p.full_name, p.username)
-    ), '[]'::jsonb)
-    from public.profiles p
-    left join public.team_members tm on tm.user_id = p.user_id
-    left join public.teams t on t.id = tm.team_id
-  ));
-end;
-$function$;
-
 -- Function: admin_open_session(p_name text, p_duration_min integer, p_warn_before_min integer)
 CREATE OR REPLACE FUNCTION public.admin_open_session(p_name text, p_duration_min integer, p_warn_before_min integer DEFAULT 5)
  RETURNS jsonb
@@ -1190,7 +1107,7 @@ begin
  if not public.is_admin() then return jsonb_build_object('ok',false,'message','Không có quyền.'); end if;
  v_token:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
  update public.sessions set qr_token=v_token,qr_born_at=now() where is_open returning id into v_sid;
- if v_sid is null then return jsonb_build_object('ok',false,'message','Không có phiên nào đang mở.'); end if;
+ if v_sid is null then return jsonb_build_object('ok',false,'message','Không có phiên nào đang m��.'); end if;
  return jsonb_build_object('ok',true,'qr_token',v_token,'qr_born_at',now());
 end $function$;
 
@@ -1213,39 +1130,6 @@ begin
  values(v_sid,'SYSTEM','Phiên điểm danh','closed','active',v_email,'Admin mở lại phiên đã đóng',now());
  return jsonb_build_object('ok',true,'qr_token',v_token);
 end $function$;
-
--- Function: admin_revoke_leader(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.admin_revoke_leader(p_team_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_old uuid;
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được thu hồi quyền Đội trưởng.');
-  end if;
-
-  select leader_id into v_old from public.teams where id = p_team_id;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
-  end if;
-
-  if v_old is null then
-    return jsonb_build_object('ok', false, 'message', 'Nhóm này chưa có Đội trưởng.');
-  end if;
-
-  update public.teams set leader_id = null where id = p_team_id;
-  update public.team_members set team_role = 'member'
-  where team_id = p_team_id and user_id = v_old;
-  update public.profiles set role = 'student'
-  where user_id = v_old and role = 'leader';
-
-  return jsonb_build_object('ok', true, 'message', 'Đã thu hồi quyền Đội trưởng.');
-end;
-$function$;
 
 -- Function: admin_save_zalo_schedule_preview(p_date date, p_member_count integer, p_periods jsonb)
 CREATE OR REPLACE FUNCTION public.admin_save_zalo_schedule_preview(p_date date, p_member_count integer, p_periods jsonb)
@@ -1337,64 +1221,6 @@ begin
 exception
   when others then
     return jsonb_build_object('ok', false, 'message', sqlerrm);
-end;
-$function$;
-
--- Function: admin_set_team_leader(p_team_id uuid, p_user_id uuid)
-CREATE OR REPLACE FUNCTION public.admin_set_team_leader(p_team_id uuid, p_user_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_team public.teams;
-  v_target public.profiles;
-begin
-  if not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được cấp quyền Đội trưởng.');
-  end if;
-
-  if p_team_id is null or p_user_id is null then
-    return jsonb_build_object('ok', false, 'message', 'Thiếu thông tin nhóm hoặc người dùng.');
-  end if;
-
-  select * into v_team from public.teams where id = p_team_id;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
-  end if;
-
-  select * into v_target from public.profiles where user_id = p_user_id;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy hồ sơ người dùng.');
-  end if;
-
-  if p_user_id = auth.uid() then
-    return jsonb_build_object('ok', false, 'message', 'Không thể cấp quyền Đội trưởng cho chính tài khoản Admin.');
-  end if;
-
-  if v_team.leader_id is not null and v_team.leader_id <> p_user_id then
-    update public.team_members
-    set team_role = 'member'
-    where team_id = p_team_id and user_id = v_team.leader_id;
-
-    update public.profiles
-    set role = 'student'
-    where user_id = v_team.leader_id and role = 'leader';
-  end if;
-
-  update public.teams set leader_id = p_user_id where id = p_team_id;
-
-  update public.profiles
-  set role = 'leader'
-  where user_id = p_user_id and role <> 'admin';
-
-  insert into public.team_members (team_id, user_id, team_role)
-  values (p_team_id, p_user_id, 'leader')
-  on conflict (team_id, user_id)
-  do update set team_role = 'leader';
-
-  return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội trưởng thành công.');
 end;
 $function$;
 
@@ -1583,19 +1409,6 @@ begin
 
   return new;
 end;
-$function$;
-
--- Function: can_manage_assignment(p_task_id uuid)
-CREATE OR REPLACE FUNCTION public.can_manage_assignment(p_task_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select exists (
-    select 1 from public.tasks t
-    where t.id = p_task_id and public.is_team_leader(t.team_id)
-  );
 $function$;
 
 -- Function: capture_attendance_record_history()
@@ -1893,108 +1706,6 @@ begin
  return jsonb_build_object('ok',true,'total',v_total,'present',v_present,'absent',v_absent,'unmarked',v_unmarked);
 end $function$;
 
--- Function: get_team_availability(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.get_team_availability(p_team_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_team_member(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Bạn không thuộc nhóm này.');
-  end if;
-
-  return jsonb_build_object('ok', true, 'members', (
-    select coalesce(jsonb_agg(
-      jsonb_build_object(
-        'user_id', p.user_id,
-        'username', p.username,
-        'full_name', coalesce(p.full_name, p.username),
-        'mssv', p.mssv,
-        'role', p.role,
-        'team_role', tm.team_role,
-        'is_leader', (t.leader_id = p.user_id),
-        'is_deputy', (tm.team_role = 'deputy'),
-        'blocks', (
-          select coalesce(jsonb_agg(jsonb_build_object(
-            'slot_thu', ab.slot_thu,
-            'slot_buoi', ab.slot_buoi,
-            'reason', ab.reason
-          )), '[]'::jsonb)
-          from public.availability_blocks ab
-          where ab.user_id = p.user_id
-        )
-      ) order by
-        case tm.team_role
-          when 'leader' then 1
-          when 'deputy' then 2
-          else 3
-        end,
-        coalesce(p.full_name, p.username)
-    ), '[]'::jsonb)
-    from public.team_members tm
-    join public.profiles p on p.user_id = tm.user_id
-    join public.teams t on t.id = tm.team_id
-    where tm.team_id = p_team_id
-  ));
-end;
-$function$;
-
--- Function: get_team_board(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.get_team_board(p_team_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_team_member(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Bạn không thuộc nhóm này.');
-  end if;
-
-  return jsonb_build_object(
-    'ok', true,
-    'is_leader', public.is_team_leader(p_team_id),
-    'tasks', (
-      select coalesce(jsonb_agg(
-        jsonb_build_object(
-          'id', t.id,
-          'title', t.title,
-          'description', t.description,
-          'slot_thu', t.slot_thu,
-          'slot_buoi', t.slot_buoi,
-          'due_at', t.due_at,
-          'priority', t.priority,
-          'status', t.status,
-          'created_at', t.created_at,
-          'assignees', coalesce((
-            select jsonb_agg(jsonb_build_object(
-              'user_id', a.assignee_id,
-              'full_name', coalesce(p.full_name, p.username),
-              'status', a.status,
-              'note', a.note
-            ))
-            from public.task_assignments a
-            left join public.profiles p on p.user_id = a.assignee_id
-            where a.task_id = t.id
-          ), '[]'::jsonb)
-        ) order by t.created_at desc
-      ), '[]'::jsonb)
-      from public.tasks t
-      where t.team_id = p_team_id
-        and (
-          public.is_team_leader(p_team_id)
-          or exists (
-            select 1 from public.task_assignments a
-            where a.task_id = t.id and a.assignee_id = auth.uid()
-          )
-        )
-    )
-  );
-end;
-$function$;
-
 -- Function: handle_new_user()
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
@@ -2021,341 +1732,6 @@ AS $function$
  select exists(select 1 from public.profiles p join public.admin_mssv a on a.mssv=p.mssv where p.user_id=auth.uid());
 $function$;
 
--- Function: is_assigned_to_task(p_task_id uuid)
-CREATE OR REPLACE FUNCTION public.is_assigned_to_task(p_task_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select exists (
-    select 1 from public.task_assignments
-    where task_id = p_task_id and assignee_id = auth.uid()
-  );
-$function$;
-
--- Function: is_leader()
-CREATE OR REPLACE FUNCTION public.is_leader()
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select exists (
-    select 1 from public.profiles
-    where user_id = auth.uid()
-      and role in ('leader', 'deputy')
-  );
-$function$;
-
--- Function: is_team_leader(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.is_team_leader(p_team_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select public.is_admin()
-    or exists (
-      select 1 from public.teams
-      where id = p_team_id and leader_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.team_members
-      where team_id = p_team_id
-        and user_id = auth.uid()
-        and team_role = 'deputy'
-    );
-$function$;
-
--- Function: is_team_member(p_team_id uuid)
-CREATE OR REPLACE FUNCTION public.is_team_member(p_team_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select public.is_admin()
-    or exists (
-      select 1 from public.teams
-      where id = p_team_id and leader_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.team_members
-      where team_id = p_team_id and user_id = auth.uid()
-    );
-$function$;
-
--- Function: issue_qr_token(p_session_id text)
-CREATE OR REPLACE FUNCTION public.issue_qr_token(p_session_id text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  s record;
-  v_now bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  v_win bigint;
-begin
-  if not public.is_admin() then
-    raise exception 'forbidden' using errcode = '42501';
-  end if;
-
-  select *
-    into s
-  from public.sessions
-  where id::text = p_session_id
-    and is_open;
-
-  if not found then
-    raise exception 'session not open' using errcode = 'P0002';
-  end if;
-
-  if coalesce(s.refresh_time, 20) <= 0
-     or coalesce(s.refresh_time, 20) > 86400 then
-    raise exception 'invalid refresh_time' using errcode = 'P0003';
-  end if;
-
-  if s.duration_min is not null
-     and s.started_at + (s.duration_min * interval '1 minute') <= now() then
-    raise exception 'session expired' using errcode = 'P0004';
-  end if;
-
-  v_win := v_now / (coalesce(s.refresh_time, 20) * 1000);
-
-  return jsonb_build_object(
-    'token',
-    v_win::text || '.' || public._qr_sig(s.qr_secret, s.id::text, v_win),
-    'server_now_ms',
-    v_now
-  );
-end;
-$function$;
-
--- Function: leader_assign_task(p_task_id uuid, p_assignee_id uuid, p_note text, p_force boolean)
-CREATE OR REPLACE FUNCTION public.leader_assign_task(p_task_id uuid, p_assignee_id uuid, p_note text DEFAULT NULL::text, p_force boolean DEFAULT false)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_task public.tasks;
-  v_block record;
-begin
-  select * into v_task from public.tasks where id = p_task_id;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhiệm vụ.');
-  end if;
-
-  if not public.is_team_leader(v_task.team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng mới được giao nhiệm vụ.');
-  end if;
-
-  -- Thành viên phải thuộc đúng nhóm đó
-  if not exists (
-    select 1 from public.team_members
-    where team_id = v_task.team_id and user_id = p_assignee_id
-  ) then
-    return jsonb_build_object('ok', false, 'message', 'Người được giao không thuộc nhóm này.');
-  end if;
-
-  -- Kiểm tra lịch rảnh (khoảng bận thủ công)
-  if v_task.slot_thu is not null and v_task.slot_buoi is not null and not coalesce(p_force, false) then
-    select * into v_block
-    from public.availability_blocks
-    where user_id = p_assignee_id
-      and slot_thu = v_task.slot_thu
-      and slot_buoi = v_task.slot_buoi;
-
-    if found then
-      return jsonb_build_object(
-        'ok', false,
-        'message', 'Thành viên đã báo bận trong khung giờ này. Hãy chọn người khác hoặc giao cưỡng chế.',
-        'conflict', true
-      );
-    end if;
-  end if;
-
-  insert into public.task_assignments (task_id, assignee_id, note, assigned_by)
-  values (p_task_id, p_assignee_id, nullif(btrim(coalesce(p_note, '')), ''), auth.uid())
-  on conflict (task_id, assignee_id) do update
-    set note = excluded.note, assigned_at = now(), assigned_by = auth.uid();
-
-  return jsonb_build_object('ok', true, 'message', 'Đã giao nhiệm vụ thành công.');
-end;
-$function$;
-
--- Function: leader_create_task(p_team_id uuid, p_title text, p_description text, p_slot_thu integer, p_slot_buoi integer, p_due_at timestamp with time zone, p_priority text)
-CREATE OR REPLACE FUNCTION public.leader_create_task(p_team_id uuid, p_title text, p_description text DEFAULT NULL::text, p_slot_thu integer DEFAULT NULL::integer, p_slot_buoi integer DEFAULT NULL::integer, p_due_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_priority text DEFAULT 'normal'::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_title text := btrim(coalesce(p_title, ''));
-  v_task public.tasks;
-begin
-  if not public.is_team_leader(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng của nhóm mới được tạo nhiệm vụ.');
-  end if;
-
-  if v_title = '' then
-    return jsonb_build_object('ok', false, 'message', 'Tiêu đề nhiệm vụ không được để trống.');
-  end if;
-
-  if p_slot_thu is not null and (p_slot_thu < 2 or p_slot_thu > 8) then
-    return jsonb_build_object('ok', false, 'message', 'Thứ không hợp lệ (2–8).');
-  end if;
-
-  if p_slot_buoi is not null and (p_slot_buoi < 1 or p_slot_buoi > 3) then
-    return jsonb_build_object('ok', false, 'message', 'Buổi không hợp lệ (1–3).');
-  end if;
-
-  if p_priority is null or p_priority not in ('low', 'normal', 'high') then
-    p_priority := 'normal';
-  end if;
-
-  insert into public.tasks (
-    team_id, title, description, slot_thu, slot_buoi, due_at, priority, created_by
-  )
-  values (
-    p_team_id, v_title, nullif(btrim(coalesce(p_description, '')), ''),
-    p_slot_thu, p_slot_buoi, p_due_at, p_priority, auth.uid()
-  )
-  returning * into v_task;
-
-  return jsonb_build_object('ok', true, 'task', jsonb_build_object(
-    'id', v_task.id, 'title', v_task.title, 'team_id', v_task.team_id
-  ));
-end;
-$function$;
-
--- Function: leader_delete_task(p_task_id uuid)
-CREATE OR REPLACE FUNCTION public.leader_delete_task(p_task_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_task public.tasks;
-begin
-  select * into v_task from public.tasks where id = p_task_id;
-  if not found then
-    return jsonb_build_object('ok', true, 'message', 'Nhiệm vụ không tồn tại.');
-  end if;
-
-  if not public.is_team_leader(v_task.team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng mới được xoá nhiệm vụ.');
-  end if;
-
-  delete from public.tasks where id = p_task_id;
-  return jsonb_build_object('ok', true, 'message', 'Đã xoá nhiệm vụ.');
-end;
-$function$;
-
--- Function: leader_set_member_role(p_team_id uuid, p_user_id uuid, p_new_role text)
-CREATE OR REPLACE FUNCTION public.leader_set_member_role(p_team_id uuid, p_user_id uuid, p_new_role text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_team public.teams;
-begin
-  if not public.is_team_leader(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Bạn không có quyền phân vai trong nhóm này.');
-  end if;
-
-  if p_new_role is null or p_new_role not in ('leader', 'deputy', 'member') then
-    return jsonb_build_object('ok', false, 'message', 'Vai trò không hợp lệ.');
-  end if;
-
-  if p_user_id = auth.uid() and not public.is_admin() then
-    return jsonb_build_object('ok', false, 'message', 'Không thể thay đổi vai trò của chính mình.');
-  end if;
-
-  if not exists (
-    select 1 from public.team_members
-    where team_id = p_team_id and user_id = p_user_id
-  ) then
-    return jsonb_build_object('ok', false, 'message', 'Người dùng này không thuộc nhóm.');
-  end if;
-
-  select * into v_team from public.teams where id = p_team_id;
-
-  if p_new_role = 'leader' then
-    if not public.is_admin() then
-      return jsonb_build_object('ok', false, 'message', 'Chỉ Admin mới được cấp Đội trưởng chính.');
-    end if;
-
-    if v_team.leader_id is not null and v_team.leader_id <> p_user_id then
-      update public.team_members set team_role = 'member'
-      where team_id = p_team_id and user_id = v_team.leader_id;
-      update public.profiles set role = 'student'
-      where user_id = v_team.leader_id and role = 'leader';
-    end if;
-
-    update public.teams set leader_id = p_user_id where id = p_team_id;
-    update public.profiles set role = 'leader'
-    where user_id = p_user_id and role <> 'admin';
-    update public.team_members set team_role = 'leader'
-    where team_id = p_team_id and user_id = p_user_id;
-
-    return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội trưởng chính.');
-  end if;
-
-  if v_team.leader_id = p_user_id then
-    return jsonb_build_object('ok', false, 'message', 'Hãy chuyển hoặc thu hồi Đội trưởng chính trước khi đổi vai trò.');
-  end if;
-
-  if p_new_role = 'deputy' then
-    update public.team_members set team_role = 'deputy'
-    where team_id = p_team_id and user_id = p_user_id;
-    update public.profiles set role = 'deputy'
-    where user_id = p_user_id and role not in ('admin', 'leader');
-    return jsonb_build_object('ok', true, 'message', 'Đã cấp quyền Đội phó.');
-  end if;
-
-  update public.team_members set team_role = 'member'
-  where team_id = p_team_id and user_id = p_user_id;
-  update public.profiles set role = 'student'
-  where user_id = p_user_id and role = 'deputy';
-
-  return jsonb_build_object('ok', true, 'message', 'Đã đặt lại thành Thành viên.');
-end;
-$function$;
-
--- Function: leader_unassign_task(p_task_id uuid, p_assignee_id uuid)
-CREATE OR REPLACE FUNCTION public.leader_unassign_task(p_task_id uuid, p_assignee_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-declare
-  v_task public.tasks;
-begin
-  select * into v_task from public.tasks where id = p_task_id;
-  if not found then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhiệm vụ.');
-  end if;
-
-  if not public.is_team_leader(v_task.team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng mới được gỡ nhiệm vụ.');
-  end if;
-
-  delete from public.task_assignments
-  where task_id = p_task_id and assignee_id = p_assignee_id;
-
-  return jsonb_build_object('ok', true, 'message', 'Đã gỡ nhiệm vụ khỏi thành viên.');
-end;
-$function$;
-
 -- Function: leave_request_covers_session(p_date date, p_period text, p_started_at timestamp with time zone, p_duration_min integer)
 CREATE OR REPLACE FUNCTION public.leave_request_covers_session(p_date date, p_period text, p_started_at timestamp with time zone, p_duration_min integer)
  RETURNS boolean
@@ -2367,33 +1743,6 @@ AS $function$
     and (p_period='full_day' or (
       p_started_at < ((p_date + case p_period when 'morning' then time '12:00' when 'afternoon' then time '17:00' else time '23:59:59.999999' end) at time zone 'Asia/Ho_Chi_Minh') + interval '1 microsecond'
       and p_started_at + make_interval(mins => coalesce(p_duration_min,240)) > ((p_date + case p_period when 'morning' then time '00:00' when 'afternoon' then time '12:00' else time '17:00' end) at time zone 'Asia/Ho_Chi_Minh')));
-$function$;
-
--- Function: my_teams()
-CREATE OR REPLACE FUNCTION public.my_teams()
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if public.is_admin() then
-    return jsonb_build_object('ok', true, 'is_admin', true, 'teams', (
-      select coalesce(jsonb_agg(jsonb_build_object(
-        'id', t.id, 'name', t.name, 'leader_id', t.leader_id
-      ) order by t.name), '[]'::jsonb)
-      from public.teams t
-    ));
-  end if;
-
-  return jsonb_build_object('ok', true, 'is_admin', false, 'teams', (
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'id', t.id, 'name', t.name, 'leader_id', t.leader_id
-    ) order by t.name), '[]'::jsonb)
-    from public.teams t
-    where public.is_team_member(t.id)
-  ));
-end;
 $function$;
 
 -- Function: record_leave_request_event()
@@ -2543,61 +1892,6 @@ begin
   get diagnostics v_count = row_count;
   return jsonb_build_object('ok', true, 'count', v_count, 'date', p_date);
 end;
-$function$;
-
--- Function: set_availability_block(p_slot_thu integer, p_slot_buoi integer, p_busy boolean, p_reason text)
-CREATE OR REPLACE FUNCTION public.set_availability_block(p_slot_thu integer, p_slot_buoi integer, p_busy boolean, p_reason text DEFAULT NULL::text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if p_slot_thu is null or p_slot_thu < 2 or p_slot_thu > 8 then
-    return jsonb_build_object('ok', false, 'message', 'Thứ không hợp lệ (2–8).');
-  end if;
-
-  if p_slot_buoi is null or p_slot_buoi < 1 or p_slot_buoi > 3 then
-    return jsonb_build_object('ok', false, 'message', 'Buổi không hợp lệ (1–3).');
-  end if;
-
-  if coalesce(p_busy, false) then
-    insert into public.availability_blocks (user_id, slot_thu, slot_buoi, reason)
-    values (auth.uid(), p_slot_thu, p_slot_buoi, nullif(btrim(coalesce(p_reason, '')), ''))
-    on conflict (user_id, slot_thu, slot_buoi)
-    do update set reason = excluded.reason, created_at = now();
-  else
-    delete from public.availability_blocks
-    where user_id = auth.uid()
-      and slot_thu = p_slot_thu
-      and slot_buoi = p_slot_buoi;
-  end if;
-
-  return jsonb_build_object('ok', true, 'message', 'Đã cập nhật lịch rảnh.');
-end;
-$function$;
-
--- Function: shares_team_with(p_user_id uuid)
-CREATE OR REPLACE FUNCTION public.shares_team_with(p_user_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-  select public.is_admin() or exists (
-    select 1
-    from public.team_members me
-    join public.team_members other
-      on other.team_id = me.team_id
-    where me.user_id = auth.uid()
-      and other.user_id = p_user_id
-  ) or exists (
-    -- Đội trưởng xem được thành viên trong nhóm mình quản lý
-    select 1
-    from public.teams t
-    join public.team_members m on m.team_id = t.id
-    where t.leader_id = auth.uid() and m.user_id = p_user_id
-  );
 $function$;
 
 -- Function: submit_anonymous_feedback(p_type text, p_content text)
@@ -2758,63 +2052,6 @@ exception
 end;
 $function$;
 
--- Function: team_add_member(p_team_id uuid, p_user_id uuid)
-CREATE OR REPLACE FUNCTION public.team_add_member(p_team_id uuid, p_user_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_team_leader(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng mới được thêm thành viên.');
-  end if;
-
-  if not exists (select 1 from public.teams where id = p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy nhóm.');
-  end if;
-
-  if not exists (select 1 from public.profiles where user_id = p_user_id) then
-    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy hồ sơ người dùng.');
-  end if;
-
-  -- Một tài khoản chỉ thuộc một nhóm
-  if exists (select 1 from public.team_members where user_id = p_user_id and team_id <> p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Người dùng này đã thuộc một nhóm khác.');
-  end if;
-
-  insert into public.team_members (team_id, user_id)
-  values (p_team_id, p_user_id)
-  on conflict (team_id, user_id) do nothing;
-
-  return jsonb_build_object('ok', true, 'message', 'Đã thêm thành viên vào nhóm.');
-end;
-$function$;
-
--- Function: team_remove_member(p_team_id uuid, p_user_id uuid)
-CREATE OR REPLACE FUNCTION public.team_remove_member(p_team_id uuid, p_user_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'extensions', 'pg_temp'
-AS $function$
-begin
-  if not public.is_team_leader(p_team_id) then
-    return jsonb_build_object('ok', false, 'message', 'Chỉ Admin hoặc Đội trưởng mới được gỡ thành viên.');
-  end if;
-
-  -- Không cho gỡ chính đội trưởng (phải chuyển quyền trước)
-  if exists (select 1 from public.teams where id = p_team_id and leader_id = p_user_id) then
-    return jsonb_build_object('ok', false, 'message', 'Không thể gỡ Đội trưởng. Hãy cấp lại Đội trưởng trước.');
-  end if;
-
-  delete from public.team_members
-  where team_id = p_team_id and user_id = p_user_id;
-
-  return jsonb_build_object('ok', true, 'message', 'Đã gỡ thành viên khỏi nhóm.');
-end;
-$function$;
-
 -- Function: update_my_task(p_task_id uuid, p_status text, p_mark_read boolean)
 CREATE OR REPLACE FUNCTION public.update_my_task(p_task_id uuid, p_status text DEFAULT NULL::text, p_mark_read boolean DEFAULT false)
  RETURNS jsonb
@@ -2885,37 +2122,259 @@ begin
 end;
 $function$;
 
--- Function: update_task_status(p_task_id uuid, p_status text, p_note text)
-CREATE OR REPLACE FUNCTION public.update_task_status(p_task_id uuid, p_status text, p_note text DEFAULT NULL::text)
+-- Function: get_semester_settings()
+CREATE OR REPLACE FUNCTION public.get_semester_settings()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_rec record;
+BEGIN
+  SELECT start_date, end_date, updated_at
+  INTO v_rec
+  FROM public.semester_settings
+  WHERE id = true;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', true, 'start_date', '2026-10-12', 'end_date', '2027-02-03');
+  END IF;
+
+  RETURN jsonb_build_object('ok', true, 'start_date', v_rec.start_date, 'end_date', v_rec.end_date, 'updated_at', v_rec.updated_at);
+END;
+$function$;
+
+-- Function: admin_save_semester_settings(p_start_date date, p_end_date date)
+CREATE OR REPLACE FUNCTION public.admin_save_semester_settings(p_start_date date, p_end_date date)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
-begin
-  if p_status is null or p_status not in ('todo', 'doing', 'done', 'cancelled') then
-    return jsonb_build_object('ok', false, 'message', 'Trạng thái không hợp lệ.');
-  end if;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
 
-  -- Chỉ được cập nhật nhiệm vụ được giao cho mình (đội trưởng/admin thì đã có quyền ở trên)
-  if not exists (
-    select 1 from public.task_assignments
-    where task_id = p_task_id and assignee_id = auth.uid()
-  ) then
-    return jsonb_build_object('ok', false, 'message', 'Bạn không được giao nhiệm vụ này.');
-  end if;
+  IF p_start_date IS NULL OR p_end_date IS NULL OR p_start_date > p_end_date THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Khoảng ngày không hợp lệ. Ngày bắt đầu phải trước ngày kết thúc.');
+  END IF;
 
-  update public.task_assignments
-  set status = p_status,
-      note = coalesce(nullif(btrim(coalesce(p_note, '')), ''), note)
-  where task_id = p_task_id and assignee_id = auth.uid();
+  INSERT INTO public.semester_settings (id, start_date, end_date, updated_at)
+  VALUES (true, p_start_date, p_end_date, now())
+  ON CONFLICT (id) DO UPDATE
+    SET start_date = EXCLUDED.start_date,
+        end_date = EXCLUDED.end_date,
+        updated_at = now();
 
-  return jsonb_build_object('ok', true, 'message', 'Đã cập nhật tiến độ.');
-end;
+  RETURN jsonb_build_object('ok', true, 'start_date', p_start_date, 'end_date', p_end_date);
+END;
+$function$;
+
+-- Function: admin_add_student(p_mssv text, p_name text)
+CREATE OR REPLACE FUNCTION public.admin_add_student(p_mssv text, p_name text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_name text := btrim(coalesce(p_name, ''));
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
+
+  IF v_mssv = '' OR v_name = '' THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'MSSV và họ tên sinh viên không được để trống.');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM public.students WHERE mssv = v_mssv) THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Sinh viên với MSSV ' || v_mssv || ' đã tồn tại trong danh sách.');
+  END IF;
+
+  INSERT INTO public.students (mssv, name, is_active)
+  VALUES (v_mssv, v_name, true);
+
+  RETURN jsonb_build_object('ok', true, 'mssv', v_mssv, 'name', v_name);
+END;
+$function$;
+
+-- Function: admin_set_student_active(p_mssv text, p_is_active boolean)
+CREATE OR REPLACE FUNCTION public.admin_set_student_active(p_mssv text, p_is_active boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_name text;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
+
+  SELECT name INTO v_name FROM public.students WHERE mssv = v_mssv;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên có MSSV: ' || v_mssv);
+  END IF;
+
+  UPDATE public.students
+  SET is_active = coalesce(p_is_active, true)
+  WHERE mssv = v_mssv;
+
+  RETURN jsonb_build_object('ok', true, 'mssv', v_mssv, 'name', v_name, 'is_active', p_is_active);
+END;
+$function$;
+
+-- Function: admin_get_student_delete_impact(p_mssv text)
+CREATE OR REPLACE FUNCTION public.admin_get_student_delete_impact(p_mssv text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_name text;
+  v_leave_count int := 0;
+  v_sched_count int := 0;
+  v_group_member_count int := 0;
+  v_task_assign_count int := 0;
+  v_attendance_count int := 0;
+  v_reset_req_count int := 0;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
+
+  SELECT name INTO v_name FROM public.students WHERE mssv = v_mssv;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên.');
+  END IF;
+
+  SELECT count(*) INTO v_leave_count FROM public.leave_requests WHERE mssv = v_mssv;
+  SELECT count(*) INTO v_sched_count FROM public.student_schedules WHERE mssv = v_mssv;
+  SELECT count(*) INTO v_group_member_count FROM public.team_group_members WHERE mssv = v_mssv;
+  SELECT count(*) INTO v_task_assign_count FROM public.team_task_assignments WHERE mssv = v_mssv;
+  SELECT count(*) INTO v_attendance_count FROM public.attendance WHERE mssv = v_mssv;
+  SELECT count(*) INTO v_reset_req_count FROM public.password_reset_requests WHERE mssv = v_mssv;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'mssv', v_mssv,
+    'name', v_name,
+    'leave_count', v_leave_count,
+    'schedules_count', v_sched_count,
+    'group_member_count', v_group_member_count,
+    'task_assign_count', v_task_assign_count,
+    'attendance_count', v_attendance_count,
+    'reset_req_count', v_reset_req_count
+  );
+END;
+$function$;
+
+-- Function: admin_delete_student(p_mssv text)
+CREATE OR REPLACE FUNCTION public.admin_delete_student(p_mssv text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_name text;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
+
+  SELECT name INTO v_name FROM public.students WHERE mssv = v_mssv;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên để xóa.');
+  END IF;
+
+  DELETE FROM public.students WHERE mssv = v_mssv;
+
+  RETURN jsonb_build_object('ok', true, 'mssv', v_mssv, 'name', v_name);
+END;
+$function$;
+
+-- Function: admin_sync_student_schedules_for_range(p_schedules jsonb, p_from_date date, p_to_date date, p_mssv text)
+CREATE OR REPLACE FUNCTION public.admin_sync_student_schedules_for_range(
+  p_schedules jsonb,
+  p_from_date date,
+  p_to_date date,
+  p_mssv text DEFAULT NULL
+)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions', 'pg_temp'
+AS $function$
+DECLARE
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+  v_count int := 0;
+  v_deleted int := 0;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Không có quyền admin.');
+  END IF;
+
+  IF p_from_date IS NULL OR p_to_date IS NULL OR p_from_date > p_to_date THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Khoảng ngày không hợp lệ. Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.');
+  END IF;
+
+  IF p_schedules IS NULL OR jsonb_typeof(p_schedules) <> 'array' THEN
+    RETURN jsonb_build_object('ok', false, 'message', 'Danh sách lịch học gửi lên không hợp lệ.');
+  END IF;
+
+  IF v_mssv <> '' THEN
+    DELETE FROM public.student_schedules
+    WHERE mssv = v_mssv
+      AND (start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= p_from_date
+      AND (start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= p_to_date;
+  ELSE
+    DELETE FROM public.student_schedules
+    WHERE (start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= p_from_date
+      AND (start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= p_to_date;
+  END IF;
+  GET DIAGNOSTICS v_deleted = row_count;
+
+  INSERT INTO public.student_schedules (
+    mssv, subject_name, room_name, teacher_name, start_time, end_time, day_of_week, buoi
+  )
+  SELECT DISTINCT ON (x.mssv, x.subject_name, x.start_time, x.end_time)
+         x.mssv, x.subject_name, x.room_name, x.teacher_name,
+         x.start_time, x.end_time, x.day_of_week, x.buoi
+  FROM jsonb_to_recordset(p_schedules) AS x(
+    mssv text, subject_name text, room_name text, teacher_name text,
+    start_time timestamptz, end_time timestamptz, day_of_week int, buoi smallint
+  )
+  WHERE (x.start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= p_from_date
+    AND (x.start_time AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= p_to_date
+    AND (v_mssv = '' OR x.mssv = v_mssv);
+
+  GET DIAGNOSTICS v_count = row_count;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'count', v_count,
+    'deleted', v_deleted,
+    'from_date', p_from_date,
+    'to_date', p_to_date,
+    'mssv', CASE WHEN v_mssv = '' THEN NULL ELSE v_mssv END
+  );
+END;
 $function$;
 
 -- =====================================================================
--- 7. TRIGGERS (Total: 10)
+-- 7. TRIGGERS (Total: 10 verified triggers)
 -- =====================================================================
 
 -- Trigger: attendance_record_history_after_update on attendance

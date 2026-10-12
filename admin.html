@@ -957,6 +957,13 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-label">Điểm danh</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
     </button>
+    <button class="sidebar-nav-item" id="nav-students" onclick="navTo('students')">
+      <span class="nav-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      </span>
+      <span class="nav-label">Quản lý sinh viên</span>
+      <span class="nav-badge" id="navStudentsBadge">0</span>
+    </button>
     <button class="sidebar-nav-item" id="nav-teams" onclick="navTo('teams')">
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -1358,6 +1365,133 @@ tbody tr:last-child td { border-bottom: none; }
     </section>
 
     <!-- ==========================================================
+         VIEW: QUẢN LÝ SINH VIÊN (STUDENTS)
+         ========================================================== -->
+    <section class="app-view" id="view-students">
+      <!-- Top Banner & Thống kê -->
+      <div class="card" style="padding:18px 20px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div>
+            <h2 style="font-size:17px;font-weight:800;margin:0">👥 Quản lý sinh viên & Đồng bộ ME</h2>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
+              Tra cứu sinh viên từ ME, xem trước thời khóa biểu theo khoảng ngày, quản lý trạng thái hoạt động.
+            </p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="loadStudentsManagement()">🔄 Làm mới</button>
+            <button class="btn btn-primary btn-sm" onclick="focusAddStudentMssv()">➕ Thêm MSSV mới</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px">
+          <div class="stat">
+            <div class="stat-label">Tổng sinh viên</div>
+            <div class="stat-num blue" id="stuKpiTotal">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Đang hoạt động</div>
+            <div class="stat-num green" id="stuKpiActive">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Ngừng hoạt động</div>
+            <div class="stat-num gray" id="stuKpiInactive">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khu vực Thêm sinh viên bằng MSSV từ ME -->
+      <div class="card" style="padding:18px 20px;margin-bottom:16px;border-left:4px solid #3b82f6" id="cardAddStudent">
+        <h3 style="font-size:15px;font-weight:800;margin:0 0 6px 0;display:flex;align-items:center;gap:6px">
+          <span>🔍</span> Tra cứu sinh viên từ ME (tapi.lhu.edu.vn)
+        </h3>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px 0">
+          Nhập MSSV để tra cứu thông tin và thời khóa biểu thực tế từ hệ thống ME. Sau khi xem trước, bấm xác nhận để lưu sinh viên và lịch vào cơ sở dữ liệu.
+        </p>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;flex:1;min-width:220px;max-width:360px">
+            <input type="text" id="inputSearchMssv" placeholder="Nhập MSSV (ví dụ: 123000555)..." onkeydown="if(event.key==='Enter')lookupStudentFromME()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;font-weight:600;font-family:monospace">
+          </div>
+          <button class="btn btn-primary" id="btnLookupMe" onclick="lookupStudentFromME()">
+            <span>🔍</span> Tra cứu ME
+          </button>
+        </div>
+        <div id="lookupMeStatus" style="margin-top:8px;font-size:12px"></div>
+
+        <!-- Preview Box (Hiện sau khi tra cứu ME thành công) -->
+        <div id="studentMePreviewBox" style="display:none;margin-top:14px;padding:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+            <div>
+              <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--info);letter-spacing:0.04em">Kết quả tra cứu ME</div>
+              <div style="font-size:16px;font-weight:800;margin-top:2px" id="previewStudentName">—</div>
+              <div style="font-size:12px;color:var(--muted);font-family:monospace" id="previewStudentMssv">—</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="count-badge" id="previewScheduleCount" style="padding:4px 10px;font-size:12px">0 tiết học</span>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px" id="previewDateRangeNote">
+            Khoảng ngày đồng bộ: —
+          </div>
+
+          <!-- Lưới xem trước môn học -->
+          <div id="previewScheduleList" style="max-height:220px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px">
+            <!-- Dynamic schedule cards -->
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="cancelAddStudentPreview()">✕ Hủy bỏ</button>
+            <button class="btn btn-primary btn-sm" id="btnConfirmAddStudent" onclick="confirmAddStudentFromME()">
+              ✅ Xác nhận thêm vào lớp & Lưu lịch
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bảng danh sách sinh viên -->
+      <div class="card" style="padding:18px 20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 style="font-size:15px;font-weight:800;margin:0">Danh sách sinh viên trong lớp</h3>
+            <span class="count-badge" id="stuTableCount">0</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div class="filters" style="margin:0">
+              <button class="filter active" id="stuFilterAll" onclick="setStudentFilter('all')">Tất cả <span class="count" id="countFilterAll">0</span></button>
+              <button class="filter" id="stuFilterActive" onclick="setStudentFilter('active')">Đang hoạt động <span class="count" id="countFilterActive">0</span></button>
+              <button class="filter" id="stuFilterInactive" onclick="setStudentFilter('inactive')">Đã ngừng <span class="count" id="countFilterInactive">0</span></button>
+            </div>
+            <div class="search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="stuTableSearch" placeholder="Tìm tên hoặc MSSV..." oninput="renderStudentsTable()">
+            </div>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <div class="tbl-scroll" style="max-height:550px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:45px">STT</th>
+                  <th style="width:115px">MSSV</th>
+                  <th>Họ và tên</th>
+                  <th style="width:140px">Trạng thái</th>
+                  <th style="width:130px">Lịch học kỳ này</th>
+                  <th style="width:280px;text-align:right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="stuTableBody">
+                <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Đang tải danh sách sinh viên...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================
          VIEW 3: QUẢN LÝ NHÓM (TEAMS)
          ========================================================== -->
     <section class="app-view" id="view-teams">
@@ -1480,6 +1614,30 @@ tbody tr:last-child td { border-bottom: none; }
             <button class="btn btn-secondary btn-sm" id="btnSyncME" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
             <a href="lichhoc.html" class="btn btn-primary btn-sm">Xem lưới TKB tuần →</a>
           </div>
+        </div>
+
+        <!-- Cấu hình Khoảng ngày Học kỳ & Đồng bộ ME -->
+        <div class="card" style="padding:14px 18px;margin-bottom:14px;background:var(--surface);border-left:4px solid #3b82f6">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:800;color:var(--text)">📅 Cấu hình khoảng ngày học kỳ:</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:12px;color:var(--muted)">Từ ngày:</span>
+                <input type="date" id="schedRangeStart" value="2026-10-12" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border-strong);font-size:12px;font-weight:600">
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:12px;color:var(--muted)">Đến ngày:</span>
+                <input type="date" id="schedRangeEnd" value="2027-02-03" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border-strong);font-size:12px;font-weight:600">
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="saveSemesterDateRange()" title="Lưu khoảng ngày học kỳ">💾 Lưu khoảng ngày</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" id="btnSyncRangeME" onclick="syncSchedulesForConfiguredRange()">
+                🔄 Đồng bộ TKB cả lớp theo khoảng này
+              </button>
+            </div>
+          </div>
+          <div id="schedRangeSyncProgress" style="display:none;margin-top:10px;font-size:12px"></div>
         </div>
 
         <!-- 2 Cột: Đang Rảnh vs Đang Bận học -->
@@ -1941,6 +2099,43 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
+<!-- MODAL XÁC NHẬN XÓA VĨNH VIỄN SINH VIÊN (CẢNH BÁO TÁC ĐỘNG) -->
+<div class="modal-bg" id="studentDeleteModal" onclick="if(event.target===this)closeStudentDeleteModal()">
+  <div class="modal" style="text-align:left;max-width:500px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="modal-ic" style="margin:0;width:42px;height:42px;font-size:20px;background:var(--err-bg);color:var(--err);display:grid;place-items:center;border-radius:10px">⚠️</div>
+      <div>
+        <h3 style="font-size:16px;font-weight:800;margin:0;color:var(--err)">Cảnh báo: Xóa vĩnh viễn sinh viên</h3>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px" id="stuDeleteModalSubtitle">Kiểm tra tác động trước khi xóa</div>
+      </div>
+    </div>
+
+    <div style="padding:12px 14px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);margin-bottom:14px;font-size:12px;color:var(--err);line-height:1.5">
+      <b>LƯU Ý QUAN TRỌNG:</b> Hành động này sẽ xóa sinh viên khỏi danh sách và kích hoạt xóa tự động (CASCADE) các bản ghi phụ thuộc theo ràng buộc cơ sở dữ liệu.
+    </div>
+
+    <!-- Impact Details -->
+    <div id="stuDeleteImpactContent" style="margin-bottom:14px;font-size:12.5px;line-height:1.6">
+      <div style="text-align:center;padding:16px;color:var(--muted)"><span class="spin"></span> Đang kiểm tra tác động liên kết...</div>
+    </div>
+
+    <div style="padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:14px;font-size:12px">
+      💡 <b>Khuyến nghị:</b> Bạn nên chọn <b>"Ngừng hoạt động"</b> thay vì xóa hẳn. Sinh viên bị ngừng hoạt động sẽ không hiển thị trong danh sách điểm danh nhưng toàn bộ dữ liệu lịch sử vẫn được bảo toàn trọn vẹn.
+    </div>
+
+    <div class="form-field" style="margin-bottom:14px">
+      <label for="stuDeleteConfirmMssv" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--text)">
+        NHẬP LẠI CHÍNH XÁC MSSV ĐỂ MỞ NÚT XÓA:
+      </label>
+      <input type="text" id="stuDeleteConfirmMssv" placeholder="Gõ đúng MSSV..." oninput="checkStudentDeleteConfirmInput()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:monospace;font-weight:700">
+    </div>
+
+    <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeStudentDeleteModal()" class="btn btn-secondary">Huỷ bỏ</button>
+      <button id="btnConfirmDeleteStudent" onclick="executeStudentDelete()" class="btn btn-danger" disabled style="opacity:0.5;cursor:not-allowed">Xóa vĩnh viễn</button>
+    </div>
+  </div>
+</div>
 
 <script>
 window.addEventListener('error', event => {
@@ -1961,6 +2156,7 @@ let currentView = 'overview';
 const viewTitlesMap = {
   overview: 'Tổng quan hệ thống',
   attendance: 'Phiên điểm danh',
+  students: 'Quản lý sinh viên',
   teams: 'Quản lý nhóm',
   tasks: 'Nhiệm vụ xưởng & Đội Robocon',
   leave: 'Quản lý đơn xin nghỉ',
@@ -1987,6 +2183,7 @@ function navTo(viewName) {
   closeSidebar();
 
   if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
+  else if (viewName === 'students' && typeof loadStudentsManagement === 'function') loadStudentsManagement();
   else if (viewName === 'teams' && typeof loadTeamGroups === 'function') loadTeamGroups();
   else if (viewName === 'schedules' && typeof loadTodaySchoolSchedule === 'function') loadTodaySchoolSchedule();
   else if (viewName === 'history' && typeof loadTodayHistory === 'function') { loadTodayHistory(); initializeAttendanceReportDates(); loadAttendanceReport(); }
@@ -2761,9 +2958,15 @@ async function logout(){
   location.replace('index.html');
 }
 async function loadStudents(){
-  const { data, error } = await supabase.from('students').select('mssv, name').order('mssv');
+  const { data, error } = await supabase.from('students').select('mssv, name, is_active').order('mssv');
   if (error){ console.error(error); return; }
-  students = data || [];
+  students = (data || []).map(s => ({
+    mssv: s.mssv,
+    name: s.name,
+    is_active: s.is_active !== false
+  }));
+  const navBadge = document.getElementById('navStudentsBadge');
+  if (navBadge) navBadge.textContent = students.length;
 }
 async function loadSession(){
   const { data, error } = await supabase.rpc('get_open_session');
@@ -2886,9 +3089,10 @@ function toggleFullscreen(){
   else if (el.requestFullscreen) el.requestFullscreen().catch(() => toast('err', 'Không hỗ trợ', 'Trình duyệt chặn.'));
 }
 function updateStats(){
-  const total = students.length;
+  const activeStudents = students.filter(s => s.is_active !== false);
+  const total = activeStudents.length;
   let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
-  students.forEach(s => {
+  activeStudents.forEach(s => {
     const a = attendanceMap[s.mssv];
     if (!a) unmarked++;
     else if (a.status === 'có mặt') present++;
@@ -2928,7 +3132,8 @@ function updateStats(){
   }
 }
 function renderTable(){
-  const list = students.filter(s => {
+  const activeStudents = students.filter(s => s.is_active !== false);
+  const list = activeStudents.filter(s => {
     const a = attendanceMap[s.mssv];
     const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : (a.status === 'đi muộn' ? 'late' : (a.status === 'vắng có phép' ? 'excused' : 'absent')));
     const ok1 = currentFilter === 'all' || currentFilter === status;
@@ -4027,6 +4232,720 @@ async function loadTodaySchoolSchedule(){
   }
 }
 
+/* ==========================================================
+   QUẢN LÝ SINH VIÊN & ĐỒNG BỘ LỊCH ME THEO KHOẢNG NGÀY
+   ========================================================== */
+let studentsManagementFilter = 'all';
+let pendingMeStudent = null;
+let currentDeleteTarget = null;
+
+function normalizeMeTime(value) {
+  let time = String(value || '').trim().replace(' ', 'T');
+  if (/[+-]\d{2}$/.test(time)) time += ':00';
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(time)) return time;
+  return time + '+07:00';
+}
+
+function generateWeeklyDates(startStr, endStr) {
+  const dates = [];
+  const start = new Date(startStr + 'T00:00:00+07:00');
+  const end = new Date(endStr + 'T23:59:59+07:00');
+  let curr = new Date(start);
+  while (curr <= end) {
+    const y = curr.getFullYear();
+    const m = String(curr.getMonth() + 1).padStart(2, '0');
+    const d = String(curr.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    curr.setDate(curr.getDate() + 7);
+  }
+  return dates;
+}
+
+function deduplicateSchedules(list) {
+  const map = new Map();
+  for (const item of list) {
+    const key = `${item.mssv}_${item.start_time}_${item.end_time}_${item.subject_name}`;
+    if (!map.has(key)) {
+      map.set(key, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
+function getStoredSemesterDateRange() {
+  const startInput = document.getElementById('schedRangeStart');
+  const endInput = document.getElementById('schedRangeEnd');
+  let start = startInput?.value || '';
+  let end = endInput?.value || '';
+
+  if (!start || !end) {
+    try {
+      const cached = JSON.parse(localStorage.getItem('me_sync_date_range') || '{}');
+      if (cached.start && cached.end) {
+        start = cached.start;
+        end = cached.end;
+      }
+    } catch (e) {}
+  }
+
+  if (!start) start = '2026-10-12';
+  if (!end) end = '2027-02-03';
+  return { start, end };
+}
+
+async function loadSemesterSettings() {
+  try {
+    let start = '2026-10-12';
+    let end = '2027-02-03';
+    const { data } = await supabase.rpc('get_semester_settings');
+    if (data && data.ok && data.start_date && data.end_date) {
+      start = data.start_date;
+      end = data.end_date;
+    } else {
+      const cached = JSON.parse(localStorage.getItem('me_sync_date_range') || '{}');
+      if (cached.start && cached.end) { start = cached.start; end = cached.end; }
+    }
+
+    localStorage.setItem('me_sync_date_range', JSON.stringify({ start, end }));
+    const sEl = document.getElementById('schedRangeStart');
+    const eEl = document.getElementById('schedRangeEnd');
+    if (sEl) sEl.value = start;
+    if (eEl) eEl.value = end;
+  } catch (e) {
+    console.warn('loadSemesterSettings error:', e);
+  }
+}
+
+async function saveSemesterDateRange() {
+  const startEl = document.getElementById('schedRangeStart');
+  const endEl = document.getElementById('schedRangeEnd');
+  if (!startEl || !endEl) return;
+  const start = startEl.value;
+  const end = endEl.value;
+
+  if (!start || !end || start > end) {
+    toast('warn', 'Khoảng ngày không hợp lệ', 'Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.');
+    return;
+  }
+
+  localStorage.setItem('me_sync_date_range', JSON.stringify({ start, end }));
+
+  try {
+    const { data, error } = await supabase.rpc('admin_save_semester_settings', {
+      p_start_date: start,
+      p_end_date: end
+    });
+    if (error || !data?.ok) {
+      console.warn('admin_save_semester_settings error:', error || data);
+      toast('ok', 'Đã lưu cục bộ', `Đã lưu khoảng ngày ${start} → ${end} vào trình duyệt.`);
+    } else {
+      toast('ok', 'Đã lưu cấu hình', `Đã lưu khoảng ngày ${start} → ${end} lên Supabase.`);
+    }
+  } catch (e) {
+    toast('ok', 'Đã lưu cục bộ', `Đã lưu khoảng ngày ${start} → ${end} vào trình duyệt.`);
+  }
+}
+
+function setStudentFilter(filter) {
+  studentsManagementFilter = filter;
+  document.querySelectorAll('#view-students .filters .filter').forEach(f => f.classList.remove('active'));
+  const btn = document.getElementById('stuFilter' + (filter === 'all' ? 'All' : (filter === 'active' ? 'Active' : 'Inactive')));
+  if (btn) btn.classList.add('active');
+  renderStudentsTable();
+}
+
+async function loadStudentsManagement() {
+  await loadStudents();
+  const total = students.length;
+  const activeCount = students.filter(s => s.is_active !== false).length;
+  const inactiveCount = students.filter(s => s.is_active === false).length;
+
+  const totalEl = document.getElementById('stuKpiTotal');
+  const activeEl = document.getElementById('stuKpiActive');
+  const inactiveEl = document.getElementById('stuKpiInactive');
+  if (totalEl) totalEl.textContent = total;
+  if (activeEl) activeEl.textContent = activeCount;
+  if (inactiveEl) inactiveEl.textContent = inactiveCount;
+
+  const cAll = document.getElementById('countFilterAll');
+  const cAct = document.getElementById('countFilterActive');
+  const cIna = document.getElementById('countFilterInactive');
+  if (cAll) cAll.textContent = total;
+  if (cAct) cAct.textContent = activeCount;
+  if (cIna) cIna.textContent = inactiveCount;
+
+  renderStudentsTable();
+}
+
+async function renderStudentsTable() {
+  const tbody = document.getElementById('stuTableBody');
+  const searchInput = document.getElementById('stuTableSearch');
+  const countBadge = document.getElementById('stuTableCount');
+  if (!tbody) return;
+
+  const q = (searchInput?.value || '').toLowerCase().trim();
+  const filtered = students.filter(s => {
+    const isActive = s.is_active !== false;
+    if (studentsManagementFilter === 'active' && !isActive) return false;
+    if (studentsManagementFilter === 'inactive' && isActive) return false;
+    if (!q) return true;
+    return s.mssv.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q);
+  });
+
+  if (countBadge) countBadge.textContent = `${filtered.length} / ${students.length} sinh viên`;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Không tìm thấy sinh viên nào khớp với bộ lọc.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((s, idx) => {
+    const isActive = s.is_active !== false;
+    const statusBadge = isActive
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;background:var(--ok-bg);color:var(--ok);font-size:11px;font-weight:700">🟢 Hoạt động</span>'
+      : '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);font-size:11px;font-weight:700">⚪ Đã ngừng</span>';
+
+    const toggleActionBtn = isActive
+      ? `<button class="btn btn-secondary btn-sm" onclick="toggleStudentActive('${s.mssv}', true)" title="Tạm dừng hoạt động sinh viên (vẫn giữ dữ liệu)" style="font-size:11.5px;padding:4px 9px">⏸ Ngừng</button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="toggleStudentActive('${s.mssv}', false)" title="Khôi phục sinh viên hoạt động lại" style="font-size:11.5px;padding:4px 9px;color:var(--ok)">▶ Khôi phục</button>`;
+
+    return `
+      <tr style="${!isActive ? 'opacity:0.65;background:rgba(0,0,0,0.01)' : ''}">
+        <td style="color:var(--muted);font-size:12px">${idx + 1}</td>
+        <td style="font-family:monospace;font-weight:700;font-size:13px">${escapeHtml(s.mssv)}</td>
+        <td>
+          <div style="font-weight:700">${escapeHtml(s.name)}</div>
+        </td>
+        <td>${statusBadge}</td>
+        <td>
+          <span style="font-size:12px;color:var(--muted)" id="schedCount_${s.mssv}">—</span>
+        </td>
+        <td style="text-align:right">
+          <div style="display:inline-flex;gap:6px;align-items:center">
+            <button class="btn btn-secondary btn-sm" onclick="syncStudentScheduleSingle('${s.mssv}')" title="Đồng bộ lịch ME riêng cho sinh viên này" style="font-size:11.5px;padding:4px 9px">
+              🔄 Lịch ME
+            </button>
+            ${toggleActionBtn}
+            <button class="btn btn-danger btn-sm" onclick="openStudentDeleteModal('${s.mssv}')" title="Xóa vĩnh viễn (yêu cầu xác nhận)" style="font-size:11.5px;padding:4px 8px">
+              🗑
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  loadStudentsScheduleCounts(filtered.map(s => s.mssv));
+}
+
+async function loadStudentsScheduleCounts(mssvList) {
+  if (!mssvList || !mssvList.length) return;
+  try {
+    const { data } = await supabase.from('student_schedules').select('mssv');
+    if (!data) return;
+    const counts = {};
+    data.forEach(r => { counts[r.mssv] = (counts[r.mssv] || 0) + 1; });
+    mssvList.forEach(m => {
+      const el = document.getElementById('schedCount_' + m);
+      if (el) el.textContent = (counts[m] || 0) + ' tiết';
+    });
+  } catch (e) {}
+}
+
+async function lookupStudentFromME() {
+  const input = document.getElementById('inputSearchMssv');
+  const statusEl = document.getElementById('lookupMeStatus');
+  const previewBox = document.getElementById('studentMePreviewBox');
+  const btn = document.getElementById('btnLookupMe');
+  if (!input) return;
+  const mssv = input.value.trim();
+  if (!mssv) {
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--err)">Vui lòng nhập MSSV để tra cứu.</span>';
+    return;
+  }
+
+  // Kiểm tra MSSV đã tồn tại trong Supabase chưa
+  const existing = students.find(s => s.mssv === mssv);
+  if (existing) {
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:var(--warn)">⚠️ MSSV <b>${escapeHtml(mssv)}</b> đã có trong danh sách lớp: <b>${escapeHtml(existing.name)}</b> (${existing.is_active ? '🟢 Đang hoạt động' : '⚪ Đã ngừng'}). Không cần thêm mới.</span>`;
+    }
+    if (previewBox) previewBox.style.display = 'none';
+    return;
+  }
+
+  const range = getStoredSemesterDateRange();
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang tra cứu…'; }
+  if (statusEl) statusEl.innerHTML = '<span style="color:var(--muted)">Đang kết nối hệ thống ME trường Đại học Lạc Hồng…</span>';
+  if (previewBox) previewBox.style.display = 'none';
+
+  try {
+    const reqDate = `${range.start}T00:00:00+07:00`;
+    const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ StudentID: mssv, Ngay: reqDate, PageIndex: 1, PageSize: 100 })
+    });
+
+    if (!res.ok) {
+      let errMsg = 'Mã sinh viên không tồn tại trên hệ thống ME.';
+      try {
+        const errJson = await res.json();
+        if (errJson.Message) errMsg = errJson.Message;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+
+    const json = await res.json();
+    const studentInfo = json.data?.[0]?.[0];
+    if (!studentInfo || !studentInfo.HoTen) {
+      throw new Error('Hệ thống ME không tìm thấy thông tin sinh viên với MSSV: ' + mssv);
+    }
+
+    const studentName = studentInfo.HoTen.trim();
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--ok)">✅ Tìm thấy: <b>${escapeHtml(studentName)}</b>. Đang lấy lịch học trong khoảng ${range.start} đến ${range.end}…</span>`;
+
+    const weekDates = generateWeeklyDates(range.start, range.end);
+    const rawSchedules = [];
+
+    if (Array.isArray(json.data?.[2])) {
+      rawSchedules.push(...json.data[2]);
+    }
+
+    for (let i = 1; i < weekDates.length; i++) {
+      await sleep(100);
+      try {
+        const wDate = `${weekDates[i]}T00:00:00+07:00`;
+        const wRes = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ StudentID: mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
+        });
+        if (wRes.ok) {
+          const wJson = await wRes.json();
+          if (Array.isArray(wJson.data?.[2])) rawSchedules.push(...wJson.data[2]);
+        }
+      } catch (wErr) {
+        console.warn('Lỗi lấy tuần ' + weekDates[i], wErr);
+      }
+    }
+
+    const startBound = new Date(`${range.start}T00:00:00+07:00`).getTime();
+    const endBound = new Date(`${range.end}T23:59:59+07:00`).getTime();
+
+    const formattedList = [];
+    rawSchedules.forEach(c => {
+      const start = normalizeMeTime(c.ThoiGianBD);
+      const end = normalizeMeTime(c.ThoiGianKT);
+      const startTimeMs = new Date(start).getTime();
+      if (startTimeMs >= startBound && startTimeMs <= endBound) {
+        formattedList.push({
+          mssv: mssv,
+          subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
+          room_name: (c.TenPhong || 'Online').trim(),
+          teacher_name: (c.GiaoVien || '').trim(),
+          start_time: start,
+          end_time: end,
+          day_of_week: c.Thu || 0,
+          buoi: Number(c.Buoi) || null
+        });
+      }
+    });
+
+    const deduped = deduplicateSchedules(formattedList);
+    pendingMeStudent = {
+      mssv: mssv,
+      name: studentName,
+      schedules: deduped,
+      start: range.start,
+      end: range.end
+    };
+
+    document.getElementById('previewStudentName').textContent = studentName;
+    document.getElementById('previewStudentMssv').textContent = `MSSV: ${mssv} · Lớp ME: ${studentInfo.TenLop || 'Chưa rõ'}`;
+    document.getElementById('previewScheduleCount').textContent = `${deduped.length} tiết học tìm thấy`;
+    document.getElementById('previewDateRangeNote').textContent = `Khoảng ngày đồng bộ: ${range.start} → ${range.end} (${weekDates.length} tuần)`;
+
+    const schedListEl = document.getElementById('previewScheduleList');
+    if (deduped.length === 0) {
+      schedListEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px">Không có môn học nào trong khoảng ngày này trên ME. Vẫn có thể lưu sinh viên vào danh sách lớp.</div>';
+    } else {
+      const bySubject = {};
+      deduped.forEach(s => {
+        bySubject[s.subject_name] = (bySubject[s.subject_name] || 0) + 1;
+      });
+      schedListEl.innerHTML = `
+        <div style="font-weight:700;margin-bottom:6px;color:var(--text)">Các môn học tìm được (${Object.keys(bySubject).length} môn):</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px">
+          ${Object.entries(bySubject).map(([sub, count]) => `
+            <div style="padding:6px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px">
+              <b>${escapeHtml(sub)}</b>
+              <div style="font-size:11px;color:var(--muted)">${count} buổi học</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    if (previewBox) previewBox.style.display = 'block';
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--ok)">✅ Tra cứu hoàn tất. Vui lòng kiểm tra thông tin và nhấn xác nhận bên dưới.</span>';
+
+  } catch (err) {
+    console.error('lookupStudentFromME error:', err);
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--err)">❌ ${escapeHtml(err.message)}</span>`;
+    if (previewBox) previewBox.style.display = 'none';
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
+async function confirmAddStudentFromME() {
+  if (!pendingMeStudent) return;
+  const btn = document.getElementById('btnConfirmAddStudent');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu vào Supabase…'; }
+
+  try {
+    const { data: addRes, error: addErr } = await supabase.rpc('admin_add_student', {
+      p_mssv: pendingMeStudent.mssv,
+      p_name: pendingMeStudent.name
+    });
+    if (addErr || !addRes?.ok) {
+      throw new Error(addRes?.message || addErr?.message || 'Không thể thêm sinh viên vào Supabase.');
+    }
+
+    let schedMsg = '';
+    if (pendingMeStudent.schedules.length > 0) {
+      const { data: syncRes, error: syncErr } = await supabase.rpc('admin_sync_student_schedules_for_range', {
+        p_schedules: pendingMeStudent.schedules,
+        p_from_date: pendingMeStudent.start,
+        p_to_date: pendingMeStudent.end,
+        p_mssv: pendingMeStudent.mssv
+      });
+      if (syncErr || !syncRes?.ok) {
+        console.warn('Lưu lịch lỗi:', syncErr || syncRes);
+        schedMsg = ' (Lưu lịch gặp lỗi: ' + (syncRes?.message || syncErr?.message) + ')';
+      } else {
+        schedMsg = ` và lưu ${syncRes.count} tiết học`;
+      }
+    }
+
+    toast('ok', 'Đã thêm sinh viên thành công!', `Đã thêm ${pendingMeStudent.name} (${pendingMeStudent.mssv})${schedMsg}.`);
+
+    document.getElementById('inputSearchMssv').value = '';
+    document.getElementById('studentMePreviewBox').style.display = 'none';
+    document.getElementById('lookupMeStatus').innerHTML = '<span style="color:var(--ok)">✅ Sinh viên đã được lưu thành công vào cơ sở dữ liệu.</span>';
+    pendingMeStudent = null;
+
+    await loadStudents();
+    await loadStudentsManagement();
+    renderAll();
+
+  } catch (err) {
+    console.error('confirmAddStudentFromME error:', err);
+    toast('err', 'Thêm sinh viên thất bại', err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
+function cancelAddStudentPreview() {
+  const previewBox = document.getElementById('studentMePreviewBox');
+  if (previewBox) previewBox.style.display = 'none';
+  pendingMeStudent = null;
+  const statusEl = document.getElementById('lookupMeStatus');
+  if (statusEl) statusEl.textContent = '';
+}
+
+function focusAddStudentMssv() {
+  const input = document.getElementById('inputSearchMssv');
+  if (input) {
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input.focus();
+  }
+}
+
+async function toggleStudentActive(mssv, currentActive) {
+  const newActive = !currentActive;
+  const actionText = newActive ? 'khôi phục' : 'ngừng hoạt động';
+  if (!confirm(`Bạn có chắc chắn muốn ${actionText} sinh viên MSSV ${mssv}?`)) return;
+
+  try {
+    const { data, error } = await supabase.rpc('admin_set_student_active', {
+      p_mssv: mssv,
+      p_is_active: newActive
+    });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể cập nhật trạng thái.');
+
+    toast('ok', 'Cập nhật thành công', `Sinh viên ${data.name || mssv} đã được ${actionText}.`);
+    await loadStudentsManagement();
+    renderAll();
+  } catch (err) {
+    console.error('toggleStudentActive error:', err);
+    toast('err', 'Thao tác thất bại', err.message);
+  }
+}
+
+async function openStudentDeleteModal(mssv) {
+  const stu = students.find(s => s.mssv === mssv);
+  currentDeleteTarget = { mssv, name: stu?.name || mssv };
+
+  const modal = document.getElementById('studentDeleteModal');
+  const subtitle = document.getElementById('stuDeleteModalSubtitle');
+  const content = document.getElementById('stuDeleteImpactContent');
+  const input = document.getElementById('stuDeleteConfirmMssv');
+  const btn = document.getElementById('btnConfirmDeleteStudent');
+
+  if (subtitle) subtitle.textContent = `Sinh viên: ${currentDeleteTarget.name} (${mssv})`;
+  if (input) input.value = '';
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed'; }
+  if (content) content.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)"><span class="spin"></span> Đang kiểm tra dữ liệu liên kết trên hệ thống...</div>';
+
+  if (modal) modal.classList.add('show');
+
+  try {
+    const { data, error } = await supabase.rpc('admin_get_student_delete_impact', { p_mssv: mssv });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể kiểm tra tác động xóa.');
+
+    content.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-weight:700;margin-bottom:8px">Chi tiết dữ liệu liên kết sẽ bị xóa:</div>
+        <ul style="margin:0;padding-left:20px;display:grid;gap:4px">
+          <li><b>${data.schedules_count}</b> tiết lịch học đã đồng bộ (student_schedules)</li>
+          <li><b>${data.leave_count}</b> đơn xin nghỉ phép (leave_requests)</li>
+          <li><b>${data.group_member_count}</b> nhóm dự án đang tham gia (team_group_members)</li>
+          <li><b>${data.task_assign_count}</b> nhiệm vụ được giao (team_task_assignments)</li>
+          <li><b>${data.reset_req_count}</b> yêu cầu đặt lại mật khẩu (password_reset_requests)</li>
+          <li><b>${data.attendance_count}</b> bản ghi điểm danh (lịch sử điểm danh giữ nguyên nhưng không còn liên kết sinh viên)</li>
+        </ul>
+      </div>
+    `;
+  } catch (err) {
+    if (content) content.innerHTML = `<div style="color:var(--err)">Không thể lấy chi tiết tác động: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function closeStudentDeleteModal() {
+  const modal = document.getElementById('studentDeleteModal');
+  if (modal) modal.classList.remove('show');
+  currentDeleteTarget = null;
+}
+
+function checkStudentDeleteConfirmInput() {
+  const input = document.getElementById('stuDeleteConfirmMssv');
+  const btn = document.getElementById('btnConfirmDeleteStudent');
+  if (!input || !btn || !currentDeleteTarget) return;
+
+  const matches = input.value.trim() === currentDeleteTarget.mssv;
+  btn.disabled = !matches;
+  btn.style.opacity = matches ? '1' : '0.5';
+  btn.style.cursor = matches ? 'pointer' : 'not-allowed';
+}
+
+async function executeStudentDelete() {
+  if (!currentDeleteTarget) return;
+  const btn = document.getElementById('btnConfirmDeleteStudent');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang xóa…'; }
+
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_student', { p_mssv: currentDeleteTarget.mssv });
+    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể xóa sinh viên.');
+
+    toast('ok', 'Đã xóa sinh viên', `Đã xóa vĩnh viễn sinh viên ${currentDeleteTarget.name} (${currentDeleteTarget.mssv}).`);
+    closeStudentDeleteModal();
+    await loadStudents();
+    await loadStudentsManagement();
+    renderAll();
+  } catch (err) {
+    console.error('executeStudentDelete error:', err);
+    toast('err', 'Xóa thất bại', err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
+async function syncStudentScheduleSingle(mssv) {
+  const range = getStoredSemesterDateRange();
+  toast('info', 'Đang kết nối ME…', `Đang đồng bộ TKB MSSV ${mssv} trong khoảng ${range.start} → ${range.end}.`);
+
+  try {
+    const weekDates = generateWeeklyDates(range.start, range.end);
+    const rawSchedules = [];
+
+    for (let w = 0; w < weekDates.length; w++) {
+      await sleep(100);
+      const wDate = `${weekDates[w]}T00:00:00+07:00`;
+      const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ StudentID: mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.data?.[2])) rawSchedules.push(...json.data[2]);
+      }
+    }
+
+    const startBound = new Date(`${range.start}T00:00:00+07:00`).getTime();
+    const endBound = new Date(`${range.end}T23:59:59+07:00`).getTime();
+
+    const formatted = [];
+    rawSchedules.forEach(c => {
+      const sTime = normalizeMeTime(c.ThoiGianBD);
+      const eTime = normalizeMeTime(c.ThoiGianKT);
+      const sTimeMs = new Date(sTime).getTime();
+      if (sTimeMs >= startBound && sTimeMs <= endBound) {
+        formatted.push({
+          mssv: mssv,
+          subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
+          room_name: (c.TenPhong || 'Online').trim(),
+          teacher_name: (c.GiaoVien || '').trim(),
+          start_time: sTime,
+          end_time: eTime,
+          day_of_week: c.Thu || 0,
+          buoi: Number(c.Buoi) || null
+        });
+      }
+    });
+
+    const deduped = deduplicateSchedules(formatted);
+
+    const { data: syncRes, error: syncErr } = await supabase.rpc('admin_sync_student_schedules_for_range', {
+      p_schedules: deduped,
+      p_from_date: range.start,
+      p_to_date: range.end,
+      p_mssv: mssv
+    });
+
+    if (syncErr || !syncRes?.ok) throw new Error(syncRes?.message || syncErr?.message || 'Lỗi lưu lịch.');
+
+    toast('ok', 'Đồng bộ xong!', `Đã cập nhật ${syncRes.count} tiết học cho MSSV ${mssv}.`);
+    await renderStudentsTable();
+    await loadTodaySchoolSchedule();
+
+  } catch (err) {
+    console.error('syncStudentScheduleSingle error:', err);
+    toast('err', 'Đồng bộ thất bại', err.message);
+  }
+}
+
+async function syncSchedulesForConfiguredRange() {
+  const range = getStoredSemesterDateRange();
+  const btn = document.getElementById('btnSyncRangeME');
+  const oldText = btn ? btn.innerHTML : '';
+  const progressEl = document.getElementById('schedRangeSyncProgress');
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang đồng bộ…'; }
+  if (progressEl) {
+    progressEl.style.display = 'block';
+    progressEl.innerHTML = '<span class="spin"></span> Đang khởi tạo đồng bộ khoảng ngày ' + range.start + ' đến ' + range.end + '…';
+  }
+
+  toast('info', 'Bắt đầu đồng bộ ME', `Đang đồng bộ TKB từ ${range.start} đến ${range.end} cho cả lớp.`);
+
+  try {
+    const list = students.filter(s => s.is_active !== false);
+    if (!list.length) throw new Error('Không có sinh viên nào đang hoạt động để đồng bộ.');
+
+    const weekDates = generateWeeklyDates(range.start, range.end);
+    const allSchedules = [];
+    let successCount = 0;
+    const failedStudents = [];
+
+    const startBound = new Date(`${range.start}T00:00:00+07:00`).getTime();
+    const endBound = new Date(`${range.end}T23:59:59+07:00`).getTime();
+
+    for (let i = 0; i < list.length; i += 5) {
+      const chunk = list.slice(i, i + 5);
+      if (progressEl) {
+        const pct = Math.round((i / list.length) * 100);
+        progressEl.innerHTML = `<span class="spin"></span> Đang xử lý: ${i}/${list.length} sinh viên (${pct}%)…`;
+      }
+
+      await Promise.all(chunk.map(async stu => {
+        try {
+          const stuSchedules = [];
+          for (let w = 0; w < weekDates.length; w++) {
+            await sleep(100);
+            const wDate = `${weekDates[w]}T00:00:00+07:00`;
+            const res = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({ StudentID: stu.mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (Array.isArray(json.data?.[2])) {
+                json.data[2].forEach(c => {
+                  const sTime = normalizeMeTime(c.ThoiGianBD);
+                  const eTime = normalizeMeTime(c.ThoiGianKT);
+                  const sTimeMs = new Date(sTime).getTime();
+                  if (sTimeMs >= startBound && sTimeMs <= endBound) {
+                    stuSchedules.push({
+                      mssv: stu.mssv,
+                      subject_name: (c.TenMonHoc || 'Chưa rõ').trim(),
+                      room_name: (c.TenPhong || 'Online').trim(),
+                      teacher_name: (c.GiaoVien || '').trim(),
+                      start_time: sTime,
+                      end_time: eTime,
+                      day_of_week: c.Thu || 0,
+                      buoi: Number(c.Buoi) || null
+                    });
+                  }
+                });
+              }
+            }
+          }
+          const dedupedStu = deduplicateSchedules(stuSchedules);
+          allSchedules.push(...dedupedStu);
+          successCount++;
+        } catch (e) {
+          failedStudents.push(stu.mssv);
+          console.warn('Đồng bộ thất bại MSSV ' + stu.mssv, e);
+        }
+      }));
+    }
+
+    if (failedStudents.length > list.length / 2) {
+      throw new Error(`ME gặp sự cố mạng hoặc trả thiếu quá nhiều (${failedStudents.length}/${list.length} sinh viên). Giữ nguyên lịch cũ để đảm bảo an toàn dữ liệu.`);
+    }
+
+    const finalDeduped = deduplicateSchedules(allSchedules);
+
+    const { data: syncRes, error: syncErr } = await supabase.rpc('admin_sync_student_schedules_for_range', {
+      p_schedules: finalDeduped,
+      p_from_date: range.start,
+      p_to_date: range.end,
+      p_mssv: null
+    });
+
+    if (syncErr || !syncRes?.ok) {
+      throw new Error(syncRes?.message || syncErr?.message || 'Lỗi khi lưu lịch vào Supabase.');
+    }
+
+    localStorage.setItem('last_me_sync_range', Date.now().toString());
+    if (progressEl) {
+      progressEl.innerHTML = `<span style="color:var(--ok)">✅ Đã đồng bộ thành công ${syncRes.count} tiết học trong khoảng ${range.start} → ${range.end}!</span>`;
+    }
+    toast('ok', 'Đồng bộ hoàn tất!', `Đã cập nhật ${syncRes.count} tiết học cho ${successCount} sinh viên. Lịch ngoài khoảng này được giữ nguyên.`);
+
+    await loadTodaySchoolSchedule();
+    return true;
+
+  } catch (err) {
+    console.error('syncSchedulesForConfiguredRange error:', err);
+    if (progressEl) {
+      progressEl.innerHTML = `<span style="color:var(--err)">❌ Lỗi đồng bộ: ${escapeHtml(err.message)}</span>`;
+    }
+    toast('err', 'Đồng bộ thất bại', err.message);
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+  }
+}
+
 async function syncSchedulesFromME(isAuto=false,targetDate=null,preserveOtherDays=false,sourceButton=null,quietSuccess=false){
   const btn=sourceButton||document.getElementById('btnSyncME');const oldText=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Đang đồng bộ…';}
@@ -4423,8 +5342,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   runAdminStartupTask('Danh sách sinh viên và nhóm', (async () => {
     await loadStudents();
+    await loadSemesterSettings();
     const kpiTotalEl = document.getElementById('kpiTotalStudents');
-    if (kpiTotalEl) kpiTotalEl.textContent = students.length;
+    if (kpiTotalEl) kpiTotalEl.textContent = students.filter(s => s.is_active !== false).length;
     await loadTeamGroups();
     if (teamAvailabilityTimer) clearInterval(teamAvailabilityTimer);
     teamAvailabilityTimer = setInterval(() => {
