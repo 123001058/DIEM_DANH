@@ -1399,6 +1399,8 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
+      <div id="studentsLoadError" role="alert" style="display:none;margin-top:12px;padding:10px 12px;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:12px"></div>
+
       <!-- Khu vực Thêm sinh viên bằng MSSV từ ME -->
       <div class="card" style="padding:18px 20px;margin-bottom:16px;border-left:4px solid #3b82f6" id="cardAddStudent">
         <h3 style="font-size:15px;font-weight:800;margin:0 0 6px 0;display:flex;align-items:center;gap:6px">
@@ -2959,7 +2961,17 @@ async function logout(){
 }
 async function loadStudents(){
   const { data, error } = await supabase.from('students').select('mssv, name, is_active').order('mssv');
-  if (error){ console.error(error); return; }
+  const errorBox = document.getElementById('studentsLoadError');
+  if (error){
+    console.error('loadStudents error:', error);
+    students = [];
+    if (errorBox) {
+      errorBox.style.display = 'block';
+      errorBox.textContent = `Không đọc được danh sách sinh viên từ Supabase (${error.code || 'lỗi truy vấn'}): ${error.message}. Kiểm tra migration 20261012160000_student_management_and_date_range_sync.sql đã được áp dụng và tài khoản admin có quyền đọc bảng students chưa.`;
+    }
+    return false;
+  }
+  if (errorBox) errorBox.style.display = 'none';
   students = (data || []).map(s => ({
     mssv: s.mssv,
     name: s.name,
@@ -2967,6 +2979,7 @@ async function loadStudents(){
   }));
   const navBadge = document.getElementById('navStudentsBadge');
   if (navBadge) navBadge.textContent = students.length;
+  return true;
 }
 async function loadSession(){
   const { data, error } = await supabase.rpc('get_open_session');
@@ -4359,7 +4372,16 @@ function setStudentFilter(filter) {
 }
 
 async function loadStudentsManagement() {
-  await loadStudents();
+  const loaded = await loadStudents();
+  if (!loaded) {
+    ['stuKpiTotal', 'stuKpiActive', 'stuKpiInactive', 'countFilterAll', 'countFilterActive', 'countFilterInactive']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    const tbody = document.getElementById('stuTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--err)">Không tải được danh sách. Xem thông báo lỗi phía trên.</td></tr>';
+    const countBadge = document.getElementById('stuTableCount');
+    if (countBadge) countBadge.textContent = 'Chưa tải được dữ liệu';
+    return;
+  }
   const total = students.length;
   const activeCount = students.filter(s => s.is_active !== false).length;
   const inactiveCount = students.filter(s => s.is_active === false).length;
