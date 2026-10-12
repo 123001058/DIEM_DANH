@@ -565,16 +565,24 @@ create policy "admin_all_sessions" on public.sessions
   with check (is_admin());
 
 drop policy if exists "Allow read student_schedules" on public.student_schedules;
-create policy "Allow read student_schedules" on public.student_schedules
+drop policy if exists student_schedules_read_own_or_admin on public.student_schedules;
+create policy student_schedules_read_own_or_admin on public.student_schedules
   for select
-  to public
-  using (true);
+  to authenticated
+  using (
+    public.is_admin()
+    or mssv = (select p.mssv from public.profiles p where p.user_id = auth.uid())
+  );
 
 drop policy if exists "read_students" on public.students;
-create policy "read_students" on public.students
+drop policy if exists students_read_own_or_admin on public.students;
+create policy students_read_own_or_admin on public.students
   for select
-  to public
-  using (true);
+  to authenticated
+  using (
+    public.is_admin()
+    or mssv = (select p.mssv from public.profiles p where p.user_id = auth.uid())
+  );
 
 drop policy if exists "semester_settings_read" on public.semester_settings;
 create policy "semester_settings_read" on public.semester_settings

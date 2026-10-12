@@ -201,12 +201,31 @@
   async function loadData() {
     try {
       if (typeof window.supabase === 'undefined') throw new Error('Supabase client chưa khởi tạo.');
-      
-      const { data: authData } = await window.supabase.auth.getSession();
-      if (authData?.session?.user) {
-        const { data: prof } = await window.supabase
-          .from('profiles').select('mssv').eq('user_id', authData.session.user.id).maybeSingle();
-        if (prof?.mssv) localStorage.setItem('selected_tkb_mssv', prof.mssv);
+
+      const { data: authData, error: authError } = await window.supabase.auth.getSession();
+      if (authError) throw authError;
+      if (!authData?.session?.user) {
+        window.location.replace('index.html');
+        return;
+      }
+
+      const { data: profile, error: profileError } = await window.supabase
+        .from('profiles').select('mssv').eq('user_id', authData.session.user.id).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile?.mssv) throw new Error('Tài khoản chưa được liên kết MSSV. Vui lòng liên hệ Admin.');
+
+      const { data: adminFlag, error: adminError } = await window.supabase.rpc('is_admin');
+      if (adminError) throw adminError;
+      const isAdmin = adminFlag === true;
+      const ownMssv = String(profile.mssv);
+      if (!isAdmin) {
+        localStorage.setItem('selected_tkb_mssv', ownMssv);
+        document.getElementById('studentSelectGroup')?.setAttribute('hidden', '');
+        document.getElementById('studentSearchGroup')?.setAttribute('hidden', '');
+        document.getElementById('tabToday')?.setAttribute('hidden', '');
+        document.getElementById('tabFreeTime')?.setAttribute('hidden', '');
+        const adminLink = document.querySelector('a[href="admin.html"]');
+        if (adminLink) adminLink.style.setProperty('display', 'none', 'important');
       }
 
       // Lấy cấu hình học kỳ từ Supabase hoặc localStorage
@@ -228,12 +247,16 @@
       }
 
       // Lấy từ Supabase thay vì JSON tĩnh (chỉ lấy sinh viên đang hoạt động)
-      const { data: studentsData, error: stuErr } = await window.supabase.from('students').select('*').order('mssv');
+      let studentsQuery = window.supabase.from('students').select('*').order('mssv');
+      if (!isAdmin) studentsQuery = studentsQuery.eq('mssv', ownMssv);
+      const { data: studentsData, error: stuErr } = await studentsQuery;
       if (stuErr) throw stuErr;
 
       const activeStudents = (studentsData || []).filter(st => st.is_active !== false);
 
-      const { data: schedulesData, error: schErr } = await window.supabase.from('student_schedules').select('*');
+      let schedulesQuery = window.supabase.from('student_schedules').select('*');
+      if (!isAdmin) schedulesQuery = schedulesQuery.eq('mssv', ownMssv);
+      const { data: schedulesData, error: schErr } = await schedulesQuery;
       if (schErr) throw schErr;
 
       const schedMap = {};
@@ -267,9 +290,10 @@
       buildSemesterWeeks(semStart, semEnd);
       renderStudentDropdown();
 
-      const savedMssv = localStorage.getItem('selected_tkb_mssv') || '123001058';
+      const savedMssv = isAdmin ? (localStorage.getItem('selected_tkb_mssv') || ownMssv) : ownMssv;
       let target = allStudentsData.find(s => s.mssv === savedMssv);
       if (!target && allStudentsData.length > 0) target = allStudentsData[0];
+      if (!target) throw new Error(isAdmin ? 'Chưa có sinh viên hoạt động để xem thời khóa biểu.' : 'Sinh viên đang ngừng hoạt động hoặc chưa có trong danh sách lớp.');
 
       selectStudent(target);
       updateWeekUI();
@@ -280,7 +304,7 @@
         timetableContainer.innerHTML = `
           <div class="tkb-empty-state">
             <p style="color:var(--err);font-weight:700;">Lỗi tải dữ liệu lịch học: ${err.message}</p>
-            <p>Vui lòng đảm bảo bạn đã đăng nhập và RLS Supabase cho phép đọc.</p>
+          <p>Nếu đây là tài khoản sinh viên, hãy kiểm tra MSSV đã liên kết và migration phân quyền thời khóa biểu đã được áp dụng trên Supabase.</p>
           </div>
         `;
       }

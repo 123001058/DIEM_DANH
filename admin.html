@@ -4239,6 +4239,10 @@ let studentsManagementFilter = 'all';
 let pendingMeStudent = null;
 let currentDeleteTarget = null;
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function normalizeMeTime(value) {
   let time = String(value || '').trim().replace(' ', 'T');
   if (/[+-]\d{2}$/.test(time)) time += ':00';
@@ -4509,26 +4513,27 @@ async function lookupStudentFromME() {
     const weekDates = generateWeeklyDates(range.start, range.end);
     const rawSchedules = [];
 
-    if (Array.isArray(json.data?.[2])) {
-      rawSchedules.push(...json.data[2]);
-    }
+    if (!Array.isArray(json.data?.[2])) throw new Error('ME trả cấu trúc thời khóa biểu không hợp lệ.');
+    rawSchedules.push(...json.data[2]);
 
     for (let i = 1; i < weekDates.length; i++) {
       await sleep(100);
-      try {
-        const wDate = `${weekDates[i]}T00:00:00+07:00`;
-        const wRes = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json; charset=utf-8' },
-          body: JSON.stringify({ StudentID: mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
-        });
-        if (wRes.ok) {
-          const wJson = await wRes.json();
-          if (Array.isArray(wJson.data?.[2])) rawSchedules.push(...wJson.data[2]);
-        }
-      } catch (wErr) {
-        console.warn('Lỗi lấy tuần ' + weekDates[i], wErr);
+      const wDate = `${weekDates[i]}T00:00:00+07:00`;
+      const wRes = await fetch('https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ StudentID: mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
+      });
+      if (!wRes.ok) {
+        let message = `ME trả lỗi HTTP ${wRes.status} ở tuần ${weekDates[i]}.`;
+        try { message = (await wRes.json()).Message || message; } catch (e) {}
+        throw new Error(message);
       }
+      const wJson = await wRes.json();
+      if (!wJson.data?.[0]?.[0]?.HoTen || !Array.isArray(wJson.data?.[2])) {
+        throw new Error(`ME trả dữ liệu không đầy đủ ở tuần ${weekDates[i]}. Chưa lưu sinh viên.`);
+      }
+      rawSchedules.push(...wJson.data[2]);
     }
 
     const startBound = new Date(`${range.start}T00:00:00+07:00`).getTime();
@@ -4782,10 +4787,16 @@ async function syncStudentScheduleSingle(mssv) {
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ StudentID: mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json.data?.[2])) rawSchedules.push(...json.data[2]);
+      if (!res.ok) {
+        let message = `ME trả lỗi HTTP ${res.status} ở tuần ${weekDates[w]}.`;
+        try { message = (await res.json()).Message || message; } catch (e) {}
+        throw new Error(message);
       }
+      const json = await res.json();
+      if (!json.data?.[0]?.[0]?.HoTen || !Array.isArray(json.data?.[2])) {
+        throw new Error(`ME trả dữ liệu không đầy đủ ở tuần ${weekDates[w]}. Lịch cũ được giữ nguyên.`);
+      }
+      rawSchedules.push(...json.data[2]);
     }
 
     const startBound = new Date(`${range.start}T00:00:00+07:00`).getTime();
@@ -4875,10 +4886,16 @@ async function syncSchedulesForConfiguredRange() {
               headers: { 'Content-Type': 'application/json; charset=utf-8' },
               body: JSON.stringify({ StudentID: stu.mssv, Ngay: wDate, PageIndex: 1, PageSize: 100 })
             });
-            if (res.ok) {
-              const json = await res.json();
-              if (Array.isArray(json.data?.[2])) {
-                json.data[2].forEach(c => {
+            if (!res.ok) {
+              let message = `ME trả lỗi HTTP ${res.status} ở tuần ${weekDates[w]}.`;
+              try { message = (await res.json()).Message || message; } catch (e) {}
+              throw new Error(message);
+            }
+            const json = await res.json();
+            if (!json.data?.[0]?.[0]?.HoTen || !Array.isArray(json.data?.[2])) {
+              throw new Error(`ME trả dữ liệu không đầy đủ ở tuần ${weekDates[w]}.`);
+            }
+            json.data[2].forEach(c => {
                   const sTime = normalizeMeTime(c.ThoiGianBD);
                   const eTime = normalizeMeTime(c.ThoiGianKT);
                   const sTimeMs = new Date(sTime).getTime();
@@ -4894,9 +4911,7 @@ async function syncSchedulesForConfiguredRange() {
                       buoi: Number(c.Buoi) || null
                     });
                   }
-                });
-              }
-            }
+            });
           }
           const dedupedStu = deduplicateSchedules(stuSchedules);
           allSchedules.push(...dedupedStu);
@@ -4908,8 +4923,10 @@ async function syncSchedulesForConfiguredRange() {
       }));
     }
 
-    if (failedStudents.length > list.length / 2) {
-      throw new Error(`ME gặp sự cố mạng hoặc trả thiếu quá nhiều (${failedStudents.length}/${list.length} sinh viên). Giữ nguyên lịch cũ để đảm bảo an toàn dữ liệu.`);
+    if (failedStudents.length) {
+      const shown = failedStudents.slice(0, 8).join(', ');
+      const more = failedStudents.length > 8 ? ` và ${failedStudents.length - 8} MSSV khác` : '';
+      throw new Error(`ME đồng bộ lỗi ${failedStudents.length}/${list.length} sinh viên (${shown}${more}). Không lưu dữ liệu để giữ nguyên lịch cũ.`);
     }
 
     const finalDeduped = deduplicateSchedules(allSchedules);

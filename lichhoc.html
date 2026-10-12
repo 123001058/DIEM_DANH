@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LH-NaviX — Thời Khóa Biểu</title>
-<meta name="description" content="LH-NaviX — Tra cứu thời khóa biểu sinh viên theo tuần trực quan, xem lịch cả lớp, đồng bộ Google Calendar.">
+<meta name="description" content="LH-NaviX — Tra cứu thời khóa biểu sinh viên theo tuần, xem lịch phù hợp với quyền tài khoản.">
 <meta name="theme-color" content="#f5f6f8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,7 +24,7 @@
         <img src="images/logo.png" alt="LH-NaviX" class="logo-sm" width="44" height="44" style="object-fit:contain;border-radius:10px;">
         <div class="tkb-title-group">
           <h1>LH-NaviX — Thời Khóa Biểu</h1>
-          <p>Học kỳ 1 · Lớp 23TD111 · Tra cứu thông minh</p>
+          <p>Thời khóa biểu ME · Tra cứu theo tài khoản</p>
         </div>
       </div>
       <nav class="tkb-nav-links">
@@ -42,7 +42,7 @@
     <!-- Controls Panel -->
     <section class="card tkb-controls">
       <div class="controls-row-top">
-        <div class="student-select-group">
+        <div class="student-select-group" id="studentSelectGroup">
           <label class="input-label" for="studentSelect">Chọn sinh viên tra cứu</label>
           <select id="studentSelect" aria-label="Chọn sinh viên"></select>
           <div class="student-badge-info" id="studentInfoBadge">
@@ -50,12 +50,12 @@
           </div>
         </div>
 
-        <div>
+        <div id="studentSearchGroup">
           <label class="input-label" for="studentSearch">Tìm nhanh tên hoặc MSSV</label>
           <input type="text" id="studentSearch" placeholder="Gõ tên hoặc 4 số cuối MSSV..." autocomplete="off">
         </div>
 
-        <div class="view-tabs">
+        <div class="view-tabs" id="timetableViewTabs">
           <button class="tab-btn active" id="tabGrid" title="Xem dạng lưới tuần">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             Lưới tuần

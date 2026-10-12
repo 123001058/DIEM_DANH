@@ -139,6 +139,24 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
 }
+.student-sidebar-nav a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.student-sidebar-nav a:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
 .student-sidebar-nav button:hover {
   background: var(--surface-2);
   border-color: var(--border);
@@ -738,6 +756,7 @@ body.student-menu-open { overflow: hidden; }
     <button type="button" id="snav-tasks" onclick="switchStudentView('tasks')"><span aria-hidden="true">✅</span> Nhiệm vụ của tôi</button>
     <button type="button" id="snav-rules" onclick="switchStudentView('rules')"><span aria-hidden="true">📜</span> Nội quy xưởng</button>
     <button type="button" id="snav-feedback" onclick="switchStudentView('feedback')"><span aria-hidden="true">💬</span> Gửi phản hồi ẩn danh</button>
+    <a href="lichhoc.html" id="snav-timetable"><span aria-hidden="true">📅</span> Thời khóa biểu ME</a>
   </nav>
 </aside>
 <div class="wrap">
