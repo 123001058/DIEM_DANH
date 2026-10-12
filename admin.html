@@ -3194,41 +3194,11 @@ async function executeStatusChange(){
     saveErrorMsg = eRpc.message;
   }
 
-  // 2. Dự phòng an toàn: nếu RPC chưa có hoặc gặp lỗi SQL, ghi thẳng vào bảng attendance
+  // Attendance writes must go through the admin RPC so row security and history capture stay intact.
   if (!savedOk) {
-    try {
-      const { error: upsertErr } = await supabase.from('attendance').upsert({
-        session_id: sid,
-        mssv: mssv,
-        full_name: studentName,
-        status: newStatus,
-        category: 'Admin',
-        note: reason || ''
-      }, { onConflict: 'session_id,mssv' });
-
-      if (upsertErr) throw new Error(upsertErr.message);
-      savedOk = true;
-
-      // Cố gắng ghi Audit Log trực tiếp nếu bảng audit logs đã có
-      try {
-        const { data: authData } = await supabase.auth.getSession();
-        const userEmail = authData?.session?.user?.email || 'Admin';
-        await supabase.from('attendance_audit_logs').insert({
-          session_id: sid,
-          mssv: mssv,
-          student_name: studentName,
-          old_status: oldStatus,
-          new_status: newStatus,
-          changed_by: userEmail,
-          reason: reason || null
-        });
-      } catch(_) { /* bảng audit logs chưa tạo, bỏ qua */ }
-    } catch(directErr) {
-      toast('err', 'Cập nhật thất bại', directErr.message || saveErrorMsg || 'Không thể lưu.');
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
-      return;
-    }
-
+    toast('err', 'Cập nhật thất bại', saveErrorMsg || 'Không thể lưu thay đổi.');
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
+    return;
   }
 
   // 3. Hoàn tất thành công: cập nhật UI ngay lập tức
