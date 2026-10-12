@@ -3126,22 +3126,27 @@ async function completeResetRequest() {
   fetchResetRequests();
 }
 
-function promptChangeStatus(mssv, newStatus, selectEl){
-  if (!currentSession?.id) {
-    toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang hoạt động.');
-    if (selectEl) renderTable();
+function promptChangeStatus(mssv, newStatus, selectEl, sessionId = null, currentOldStatus = null, customStudentName = null){
+  const sid = sessionId || currentSession?.id;
+  if (!sid) {
+    toast('warn', 'Chưa có phiên', 'Không tìm thấy phiên điểm danh để cập nhật.');
+    if (selectEl) {
+      if (sessionId) viewPastSession(sessionId, true);
+      else renderTable();
+    }
     return;
   }
   const s = students.find(x => x.mssv === mssv);
-  const oldStatus = attendanceMap[mssv]?.status || 'chưa điểm danh';
-  _pendingStatusChange = { mssv, newStatus, oldStatus, studentName: s?.name || mssv, selectEl };
+  const studentName = customStudentName || s?.name || mssv;
+  const oldStatus = currentOldStatus || attendanceMap[mssv]?.status || 'chưa điểm danh';
+  _pendingStatusChange = { mssv, newStatus, oldStatus, studentName, selectEl, sessionId: sid };
 
   const modal = document.getElementById('reasonModal');
   const infoEl = document.getElementById('reasonStudentInfo');
   const selEl = document.getElementById('reasonModalSelect');
   const input = document.getElementById('reasonInput');
 
-  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(s?.name || mssv) + '</b> (MSSV: ' + mssv + ')';
+  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(studentName) + '</b> (MSSV: ' + escapeHtml(mssv) + ')';
   if (selEl && newStatus) selEl.value = newStatus;
   if (input) input.value = '';
   if (modal) modal.classList.add('show');
@@ -3151,12 +3156,18 @@ function closeReasonModal(){
   const modal = document.getElementById('reasonModal');
   if (modal) modal.classList.remove('show');
   if (_pendingStatusChange?.selectEl) {
-    renderTable(); // reset select về giá trị cũ
+    if (_pendingStatusChange.sessionId && (!currentSession?.id || String(_pendingStatusChange.sessionId) !== String(currentSession.id))) {
+      viewPastSession(_pendingStatusChange.sessionId, true);
+    } else {
+      renderTable(); // reset select về giá trị cũ
+    }
   }
   _pendingStatusChange = null;
 }
 async function executeStatusChange(){
-  if (!_pendingStatusChange || !currentSession?.id) return;
+  if (!_pendingStatusChange) return;
+  const sid = _pendingStatusChange.sessionId || currentSession?.id;
+  if (!sid) return;
   const { mssv, studentName, oldStatus } = _pendingStatusChange;
   const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
   const reason = (document.getElementById('reasonInput')?.value || '').trim();
@@ -3169,7 +3180,7 @@ async function executeStatusChange(){
   // 1. Thử gọi RPC admin_set_status trên DB (xử lý đồng thời attendance & audit log)
   try {
     const { data, error } = await supabase.rpc('admin_set_status', {
-      p_session_id: String(currentSession.id),
+      p_session_id: String(sid),
       p_mssv: mssv,
       p_status: newStatus,
       p_reason: reason || null
@@ -3187,7 +3198,7 @@ async function executeStatusChange(){
   if (!savedOk) {
     try {
       const { error: upsertErr } = await supabase.from('attendance').upsert({
-        session_id: currentSession.id,
+        session_id: sid,
         mssv: mssv,
         full_name: studentName,
         status: newStatus,
@@ -3203,7 +3214,7 @@ async function executeStatusChange(){
         const { data: authData } = await supabase.auth.getSession();
         const userEmail = authData?.session?.user?.email || 'Admin';
         await supabase.from('attendance_audit_logs').insert({
-          session_id: currentSession.id,
+          session_id: sid,
           mssv: mssv,
           student_name: studentName,
           old_status: oldStatus,
@@ -3225,16 +3236,22 @@ async function executeStatusChange(){
   const modal = document.getElementById('reasonModal');
   if (modal) modal.classList.remove('show');
 
-  if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
-  attendanceMap[mssv].status = newStatus;
-  attendanceMap[mssv].editedAt = new Date().toISOString();
-  if (reason) attendanceMap[mssv].note = reason;
+  const isCurrentActive = currentSession?.id && String(sid) === String(currentSession.id);
+  if (isCurrentActive) {
+    if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
+    attendanceMap[mssv].status = newStatus;
+    attendanceMap[mssv].editedAt = new Date().toISOString();
+    if (reason) attendanceMap[mssv].note = reason;
+    renderAll();
+    loadAttendance().then(() => renderAll());
+  }
+
+  // Cập nhật lại danh sách lịch sử hôm nay (để update các số liệu KPI/thẻ phiên)
+  await loadTodayHistory();
+  // Đồng thời làm mới bảng chi tiết của phiên này nếu đang mở
+  await viewPastSession(sid, true);
 
   _pendingStatusChange = null;
-  renderAll();
-
-  // Đồng bộ lại nền từ database
-  loadAttendance().then(() => renderAll());
 
   const tabAudit = document.getElementById('tabAuditLog');
   if (tabAudit && tabAudit.classList.contains('active')) {
@@ -4162,16 +4179,18 @@ window.backFromPastSession = async function() {
   await refreshAll();
 };
 
-window.viewPastSession = async function(sid) {
+window.viewPastSession = async function(sid, forceRefresh = false) {
   const targets = Array.from(document.querySelectorAll('.past-session-detail'))
     .filter(el => el.dataset.sessionDetail === String(sid));
   if (!targets.length) return;
   const alreadyOpen = targets.some(el => el.dataset.loaded === 'true');
-  if (alreadyOpen) {
+  if (alreadyOpen && !forceRefresh) {
     targets.forEach(el => { el.innerHTML = ''; el.dataset.loaded = 'false'; });
     return;
   }
-  targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Đang tải chi tiết phiên...</div>'; });
+  if (!forceRefresh) {
+    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Đang tải chi tiết phiên...</div>'; });
+  }
   const { data, error } = await supabase.from('attendance')
     .select('mssv, full_name, status, category, note, created_at')
     .eq('session_id', sid)
@@ -4180,9 +4199,96 @@ window.viewPastSession = async function(sid) {
     targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--err)">Không tải được chi tiết phiên: ' + escapeHtml(error.message) + '</div>'; });
     return;
   }
-  const rows = data || [];
-  const detailHtml = rows.length ? '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:360px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface-2);text-align:left"><th style="padding:8px">MSSV</th><th style="padding:8px">Họ tên</th><th style="padding:8px">Trạng thái</th><th style="padding:8px">Ghi chú</th></tr></thead><tbody>' + rows.map(r => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + escapeHtml(r.mssv || '') + '</td><td style="padding:8px">' + escapeHtml(r.full_name || '') + '</td><td style="padding:8px">' + escapeHtml(r.status || '') + (r.category ? ' · ' + escapeHtml(r.category) : '') + '</td><td style="padding:8px">' + escapeHtml(r.note || '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div style="margin-top:10px;padding:14px;color:var(--muted)">Phiên này chưa có bản ghi điểm danh.</div>';
+
+  const attMap = {};
+  (data || []).forEach(r => { attMap[r.mssv] = r; });
+
+  let studentList = (students && students.length) ? [...students] : [];
+  (data || []).forEach(r => {
+    if (!studentList.some(s => s.mssv === r.mssv)) {
+      studentList.push({ mssv: r.mssv, name: r.full_name || r.mssv });
+    }
+  });
+
+  if (!studentList.length) {
+    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Phiên này chưa có bản ghi điểm danh nào.</div>'; el.dataset.loaded = 'true'; });
+    return;
+  }
+
+  studentList.sort((a, b) => (a.name || a.mssv).localeCompare(b.name || b.mssv, 'vi'));
+
+  const detailHtml = `
+    <div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="text" placeholder="🔍 Lọc sinh viên..." 
+            style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px;outline:none" 
+            oninput="filterPastSessionTable('${escapeHtml(String(sid))}', this.value)"
+            onclick="event.stopPropagation()">
+          <span style="font-size:11.5px;color:var(--muted)">${studentList.length} sinh viên</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">💡 Chỉnh trạng thái hoặc bấm <b>✏️</b> để đổi ghi chú / lý do</div>
+      </div>
+      <div style="overflow:auto;max-height:360px;border:1px solid var(--border);border-radius:8px">
+        <table class="past-session-tbl" data-session-table="${escapeHtml(String(sid))}" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:var(--surface-2);text-align:left;position:sticky;top:0;z-index:2">
+              <th style="padding:8px 10px;width:120px">MSSV</th>
+              <th style="padding:8px 10px">Họ tên</th>
+              <th style="padding:8px 10px;width:150px">Trạng thái</th>
+              <th style="padding:8px 10px">Ghi chú</th>
+              <th style="padding:8px 10px;width:60px;text-align:center">Sửa</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${studentList.map(s => {
+              const a = attMap[s.mssv];
+              const rawStatus = a?.status || 'unmarked';
+              const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
+              const noteText = a?.note ? escapeHtml(a.note) : '';
+              const noteHtml = noteText ? `<span style="font-size:11px;color:#2563eb;font-weight:500">📚 ${noteText}</span>` : '<span style="color:var(--faint)">—</span>';
+              const sName = s.name || a?.full_name || s.mssv;
+              return `<tr class="past-session-row" data-search="${escapeHtml((s.mssv + ' ' + sName).toLowerCase())}" style="border-top:1px solid var(--border)">
+                <td class="td-mono" style="padding:8px 10px">${escapeHtml(s.mssv)}</td>
+                <td style="padding:8px 10px;font-weight:600">${escapeHtml(sName)}</td>
+                <td style="padding:8px 10px">
+                  <select class="status-select ${selClass}" 
+                    onchange="event.stopPropagation();promptChangeStatus('${escapeHtml(s.mssv)}', this.value, this, '${escapeHtml(String(sid))}', '${escapeHtml(rawStatus)}', '${escapeHtml(sName)}')"
+                    onclick="event.stopPropagation()">
+                    ${rawStatus === 'unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : ''}
+                    <option value="có mặt" ${rawStatus === 'có mặt' ? 'selected' : ''}>Có mặt</option>
+                    <option value="đi muộn" ${rawStatus === 'đi muộn' ? 'selected' : ''}>Đi muộn</option>
+                    <option value="vắng có phép" ${rawStatus === 'vắng có phép' ? 'selected' : ''}>Vắng có phép</option>
+                    <option value="vắng không phép" ${rawStatus === 'vắng không phép' ? 'selected' : ''}>Vắng không phép</option>
+                  </select>
+                </td>
+                <td style="padding:8px 10px">${noteHtml}</td>
+                <td style="padding:8px 10px;text-align:center">
+                  <button class="btn btn-secondary" style="padding:3px 7px;font-size:11px;border-radius:4px" 
+                    title="Chỉnh sửa trạng thái & ghi chú"
+                    onclick="event.stopPropagation();promptChangeStatus('${escapeHtml(s.mssv)}', '${rawStatus === 'unmarked' ? 'có mặt' : rawStatus}', null, '${escapeHtml(String(sid))}', '${escapeHtml(rawStatus)}', '${escapeHtml(sName)}')">✏️</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
   targets.forEach(el => { el.innerHTML = detailHtml; el.dataset.loaded = 'true'; });
+};
+
+window.filterPastSessionTable = function(sid, query) {
+  const q = (query || '').trim().toLowerCase();
+  const tables = document.querySelectorAll(`table[data-session-table="${sid}"]`);
+  tables.forEach(tbl => {
+    const rows = tbl.querySelectorAll('.past-session-row');
+    rows.forEach(r => {
+      const text = r.dataset.search || '';
+      r.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
 };
 function runAdminStartupTask(name, task, onTimeout) {
   let timer;
