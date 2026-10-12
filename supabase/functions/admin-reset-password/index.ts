@@ -131,8 +131,7 @@ serve(async (req) => {
       const { error: upsertErr } = await supabaseAdmin.from('profiles').upsert({
         user_id: targetUserId,
         mssv: target_mssv,
-        full_name: targetStudent.name,
-        is_admin: false
+        full_name: targetStudent.name
       })
 
       if (upsertErr) {
