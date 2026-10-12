@@ -1885,7 +1885,7 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="tbl-wrap">
       <div class="tbl-scroll" style="max-height:300px;">
         <table>
-          <thead><tr><th style="width:40%">Sinh viên</th><th style="width:30%">MSSV</th><th style="width:30%; text-align:right;">Thao tác</th></tr></thead>
+          <thead><tr><th style="width:35%">Sinh viên</th><th style="width:25%">MSSV</th><th style="width:40%; text-align:right;">Thao tác</th></tr></thead>
           <tbody id="requestsTbody">
             <tr><td colspan="3"><div class="tbl-empty">Đang tải...</div></td></tr>
           </tbody>
@@ -3074,10 +3074,29 @@ async function fetchResetRequests() {
         <td><b>${name}</b></td>
         <td class="td-mono">${req.mssv}</td>
         <td style="text-align:right">
-          <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
+          <div style="display:inline-flex;gap:6px;justify-content:flex-end">
+            <button class="btn" style="background:#0ea5e9;color:#fff;border:none;padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer" onclick="resetStudentPassword('${req.mssv}', '${req.id}')">Xử lý</button>
+            <button class="btn" style="background:#ef4444;color:#fff;border:none;padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer" onclick="deleteResetRequest('${req.id}', '${req.mssv}')">Xóa</button>
+          </div>
         </td>
       </tr>`;
     }).join('');
+  }
+}
+
+async function deleteResetRequest(requestId, mssv) {
+  if (!confirm('Bạn có chắc muốn xóa yêu cầu cấp lại mật khẩu của sinh viên ' + (mssv || '') + ' không?')) return;
+  try {
+    const { error } = await supabase
+      .from('password_reset_requests')
+      .delete()
+      .eq('id', requestId);
+    if (error) throw error;
+    toast('ok', 'Đã xóa', 'Đã xóa yêu cầu cấp lại mật khẩu.');
+    fetchResetRequests();
+  } catch (err) {
+    console.error('Lỗi khi xóa yêu cầu:', err);
+    toast('err', 'Lỗi xóa yêu cầu', err.message);
   }
 }
 
