@@ -4217,7 +4217,10 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
             onclick="event.stopPropagation()">
           <span style="font-size:11.5px;color:var(--muted)">${studentList.length} sinh viên</span>
         </div>
-        <div style="font-size:11px;color:var(--muted)">💡 Chỉnh trạng thái hoặc bấm <b>✏️</b> để đổi ghi chú / lý do</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-success btn-sm" type="button" onclick="exportPastSessionExcel('${escapeHtml(String(sid))}',this)">⬇ Xuất Excel (.xlsx)</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="loadPastSessionAudit('${escapeHtml(String(sid))}',this)">🕒 Lịch sử chỉnh sửa</button>
+        </div>
       </div>
       <div style="overflow:auto;max-height:360px;border:1px solid var(--border);border-radius:8px">
         <table class="past-session-tbl" data-session-table="${escapeHtml(String(sid))}" style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4226,6 +4229,7 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
               <th style="padding:8px 10px;width:120px">MSSV</th>
               <th style="padding:8px 10px">Họ tên</th>
               <th style="padding:8px 10px;width:150px">Trạng thái</th>
+              <th style="padding:8px 10px;width:155px">Thời gian điểm danh</th>
               <th style="padding:8px 10px">Ghi chú</th>
               <th style="padding:8px 10px;width:60px;text-align:center">Sửa</th>
             </tr>
@@ -4252,6 +4256,7 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
                     <option value="vắng không phép" ${rawStatus === 'vắng không phép' ? 'selected' : ''}>Vắng không phép</option>
                   </select>
                 </td>
+                <td style="padding:8px 10px;white-space:nowrap">${a?.created_at ? vietnamDateTime(a.created_at) : '—'}</td>
                 <td style="padding:8px 10px">${noteHtml}</td>
                 <td style="padding:8px 10px;text-align:center">
                   <button class="btn btn-secondary" style="padding:3px 7px;font-size:11px;border-radius:4px" 
@@ -4263,6 +4268,7 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
           </tbody>
         </table>
       </div>
+      <div class="past-session-audit" data-audit-session="${escapeHtml(String(sid))}" style="margin-top:10px"></div>
     </div>
   `;
 
@@ -4279,6 +4285,110 @@ window.filterPastSessionTable = function(sid, query) {
       r.style.display = !q || text.includes(q) ? '' : 'none';
     });
   });
+};
+function formatPastSessionDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).format(date);
+}
+window.loadPastSessionAudit = async function(sid, button) {
+  const host = button?.closest('.past-session-detail')?.querySelector('.past-session-audit');
+  if (!host) return;
+  if (host.dataset.loaded === 'true') {
+    host.hidden = !host.hidden;
+    button.textContent = host.hidden ? '🕒 Lịch sử chỉnh sửa' : 'Ẩn lịch sử';
+    return;
+  }
+  const oldText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Đang tải...';
+  host.innerHTML = '<div style="padding:12px;color:var(--muted)">Đang tải lịch sử chỉnh sửa...</div>';
+  try {
+    const { data, error } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(sid) });
+    if (error || !data?.ok) throw new Error(error?.message || data?.message || 'Không tải được lịch sử chỉnh sửa.');
+    const records = data.records || [];
+    if (!records.length) {
+      host.innerHTML = '<div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--muted);font-size:12px">Phiên này chưa có lịch sử chỉnh sửa được lưu. Hệ thống chỉ ghi nhận thay đổi từ khi tính năng lịch sử được bật.</div>';
+    } else {
+      host.innerHTML = '<div style="display:grid;gap:8px">' + records.map(record => {
+        const oldRecord = record.old_record || {};
+        const newRecord = record.new_record || {};
+        const field = (label, value) => '<div style="margin-top:4px;font-size:11.5px;color:var(--muted)">' + label + ': <b style="color:var(--text)">' + escapeHtml(value || '—') + '</b></div>';
+        const snapshot = (heading, row) => '<div style="min-width:0;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface)"><b>' + heading + '</b>' +
+          field('Trạng thái', row.status) +
+          field('Thời gian điểm danh', formatPastSessionDateTime(row.checked_at)) +
+          field('Phân loại', row.category) +
+          field('Ghi chú', row.note) + '</div>';
+        return '<article style="padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)">' +
+          '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px"><b>' + escapeHtml(record.student_name || record.mssv) + ' · ' + escapeHtml(record.mssv || '') + '</b><span style="color:var(--muted)">Sửa lúc ' + formatPastSessionDateTime(record.changed_at) + ' · ' + escapeHtml(record.changed_by || 'Admin') + '</span></div>' +
+          '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:8px">' +
+          snapshot('Trước khi sửa', oldRecord) + snapshot('Sau khi sửa', newRecord) + '</div></article>';
+      }).join('') + '</div>';
+    }
+    host.dataset.loaded = 'true';
+    host.hidden = false;
+  } catch (error) {
+    host.innerHTML = '<div style="padding:12px;color:var(--err)">' + escapeHtml(error.message || 'Không tải được lịch sử chỉnh sửa.') + '</div>';
+  } finally {
+    button.disabled = false;
+    button.textContent = oldText;
+  }
+};
+window.exportPastSessionExcel = async function(sid, button) {
+  const oldText = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = 'Đang tạo file...'; }
+  try {
+    if (typeof XLSX === 'undefined') await loadSheetJS();
+    const { data, error } = await supabase.from('attendance')
+      .select('mssv,full_name,status,created_at')
+      .eq('session_id', sid)
+      .order('mssv');
+    if (error) throw error;
+    const rowsByMssv = new Map((data || []).map(row => [String(row.mssv), row]));
+    const studentByMssv = new Map((students || []).map(student => [String(student.mssv), student]));
+    (data || []).forEach(row => {
+      if (!studentByMssv.has(String(row.mssv))) studentByMssv.set(String(row.mssv), { mssv: row.mssv, name: row.full_name || row.mssv });
+    });
+    const studentList = Array.from(studentByMssv.values()).sort((a, b) =>
+      String(a.name || a.mssv).localeCompare(String(b.name || b.mssv), 'vi')
+    );
+    const session = window._todaySessionsMap?.[sid] || {};
+    const sessionName = session.session_name || 'Phiên điểm danh';
+    const sheetData = [
+      ['MSSV', 'Họ tên', 'Thời gian điểm danh', 'Trạng thái'],
+      ...studentList.map(student => {
+        const row = rowsByMssv.get(String(student.mssv));
+        return [
+          String(student.mssv || ''),
+          String(student.name || row?.full_name || student.mssv || ''),
+          row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
+          row?.status || 'Chưa điểm danh'
+        ];
+      })
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+    worksheet['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 25 }, { wch: 22 }];
+    worksheet['!autofilter'] = { ref: 'A1:D' + Math.max(1, sheetData.length) };
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Điểm danh');
+    const safeName = sessionName.replace(/[<>:\"\/\\|?*]/g, '_').slice(0, 80);
+    const sessionDate = session.started_at ? new Date(session.started_at) : new Date();
+    const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(sessionDate);
+    const dateStamp = dateParts.find(part => part.type === 'year').value + '-' +
+      dateParts.find(part => part.type === 'month').value + '-' +
+      dateParts.find(part => part.type === 'day').value;
+    XLSX.writeFile(workbook, 'DiemDanh_' + safeName + '_' + dateStamp + '.xlsx');
+    toast('ok', 'Đã xuất Excel', 'File có MSSV, họ tên, thời gian điểm danh và trạng thái.');
+  } catch (error) {
+    toast('err', 'Xuất Excel thất bại', error.message || 'Không tạo được file .xlsx.');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = oldText; }
+  }
 };
 function runAdminStartupTask(name, task, onTimeout) {
   let timer;
