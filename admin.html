@@ -2150,6 +2150,12 @@ window.addEventListener('error', event => {
 window.addEventListener('unhandledrejection', event => {
   console.error('[admin unhandled rejection]', event.reason);
 });
+window.sleep = function(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+};
+function sleep(ms) {
+  return window.sleep(ms);
+}
 /* ==========================================================
    VIEW ROUTING & SIDEBAR DRAWER CONTROLLER
    ========================================================== */
