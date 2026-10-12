@@ -343,7 +343,7 @@ alter table only public.anonymous_feedback add constraint anonymous_feedback_pke
 alter table only public.anonymous_feedback drop constraint if exists anonymous_feedback_public_code_key;
 alter table only public.anonymous_feedback add constraint anonymous_feedback_public_code_key UNIQUE (public_code);
 alter table only public.anonymous_feedback drop constraint if exists anonymous_feedback_status_check;
-alter table only public.anonymous_feedback add constraint anonymous_feedback_status_check CHECK ((status = ANY (ARRAY['new'::text, 'seen'::text, 'resolved'::text])));
+alter table only public.anonymous_feedback add constraint anonymous_feedback_status_check CHECK ((status = ANY (ARRAY['new'::text, 'seen'::text, 'processing'::text, 'resolved'::text, 'rejected'::text])));
 alter table only public.zalo_schedule_settings drop constraint if exists zalo_schedule_settings_id_check;
 alter table only public.zalo_schedule_settings add constraint zalo_schedule_settings_id_check CHECK (id);
 alter table only public.zalo_schedule_settings drop constraint if exists zalo_schedule_settings_pkey;
@@ -1324,8 +1324,20 @@ CREATE OR REPLACE FUNCTION public.admin_update_anonymous_feedback(p_id uuid, p_s
  SECURITY DEFINER
  SET search_path TO 'public', 'auth', 'pg_temp'
 AS $function$ begin
- if not public.is_admin() or p_status not in ('seen','resolved') then return jsonb_build_object('ok',false,'message','Không có quyền hoặc trạng thái không hợp lệ.'); end if;
+ if not public.is_admin() or p_status not in ('new','seen','processing','resolved','rejected') then return jsonb_build_object('ok',false,'message','Không có quyền hoặc trạng thái không hợp lệ.'); end if;
  update public.anonymous_feedback set status=p_status,updated_at=now() where id=p_id;
+ return jsonb_build_object('ok',found);
+end; $function$;
+
+-- Function: admin_delete_anonymous_feedback(p_id uuid)
+CREATE OR REPLACE FUNCTION public.admin_delete_anonymous_feedback(p_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth', 'pg_temp'
+AS $function$ begin
+ if not public.is_admin() then return jsonb_build_object('ok',false,'message','Không có quyền admin.'); end if;
+ delete from public.anonymous_feedback where id=p_id;
  return jsonb_build_object('ok',found);
 end; $function$;
 

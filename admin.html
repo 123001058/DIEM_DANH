@@ -1717,8 +1717,9 @@ tbody tr:last-child td { border-bottom: none; }
           <select id="fbFilterStatus" onchange="applyFeedbackFilters()">
             <option value="all">Tất cả</option>
             <option value="new">Mới nhận</option>
-            <option value="seen">Đã xem</option>
-            <option value="resolved">Đã xử lý</option>
+            <option value="processing">⏳ Đang xử lý</option>
+            <option value="resolved">✓ Đã xử lý</option>
+            <option value="rejected">✕ Từ chối</option>
           </select>
         </div>
       </div>
@@ -2685,8 +2686,81 @@ function closeTaskDetailModal(){document.getElementById('taskDetailModal')?.clas
 function openStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.add('show');}
 function closeStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.remove('show');}
 async function submitStudentFeedback(){toast('warn','Gửi từ tài khoản sinh viên','Mở checkin.html để gửi phản hồi ẩn danh.');}
-async function loadAdminFeedback(){const box=document.getElementById('feedbackList');if(!box)return;const {data,error}=await supabase.rpc('admin_get_anonymous_feedback');if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được phản hồi.')+'</div>';return;}const labels={gopy:'💡 Góp ý',suco:'⚠️ Sự cố',muasam:'🛠 Mua sắm',khac:'💬 Khác'};const rows=data.items||[];box.innerHTML=rows.length?rows.map(x=>`<article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}"><div class="fb-item-top"><span class="fb-anon-tag">🔒 Ẩn danh ${escapeHtml(x.code)}</span><span class="fb-type-badge type-${x.type}">${labels[x.type]||x.type}</span></div><div class="fb-text">${escapeHtml(x.content)}</div><div class="fb-item-bottom"><span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span><div style="display:flex;gap:6px;align-items:center"><span class="task-status-chip status-${x.status==='resolved'?'done':'doing'}">${x.status==='new'?'Mới nhận':x.status==='seen'?'Đã xem':'Đã xử lý'}</span>${x.status!=='resolved'?`<button class="btn btn-sm btn-success" onclick="markFeedbackResolved('${x.id}')">✓ Đánh dấu đã xử lý</button>`:''}</div></div></article>`).join(''):'<div class="empty-state">Chưa có phản hồi.</div>';applyFeedbackFilters();}
-async function markFeedbackResolved(id){if(id instanceof HTMLElement)id=id.closest('.fb-item')?.dataset.id;if(!id)return;const {data,error}=await supabase.rpc('admin_update_anonymous_feedback',{p_id:id,p_status:'resolved'});if(error||!data?.ok){toast('error','Chưa cập nhật được',error?.message||data?.message||'');return;}await loadAdminFeedback();toast('ok','Đã xử lý','Trạng thái phản hồi đã được lưu.');}
+async function loadAdminFeedback(){
+  const box = document.getElementById('feedbackList');
+  if(!box) return;
+  const {data, error} = await supabase.rpc('admin_get_anonymous_feedback');
+  if(error || !data?.ok){
+    box.innerHTML = '<div class="empty-state">' + escapeHtml(error?.message || data?.message || 'Không tải được phản hồi.') + '</div>';
+    return;
+  }
+  const labels = { gopy: '💡 Góp ý', suco: '⚠️ Sự cố', muasam: '🛠 Mua sắm', khac: '💬 Khác' };
+  const statusMeta = {
+    new: { label: 'Mới nhận', icon: '📩', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
+    seen: { label: 'Đã xem', icon: '👁️', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
+    processing: { label: 'Đang xử lý', icon: '⏳', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
+    resolved: { label: 'Đã xử lý', icon: '✓', bg: 'var(--ok-bg)', color: 'var(--ok)', border: 'rgba(15,122,74,0.2)' },
+    rejected: { label: 'Từ chối', icon: '✕', bg: 'var(--err-bg)', color: 'var(--err)', border: 'rgba(194,56,46,0.2)' }
+  };
+  const rows = data.items || [];
+  box.innerHTML = rows.length ? rows.map(x => {
+    const st = statusMeta[x.status] || statusMeta.new;
+    return `
+      <article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}">
+        <div class="fb-item-top">
+          <span class="fb-anon-tag">🔒 Ẩn danh ${escapeHtml(x.code)}</span>
+          <span class="fb-type-badge type-${x.type}">${labels[x.type] || x.type}</span>
+        </div>
+        <div class="fb-text">${escapeHtml(x.content)}</div>
+        <div class="fb-item-bottom">
+          <span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${st.bg};color:${st.color};border:1px solid ${st.border};display:inline-flex;align-items:center;gap:4px">
+              ${st.icon} ${st.label}
+            </span>
+            <select class="btn btn-sm" style="font-size:11.5px;padding:3px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer" onchange="updateFeedbackStatus('${x.id}', this.value)" title="Đổi trạng thái phản hồi">
+              <option value="new" ${x.status==='new'?'selected':''}>Mới nhận</option>
+              <option value="processing" ${x.status==='processing'?'selected':''}>⏳ Đang xử lý</option>
+              <option value="resolved" ${x.status==='resolved'?'selected':''}>✓ Đã xử lý</option>
+              <option value="rejected" ${x.status==='rejected'?'selected':''}>✕ Từ chối</option>
+            </select>
+            <button class="btn btn-sm btn-danger" style="font-size:11.5px;padding:3px 8px;border-radius:6px" onclick="deleteFeedbackItem('${x.id}')" title="Xóa phản hồi này">
+              🗑 Xóa
+            </button>
+          </div>
+        </div>
+      </article>`;
+  }).join('') : '<div class="empty-state">Chưa có phản hồi.</div>';
+  applyFeedbackFilters();
+}
+
+async function updateFeedbackStatus(id, newStatus){
+  if (!id || !newStatus) return;
+  const {data, error} = await supabase.rpc('admin_update_anonymous_feedback', { p_id: id, p_status: newStatus });
+  if (error || !data?.ok){
+    toast('err', 'Chưa cập nhật được', error?.message || data?.message || '');
+    return;
+  }
+  const label = { new: 'Mới nhận', processing: 'Đang xử lý', resolved: 'Đã xử lý', rejected: 'Từ chối' }[newStatus] || newStatus;
+  toast('ok', 'Đã cập nhật', `Trạng thái phản hồi đã chuyển sang "${label}".`);
+  await loadAdminFeedback();
+}
+
+async function deleteFeedbackItem(id){
+  if (!id) return;
+  if (!confirm('Bạn có chắc chắn muốn xóa phản hồi ẩn danh này? Hành động này không thể hoàn tác.')) return;
+  const {data, error} = await supabase.rpc('admin_delete_anonymous_feedback', { p_id: id });
+  if (error || !data?.ok){
+    toast('err', 'Chưa xóa được', error?.message || data?.message || '');
+    return;
+  }
+  toast('ok', 'Đã xóa phản hồi', 'Phản hồi ẩn danh đã được xóa thành công.');
+  await loadAdminFeedback();
+}
+
+async function markFeedbackResolved(id){
+  return updateFeedbackStatus(id, 'resolved');
+}
 function applyFeedbackFilters(){const type=document.getElementById('fbFilterType')?.value||'all',st=document.getElementById('fbFilterStatus')?.value||'all';document.querySelectorAll('#feedbackList .fb-item').forEach(x=>x.style.display=(type==='all'||x.dataset.type===type)&&(st==='all'||x.dataset.status===st)?'flex':'none');}
 function getVietnamDateKey(offsetDays=0){
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
