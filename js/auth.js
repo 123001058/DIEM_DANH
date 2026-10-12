@@ -69,7 +69,7 @@ async function submitLogin() {
   if (err) err.innerText = '';
 
   if (!rawInput || !pwd) {
-    if (err) err.innerText = 'Vui lòng nhập MSSV và mật khẩu.';
+    if (err) err.innerText = 'Vui lòng nhập tên đăng nhập và mật khẩu.';
     return;
   }
 
@@ -88,7 +88,7 @@ async function submitLogin() {
     if (error) {
       const m = (error.message || '').toLowerCase();
       if (err) {
-        err.innerText = m.includes('invalid') ? 'Sai MSSV hoặc mật khẩu.' :
+        err.innerText = m.includes('invalid') ? 'Sai tên đăng nhập hoặc mật khẩu.' :
           (error.message || 'Đăng nhập thất bại.');
       }
       return;
