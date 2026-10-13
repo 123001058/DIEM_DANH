@@ -13,6 +13,17 @@
 <link rel="stylesheet" href="css/lichhoc.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
+<script>
+  if (new URLSearchParams(window.location.search).get('embed') === '1') {
+    document.documentElement.classList.add('is-embedded');
+  }
+</script>
+<style>
+  .is-embedded .tkb-header,
+  .is-embedded .bg-grid { display: none !important; }
+  .is-embedded body { background: transparent !important; padding: 0 !important; }
+  .is-embedded .page-wrapper { max-width: 100% !important; padding: 12px 14px 24px !important; margin: 0 !important; }
+</style>
 </head>
 <body>
   <div class="bg-grid"></div>

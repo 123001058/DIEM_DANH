@@ -511,6 +511,96 @@ body {
 .sc-item-meta { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 .room-chip { padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.06); font-weight: 700; font-size: 10.5px; }
 
+/* ACCORDION (NGĂN TRƯỢT ĐIỂM DANH & LỊCH SỬ) */
+.acc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.acc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.acc.open {
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px -3px rgba(37,99,235,0.12);
+}
+.acc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+.acc-head:hover {
+  background: var(--surface-2);
+}
+.acc.open .acc-head {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.acc-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.acc-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+  margin-right: 8px;
+}
+@media (max-width: 640px) {
+  .acc-sub { display: none; }
+}
+.acc-chev {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+  transition: transform 0.25s ease, color 0.2s ease;
+}
+.acc.open .acc-chev {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+.acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.acc.open .acc-body {
+  grid-template-rows: 1fr;
+}
+.acc-inner {
+  overflow: hidden;
+  padding: 0 18px;
+  transition: padding 0.3s ease;
+}
+.acc.open .acc-inner {
+  padding: 16px 18px;
+}
+.th-actions {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
 /* ATTENDANCE VIEW STYLES */
 .session-bar {
   padding: 12px 18px; margin-bottom: 14px; display: flex; justify-content: space-between;
@@ -1084,7 +1174,7 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
       </span>
-      <span class="nav-label">Điểm danh</span>
+      <span class="nav-label">Điểm danh & Lịch sử</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
     </button>
     <button class="sidebar-nav-item" id="nav-students" onclick="navTo('students')">
@@ -1118,7 +1208,7 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
       </span>
-      <span class="nav-label">Lịch học & rảnh/bận</span>
+      <span class="nav-label">Thời khóa biểu ME</span>
     </button>
     <button class="sidebar-nav-item" id="nav-feedback" onclick="navTo('feedback')">
       <span class="nav-icon">
@@ -1135,13 +1225,7 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
       </span>
-      <span class="nav-label">Lịch gửi Zalo</span>
-    </button>
-    <button class="sidebar-nav-item" id="nav-history" onclick="navTo('history')">
-      <span class="nav-icon">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-      </span>
-      <span class="nav-label">Lịch sử</span>
+      <span class="nav-label">Lịch rảnh / bận</span>
     </button>
   </nav>
 
@@ -1154,7 +1238,6 @@ tbody tr:last-child td { border-bottom: none; }
       </div>
     </div>
     <div class="sidebar-footer-links">
-      <a class="sidebar-footer-link" href="lichhoc.html">📅 Xem thời khóa biểu ME →</a>
       <a class="sidebar-footer-link" href="change-password.html">🔒 Đổi mật khẩu tài khoản</a>
       <a class="sidebar-footer-link" href="javascript:void(0)" onclick="logout()" style="color:var(--err)">🚪 Đăng xuất</a>
     </div>
@@ -1270,9 +1353,8 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="kpi-sub">SV có lịch học trên trường</div>
           </div>
         </div>
-
-        <!-- LUẬT ĐIỂM DANH ROBOCON & GHI CHÚ (TẠO, SỬA, XÓA) -->
-        <section class="card rules-widget-card" id="roboconRulesCard">
+        <!-- Luật điểm danh Robocon & Ghi chú xưởng (Trang tổng quan) -->
+        <section class="card rules-widget-card" id="roboconRulesCard" style="margin-top:16px">
           <div class="rules-head">
             <div class="rules-title-wrap">
               <div class="rules-icon">📜</div>
@@ -1490,6 +1572,42 @@ tbody tr:last-child td { border-bottom: none; }
               <button class="btn btn-danger" style="padding:9px 18px;font-size:13px" onclick="openCloseModal()">■ Đóng phiên</button>
             </div>
           </section>
+        </div>
+      </div>
+
+      <!-- Ngăn trượt: Lịch sử & Báo cáo các phiên điểm danh -->
+      <div class="acc-stack">
+        <div class="acc" id="accHistory">
+          <button type="button" class="acc-head" aria-expanded="false" onclick="toggleAcc(this, openHistoryAndReport)">
+            <span class="acc-title">🕒 Lịch sử & Báo cáo các phiên điểm danh</span>
+            <span class="acc-sub">Thống kê theo khoảng ngày, xem lại, sửa đổi hoặc xóa từng phiên</span>
+            <span class="acc-chev" aria-hidden="true">▾</span>
+          </button>
+          <div class="acc-body"><div class="acc-inner">
+            <!-- Khối 1: Báo cáo chuyên cần theo khoảng ngày -->
+            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                <span>📊 Báo cáo chuyên cần theo khoảng ngày</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+                <label style="font-size:11px">Từ ngày<input id="reportFromDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
+                <label style="font-size:11px">Đến ngày<input id="reportToDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
+                <button class="btn btn-primary" onclick="loadAttendanceReport()">Xem báo cáo</button>
+              </div>
+              <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px"></div>
+              <div id="attendanceReportSessions" style="margin-top:10px"></div>
+            </div>
+
+            <!-- Khối 2: Danh sách lịch sử các phiên -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <div style="font-size:13px;font-weight:700">🕒 Danh sách các phiên gần đây</div>
+              <div class="widget-actions" style="margin:0">
+                <button class="btn btn-danger" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
+                <button class="btn btn-icon" onclick="loadTodayHistory()">↻</button>
+              </div>
+            </div>
+            <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
+          </div></div>
         </div>
       </div>
     </section>
@@ -1734,26 +1852,20 @@ tbody tr:last-child td { border-bottom: none; }
     </section>
 
     <!-- ==========================================================
-         VIEW 5: LỊCH HỌC & RẢNH/BẬN (SCHEDULES)
+         VIEW 5: THỜI KHÓA BIỂU ME (SCHEDULES)
          ========================================================== -->
     <section class="app-view" id="view-schedules">
       <div class="schedules-container">
-        <!-- Header Ngày giờ thực tế & Thống kê nhanh -->
+        <!-- Header: xem thời khóa biểu ME + nút đồng bộ -->
         <div class="sched-hero-header">
           <div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <h2 style="font-size:17px;font-weight:800;margin:0">📅 Thời khóa biểu & Sinh viên rảnh / bận hôm nay</h2>
-              <span class="sched-time-badge" id="schedRealtimeHeader">🕒 Đang lấy giờ...</span>
-            </div>
+            <h2 style="font-size:17px;font-weight:800;margin:0">📅 Thời khóa biểu ME</h2>
             <p style="font-size:12px;color:var(--muted);margin:4px 0 0">
-              Trạng thái rảnh/bận tính theo giờ Việt Nam hiện tại. Tiết học đã kết thúc được tính là đang rảnh.
+              Xem thời khóa biểu theo tuần của từng sinh viên. Dữ liệu lấy từ hệ thống ME của trường.
             </p>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="sched-pill-stat sched-pill-free" id="schedFreeCountBadge">🟢 0 Bạn rảnh</span>
-            <span class="sched-pill-stat sched-pill-busy" id="schedBusyCountBadge">🔴 0 Bạn bận học</span>
             <button class="btn btn-secondary btn-sm" id="btnSyncME" onclick="syncSchedulesFromME()">🔄 Đồng bộ từ ME</button>
-            <a href="lichhoc.html" class="btn btn-primary btn-sm">Xem lưới TKB tuần →</a>
           </div>
         </div>
 
@@ -1781,41 +1893,9 @@ tbody tr:last-child td { border-bottom: none; }
           <div id="schedRangeSyncProgress" style="display:none;margin-top:10px;font-size:12px"></div>
         </div>
 
-        <!-- 2 Cột: Đang Rảnh vs Đang Bận học -->
-        <div class="sched-split-grid">
-          <!-- Cột Trái: Danh sách thành viên Đang Rảnh -->
-          <div class="sched-panel">
-            <div class="sched-panel-head">
-              <div class="sched-panel-title">
-                <span style="color:var(--ok)">🟢</span>
-                <span>Thành viên đang rảnh</span>
-                <span class="count-badge" id="schedFreeCount">0</span>
-              </div>
-              <span style="font-size:11.5px;color:var(--muted)">Không có lịch học lúc này</span>
-            </div>
-            <div id="schedFreeListWrap" style="max-height:600px;overflow-y:auto">
-              <div class="schedule-loading">Đang phân tích lịch...</div>
-            </div>
-          </div>
-
-          <!-- Cột Phải: Danh sách thành viên Bận học trường hôm nay -->
-          <div class="sched-panel">
-            <div class="sched-panel-head">
-              <div class="sched-panel-title">
-                <span style="color:var(--err)">🔴</span>
-                <span>Thành viên có lịch học trường</span>
-                <span class="count-badge" id="schedBusyCount">0</span>
-              </div>
-              <span style="font-size:11.5px;color:var(--muted)">Chi tiết môn học & ca học</span>
-            </div>
-            <div id="schedBusyListWrap" style="max-height:600px;overflow-y:auto">
-              <div class="schedule-loading">Đang phân tích lịch...</div>
-            </div>
-          </div>
-          <div class="sched-panel">
-            <div class="sched-panel-head"><div class="sched-panel-title"><span style="color:var(--muted)">⚪</span><span>Chưa có dữ liệu lịch</span><span class="count-badge" id="schedUnknownCount">0</span></div></div>
-            <div id="schedUnknownListWrap" style="max-height:600px;overflow-y:auto"><div class="schedule-loading">Đang phân tích lịch...</div></div>
-          </div>
+        <!-- Khung xem thời khóa biểu ME (nạp lichhoc.html khi vào màn hình này) -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <iframe id="meTimetableFrame" title="Thời khóa biểu ME" style="display:block;width:100%;height:78vh;min-height:520px;border:0"></iframe>
         </div>
       </div>
     </section>
@@ -1897,7 +1977,7 @@ tbody tr:last-child td { border-bottom: none; }
     </section>
 
     <!-- ==========================================================
-         VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION & MATRIX)
+         VIEW 7: LỊCH RẢNH / BẬN THEO NGÀY (MA TRẬN + XUẤT EXCEL)
          ========================================================== -->
     <section class="app-view" id="view-zalo">
       <section class="card zalo-admin-panel" style="max-width:1380px;margin:0 auto;padding:22px">
@@ -1905,10 +1985,10 @@ tbody tr:last-child td { border-bottom: none; }
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px;flex-wrap:wrap">
           <div>
             <h2 style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px">
-              <span>📋</span> Quản lý Lịch Rảnh / Bận & Gửi Zalo
+              <span>📋</span> Quản lý Lịch Rảnh / Bận
             </h2>
             <p class="zalo-admin-description" style="font-size:12.5px;margin-top:4px;color:var(--muted)">
-              Tra cứu ma trận lịch học của 30 thành viên theo ngày, xuất file Excel bảng biểu và sao chép nhanh tin nhắn gửi nhóm Zalo.
+              Chọn ngày để xem ai rảnh / bận theo từng ca, xuất file Excel hoặc sao chép tin nhắn mẫu.
             </p>
           </div>
           <div id="zaloTargetDateLabel" style="font-size:13px;font-weight:700;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary-border);padding:6px 14px;border-radius:var(--radius-pill)">
@@ -2040,34 +2120,6 @@ tbody tr:last-child td { border-bottom: none; }
       </section>
     </section>
 
-    <!-- ==========================================================
-         VIEW 8: LỊCH SỬ (HISTORY)
-         ========================================================== -->
-    <section class="app-view" id="view-history">
-      <section class="card history-widget-card" style="margin:0">
-        <div class="widget-head">
-          <div>
-            <div class="widget-title">🕒 Lịch sử các phiên điểm danh</div>
-            <p class="widget-sub">Xem lại kết quả, sửa đổi và thống kê chuyên cần</p>
-          </div>
-          <div class="widget-actions">
-            <button class="btn btn-danger" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
-            <button class="btn btn-icon" onclick="loadTodayHistory()">↻</button>
-          </div>
-        </div>
-        <div style="padding:14px;margin-bottom:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
-          <div style="font-weight:800;font-size:13px;margin-bottom:8px">📊 Báo cáo điểm danh</div>
-          <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-            <label style="font-size:11px">Từ ngày<input id="reportFromDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
-            <label style="font-size:11px">Đến ngày<input id="reportToDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
-            <button class="btn btn-primary" onclick="loadAttendanceReport()">Xem báo cáo</button>
-          </div>
-          <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px"></div>
-          <div id="attendanceReportSessions" style="margin-top:10px"></div>
-        </div>
-        <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
-      </section>
-    </section>
 </main>
 </div>
 
@@ -2474,17 +2526,30 @@ let currentView = 'overview';
 
 const viewTitlesMap = {
   overview: 'Tổng quan hệ thống',
-  attendance: 'Phiên điểm danh',
+  attendance: 'Điểm danh & Lịch sử',
   students: 'Quản lý sinh viên',
   teams: 'Quản lý nhóm',
   tasks: 'Nhiệm vụ xưởng & Đội Robocon',
   leave: 'Quản lý đơn xin nghỉ',
-  schedules: 'Lịch học & rảnh/bận',
+  schedules: 'Thời khóa biểu ME',
   feedback: 'Phản hồi ẩn danh',
   'password-reset': 'Reset mật khẩu',
-  zalo: 'Lịch gửi Zalo',
-  history: 'Lịch sử'
+  zalo: 'Lịch rảnh / bận'
 };
+
+/* Ngăn trượt (accordion): bấm tiêu đề để mở/đóng, onOpen = hàm nạp dữ liệu khi vừa mở */
+function toggleAcc(head, onOpen) {
+  const open = head.parentElement.classList.toggle('open');
+  head.setAttribute('aria-expanded', open);
+  if (open && typeof onOpen === 'function') onOpen();
+}
+function openAttendanceReportPanel() { initializeAttendanceReportDates(); loadAttendanceReport(); }
+function openHistoryAndReport() { loadTodayHistory(); openAttendanceReportPanel(); }
+/* Khung TKB ME: chỉ nạp lichhoc.html lần đầu vào màn hình này (?embed=1 ẩn header của trang đó) */
+function initMeTimetableFrame() {
+  const f = document.getElementById('meTimetableFrame');
+  if (f && !f.getAttribute('src')) f.src = 'lichhoc.html?embed=1';
+}
 
 function navTo(viewName) {
   currentView = viewName;
@@ -2504,8 +2569,7 @@ function navTo(viewName) {
   if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
   else if (viewName === 'students' && typeof loadStudentsManagement === 'function') loadStudentsManagement();
   else if (viewName === 'teams' && typeof loadTeamGroups === 'function') loadTeamGroups();
-  else if (viewName === 'schedules' && typeof loadTodaySchoolSchedule === 'function') loadTodaySchoolSchedule();
-  else if (viewName === 'history' && typeof loadTodayHistory === 'function') { loadTodayHistory(); initializeAttendanceReportDates(); loadAttendanceReport(); }
+  else if (viewName === 'schedules') initMeTimetableFrame();
   else if (viewName === 'password-reset') loadPasswordResetView();
   else if (viewName === 'leave' && typeof loadLeaveManagement === 'function') loadLeaveManagement();
   else if (viewName === 'tasks') loadAdminTasks();
@@ -4856,7 +4920,7 @@ async function loadTodayHistory(){
           excusedText +
         '</div>' +
       '</div>' +
-      '<div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px">' +
+      '<div class="th-actions">' +
         '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
         (s.is_open
           ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#dc2626;color:#fff;border:none" onclick="event.stopPropagation();quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
