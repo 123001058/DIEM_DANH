@@ -1655,7 +1655,6 @@ tbody tr:last-child td { border-bottom: none; }
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" onclick="openCreateTeamModal()">＋ Tạo nhóm mới</button>
-            <button class="btn btn-secondary btn-sm" onclick="openTeamsListModal()">👥 Phân ca xưởng</button>
             <button class="btn btn-secondary btn-sm" onclick="toggleAddStudentCard()" id="btnToggleAddStudent">➕ Thêm MSSV từ ME</button>
             <button class="btn btn-secondary btn-sm" onclick="loadStudentsManagement()">🔄 Làm mới</button>
           </div>
@@ -2398,11 +2397,10 @@ tbody tr:last-child td { border-bottom: none; }
 
 <!-- Modal Team Groups & Attendance Modals -->
 <div class="modal-bg" id="teamCreateModal" onclick="if(event.target===this)closeTeamCreateModal()">
-  <div class="team-modal-shell" style="max-width:500px">
-    <div class="team-modal-head"><div><div class="team-modal-title">Tạo nhóm mới</div><div class="team-now">Chọn tên, lĩnh vực và đội trưởng.</div></div><button class="btn btn-icon" onclick="closeTeamCreateModal()">✕</button></div>
+  <div class="team-modal-shell" style="max-width:440px">
+    <div class="team-modal-head"><div><div class="team-modal-title">Tạo nhóm mới</div><div class="team-now">Nhập tên nhóm và chọn đội trưởng.</div></div><button class="btn btn-icon" onclick="closeTeamCreateModal()">✕</button></div>
     <div class="team-create-grid" style="grid-template-columns:1fr;margin-top:12px">
-      <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="Nhập tên nhóm"></div>
-      <div class="team-field"><label for="newTeamField">Lĩnh vực</label><input id="newTeamField" maxlength="120" placeholder="Nhập lĩnh vực chuyên môn"></div>
+      <div class="team-field"><label for="newTeamName">Tên nhóm</label><input id="newTeamName" maxlength="100" placeholder="Ví dụ: Đội Cơ Khí, Đội Lập Trình..."></div>
       <div class="team-field"><label for="newTeamLeader">Đội trưởng</label><select id="newTeamLeader"></select></div>
       <button class="btn btn-primary" onclick="createTeamGroup()">＋ Tạo nhóm</button>
     </div>
@@ -2412,9 +2410,8 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="modal-bg" id="teamModal" onclick="if(event.target===this)closeTeamModal()">
   <div class="team-modal-shell">
     <div class="team-modal-head"><div><div class="team-modal-title" id="teamModalTitle">Quản lý nhóm</div><div class="team-now" id="teamNowLabel">Đang cập nhật lịch theo giờ Việt Nam</div></div><button class="btn btn-icon" onclick="closeTeamModal()">✕</button></div>
-    <div class="team-edit-grid">
+    <div class="team-edit-grid" style="grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end">
       <div class="team-field"><label for="editTeamName">Tên nhóm</label><input id="editTeamName" maxlength="100"></div>
-      <div class="team-field"><label for="editTeamField">Lĩnh vực</label><input id="editTeamField" maxlength="120"></div>
       <div class="team-field"><label for="editTeamLeader">Đội trưởng</label><select id="editTeamLeader"></select></div>
       <div style="display:flex;gap:6px"><button class="btn btn-success" onclick="saveTeamGroup()">Lưu</button><button class="btn btn-danger" onclick="deleteTeamGroup()">Xóa</button></div>
     </div>
@@ -4858,8 +4855,9 @@ async function loadTeamGroups(){
     const ids = membersByTeam.get(team.id) || [];
     const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
     const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
+    const fieldText = team.field && team.field !== team.name ? escapeHtml(team.field) + ' · ' : '';
     return '<button class="team-accordion" onclick="openTeamGroup(\'' + team.id + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
-      '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + escapeHtml(team.field) + ' · Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
+      '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + fieldText + 'Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
       '<span class="team-accordion-counts"><span class="team-count-pill free">' + (ids.length - busy.size) + ' rảnh</span><span class="team-count-pill busy">' + busy.size + ' bận</span><span aria-hidden="true">›</span></span></button>';
   }).join('');
   if (selectedTeamId && document.getElementById('teamModal').classList.contains('show')) await loadTeamAvailability();
@@ -4871,7 +4869,6 @@ async function loadTeamGroups(){
 }
 function openCreateTeamModal(){
   document.getElementById('newTeamName').value = '';
-  document.getElementById('newTeamField').value = '';
   document.getElementById('teamCreateModal').classList.add('show');
 }
 function closeTeamCreateModal(){ document.getElementById('teamCreateModal').classList.remove('show'); }
@@ -4882,21 +4879,18 @@ async function openTeamGroup(id){
   if (!team) return;
   document.getElementById('teamModalTitle').textContent = team.name;
   document.getElementById('editTeamName').value = team.name;
-  document.getElementById('editTeamField').value = team.field;
   document.getElementById('editTeamLeader').value = team.leader_mssv || '';
   document.getElementById('teamModal').classList.add('show');
   await loadTeamAvailability();
 }
 async function createTeamGroup(){
   const name = document.getElementById('newTeamName').value.trim();
-  const field = document.getElementById('newTeamField').value.trim();
   const leader = document.getElementById('newTeamLeader').value;
-  if (!name || !field || !leader) return toast('warn', 'Thiếu thông tin', 'Nhập tên nhóm, lĩnh vực và chọn đội trưởng.');
+  if (!name || !leader) return toast('warn', 'Thiếu thông tin', 'Nhập tên nhóm và chọn đội trưởng.');
   const { data: authData } = await supabase.auth.getSession();
-  const { data, error } = await supabase.from('team_groups').insert({ name, field, leader_mssv: leader, created_by: authData?.session?.user?.id }).select('id').single();
+  const { data, error } = await supabase.from('team_groups').insert({ name, field: name, leader_mssv: leader, created_by: authData?.session?.user?.id }).select('id').single();
   if (error) return toast('err', 'Tạo nhóm thất bại', error.message);
   document.getElementById('newTeamName').value = '';
-  document.getElementById('newTeamField').value = '';
   selectedTeamId = data.id;
   closeTeamCreateModal();
   toast('ok', 'Đã tạo nhóm', name);
@@ -4904,7 +4898,9 @@ async function createTeamGroup(){
   await openTeamGroup(data.id);
 }
 async function saveTeamGroup(){
-  const { error } = await supabase.from('team_groups').update({ name: document.getElementById('editTeamName').value.trim(), field: document.getElementById('editTeamField').value.trim(), leader_mssv: document.getElementById('editTeamLeader').value || null }).eq('id', selectedTeamId);
+  const name = document.getElementById('editTeamName').value.trim();
+  const leader = document.getElementById('editTeamLeader').value || null;
+  const { error } = await supabase.from('team_groups').update({ name, leader_mssv: leader }).eq('id', selectedTeamId);
   if (error) return toast('err', 'Không lưu được nhóm', error.message);
   toast('ok', 'Đã lưu nhóm'); await loadTeamGroups();
   const team = teamGroups.find(t => t.id === selectedTeamId);
@@ -5878,7 +5874,7 @@ async function renderStudentsTable() {
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span class="team-accordion-icon" id="teamIcon_${team.id}" style="font-size:12px;color:var(--muted);display:inline-block;transition:transform 0.2s;transform:${isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'}">▼</span>
             <span style="font-size:14px;font-weight:800;color:var(--text)">👥 ${escapeHtml(team.name)}</span>
-            ${team.field ? `<span style="font-size:11px;color:var(--muted);background:var(--surface);padding:2px 7px;border-radius:5px;border:1px solid var(--border)">${escapeHtml(team.field)}</span>` : ''}
+            ${team.field && team.field !== team.name ? `<span style="font-size:11px;color:var(--muted);background:var(--surface);padding:2px 7px;border-radius:5px;border:1px solid var(--border)">${escapeHtml(team.field)}</span>` : ''}
             <span class="count-badge" style="font-size:11px;padding:2px 8px;font-weight:700">${members.length} bạn</span>
             <span style="font-size:11.5px;color:var(--muted)">· ⭐ Đội trưởng: <b style="color:var(--text)">${escapeHtml(leaderText)}</b></span>
           </div>
