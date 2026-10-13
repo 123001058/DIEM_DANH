@@ -466,7 +466,10 @@ body {
 .scc-icon { width: 38px; height: 38px; border-radius: 10px; background: #eff6ff; color: #2563eb; display: grid; place-items: center; }
 .scc-title { font-size: 15px; font-weight: 800; }
 .scc-sub { font-size: 12px; color: var(--muted); }
-.session-form { display: flex; flex-direction: column; gap: 12px; }
+.session-form { display: grid; gap: 12px; }
+@media (max-width: 680px) {
+  #attendanceSessionCreateCard .session-form { grid-template-columns: 1fr !important; }
+}
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-field label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .form-field input, .form-field select, .form-field textarea {
@@ -1381,27 +1384,27 @@ tbody tr:last-child td { border-bottom: none; }
     <section class="app-view" id="view-attendance">
       <!-- Màn hình khi CHƯA có phiên điểm danh đang mở: Form tạo phiên chuẩn -->
       <div id="emptyState" class="empty-layout" style="display:none">
-        <section class="card session-create-card" id="attendanceSessionCreateCard" style="max-width:680px;margin:0 auto;padding:26px 28px">
-          <div class="scc-header" style="margin-bottom:18px">
-            <div class="scc-icon" style="width:44px;height:44px;font-size:22px">⚡</div>
+        <section class="card session-create-card" id="attendanceSessionCreateCard" style="width:100%;margin-bottom:16px;padding:20px 24px">
+          <div class="scc-header" style="margin-bottom:16px">
+            <div class="scc-icon" style="width:40px;height:40px;font-size:20px">⚡</div>
             <div>
-              <h2 class="scc-title" style="font-size:17px">Khởi tạo phiên điểm danh mới</h2>
+              <h2 class="scc-title" style="font-size:16px">Khởi tạo phiên điểm danh mới</h2>
               <p class="scc-sub">Mã QR đứng yên — thuận tiện chiếu máy chiếu cả buổi cho sinh viên quét.</p>
             </div>
           </div>
 
-          <div class="session-form">
-            <div class="form-field" style="margin-bottom:12px">
-              <label for="quickName">Tên phiên điểm danh *</label>
-              <input type="text" id="quickName" placeholder="Nhập tên phiên điểm danh" style="font-size:14px;padding:11px 14px">
+          <div class="session-form" style="display:grid;grid-template-columns:1fr 140px auto;gap:14px;align-items:end;width:100%">
+            <div class="form-field" style="margin:0">
+              <label for="quickName" style="font-size:11.5px;font-weight:700">Tên phiên điểm danh *</label>
+              <input type="text" id="quickName" placeholder="VD: Điểm danh ca chiều 13/10..." style="font-size:13.5px;padding:10px 14px;margin-top:4px">
             </div>
-            <div class="form-row-2">
-              <div class="form-field">
-                <label for="quickDuration">Thời lượng phiên (phút)</label>
-                <input type="number" id="quickDuration" value="90" min="1" style="font-size:14px;padding:11px 14px">
-              </div>
-              <button class="btn btn-primary btn-open-session" onclick="openSession()" style="padding:12px 20px;font-size:14px">▶ Bắt đầu phiên điểm danh</button>
+            <div class="form-field" style="margin:0">
+              <label for="quickDuration" style="font-size:11.5px;font-weight:700">Thời lượng (phút)</label>
+              <input type="number" id="quickDuration" value="90" min="1" style="font-size:13.5px;padding:10px 14px;margin-top:4px">
             </div>
+            <button class="btn btn-primary btn-open-session" onclick="openSession()" style="padding:10px 22px;font-size:13.5px;height:43px;margin:0;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">
+              ▶ Bắt đầu phiên điểm danh
+            </button>
           </div>
         </section>
       </div>
