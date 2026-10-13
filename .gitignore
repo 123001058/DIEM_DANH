@@ -1,8 +1,8 @@
 node_modules/
-zalo_automation/node_modules/
-zalo_automation/zalo_session.json
 *.log
 .DS_Store
 Thumbs.db
-*.md
 scratch/
+supabase/.temp/
+.agents/
+backup_data_before_migration.sql
