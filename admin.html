@@ -655,19 +655,28 @@ tbody tr:last-child td { border-bottom: none; }
 @media(max-width:700px){ .team-create-grid, .team-edit-grid, .team-tools { grid-template-columns: 1fr; } }
 
 /* TASKS STYLES */
-.tasks-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.tasks-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.tasks-tab { padding: 10px 18px; border: none; background: transparent; font-size: 13.5px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: .15s; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
-.tasks-tab:hover { color: var(--text); }
-.tasks-tab.active { color: var(--text); border-bottom-color: var(--text); }
-
+.tasks-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .tasks-filter-bar {
   display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
-  padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.tasks-scope-segmented {
+  display: inline-flex; background: var(--surface-2); padding: 3px; border-radius: 8px; border: 1px solid var(--border);
+  gap: 3px; flex-wrap: wrap;
+}
+.tasks-scope-pill {
+  padding: 6px 12px; border: none; background: transparent; font-size: 12.5px; font-weight: 700;
+  color: var(--muted); cursor: pointer; border-radius: 6px; transition: all .15s ease;
+  font-family: inherit; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.tasks-scope-pill:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+.tasks-scope-pill.active {
+  color: var(--text); background: var(--surface); font-weight: 800;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .tasks-filter-item { display: flex; align-items: center; gap: 6px; }
 .tasks-filter-item label { font-size: 11px; font-weight: 700; color: var(--muted); margin: 0; text-transform: uppercase; }
-.tasks-filter-item select, .tasks-filter-item input { width: auto; max-width: 180px; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-strong); background: var(--surface); }
+.tasks-filter-item select, .tasks-filter-item input { width: auto; max-width: 170px; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-strong); background: var(--surface); }
 
 .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 .task-card {
@@ -691,6 +700,85 @@ tbody tr:last-child td { border-bottom: none; }
 .status-todo { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border-strong); }
 .status-doing { background: var(--info-bg); color: var(--info); border: 1px solid rgba(42,91,215,0.2); }
 .status-done { background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(15,122,74,0.2); }
+
+/* SLIDE-OUT DRAWER LỊCH SỬ HOẠT ĐỘNG */
+.task-drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  z-index: 1040; opacity: 0; pointer-events: none;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.task-drawer-backdrop.show { opacity: 1; pointer-events: auto; }
+
+.task-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; height: 100vh;
+  background: var(--surface); box-shadow: -8px 0 28px rgba(0,0,0,0.18);
+  border-left: 1px solid var(--border); z-index: 1050; display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.task-drawer.show { transform: translateX(0); }
+
+.task-drawer-head {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface);
+}
+.task-drawer-title { font-size: 16px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+
+.task-drawer-filter-bar {
+  padding: 10px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+}
+.drawer-filter-pill {
+  padding: 4px 10px; border: 1px solid var(--border); background: var(--surface);
+  font-size: 11.5px; font-weight: 700; color: var(--muted); border-radius: 99px;
+  cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.drawer-filter-pill:hover { color: var(--text); border-color: var(--border-strong); }
+.drawer-filter-pill.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+.task-drawer-body {
+  flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+}
+
+/* ACTIVITY LOG ITEM */
+.activity-card {
+  padding: 12px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; display: flex; gap: 12px; align-items: flex-start;
+  transition: all 0.15s ease;
+}
+.activity-card:hover { border-color: var(--border-strong); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.activity-icon-wrap {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.activity-icon-created { background: #e0f2fe; color: #0284c7; }
+.activity-icon-status_changed { background: #fef3c7; color: #d97706; }
+.activity-icon-completed { background: #dcfce7; color: #16a34a; }
+.activity-icon-deleted { background: #fee2e2; color: #dc2626; }
+.activity-icon-updated { background: #f3e8ff; color: #9333ea; }
+.activity-icon-reassigned { background: #e0e7ff; color: #4f46e5; }
+.activity-icon-claimed { background: #ccfbf1; color: #0d9488; }
+.activity-icon-released { background: #f1f5f9; color: #64748b; }
+
+.activity-main { flex: 1; min-width: 0; }
+.activity-actor-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.activity-actor-name { font-size: 13px; font-weight: 800; color: var(--text); }
+.activity-time-stamp { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.activity-action-desc { font-size: 12.5px; color: var(--text); line-height: 1.45; }
+.activity-target-task { font-weight: 700; color: var(--primary, #2563eb); }
+.activity-meta-tags {
+  margin-top: 6px; font-size: 11.5px; color: var(--muted);
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.activity-tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
+  background: var(--surface-2); border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.activity-diff-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700;
+}
+.activity-diff-from { color: var(--muted); text-decoration: line-through; }
+.activity-diff-to { color: var(--ok); }
 
 /* FEEDBACK STYLES */
 .fb-privacy-banner { padding: 12px 16px; background: linear-gradient(135deg, #eef2ff, #e0e7ff); border: 1px solid #c7d2fe; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12.5px; color: #3730a3; font-weight: 600; }
@@ -1558,21 +1646,30 @@ tbody tr:last-child td { border-bottom: none; }
       <div class="tasks-header">
         <div>
           <h2 style="font-size:16.5px;font-weight:800;letter-spacing:-0.01em">📌 Quản lý nhiệm vụ xưởng & đội Robocon</h2>
-      <p style="font-size:12px;color:var(--muted);margin-top:2px">Giao việc toàn xưởng, theo nhóm hoặc cá nhân; theo dõi tiến độ và hạn hoàn thành.</p>
+          <p style="font-size:12px;color:var(--muted);margin-top:2px">Phân công việc toàn xưởng, theo nhóm hoặc cá nhân; theo dõi tiến độ và lịch sử hoạt động.</p>
         </div>
-        <button class="btn btn-primary" onclick="openCreateTaskModal()">＋ Giao nhiệm vụ mới</button>
-      </div>
-
-      <div class="tasks-tabs">
-        <button class="tasks-tab active" id="tabTaskGroup" onclick="switchTaskTab('group')">
-          👥 Nhiệm vụ chung (Nhóm/Xưởng) <span class="count-badge" id="countGroupTasks">0</span>
-        </button>
-        <button class="tasks-tab" id="tabTaskPersonal" onclick="switchTaskTab('personal')">
-          👤 Nhiệm vụ cá nhân <span class="count-badge" id="countPersonalTasks">0</span>
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-secondary" onclick="openTaskActivityDrawer()" style="display:inline-flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Lịch sử hoạt động
+          </button>
+          <button class="btn btn-primary" onclick="openCreateTaskModal()">＋ Giao nhiệm vụ</button>
+        </div>
       </div>
 
       <div class="tasks-filter-bar">
+        <div class="tasks-scope-segmented" id="tasksScopeSegmented">
+          <button type="button" class="tasks-scope-pill active" id="pillScopeAll" onclick="setTaskScopeFilter('all')">
+            Tất cả <span class="count-badge" id="countAllTasks">0</span>
+          </button>
+          <button type="button" class="tasks-scope-pill" id="pillScopeGroup" onclick="setTaskScopeFilter('group')">
+            👥 Nhiệm vụ nhóm <span class="count-badge" id="countGroupTasks">0</span>
+          </button>
+          <button type="button" class="tasks-scope-pill" id="pillScopePersonal" onclick="setTaskScopeFilter('personal')">
+            👤 Nhiệm vụ cá nhân <span class="count-badge" id="countPersonalTasks">0</span>
+          </button>
+        </div>
+
         <div class="tasks-filter-item">
           <label>Nhóm:</label>
           <select id="taskFilterGroup" onchange="applyTaskFilters()">
@@ -1606,7 +1703,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="tasks-grid" id="tasksListGrid"><div class="empty-state">Chọn mục Nhiệm vụ để tải dữ liệu.</div>
+      <div class="tasks-grid" id="tasksListGrid"><div class="empty-state">Đang tải nhiệm vụ...</div>
       </div>
     </section>
 
@@ -2100,6 +2197,59 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="modal-actions">
       <button onclick="closeTaskDetailModal()">Đóng</button>
       <button class="btn btn-primary" onclick="toast('ok', 'Đã đánh dấu', 'Đã lưu trạng thái'); closeTaskDetailModal()">Đánh dấu đã đọc</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ngăn Trượt Lịch Sử Hoạt Động (Slide-out Drawer) -->
+<div class="task-drawer-backdrop" id="taskDrawerBackdrop" onclick="closeTaskActivityDrawer()"></div>
+<aside class="task-drawer" id="taskActivityDrawer" aria-label="Lịch sử hoạt động nhiệm vụ">
+  <div class="task-drawer-head">
+    <div>
+      <div class="task-drawer-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Lịch sử hoạt động
+        <span class="count-badge" id="taskActivityTotalBadge">0</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Nhật ký truy vết thời gian thực Robocon</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-icon" title="Làm mới lịch sử" onclick="loadTaskActivityLogs(true)">↻</button>
+      <button class="btn btn-icon" title="Đóng (Esc)" onclick="closeTaskActivityDrawer()">✕</button>
+    </div>
+  </div>
+
+  <div class="task-drawer-filter-bar">
+    <button type="button" class="drawer-filter-pill active" data-action="all" onclick="filterDrawerLogs('all')">Tất cả</button>
+    <button type="button" class="drawer-filter-pill" data-action="created" onclick="filterDrawerLogs('created')">➕ Tạo mới</button>
+    <button type="button" class="drawer-filter-pill" data-action="status_changed" onclick="filterDrawerLogs('status_changed')">🔄 Trạng thái</button>
+    <button type="button" class="drawer-filter-pill" data-action="completed" onclick="filterDrawerLogs('completed')">✓ Hoàn thành</button>
+    <button type="button" class="drawer-filter-pill" data-action="deleted" onclick="filterDrawerLogs('deleted')">🗑️ Đã xóa</button>
+  </div>
+
+  <div class="task-drawer-body" id="taskActivityDrawerList">
+    <div class="schedule-loading">Đang tải lịch sử hoạt động...</div>
+  </div>
+</aside>
+
+<!-- Modal Xác Nhận Xóa Nhiệm Vụ -->
+<div class="modal-bg" id="taskDeleteConfirmModal" onclick="if(event.target===this)closeTaskDeleteModal()">
+  <div class="modal" style="max-width:440px;text-align:left">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="width:38px;height:38px;border-radius:10px;background:#fee2e2;color:#dc2626;display:grid;place-items:center;font-size:18px;flex:none">🗑️</div>
+      <div>
+        <h3 style="margin:0;font-size:16px;color:#dc2626">Xác nhận xóa nhiệm vụ</h3>
+        <p style="margin:2px 0 0;font-size:12px;color:var(--muted)">Kiểm tra kỹ trước khi xóa khỏi danh sách.</p>
+      </div>
+    </div>
+    <p style="font-size:13px;line-height:1.5;margin-bottom:8px">Bạn có chắc chắn muốn xóa nhiệm vụ sau:</p>
+    <div id="taskDeleteConfirmTitle" style="font-size:13.5px;font-weight:700;padding:10px 14px;background:var(--surface-2);border-left:3px solid #dc2626;border-radius:6px;margin-bottom:12px;word-break:break-word"></div>
+    <div style="font-size:12px;color:var(--muted);background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.25);border-radius:8px;padding:8px 12px;margin-bottom:16px">
+      ℹ️ <b>Bảo toàn truy vết:</b> Nhiệm vụ sẽ bị gỡ bỏ, nhưng lịch sử thao tác của các thành viên liên quan vẫn được lưu giữ độc lập trong hệ thống để phục vụ kiểm toán.
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeTaskDeleteModal()">Hủy bỏ</button>
+      <button class="btn btn-danger" id="btnConfirmDeleteTask" onclick="confirmExecuteDeleteTask()">✕ Xác nhận xóa</button>
     </div>
   </div>
 </div>
@@ -2749,12 +2899,25 @@ async function resetDefaultRoboconRules(){
 }
 
 /* ==========================================================
-   TASK WORKSPACE CONTROLLERS
+   TASK WORKSPACE CONTROLLERS & ACTIVITY DRAWER
    ========================================================== */
-function switchTaskTab(tabType) {
-  document.getElementById('tabTaskGroup')?.classList.toggle('active', tabType === 'group');
-  document.getElementById('tabTaskPersonal')?.classList.toggle('active', tabType === 'personal');
+window.currentTaskScopeFilter = 'all'; // 'all' | 'group' | 'personal'
+window.isTaskDrawerOpen = false;
+window.taskActivityLogsCache = [];
+window.currentDrawerFilterAction = 'all';
+window.taskToDeleteId = null;
+
+function setTaskScopeFilter(scope) {
+  window.currentTaskScopeFilter = scope;
+  document.getElementById('pillScopeAll')?.classList.toggle('active', scope === 'all');
+  document.getElementById('pillScopeGroup')?.classList.toggle('active', scope === 'group');
+  document.getElementById('pillScopePersonal')?.classList.toggle('active', scope === 'personal');
   applyTaskFilters();
+}
+
+// Giữ lại tương thích ngược nếu có hàm gọi switchTaskTab
+function switchTaskTab(tabType) {
+  setTaskScopeFilter(tabType);
 }
 
 function applyTaskFilters() {
@@ -2762,23 +2925,63 @@ function applyTaskFilters() {
   const st = document.getElementById('taskFilterStatus')?.value || 'all';
   const pri = document.getElementById('taskFilterPriority')?.value || 'all';
   const search = (document.getElementById('taskSearchInput')?.value || '').toLowerCase().trim();
-  const activeScope = document.getElementById('tabTaskPersonal')?.classList.contains('active') ? 'personal' : 'group';
+  const scope = window.currentTaskScopeFilter || 'all';
 
   const cards = document.querySelectorAll('#tasksListGrid .task-card');
+  let visibleCount = 0;
   cards.forEach(c => {
-  const matchScope = activeScope === 'personal' ? c.dataset.type === 'personal' : ['group','global'].includes(c.dataset.type);
+    const type = c.dataset.type; // 'group', 'personal', 'global'
+    const matchScope = (scope === 'all')
+      ? true
+      : (scope === 'personal')
+        ? (type === 'personal')
+        : (type === 'group' || type === 'global');
+
     const matchGrp = (grp === 'all' || c.dataset.group === grp);
     const matchSt = (st === 'all' || c.dataset.status === st);
     const matchPri = (pri === 'all' || c.dataset.priority === pri);
     const matchSearch = (!search || c.innerText.toLowerCase().includes(search));
 
-    c.style.display = (matchScope && matchGrp && matchSt && matchPri && matchSearch) ? 'flex' : 'none';
+    const show = matchScope && matchGrp && matchSt && matchPri && matchSearch;
+    c.style.display = show ? 'flex' : 'none';
+    if (show) visibleCount++;
   });
+
+  const emptyGuide = document.getElementById('tasksEmptyGuide');
+  if (cards.length > 0) {
+    if (visibleCount === 0) {
+      if (!emptyGuide) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.id = 'tasksEmptyGuide';
+        emptyDiv.className = 'empty-state';
+        emptyDiv.style.gridColumn = '1 / -1';
+        emptyDiv.textContent = 'Không có nhiệm vụ nào phù hợp với bộ lọc hiện tại.';
+        document.getElementById('tasksListGrid')?.appendChild(emptyDiv);
+      }
+    } else if (emptyGuide) {
+      emptyGuide.remove();
+    }
+  }
 }
 
-function openCreateTaskModal() {
+async function openCreateTaskModal() {
+  const currentScope = window.currentTaskScopeFilter || 'all';
+  const typeSelect = document.getElementById('taskNewType');
+  if (typeSelect) {
+    if (currentScope === 'personal') {
+      typeSelect.value = 'personal';
+    } else {
+      typeSelect.value = 'group'; // 'all' hoặc 'group' đều mặc định giao cho cả nhóm
+    }
+    toggleTaskAssigneeSelect(typeSelect.value);
+  }
+  const groupSel = document.getElementById('taskNewGroup');
+  if (groupSel && groupSel.value) {
+    await loadTaskAssignees();
+  }
   document.getElementById('taskCreateModal')?.classList.add('show');
 }
+
 function closeTaskCreateModal() {
   document.getElementById('taskCreateModal')?.classList.remove('show');
 }
@@ -2793,55 +2996,360 @@ function toggleTaskAssigneeSelect(val) {
 }
 
 async function loadAdminTasks() {
-  const box=document.getElementById('tasksListGrid'); if(!box)return; box.innerHTML='<div class="empty-state">Đang tải nhiệm vụ...</div>';
-  const [{data,error}, {data: groups}] = await Promise.all([
-    supabase.rpc('admin_get_team_tasks'), supabase.from('team_groups').select('id,name,field').order('name')
+  const box = document.getElementById('tasksListGrid');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-state">Đang tải nhiệm vụ...</div>';
+
+  const [{ data, error }, { data: groups }] = await Promise.all([
+    supabase.rpc('admin_get_team_tasks'),
+    supabase.from('team_groups').select('id,name,field').order('name')
   ]);
-  if(error||!data?.ok){box.innerHTML='<div class="empty-state">'+escapeHtml(error?.message||data?.message||'Không tải được nhiệm vụ.')+'</div>';return;}
-  const all= data.tasks||[]; window.adminTaskRows=all; window.adminTaskGroups=groups||[];
-  document.getElementById('navTasksBadge').textContent=all.length;
-  document.getElementById('countGroupTasks').textContent=all.filter(t=>t.scope==='group'||t.scope==='global').length;
-  document.getElementById('countPersonalTasks').textContent=all.filter(t=>t.scope==='personal').length;
-  const groupSel=document.getElementById('taskNewGroup'); if(groupSel) groupSel.innerHTML=(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)} · ${escapeHtml(g.field)}</option>`).join('');
-  const filters=document.getElementById('taskFilterGroup'); if(filters) filters.innerHTML='<option value="all">Tất cả nhóm</option>'+(groups||[]).map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
-  const memberSelect=document.getElementById('taskNewAssignee');
-  if(memberSelect && groups?.length) await loadTaskAssignees();
-  if(!all.length){box.innerHTML='<div class="empty-state">Chưa có nhiệm vụ nào. Tạo nhiệm vụ đầu tiên.</div>';return;}
-  box.innerHTML=all.map(t=>{const done=(t.assignees||[]).filter(a=>a.status==='done').length, n=(t.assignees||[]).length;const type=t.scope; const shared=type==='group'||type==='global'; const status=shared?(t.completed_at?'done':(type==='global'&&t.claimed_by_mssv)||(t.assignees||[]).some(a=>a.status==='doing')?'doing':'todo'):(done===n&&n?'done':(t.assignees||[]).some(a=>a.status==='doing')?'doing':'todo');const taskProgress=shared?(t.completed_at?(t.completed_by_name?`Hoàn thành bởi ${t.completed_by_name}`:'Đã hoàn thành'):type==='global'&&t.claimed_by_mssv?`Đang nhận làm bởi ${t.claimed_by_name||t.claimed_by_mssv}`:'Chưa ai nhận làm'):`${done}/${n} hoàn thành · ${n} người`;
-    const statusLabel={todo:'⚪ Chưa bắt đầu',doing:'⏳ Đang làm',done:'✓ Hoàn thành'}[status];
-    const people=(t.assignees||[]).map(a=>`${escapeHtml(a.name||a.mssv)} (${escapeHtml(a.status)})`).join(', ')||'Không có thành viên';
-    return `<article class="task-card" data-id="${t.id}" data-type="${type}" data-group="${t.team_id||''}" data-status="${status}" data-priority="${t.priority}"><div class="task-card-top"><span class="task-title">${escapeHtml(t.title)}</span><span class="task-badge-priority priority-${t.priority}">${{high:'Cao 🔥',med:'Trung bình',low:'Thấp'}[t.priority]}</span></div><p class="task-desc">${escapeHtml(t.description||'')}</p><div class="task-meta-grid"><div class="task-meta-row"><span class="task-meta-lbl">Phạm vi</span><span class="task-meta-val">${type==='global'?'Toàn xưởng':escapeHtml(t.team_name||'—')}</span></div><div class="task-meta-row"><span class="task-meta-lbl">Người nhận</span><span class="task-meta-val">${type==='global'?'Tất cả sinh viên':type==='group'?'Cả nhóm':people}</span></div><div class="task-meta-row"><span class="task-meta-lbl">Tiến độ</span><span class="task-meta-val">${escapeHtml(taskProgress)}</span></div><div class="task-meta-row"><span class="task-meta-lbl">Hạn chót</span><span class="task-meta-val">${t.due_date||'—'}</span></div></div><div class="task-card-footer"><span class="task-status-chip status-${status}">${statusLabel}</span><span style="display:flex;gap:6px"><button class="btn btn-sm" onclick="showTaskDetailById('${t.id}')">Chi tiết</button><button class="btn btn-sm btn-danger" title="Xóa nhiệm vụ" aria-label="Xóa nhiệm vụ" onclick="deleteAdminTask('${t.id}')">🗑️ Xóa</button></span></div></article>`;
-  }).join(''); applyTaskFilters();
+
+  if (error || !data?.ok) {
+    box.innerHTML = '<div class="empty-state">' + escapeHtml(error?.message || data?.message || 'Không tải được nhiệm vụ.') + '</div>';
+    return;
+  }
+
+  const all = data.tasks || [];
+  window.adminTaskRows = all;
+  window.adminTaskGroups = groups || [];
+
+  const groupCount = all.filter(t => t.scope === 'group' || t.scope === 'global').length;
+  const personalCount = all.filter(t => t.scope === 'personal').length;
+
+  const badgeNav = document.getElementById('navTasksBadge');
+  if (badgeNav) badgeNav.textContent = all.length;
+  const badgeAll = document.getElementById('countAllTasks');
+  if (badgeAll) badgeAll.textContent = all.length;
+  const badgeGroup = document.getElementById('countGroupTasks');
+  if (badgeGroup) badgeGroup.textContent = groupCount;
+  const badgePersonal = document.getElementById('countPersonalTasks');
+  if (badgePersonal) badgePersonal.textContent = personalCount;
+
+  const groupSel = document.getElementById('taskNewGroup');
+  if (groupSel) groupSel.innerHTML = (groups || []).map(g => `<option value="${g.id}">${escapeHtml(g.name)} · ${escapeHtml(g.field)}</option>`).join('');
+
+  const filters = document.getElementById('taskFilterGroup');
+  if (filters) filters.innerHTML = '<option value="all">Tất cả nhóm</option>' + (groups || []).map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+
+  const memberSelect = document.getElementById('taskNewAssignee');
+  if (memberSelect && groups?.length) await loadTaskAssignees();
+
+  if (!all.length) {
+    box.innerHTML = '<div class="empty-state">Chưa có nhiệm vụ nào. Nhấn <b>＋ Giao nhiệm vụ</b> để tạo mới.</div>';
+    return;
+  }
+
+  box.innerHTML = all.map(t => {
+    const done = (t.assignees || []).filter(a => a.status === 'done').length;
+    const n = (t.assignees || []).length;
+    const type = t.scope;
+    const shared = type === 'group' || type === 'global';
+    const status = shared
+      ? (t.completed_at ? 'done' : (type === 'global' && t.claimed_by_mssv) || (t.assignees || []).some(a => a.status === 'doing') ? 'doing' : 'todo')
+      : (done === n && n ? 'done' : (t.assignees || []).some(a => a.status === 'doing') ? 'doing' : 'todo');
+
+    const taskProgress = shared
+      ? (t.completed_at ? (t.completed_by_name ? `Hoàn thành bởi ${t.completed_by_name}` : 'Đã hoàn thành') : type === 'global' && t.claimed_by_mssv ? `Đang nhận làm: ${t.claimed_by_name || t.claimed_by_mssv}` : 'Chưa ai nhận làm')
+      : `${done}/${n} hoàn thành · ${n} người`;
+
+    const statusLabel = { todo: '⚪ Chưa bắt đầu', doing: '⏳ Đang làm', done: '✓ Hoàn thành' }[status];
+    const people = (t.assignees || []).map(a => `${escapeHtml(a.name || a.mssv)} (${escapeHtml(a.status)})`).join(', ') || 'Không có thành viên';
+
+    return `
+      <article class="task-card" data-id="${t.id}" data-type="${type}" data-group="${t.team_id || ''}" data-status="${status}" data-priority="${t.priority}">
+        <div class="task-card-top">
+          <span class="task-title">${escapeHtml(t.title)}</span>
+          <span class="task-badge-priority priority-${t.priority}">${{ high: 'Cao 🔥', med: 'Trung bình', low: 'Thấp' }[t.priority]}</span>
+        </div>
+        <p class="task-desc">${escapeHtml(t.description || 'Không có mô tả chi tiết.')}</p>
+        <div class="task-meta-grid">
+          <div class="task-meta-row">
+            <span class="task-meta-lbl">Phạm vi</span>
+            <span class="task-meta-val">${type === 'global' ? '🌐 Toàn xưởng' : type === 'group' ? '👥 Cả nhóm' : '👤 Cá nhân'}</span>
+          </div>
+          <div class="task-meta-row">
+            <span class="task-meta-lbl">Người nhận</span>
+            <span class="task-meta-val" title="${type === 'global' ? 'Tất cả sinh viên' : type === 'group' ? escapeHtml(t.team_name || 'Cả nhóm') : people}">${type === 'global' ? 'Tất cả sinh viên' : type === 'group' ? escapeHtml(t.team_name || 'Cả nhóm') : people}</span>
+          </div>
+          <div class="task-meta-row">
+            <span class="task-meta-lbl">Tiến độ</span>
+            <span class="task-meta-val">${escapeHtml(taskProgress)}</span>
+          </div>
+          <div class="task-meta-row">
+            <span class="task-meta-lbl">Hạn chót</span>
+            <span class="task-meta-val">${t.due_date || '—'}</span>
+          </div>
+        </div>
+        <div class="task-card-footer">
+          <span class="task-status-chip status-${status}">${statusLabel}</span>
+          <span style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="showTaskDetailById('${t.id}')">Chi tiết</button>
+            <button class="btn btn-sm btn-danger" title="Xóa nhiệm vụ" aria-label="Xóa nhiệm vụ" onclick="deleteAdminTask('${t.id}')">🗑️ Xóa</button>
+          </span>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  applyTaskFilters();
 }
+
 async function loadOverviewGroupTasks() {
-  const summary=document.getElementById('overviewGroupTasksSummary'), list=document.getElementById('overviewGroupTasksList');
-  if(!summary||!list)return;
-  summary.textContent='Đang tải nhiệm vụ chung...'; list.innerHTML='';
-  const {data,error}=await supabase.rpc('admin_get_team_tasks');
-  if(error||!data?.ok){summary.textContent='Không tải được nhiệm vụ chung.';list.innerHTML=`<div style="font-size:12px;color:var(--err)">${escapeHtml(error?.message||data?.message||'Lỗi không xác định.')}</div>`;return;}
-  const tasks=(data.tasks||[]).filter(t=>(t.scope==='group'||t.scope==='global')&&!t.completed_at);
-  summary.textContent=tasks.length?`${tasks.length} nhiệm vụ chung đang chờ hoàn thành`:'Hiện không có nhiệm vụ chung nào đang chờ hoàn thành.';
-  list.innerHTML=tasks.slice(0,4).map(t=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:8px;background:var(--surface-2)"><span style="font-size:12px;font-weight:700">${escapeHtml(t.title)}</span><span style="font-size:11px;color:var(--muted);white-space:nowrap">${t.scope==='global'?'Toàn xưởng':escapeHtml(t.team_name||'Nhóm')}${t.scope==='global'&&t.claimed_by_mssv?` · Đang nhận: ${escapeHtml(t.claimed_by_name||t.claimed_by_mssv)}`:''}${t.due_date?` · Hạn ${escapeHtml(t.due_date)}`:''}</span></div>`).join('');
-  if(tasks.length>4)list.insertAdjacentHTML('beforeend',`<div style="font-size:11px;color:var(--muted)">Và ${tasks.length-4} nhiệm vụ khác.</div>`);
+  const summary = document.getElementById('overviewGroupTasksSummary'), list = document.getElementById('overviewGroupTasksList');
+  if (!summary || !list) return;
+  summary.textContent = 'Đang tải nhiệm vụ chung...'; list.innerHTML = '';
+  const { data, error } = await supabase.rpc('admin_get_team_tasks');
+  if (error || !data?.ok) {
+    summary.textContent = 'Không tải được nhiệm vụ chung.';
+    list.innerHTML = `<div style="font-size:12px;color:var(--err)">${escapeHtml(error?.message || data?.message || 'Lỗi không xác định.')}</div>`;
+    return;
+  }
+  const tasks = (data.tasks || []).filter(t => (t.scope === 'group' || t.scope === 'global') && !t.completed_at);
+  summary.textContent = tasks.length ? `${tasks.length} nhiệm vụ chung đang chờ hoàn thành` : 'Hiện không có nhiệm vụ chung nào đang chờ hoàn thành.';
+  list.innerHTML = tasks.slice(0, 4).map(t => `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:8px;background:var(--surface-2)"><span style="font-size:12px;font-weight:700">${escapeHtml(t.title)}</span><span style="font-size:11px;color:var(--muted);white-space:nowrap">${t.scope === 'global' ? 'Toàn xưởng' : escapeHtml(t.team_name || 'Nhóm')}${t.scope === 'global' && t.claimed_by_mssv ? ` · Đang nhận: ${escapeHtml(t.claimed_by_name || t.claimed_by_mssv)}` : ''}${t.due_date ? ` · Hạn ${escapeHtml(t.due_date)}`:''}</span></div>`).join('');
+  if (tasks.length > 4) list.insertAdjacentHTML('beforeend', `<div style="font-size:11px;color:var(--muted)">Và ${tasks.length - 4} nhiệm vụ khác.</div>`);
 }
-async function loadTaskAssignees(){const group=document.getElementById('taskNewGroup')?.value,select=document.getElementById('taskNewAssignee');if(!group||!select)return;const {data,error}=await supabase.from('team_group_members').select('mssv,students(name)').eq('team_id',group).order('added_at');if(error){select.innerHTML='';toast('error','Không tải được thành viên',error.message);return;}select.innerHTML=(data||[]).map(m=>`<option value="${m.mssv}">${escapeHtml(m.students?.name||m.mssv)} · ${escapeHtml(m.mssv)}</option>`).join('');}
-async function submitCreateTask(){
-  const title=document.getElementById('taskNewTitle')?.value.trim(), scope=document.getElementById('taskNewType')?.value||'group', team=document.getElementById('taskNewGroup')?.value;
-  if(!title||(scope!=='global'&&!team)){toast('warn','Thiếu thông tin',scope==='global'?'Nhập tiêu đề nhiệm vụ.':'Nhập tiêu đề và chọn nhóm.');return;}
-  const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('taskNewDesc')?.value||'',p_scope:scope,p_team_id:scope==='global'?null:team,p_assignee_mssv:document.getElementById('taskNewAssignee')?.value||null,p_priority:document.getElementById('taskNewPriority')?.value||'med',p_due_date:document.getElementById('taskNewDueDate')?.value||null});
-  if(error||!data?.ok){toast('error','Chưa giao được',error?.message||data?.message||'Lỗi không xác định');return;}
-  closeTaskCreateModal(); document.getElementById('taskNewTitle').value=''; document.getElementById('taskNewDesc').value=''; document.getElementById('taskNewType').value='group'; toggleTaskAssigneeSelect('group'); await loadAdminTasks(); if(currentView==='overview')await loadOverviewGroupTasks(); toast('ok','Đã giao nhiệm vụ','Nhiệm vụ đã được lưu và gửi tới người nhận.');
+
+async function loadTaskAssignees() {
+  const group = document.getElementById('taskNewGroup')?.value, select = document.getElementById('taskNewAssignee');
+  if (!group || !select) return;
+  const { data, error } = await supabase.from('team_group_members').select('mssv,students(name)').eq('team_id', group).order('added_at');
+  if (error) {
+    select.innerHTML = '';
+    toast('error', 'Không tải được thành viên', error.message);
+    return;
+  }
+  select.innerHTML = (data || []).map(m => `<option value="${m.mssv}">${escapeHtml(m.students?.name || m.mssv)} · ${escapeHtml(m.mssv)}</option>`).join('');
 }
-async function deleteAdminTask(id){
-  const task=(window.adminTaskRows||[]).find(t=>t.id===id);if(!task)return;
-  if(!confirm(`Xóa nhiệm vụ “${task.title}”? Tiến độ của tất cả người nhận cũng sẽ bị xóa.`))return;
-  const {data,error}=await supabase.rpc('admin_delete_team_task',{p_task_id:id});
-  if(error||!data?.ok){toast('error','Chưa xóa được nhiệm vụ',error?.message||data?.message||'Lỗi không xác định.');return;}
-  await loadAdminTasks();toast('ok','Đã xóa nhiệm vụ','Nhiệm vụ và tiến độ của người nhận đã được xóa.');
+
+async function submitCreateTask() {
+  const title = document.getElementById('taskNewTitle')?.value.trim();
+  const scope = document.getElementById('taskNewType')?.value || 'group';
+  const team = document.getElementById('taskNewGroup')?.value;
+
+  if (!title || (scope !== 'global' && !team)) {
+    toast('warn', 'Thiếu thông tin', scope === 'global' ? 'Nhập tiêu đề nhiệm vụ.' : 'Nhập tiêu đề và chọn nhóm.');
+    return;
+  }
+
+  const { data, error } = await supabase.rpc('create_team_task', {
+    p_title: title,
+    p_description: document.getElementById('taskNewDesc')?.value || '',
+    p_scope: scope,
+    p_team_id: scope === 'global' ? null : team,
+    p_assignee_mssv: scope === 'personal' ? (document.getElementById('taskNewAssignee')?.value || null) : null,
+    p_priority: document.getElementById('taskNewPriority')?.value || 'med',
+    p_due_date: document.getElementById('taskNewDueDate')?.value || null
+  });
+
+  if (error || !data?.ok) {
+    toast('error', 'Chưa giao được', error?.message || data?.message || 'Lỗi không xác định');
+    return;
+  }
+
+  closeTaskCreateModal();
+  document.getElementById('taskNewTitle').value = '';
+  document.getElementById('taskNewDesc').value = '';
+  document.getElementById('taskNewType').value = 'group';
+  toggleTaskAssigneeSelect('group');
+
+  await loadAdminTasks();
+  if (window.isTaskDrawerOpen) await loadTaskActivityLogs(true);
+  if (currentView === 'overview') await loadOverviewGroupTasks();
+
+  toast('ok', 'Đã giao nhiệm vụ', 'Nhiệm vụ đã được lưu và gửi tới người nhận.');
 }
-function showTaskDetailById(id){const t=(window.adminTaskRows||[]).find(x=>x.id===id);if(!t)return; const status=(t.scope==='group'||t.scope==='global')&&t.completed_at?`${t.completed_by_name?`Hoàn thành bởi ${t.completed_by_name}`:'Đã hoàn thành'} · ${new Date(t.completed_at).toLocaleString('vi-VN')}`:t.scope==='global'&&t.claimed_by_mssv?`Đang nhận làm bởi ${t.claimed_by_name||t.claimed_by_mssv}${t.claimed_at?` · ${new Date(t.claimed_at).toLocaleString('vi-VN')}`:''}`:(t.assignees||[]).map(a=>`${a.name||a.mssv}: ${a.status}`).join(' · ')||'Chưa có người nhận';showTaskDetail(t.title,t.description,t.scope==='global'?'Toàn xưởng':t.team_name,(t.assignees||[]).map(a=>a.name||a.mssv).join(', '),t.priority,t.due_date||'—',status);}
-function showTaskDetail(title,desc,group,assignee,pri,due,status){[['taskDetailTitle',title],['taskDetailDesc',desc],['taskDetailGroup',group],['taskDetailAssignee',assignee],['taskDetailDue',due],['taskDetailStatus',status]].forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v||'—'});document.getElementById('taskDetailModal')?.classList.add('show');}
-function closeTaskDetailModal(){document.getElementById('taskDetailModal')?.classList.remove('show');}
+
+/* XÓA NHIỆM VỤ AN TOÀN VỚI MODAL XÁC NHẬN */
+function deleteAdminTask(id) {
+  const task = (window.adminTaskRows || []).find(t => t.id === id);
+  if (!task) return;
+  window.taskToDeleteId = id;
+  const titleEl = document.getElementById('taskDeleteConfirmTitle');
+  if (titleEl) titleEl.textContent = `“${task.title}”`;
+  document.getElementById('taskDeleteConfirmModal')?.classList.add('show');
+}
+
+function closeTaskDeleteModal() {
+  window.taskToDeleteId = null;
+  document.getElementById('taskDeleteConfirmModal')?.classList.remove('show');
+}
+
+async function confirmExecuteDeleteTask() {
+  const id = window.taskToDeleteId;
+  if (!id) return;
+  const btn = document.getElementById('btnConfirmDeleteTask');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang xóa...'; }
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_team_task', { p_task_id: id });
+    if (error || !data?.ok) {
+      toast('error', 'Chưa xóa được nhiệm vụ', error?.message || data?.message || 'Lỗi không xác định.');
+      return;
+    }
+    closeTaskDeleteModal();
+    toast('ok', 'Đã xóa nhiệm vụ', `Nhiệm vụ “${data?.deleted_title || ''}” đã được xóa khỏi danh sách.`);
+    await loadAdminTasks();
+    if (window.isTaskDrawerOpen) await loadTaskActivityLogs(true);
+    if (currentView === 'overview') await loadOverviewGroupTasks();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✕ Xác nhận xóa'; }
+  }
+}
+
+/* SLIDE-OUT DRAWER LỊCH SỬ HOẠT ĐỘNG */
+function openTaskActivityDrawer() {
+  window.isTaskDrawerOpen = true;
+  document.getElementById('taskActivityDrawer')?.classList.add('show');
+  document.getElementById('taskDrawerBackdrop')?.classList.add('show');
+  loadTaskActivityLogs();
+}
+
+function closeTaskActivityDrawer() {
+  window.isTaskDrawerOpen = false;
+  document.getElementById('taskActivityDrawer')?.classList.remove('show');
+  document.getElementById('taskDrawerBackdrop')?.classList.remove('show');
+}
+
+// Lắng nghe phím ESC đóng Drawer và Delete Modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (window.isTaskDrawerOpen) closeTaskActivityDrawer();
+    if (window.taskToDeleteId) closeTaskDeleteModal();
+  }
+});
+
+async function loadTaskActivityLogs(forceRefresh = false) {
+  const box = document.getElementById('taskActivityDrawerList');
+  if (!box) return;
+  if (!forceRefresh && window.taskActivityLogsCache?.length) {
+    renderDrawerLogs();
+  } else {
+    box.innerHTML = '<div class="schedule-loading">Đang tải lịch sử hoạt động...</div>';
+  }
+
+  const { data, error } = await supabase.rpc('admin_get_task_activity_logs', { p_limit: 100 });
+  if (error || !data?.ok) {
+    box.innerHTML = '<div class="empty-state" style="color:var(--err)">' + escapeHtml(error?.message || data?.message || 'Không tải được lịch sử.') + '</div>';
+    return;
+  }
+
+  window.taskActivityLogsCache = data.logs || [];
+  const badgeTotal = document.getElementById('taskActivityTotalBadge');
+  if (badgeTotal) badgeTotal.textContent = window.taskActivityLogsCache.length;
+  renderDrawerLogs();
+}
+
+function filterDrawerLogs(actionType) {
+  window.currentDrawerFilterAction = actionType;
+  document.querySelectorAll('.drawer-filter-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.action === actionType);
+  });
+  renderDrawerLogs();
+}
+
+function renderDrawerLogs() {
+  const box = document.getElementById('taskActivityDrawerList');
+  if (!box) return;
+  const all = window.taskActivityLogsCache || [];
+  const filter = window.currentDrawerFilterAction || 'all';
+  const filtered = filter === 'all' ? all : all.filter(l => l.action_type === filter);
+
+  if (!filtered.length) {
+    box.innerHTML = '<div class="empty-state" style="padding:40px 10px;text-align:center">Chưa có hoạt động nào được ghi nhận.</div>';
+    return;
+  }
+
+  const actionMeta = {
+    created: { label: 'Đã tạo nhiệm vụ', icon: '➕', css: 'activity-icon-created' },
+    status_changed: { label: 'Cập nhật trạng thái', icon: '🔄', css: 'activity-icon-status_changed' },
+    completed: { label: 'Đã hoàn thành', icon: '✓', css: 'activity-icon-completed' },
+    deleted: { label: 'Đã xóa nhiệm vụ', icon: '🗑️', css: 'activity-icon-deleted' },
+    updated: { label: 'Đã cập nhật nhiệm vụ', icon: '✏️', css: 'activity-icon-updated' },
+    reassigned: { label: 'Đã giao lại nhiệm vụ', icon: '👤', css: 'activity-icon-reassigned' },
+    claimed: { label: 'Đã nhận nhiệm vụ', icon: '✋', css: 'activity-icon-claimed' },
+    released: { label: 'Đã hủy nhận nhiệm vụ', icon: '↩️', css: 'activity-icon-released' }
+  };
+
+  const statusNameMap = {
+    todo: 'Chưa bắt đầu',
+    doing: 'Đang làm',
+    done: 'Hoàn thành'
+  };
+
+  box.innerHTML = filtered.map(log => {
+    const meta = actionMeta[log.action_type] || { label: 'Thao tác', icon: '📌', css: 'activity-icon-created' };
+    const timeStr = formatActivityDate(log.created_at);
+    const actorDisplay = log.actor_mssv ? `${escapeHtml(log.actor_name)} (${escapeHtml(log.actor_mssv)})` : escapeHtml(log.actor_name);
+
+    let diffHtml = '';
+    if (log.action_type === 'status_changed') {
+      const fromSt = statusNameMap[log.old_value] || log.old_value || 'Chưa rõ';
+      const toSt = statusNameMap[log.new_value] || log.new_value || 'Chưa rõ';
+      diffHtml = `<div class="activity-diff-chip"><span class="activity-diff-from">${escapeHtml(fromSt)}</span> → <span class="activity-diff-to">${escapeHtml(toSt)}</span></div>`;
+    } else if (log.action_type === 'reassigned') {
+      diffHtml = `<div class="activity-diff-chip"><span class="activity-diff-from">${escapeHtml(log.old_value || '—')}</span> → <span class="activity-diff-to">${escapeHtml(log.new_value || '—')}</span></div>`;
+    }
+
+    let assigneeHtml = '';
+    if (log.assignee_name) {
+      assigneeHtml = `<span class="activity-tag">👤 Giao cho: ${escapeHtml(log.assignee_name)}</span>`;
+    } else if (log.team_name) {
+      assigneeHtml = `<span class="activity-tag">👥 ${escapeHtml(log.team_name)}</span>`;
+    }
+
+    return `
+      <div class="activity-card">
+        <div class="activity-icon-wrap ${meta.css}">${meta.icon}</div>
+        <div class="activity-main">
+          <div class="activity-actor-row">
+            <span class="activity-actor-name">${actorDisplay}</span>
+            <span class="activity-time-stamp">${timeStr}</span>
+          </div>
+          <div class="activity-action-desc">
+            ${meta.label} “<span class="activity-target-task">${escapeHtml(log.task_title)}</span>”
+          </div>
+          ${diffHtml ? `<div style="margin-top:4px">${diffHtml}</div>` : ''}
+          <div class="activity-meta-tags">
+            ${log.team_name ? `<span class="activity-tag">🏷️ ${escapeHtml(log.team_name)}</span>` : ''}
+            ${assigneeHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatActivityDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  const day = pad(d.getDate()), mo = pad(d.getMonth() + 1), yr = d.getFullYear();
+  const h = pad(d.getHours()), m = pad(d.getMinutes());
+  return `${day}/${mo}/${yr} · ${h}:${m}`;
+}
+
+function showTaskDetailById(id) {
+  const t = (window.adminTaskRows || []).find(x => x.id === id);
+  if (!t) return;
+  const status = (t.scope === 'group' || t.scope === 'global') && t.completed_at
+    ? `${t.completed_by_name ? `Hoàn thành bởi ${t.completed_by_name}` : 'Đã hoàn thành'} · ${new Date(t.completed_at).toLocaleString('vi-VN')}`
+    : t.scope === 'global' && t.claimed_by_mssv
+      ? `Đang nhận làm bởi ${t.claimed_by_name || t.claimed_by_mssv}${t.claimed_at ? ` · ${new Date(t.claimed_at).toLocaleString('vi-VN')}` : ''}`
+      : (t.assignees || []).map(a => `${a.name || a.mssv}: ${a.status}`).join(' · ') || 'Chưa có người nhận';
+  showTaskDetail(t.title, t.description, t.scope === 'global' ? 'Toàn xưởng' : t.team_name, (t.assignees || []).map(a => a.name || a.mssv).join(', '), t.priority, t.due_date || '—', status);
+}
+
+function showTaskDetail(title, desc, group, assignee, pri, due, status) {
+  [['taskDetailTitle', title], ['taskDetailDesc', desc], ['taskDetailGroup', group], ['taskDetailAssignee', assignee], ['taskDetailDue', due], ['taskDetailStatus', status]].forEach(([id, v]) => {
+    const e = document.getElementById(id);
+    if (e) e.textContent = v || '—';
+  });
+  document.getElementById('taskDetailModal')?.classList.add('show');
+}
+function closeTaskDetailModal() {
+  document.getElementById('taskDetailModal')?.classList.remove('show');
+}
 
 function openStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.add('show');}
 function closeStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.remove('show');}
