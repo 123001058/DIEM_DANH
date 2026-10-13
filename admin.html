@@ -595,10 +595,10 @@ body {
   padding: 16px 18px;
 }
 .th-actions {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
 }
 
 /* ATTENDANCE VIEW STYLES */
@@ -1584,28 +1584,34 @@ tbody tr:last-child td { border-bottom: none; }
             <span class="acc-chev" aria-hidden="true">▾</span>
           </button>
           <div class="acc-body"><div class="acc-inner">
-            <!-- Khối 1: Báo cáo chuyên cần theo khoảng ngày -->
-            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
-              <div style="font-size:13px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-                <span>📊 Báo cáo chuyên cần theo khoảng ngày</span>
+            <!-- Thanh công cụ: Lọc khoảng ngày & Tác vụ -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <label style="font-size:11.5px;font-weight:700">Từ ngày
+                  <input id="reportFromDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
+                </label>
+                <label style="font-size:11.5px;font-weight:700">Đến ngày
+                  <input id="reportToDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
+                </label>
+                <button class="btn btn-primary btn-sm" onclick="loadAttendanceReport()" style="padding:8px 14px;font-size:12.5px">🔍 Lọc báo cáo</button>
+                <button class="btn btn-secondary btn-sm" onclick="exportAttendanceReportExcel()" style="padding:8px 14px;font-size:12.5px" title="Xuất dữ liệu theo khoảng ngày ra file Excel">📥 Xuất Excel</button>
               </div>
-              <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-                <label style="font-size:11px">Từ ngày<input id="reportFromDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
-                <label style="font-size:11px">Đến ngày<input id="reportToDate" type="date" style="display:block;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
-                <button class="btn btn-primary" onclick="loadAttendanceReport()">Xem báo cáo</button>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-icon" onclick="loadAttendanceReport()" title="Làm mới">↻</button>
+                <button class="btn btn-secondary btn-sm" style="color:var(--err);border-color:rgba(239,68,68,0.3)" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
               </div>
-              <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px"></div>
-              <div id="attendanceReportSessions" style="margin-top:10px"></div>
             </div>
 
-            <!-- Khối 2: Danh sách lịch sử các phiên -->
+            <!-- Dải thẻ KPI tổng quan theo khoảng ngày -->
+            <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px"></div>
+
+            <!-- Tiêu đề danh sách phiên & số lượng -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-              <div style="font-size:13px;font-weight:700">🕒 Danh sách các phiên gần đây</div>
-              <div class="widget-actions" style="margin:0">
-                <button class="btn btn-danger" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
-                <button class="btn btn-icon" onclick="loadTodayHistory()">↻</button>
-              </div>
+              <div style="font-size:13px;font-weight:700">📋 Danh sách các phiên điểm danh</div>
+              <span id="attendanceReportCount" style="font-size:12px;color:var(--muted)"></span>
             </div>
+
+            <!-- Danh sách phiên điểm danh duy nhất -->
             <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
           </div></div>
         </div>
@@ -2544,7 +2550,7 @@ function toggleAcc(head, onOpen) {
   if (open && typeof onOpen === 'function') onOpen();
 }
 function openAttendanceReportPanel() { initializeAttendanceReportDates(); loadAttendanceReport(); }
-function openHistoryAndReport() { loadTodayHistory(); openAttendanceReportPanel(); }
+function openHistoryAndReport() { initializeAttendanceReportDates(); loadAttendanceReport(); }
 /* Khung TKB ME: chỉ nạp lichhoc.html lần đầu vào màn hình này (?embed=1 ẩn header của trang đó) */
 function initMeTimetableFrame() {
   const f = document.getElementById('meTimetableFrame');
@@ -2841,24 +2847,241 @@ async function loadAdminLeaveNotifications(){
   const notifications=data||[];box.innerHTML=notifications.length?notifications.map(n=>`<div style="padding:8px;border-top:1px solid var(--border);font-size:12px;opacity:${n.is_read?'.65':'1'}"><b>${escapeHtml(n.title)}</b> · ${escapeHtml(n.message)} <small style="color:var(--muted)">${new Date(n.created_at).toLocaleString('vi-VN')}</small>${n.is_read?'':` <button onclick="markAdminLeaveNotificationRead('${n.id}')">Đã đọc</button>`}</div>`).join(''):'<div style="font-size:12px;color:var(--muted)">Chưa có thông báo.</div>';
 }
 async function markAdminLeaveNotificationRead(id){await supabase.from('in_app_notifications').update({is_read:true}).eq('id',id);await loadAdminLeaveNotifications();}
-async function loadAttendanceReport(){
-  const summary=document.getElementById('attendanceReportSummary'),details=document.getElementById('attendanceReportSessions');if(!summary||!details)return;
-  const from=document.getElementById('reportFromDate').value,to=document.getElementById('reportToDate').value;
-  if(!from||!to||to<from){toast('warn','Chọn khoảng ngày','Chọn ngày bắt đầu và ngày kết thúc hợp lệ.');return;}
-  details.innerHTML='<div class="schedule-loading">Đang tổng hợp...</div>';
-  const start=new Date(`${from}T00:00:00+07:00`).toISOString(),end=new Date(new Date(`${to}T00:00:00+07:00`).getTime()+86400000).toISOString();
-  const {data:sessions,error}=await supabase.from('sessions').select('id,session_name,started_at').gte('started_at',start).lt('started_at',end).order('started_at',{ascending:false});
-  if(error){details.innerHTML='<div class="empty-state">Không tải được phiên điểm danh.</div>';return;}
-  if(!sessions?.length){summary.innerHTML='';details.innerHTML='<div class="empty-state">Không có phiên trong khoảng ngày đã chọn.</div>';return;}
-  const {data:attendance,error:attendanceError}=await supabase.from('attendance').select('session_id,status').in('session_id',sessions.map(s=>s.id));
-  if(attendanceError){details.innerHTML='<div class="empty-state">Không tải được dữ liệu điểm danh.</div>';return;}
-  const bySession=new Map(sessions.map(s=>[s.id,[]]));(attendance||[]).forEach(a=>bySession.get(a.session_id)?.push(a));
-  const countStatus=status=>(attendance||[]).filter(a=>a.status===status).length;
-  const excused=countStatus('vắng có phép'),unexcused=countStatus('vắng không phép'),late=countStatus('đi muộn'),present=countStatus('có mặt'),expected=sessions.length*(students?.length||0),rate=expected?Math.round((present+late)*100/expected):0;
-  const tile=(label,value,color)=>`<div style="padding:10px;background:#fff;border:1px solid var(--border);border-radius:8px"><small style="color:var(--muted)">${label}</small><div style="font-size:20px;font-weight:800;color:${color}">${value}</div></div>`;
-  summary.innerHTML=tile('Có phép',excused,'#7c3aed')+tile('Không phép',unexcused,'#dc2626')+tile('Đi muộn',late,'#b45309')+tile('Tỉ lệ có mặt',rate+'%','#15803d');
-  details.innerHTML=sessions.map(s=>{const rows=bySession.get(s.id)||[],p=rows.filter(a=>['có mặt','đi muộn'].includes(a.status)).length;return `<div style="display:flex;justify-content:space-between;gap:8px;padding:9px;border-top:1px solid var(--border);font-size:12px"><span><b>${escapeHtml(s.session_name)}</b> · ${new Date(s.started_at).toLocaleString('vi-VN')}</span><span>${p}/${students.length} có mặt · ${students.length?Math.round(p*100/students.length):0}%</span></div>`;}).join('');
+function renderSessionHistoryCard(s) {
+  const tStart = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+  const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const badge = s.is_open
+    ? '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#15803d">🟢 Đang mở</span>'
+    : '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#f1f5f9;color:#64748b">🔴 Đã đóng</span>';
+  const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
+  const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
+  const totalSv = s.total || students?.length || 0;
+  const attended = (s.present || 0) + (s.late || 0);
+  const pRate = totalSv ? Math.round(attended * 100 / totalSv) : 0;
+
+  return '<div class="today-history-item" style="cursor:pointer;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface);transition:all .15s" onclick="viewPastSession(\'' + s.id + '\')">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<div style="display:flex;align-items:center;gap:8px;min-width:0">' +
+        '<strong style="font-size:13.5px;color:var(--text)">' + escapeHtml(s.session_name) + '</strong>' +
+        badge +
+      '</div>' +
+      '<div class="th-actions" style="margin:0;display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">' +
+        '<button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
+        (s.is_open
+          ? '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#dc2626;color:#fff;border:none" onclick="quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
+          : '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#334155;color:#fff;border:none" onclick="quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
+        '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
+      '<span>🕒 ' + d + ' ' + tStart + '</span> · ' +
+      '<span>' + totalSv + ' SV</span> · ' +
+      '<span style="color:var(--ok);font-weight:700">' + (s.present || 0) + ' có mặt</span>' +
+      lateText +
+      ' · <span style="color:var(--err);font-weight:700">' + (s.absent || 0) + ' vắng</span>' +
+      excusedText +
+      ' · <span style="color:#2563eb;font-weight:700">' + pRate + '%</span>' +
+    '</div>' +
+    '<div class="past-session-detail" data-session-detail="' + escapeHtml(String(s.id)) + '" onclick="event.stopPropagation()"></div>' +
+  '</div>';
 }
+
+async function loadAttendanceReport(){
+  const summary = document.getElementById('attendanceReportSummary');
+  const listEl = document.getElementById('historyFullList');
+  const countEl = document.getElementById('attendanceReportCount');
+  if (!summary || !listEl) return;
+
+  const from = document.getElementById('reportFromDate')?.value;
+  const to = document.getElementById('reportToDate')?.value;
+  if (!from || !to || to < from) {
+    toast('warn', 'Chọn khoảng ngày', 'Chọn ngày bắt đầu và kết thúc hợp lệ.');
+    return;
+  }
+
+  listEl.innerHTML = '<div class="schedule-loading">Đang tải báo cáo và các phiên...</div>';
+  if (countEl) countEl.textContent = '';
+
+  const start = new Date(`${from}T00:00:00+07:00`).toISOString();
+  const end = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + 86400000).toISOString();
+
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select('id, session_name, started_at, is_open')
+    .gte('started_at', start)
+    .lt('started_at', end)
+    .order('started_at', { ascending: false });
+
+  if (error) {
+    listEl.innerHTML = '<div class="empty-state">Không tải được phiên điểm danh: ' + escapeHtml(error.message) + '</div>';
+    return;
+  }
+
+  if (!sessions?.length) {
+    summary.innerHTML = '';
+    listEl.innerHTML = '<div class="empty-state">Không có phiên điểm danh nào từ ngày ' + from + ' đến ' + to + '.</div>';
+    if (countEl) countEl.textContent = '0 phiên';
+    window._currentReportData = null;
+    return;
+  }
+
+  const { data: attendance, error: attError } = await supabase
+    .from('attendance')
+    .select('session_id, mssv, status')
+    .in('session_id', sessions.map(s => s.id));
+
+  if (attError) {
+    listEl.innerHTML = '<div class="empty-state">Không tải được dữ liệu điểm danh.</div>';
+    return;
+  }
+
+  // Gom nhóm theo từng session
+  const bySession = new Map(sessions.map(s => [s.id, []]));
+  (attendance || []).forEach(a => bySession.get(a.session_id)?.push(a));
+
+  const totalStudentsCount = students?.length || 0;
+  window._todaySessionsMap = {};
+
+  const decoratedSessions = sessions.map(s => {
+    const list = bySession.get(s.id) || [];
+    const p = list.filter(a => a.status === 'có mặt').length;
+    const l = list.filter(a => a.status === 'đi muộn').length;
+    const ex = list.filter(a => a.status === 'vắng có phép').length;
+    const un = list.filter(a => a.status === 'vắng không phép').length;
+    const totalSv = totalStudentsCount || (p + l + ex + un);
+    const absent = un + ex;
+    const sessionObj = {
+      ...s,
+      present: p,
+      late: l,
+      excused: ex,
+      unexcused: un,
+      absent: absent,
+      total: totalSv
+    };
+    window._todaySessionsMap[s.id] = sessionObj;
+    return sessionObj;
+  });
+
+  window._currentReportData = { from, to, sessions: decoratedSessions, attendance: attendance || [], bySession };
+
+  // Tính KPI tổng
+  const totalSessions = decoratedSessions.length;
+  const countStatus = st => (attendance || []).filter(a => a.status === st).length;
+  const totalPresent = countStatus('có mặt');
+  const totalLate = countStatus('đi muộn');
+  const totalExcused = countStatus('vắng có phép');
+  const totalUnexcused = countStatus('vắng không phép');
+  const totalExpected = totalSessions * (totalStudentsCount || 30);
+  const totalRate = totalExpected ? Math.round((totalPresent + totalLate) * 100 / totalExpected) : 0;
+
+  const tile = (label, value, color) => `
+    <div style="padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+      <small style="color:var(--muted);font-size:11px">${label}</small>
+      <div style="font-size:18px;font-weight:800;color:${color};margin-top:2px">${value}</div>
+    </div>`;
+
+  summary.innerHTML =
+    tile('Tổng phiên', totalSessions, 'var(--text)') +
+    tile('Có mặt', totalPresent, '#15803d') +
+    tile('Đi muộn', totalLate, '#b45309') +
+    tile('Có phép', totalExcused, '#7c3aed') +
+    tile('Không phép', totalUnexcused, '#dc2626') +
+    tile('Tỉ lệ', totalRate + '%', '#2563eb');
+
+  if (countEl) countEl.textContent = `Tổng cộng: ${totalSessions} phiên`;
+
+  listEl.innerHTML = decoratedSessions.map(renderSessionHistoryCard).join('');
+}
+
+async function exportAttendanceReportExcel() {
+  const rep = window._currentReportData;
+  if (!rep || !rep.sessions?.length) {
+    toast('warn', 'Chưa có dữ liệu', 'Vui lòng lọc khoảng ngày có phiên điểm danh trước khi xuất Excel.');
+    return;
+  }
+  await loadSheetJS();
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Danh sách phiên
+    const rowsSummary = [
+      ['BÁO CÁO ĐIỂM DANH ROBOCON THEO KHOẢNG NGÀY'],
+      ['Từ ngày: ' + rep.from + '  Đến ngày: ' + rep.to],
+      ['Thời gian xuất: ' + new Date().toLocaleString('vi-VN')],
+      [''],
+      ['STT', 'Tên phiên', 'Thời gian bắt đầu', 'Trạng thái', 'Tổng SV', 'Có mặt', 'Đi muộn', 'Vắng có phép', 'Vắng K.phép', 'Tỉ lệ']
+    ];
+    rep.sessions.forEach((s, idx) => {
+      const attended = (s.present || 0) + (s.late || 0);
+      const r = s.total ? Math.round(attended * 100 / s.total) + '%' : '0%';
+      rowsSummary.push([
+        idx + 1,
+        s.session_name,
+        new Date(s.started_at).toLocaleString('vi-VN'),
+        s.is_open ? 'Đang mở' : 'Đã đóng',
+        s.total,
+        s.present || 0,
+        s.late || 0,
+        s.excused || 0,
+        s.unexcused || 0,
+        r
+      ]);
+    });
+    const wsSummary = XLSX.utils.aoa_to_sheet(rowsSummary);
+    wsSummary['!cols'] = [{wch:6}, {wch:25}, {wch:22}, {wch:12}, {wch:10}, {wch:10}, {wch:10}, {wch:12}, {wch:12}, {wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Danh sách phiên');
+
+    // Sheet 2: Bảng chuyên cần từng sinh viên
+    const stuMap = new Map();
+    (students || []).forEach(s => {
+      stuMap.set(s.mssv, { mssv: s.mssv, name: s.name, present: 0, late: 0, excused: 0, unexcused: 0 });
+    });
+    (rep.attendance || []).forEach(a => {
+      const rec = stuMap.get(a.mssv);
+      if (rec) {
+        if (a.status === 'có mặt') rec.present++;
+        else if (a.status === 'đi muộn') rec.late++;
+        else if (a.status === 'vắng có phép') rec.excused++;
+        else if (a.status === 'vắng không phép') rec.unexcused++;
+      }
+    });
+
+    const rowsStudents = [
+      ['BẢNG TỔNG KẾT CHUYÊN CẦN TỪNG SINH VIÊN'],
+      ['Từ ngày: ' + rep.from + '  Đến ngày: ' + rep.to],
+      [''],
+      ['STT', 'MSSV', 'Họ và tên', 'Có mặt', 'Đi muộn', 'Vắng có phép', 'Vắng K.phép', 'Tổng vắng', 'Tỉ lệ chuyên cần']
+    ];
+    let sIdx = 1;
+    stuMap.forEach(rec => {
+      const totalSessions = rep.sessions.length;
+      const attended = rec.present + rec.late;
+      const rate = totalSessions ? Math.round(attended * 100 / totalSessions) + '%' : '0%';
+      rowsStudents.push([
+        sIdx++,
+        rec.mssv,
+        rec.name,
+        rec.present,
+        rec.late,
+        rec.excused,
+        rec.unexcused,
+        rec.excused + rec.unexcused,
+        rate
+      ]);
+    });
+    const wsStudents = XLSX.utils.aoa_to_sheet(rowsStudents);
+    wsStudents['!cols'] = [{wch:6}, {wch:14}, {wch:25}, {wch:10}, {wch:10}, {wch:12}, {wch:12}, {wch:12}, {wch:15}];
+    XLSX.utils.book_append_sheet(wb, wsStudents, 'Chuyên cần sinh viên');
+
+    XLSX.writeFile(wb, `BaoCao_DiemDanh_${rep.from}_${rep.to}.xlsx`);
+    toast('ok', 'Đã xuất Excel', 'File gồm 2 sheet: Danh sách phiên và Chuyên cần từng sinh viên.');
+  } catch (err) {
+    console.error('Lỗi xuất Excel:', err);
+    toast('err', 'Lỗi xuất Excel', err.message);
+  }
+}
+
 function initializeAttendanceReportDates(){
   const from=document.getElementById('reportFromDate'),to=document.getElementById('reportToDate');if(!from||!to||from.value)return;
   const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1),toLocal=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -4900,36 +5123,7 @@ async function loadTodayHistory(){
     if (kpiAbsentRateEl) kpiAbsentRateEl.textContent = '0%';
   }
 
-  const itemsHtml = data.sessions.map(s => {
-    const tStart = new Date(s.started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
-    const d = new Date(s.started_at).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit' });
-    const badge = s.is_open ? '<span class="rk-badge doing">🟢 Đang mở</span>' : '<span class="rk-badge todo">🔴 Đã đóng</span>';
-    const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
-    const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
-    return '<div class="today-history-item" style="cursor:pointer; transition:transform 0.1s" onmouseover="this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.transform=\'none\'" onclick="viewPastSession(\'' + s.id + '\')">' +
-      '<div style="flex:1;min-width:0">' +
-        '<div class="today-history-name" style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-          '<span>' + escapeHtml(s.session_name) + '</span>' +
-          badge +
-        '</div>' +
-        '<div class="today-history-meta" style="margin-top:4px">' +
-          d + ' ' + tStart + ' · ' + s.total + ' SV · ' +
-          '<span style="color:var(--ok);font-weight:700">' + s.present + ' có mặt</span>' +
-          lateText +
-          ' · <span style="color:var(--err);font-weight:700">' + s.absent + ' vắng</span>' +
-          excusedText +
-        '</div>' +
-      '</div>' +
-      '<div class="th-actions">' +
-        '<button class="btn btn-secondary" style="padding:8px;font-size:12px;border-radius:6px;width:100%" onclick="event.stopPropagation();viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
-        (s.is_open
-          ? '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#dc2626;color:#fff;border:none" onclick="event.stopPropagation();quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
-          : '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#111;color:#fff;border:none" onclick="event.stopPropagation();quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
-        '<button class="btn" style="padding:8px;font-size:12px;border-radius:6px;width:100%;background:#fee2e2;color:#dc2626;border:1px solid #fecaca" onclick="event.stopPropagation();deleteSpecificSession(\'' + s.id + '\')">🗑 Xóa</button>' +
-      '</div>' +
-      '<div class="past-session-detail" data-session-detail="' + escapeHtml(String(s.id)) + '" onclick="event.stopPropagation()"></div>' +
-    '</div>';
-  }).join('');
+  const itemsHtml = data.sessions.map(renderSessionHistoryCard).join('');
 
   if (wrap && list) { wrap.style.display = 'block'; list.innerHTML = itemsHtml; }
   if (emptyList) { emptyList.innerHTML = itemsHtml; }
