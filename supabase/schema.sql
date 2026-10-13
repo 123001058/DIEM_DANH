@@ -10,7 +10,7 @@ create extension if not exists pgcrypto with schema extensions;
 create extension if not exists "uuid-ossp" with schema extensions;
 
 -- =====================================================================
--- 1. TABLES & COLUMNS (23 verified tables)
+-- 1. TABLES & COLUMNS (24 verified tables)
 -- =====================================================================
 
 create table if not exists public.admin_mssv (
@@ -1115,7 +1115,7 @@ begin
  if not public.is_admin() then return jsonb_build_object('ok',false,'message','Không có quyền.'); end if;
  v_token:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-','');
  update public.sessions set qr_token=v_token,qr_born_at=now() where is_open returning id into v_sid;
- if v_sid is null then return jsonb_build_object('ok',false,'message','Không có phiên nào đang m��.'); end if;
+ if v_sid is null then return jsonb_build_object('ok',false,'message','Không có phiên nào đang mở.'); end if;
  return jsonb_build_object('ok',true,'qr_token',v_token,'qr_born_at',now());
 end $function$;
 
@@ -2394,7 +2394,7 @@ END;
 $function$;
 
 -- =====================================================================
--- 7. TRIGGERS (Total: 10 verified triggers)
+-- 7. TRIGGERS (Total: 10 verified triggers across 5 tables)
 -- =====================================================================
 
 -- Trigger: attendance_record_history_after_update on attendance
@@ -2409,14 +2409,6 @@ CREATE TRIGGER apply_approved_leave_attendance AFTER UPDATE OF status, leave_dat
 drop trigger if exists leave_request_changes on public.leave_requests;
 CREATE TRIGGER leave_request_changes BEFORE INSERT OR UPDATE ON public.leave_requests FOR EACH ROW EXECUTE FUNCTION capture_leave_request_changes();
 
--- Trigger: leave_request_changes on leave_requests
-drop trigger if exists leave_request_changes on public.leave_requests;
-CREATE TRIGGER leave_request_changes BEFORE INSERT OR UPDATE ON public.leave_requests FOR EACH ROW EXECUTE FUNCTION capture_leave_request_changes();
-
--- Trigger: record_leave_request_event on leave_requests
-drop trigger if exists record_leave_request_event on public.leave_requests;
-CREATE TRIGGER record_leave_request_event AFTER INSERT OR UPDATE ON public.leave_requests FOR EACH ROW EXECUTE FUNCTION record_leave_request_event();
-
 -- Trigger: record_leave_request_event on leave_requests
 drop trigger if exists record_leave_request_event on public.leave_requests;
 CREATE TRIGGER record_leave_request_event AFTER INSERT OR UPDATE ON public.leave_requests FOR EACH ROW EXECUTE FUNCTION record_leave_request_event();
@@ -2428,10 +2420,6 @@ CREATE TRIGGER assign_existing_global_tasks_after_student_insert AFTER INSERT ON
 -- Trigger: assign_existing_group_tasks_after_member_insert on team_group_members
 drop trigger if exists assign_existing_group_tasks_after_member_insert on public.team_group_members;
 CREATE TRIGGER assign_existing_group_tasks_after_member_insert AFTER INSERT ON public.team_group_members FOR EACH ROW EXECUTE FUNCTION assign_existing_group_tasks_to_member();
-
--- Trigger: team_group_leader_is_member on team_groups
-drop trigger if exists team_group_leader_is_member on public.team_groups;
-CREATE TRIGGER team_group_leader_is_member AFTER INSERT OR UPDATE OF leader_mssv ON public.team_groups FOR EACH ROW EXECUTE FUNCTION add_team_leader_as_member();
 
 -- Trigger: team_group_leader_is_member on team_groups
 drop trigger if exists team_group_leader_is_member on public.team_groups;

@@ -717,8 +717,49 @@ tbody tr:last-child td { border-bottom: none; }
 .switch-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
 .switch-control input:checked + .switch-slider { background-color: var(--ok); }
 .switch-control input:checked + .switch-slider:before { transform: translateX(22px); }
-.zalo-bubble { background: #e8f3ff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 16px 18px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; line-height: 1.6; color: #0f172a; box-shadow: 0 4px 14px -4px rgba(37,99,235,0.15); white-space: pre-wrap; }
+.zalo-bubble { background: #e8f3ff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 14px 18px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; line-height: 1.6; color: #0f172a; box-shadow: 0 4px 14px -4px rgba(37,99,235,0.15); white-space: pre-wrap; }
 .zalo-bubble-badge { display: inline-flex; align-items: center; gap: 6px; background: #0068ff; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; margin-bottom: 8px; }
+
+/* Zalo Matrix & Controls Styles */
+.zalo-controls-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+.zalo-controls-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.zalo-date-picker-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.zalo-date-input { padding: 7px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-family: inherit; font-size: 13.5px; font-weight: 700; outline: none; cursor: pointer; }
+.zalo-date-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+.zalo-quick-btns { display: flex; gap: 6px; }
+.zalo-quick-btn { padding: 6px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.18s ease; }
+.zalo-quick-btn:hover { background: var(--surface-hover); color: var(--text); }
+.zalo-quick-btn.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary-border); }
+.zalo-action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.zalo-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.zalo-kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; }
+.zalo-kpi-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--card-accent, var(--primary)); }
+.zalo-kpi-head { display: flex; justify-content: space-between; align-items: center; }
+.zalo-kpi-title { font-size: 13.5px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.zalo-kpi-time { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.zalo-kpi-counts { display: flex; gap: 8px; }
+.kpi-pill { flex: 1; padding: 6px 10px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; }
+.kpi-pill.free { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+.kpi-pill.busy { background: var(--err-bg); color: var(--err); border: 1px solid var(--err-border); }
+.kpi-bar { height: 6px; background: var(--err-border); border-radius: 99px; overflow: hidden; display: flex; }
+.kpi-bar-fill { height: 100%; background: var(--ok); transition: width 0.3s ease; }
+.zalo-matrix-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow-sm); }
+.zalo-matrix-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.zalo-matrix-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.matrix-filter-btn { padding: 5px 11px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.15s ease; }
+.matrix-filter-btn:hover { background: var(--surface-hover); color: var(--text); }
+.matrix-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.zalo-search-box { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); min-width: 220px; }
+.zalo-search-box input { border: none; outline: none; background: transparent; width: 100%; font-size: 12.5px; font-family: inherit; color: var(--text); }
+.zalo-matrix-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.zalo-matrix-table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; }
+.zalo-matrix-table th { background: var(--surface-2); padding: 11px 14px; font-weight: 800; color: var(--text); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.zalo-matrix-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.zalo-matrix-table tr:hover td { background: rgba(37,99,235,0.02); }
+.zalo-matrix-table tfoot td { background: var(--surface-2); font-weight: 800; border-top: 2px solid var(--border-strong); border-bottom: none; }
+.badge-cell-free { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); font-weight: 700; font-size: 11.5px; }
+.badge-cell-busy { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--err-bg); color: var(--err); border: 1px solid var(--err-border); font-weight: 700; font-size: 11.5px; }
+.cell-class-info { margin-top: 5px; font-size: 11px; color: var(--muted); line-height: 1.4; background: var(--surface-2); padding: 4px 7px; border-radius: 6px; border: 1px dashed var(--border); }
 
 /* TOAST & MODALS */
 .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; max-width: 360px; pointer-events: none; }
@@ -922,6 +963,7 @@ tbody tr:last-child td { border-bottom: none; }
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -1758,26 +1800,144 @@ tbody tr:last-child td { border-bottom: none; }
     </section>
 
     <!-- ==========================================================
-         VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION)
+         VIEW 7: LỊCH GỬI ZALO (ZALO AUTOMATION & MATRIX)
          ========================================================== -->
     <section class="app-view" id="view-zalo">
       <section class="card zalo-admin-panel" style="max-width:1380px;margin:0 auto;padding:22px">
-        <div style="margin-bottom:16px">
-          <h2 style="font-size:17px;font-weight:800">📋 Quản trị lịch gửi Zalo</h2>
-          <p class="zalo-admin-description" style="font-size:12px;margin-top:5px">Tự lấy lịch của ngày mai theo giờ Việt Nam, gồm toàn bộ sinh viên và ba ca đúng như Thời khóa biểu LH-NaviX.</p>
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+          <div>
+            <h2 style="font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px">
+              <span>📋</span> Quản lý Lịch Rảnh / Bận & Gửi Zalo
+            </h2>
+            <p class="zalo-admin-description" style="font-size:12.5px;margin-top:4px;color:var(--muted)">
+              Tra cứu ma trận lịch học của 30 thành viên theo ngày, xuất file Excel bảng biểu và sao chép nhanh tin nhắn gửi nhóm Zalo.
+            </p>
+          </div>
+          <div id="zaloTargetDateLabel" style="font-size:13px;font-weight:700;color:var(--primary);background:var(--primary-soft);border:1px solid var(--primary-border);padding:6px 14px;border-radius:var(--radius-pill)">
+            Đang xác định ngày…
+          </div>
         </div>
-        <div id="zaloTargetDateLabel" style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:12px">Đang xác định ngày mai…</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-          <a class="btn btn-primary" id="zaloImageDownload" download="lich-ngay-mai-zalo.png" style="pointer-events:none;opacity:.55">⬇ Tải ảnh Zalo</a>
-          <button class="btn btn-secondary" type="button" id="zaloCopyCaptionButton" onclick="copyZaloCaption()" disabled>▢ Sao chép lời nhắn</button>
-          <button class="btn btn-secondary" type="button" id="zaloSyncCopyButton" onclick="syncAndCreateZaloImage()">↻ Làm mới dữ liệu ME</button>
+
+        <!-- Controls Bar -->
+        <div class="zalo-controls-card">
+          <div class="zalo-controls-row">
+            <div class="zalo-date-picker-group">
+              <label for="zaloDatePicker" style="font-size:12.5px;font-weight:700;color:var(--text)">📅 Chọn ngày:</label>
+              <input type="date" id="zaloDatePicker" class="zalo-date-input" onchange="onZaloDateChanged(this.value)">
+              <div class="zalo-quick-btns">
+                <button type="button" class="zalo-quick-btn" id="btnQuickToday" onclick="setZaloQuickDate(0)">Hôm nay</button>
+                <button type="button" class="zalo-quick-btn active" id="btnQuickTomorrow" onclick="setZaloQuickDate(1)">Ngày mai</button>
+                <button type="button" class="zalo-quick-btn" id="btnQuickDayAfter" onclick="setZaloQuickDate(2)">Ngày mốt</button>
+              </div>
+            </div>
+
+            <div class="zalo-action-btns">
+              <button class="btn btn-primary" type="button" id="btnExportExcel" onclick="exportZaloScheduleExcel()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:5px;vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Xuất file Excel (.xlsx)
+              </button>
+              <button class="btn btn-secondary" type="button" id="zaloCopyCaptionButton" onclick="copyZaloCaption()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:5px;vertical-align:middle"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Sao chép lời nhắn
+              </button>
+              <button class="btn btn-secondary" type="button" id="zaloSyncCopyButton" onclick="syncAndRefreshZaloSchedule()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:5px;vertical-align:middle"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Làm mới dữ liệu ME
+              </button>
+            </div>
+          </div>
+          <div id="zaloImageStatus" style="margin-top:10px;font-size:12px;color:var(--muted)">Đang tải dữ liệu lịch học…</div>
         </div>
-        <div id="zaloImageStatus" style="margin:8px 0 12px;color:var(--muted);font-size:13px">Đang tải lịch học…</div>
-        <div id="zaloImageArea" hidden style="margin-top:16px">
-          <img id="zaloImagePreview" alt="Lịch học và danh sách rảnh/bận ngày mai theo ba ca" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:14px;background:#f3f5f8">
-          <div class="zalo-bubble" style="margin-top:12px">
-            <div class="zalo-bubble-badge">📱 Lời nhắn gửi kèm ảnh</div>
-            <div id="zaloCaptionPreview"></div>
+
+        <!-- 3 KPI Cards for Shift Statistics -->
+        <div class="zalo-kpi-grid">
+          <div class="zalo-kpi-card" style="--card-accent:#f59e0b">
+            <div class="zalo-kpi-head">
+              <span class="zalo-kpi-title">🌅 CA SÁNG</span>
+              <span class="zalo-kpi-time">07:30 – 11:25</span>
+            </div>
+            <div class="zalo-kpi-counts">
+              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiMorningFree">0</b></div>
+              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiMorningBusy">0</b></div>
+            </div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiMorningBar" style="width:50%"></div></div>
+          </div>
+
+          <div class="zalo-kpi-card" style="--card-accent:#3b82f6">
+            <div class="zalo-kpi-head">
+              <span class="zalo-kpi-title">☀️ CA CHIỀU</span>
+              <span class="zalo-kpi-time">12:50 – 16:45</span>
+            </div>
+            <div class="zalo-kpi-counts">
+              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiAfternoonFree">0</b></div>
+              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiAfternoonBusy">0</b></div>
+            </div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiAfternoonBar" style="width:50%"></div></div>
+          </div>
+
+          <div class="zalo-kpi-card" style="--card-accent:#8b5cf6">
+            <div class="zalo-kpi-head">
+              <span class="zalo-kpi-title">🌙 CA TỐI</span>
+              <span class="zalo-kpi-time">17:30 – 20:50</span>
+            </div>
+            <div class="zalo-kpi-counts">
+              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiEveningFree">0</b></div>
+              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiEveningBusy">0</b></div>
+            </div>
+            <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiEveningBar" style="width:50%"></div></div>
+          </div>
+        </div>
+
+        <!-- Zalo Message Preview Bubble -->
+        <div class="zalo-bubble" style="margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="zalo-bubble-badge">📱 Lời nhắn gửi nhóm Zalo</div>
+            <span style="font-size:11.5px;color:#0068ff;cursor:pointer;font-weight:700" onclick="copyZaloCaption()">[Sao chép nhanh]</span>
+          </div>
+          <div id="zaloCaptionPreview" style="white-space:pre-wrap;font-family:inherit"></div>
+        </div>
+
+        <!-- Matrix Table Section -->
+        <div class="zalo-matrix-card">
+          <div class="zalo-matrix-toolbar">
+            <div class="zalo-matrix-filters" id="matrixFilterButtons">
+              <button type="button" class="matrix-filter-btn active" data-filter="all" onclick="setMatrixFilter('all')">Tất cả (<span id="filterCountAll">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_morning" onclick="setMatrixFilter('free_morning')">🟢 Rảnh Sáng (<span id="filterCountMorning">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_afternoon" onclick="setMatrixFilter('free_afternoon')">🟢 Rảnh Chiều (<span id="filterCountAfternoon">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_evening" onclick="setMatrixFilter('free_evening')">🟢 Rảnh Tối (<span id="filterCountEvening">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="busy_any" onclick="setMatrixFilter('busy_any')">🔴 Có lịch học</button>
+            </div>
+            <div class="zalo-search-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" color="var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="zaloMatrixSearch" placeholder="Tìm theo tên hoặc MSSV..." oninput="filterZaloMatrix()" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="zalo-matrix-table-wrap">
+            <table class="zalo-matrix-table" id="zaloMatrixTable">
+              <thead>
+                <tr>
+                  <th style="width:48px;text-align:center">STT</th>
+                  <th style="width:110px">MSSV</th>
+                  <th style="width:200px">Họ và tên</th>
+                  <th style="min-width:210px">SÁNG (07:30–11:25)</th>
+                  <th style="min-width:210px">CHIỀU (12:50–16:45)</th>
+                  <th style="min-width:210px">TỐI (17:30–20:50)</th>
+                </tr>
+              </thead>
+              <tbody id="zaloMatrixTbody">
+                <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted)">Đang tải ma trận lịch học…</td></tr>
+              </tbody>
+              <tfoot id="zaloMatrixTfoot" style="display:none">
+                <tr>
+                  <td colspan="3" style="text-align:right">TỔNG CỘNG:</td>
+                  <td id="tfootMorningSummary">—</td>
+                  <td id="tfootAfternoonSummary">—</td>
+                  <td id="tfootEveningSummary">—</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       </section>
@@ -2773,217 +2933,369 @@ function vietnamDateKeyFromTimestamp(value){
   return `${val('year')}-${val('month')}-${val('day')}`;
 }
 async function initZaloScheduleView(){
-  const dateKey=getVietnamDateKey(1),label=document.getElementById('zaloTargetDateLabel');
-  window.zaloTargetDateKey=dateKey;
-  if(label)label.textContent='📅 Lịch ngày mai · '+new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  startZaloDateRollover();
-  await loadPreparedZaloSchedule();
-}
-function startZaloDateRollover(){
-  if(window.zaloDateRolloverTimer)return;
-  window.zaloDateRolloverTimer=setInterval(()=>{
-    const nextDate=getVietnamDateKey(1);if(nextDate===window.zaloTargetDateKey)return;
-    window.zaloTargetDateKey=nextDate;
-    const label=document.getElementById('zaloTargetDateLabel');
-    if(label)label.textContent='📅 Lịch ngày mai · '+new Date(`${nextDate}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-    if(document.getElementById('view-zalo')?.classList.contains('active'))loadPreparedZaloSchedule();
-  },60000);
-}
-async function loadZaloScheduleData(dateKey=getVietnamDateKey(1)){
-  const status=document.getElementById('zaloImageStatus');if(!status)return false;status.textContent='Đang đọc lịch đã đồng bộ…';
-  const from=new Date(`${dateKey}T00:00:00+07:00`).toISOString(),to=new Date(new Date(from).getTime()+86400000).toISOString();
-  const [{data:members,error:e1},{data:schedules,error:e2}]=await Promise.all([
-    supabase.from('students').select('mssv,name').order('mssv').limit(1000),
-    supabase.from('student_schedules').select('mssv,subject_name,room_name,start_time,end_time,buoi').lt('start_time',to).gte('end_time',from).order('start_time')
-  ]);
-  if(e1||e2){status.textContent='Không đọc được lịch: '+(e1?.message||e2?.message);return false;}
-  const byId=new Map();(schedules||[]).forEach(x=>{const a=byId.get(x.mssv)||[];a.push(x);byId.set(x.mssv,a)});
-  const list=[...new Map((members||[]).map(m=>[m.mssv,{mssv:m.mssv,name:m.name||m.mssv}])).values()];
-  if(!list.length){status.textContent='Danh sách sinh viên đang trống.';return false;}
-  const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const periods=[
-    {key:'morning',label:'SÁNG',session:1,from:'07:30',to:'11:25',start:'07:30',end:'11:25'},
-    {key:'afternoon',label:'CHIỀU',session:2,from:'12:50',to:'16:45',start:'12:50',end:'16:45'},
-    {key:'evening',label:'TỐI',session:3,from:'17:30',to:'20:50',start:'17:30',end:'20:50'}
-  ];
-  const periodsData={};
-  periods.forEach(period=>{
-    const rangeStart=new Date(`${dateKey}T${period.start}:00+07:00`).getTime();
-    const rangeEnd=new Date(`${dateKey}T${period.end}:00+07:00`).getTime();
-    const free=[],busy=[];
-    list.forEach(m=>{
-      const classes=(byId.get(m.mssv)||[]).filter(x=>x.buoi!=null?Number(x.buoi)===period.session:new Date(x.start_time).getTime()<rangeEnd&&new Date(x.end_time).getTime()>rangeStart).map(x=>({
-        subject:x.subject_name||'Môn học',room:x.room_name||'',start_time:x.start_time,end_time:x.end_time,
-        time_range:`${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}–${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}`
-      }));
-      if(classes.length)busy.push({mssv:m.mssv,name:m.name||m.mssv,classes});
-      else free.push({mssv:m.mssv,name:m.name||m.mssv});
-    });
-    periodsData[period.key]={key:period.key,label:period.label,from:period.from,to:period.to,free_count:free.length,busy_count:busy.length,free,busy};
-  });
-  window.zaloScheduleData={dateKey,day,memberCount:list.length,periods:periodsData,generatedAt:new Date().toISOString()};return true;
-}
-function renderZaloScheduleImage(data){
-  const width=1800,pad=48,gap=18,headerY=48,headerH=178,contentTop=250,contentWidth=width-pad*2,columnWidth=(contentWidth-gap*2)/3,canvas=document.createElement('canvas');
-  let ctx=canvas.getContext('2d');
-  const setFont=(size,weight=400)=>{ctx.font=`${weight} ${size}px Arial, sans-serif`;};
-  const wrap=(value,maxWidth,size=16,weight=400)=>{
-    setFont(size,weight);const lines=[];let line='';
-    String(value||'').trim().split(/\s+/).filter(Boolean).forEach(word=>{
-      if(ctx.measureText(word).width>maxWidth){
-        if(line){lines.push(line);line='';}
-        let part='';for(const char of word){if(ctx.measureText(part+char).width>maxWidth&&part){lines.push(part);part=char;}else part+=char;}line=part;return;
-      }
-      const next=line?`${line} ${word}`:word;if(ctx.measureText(next).width>maxWidth&&line){lines.push(line);line=word;}else line=next;
-    });
-    if(line)lines.push(line);return lines.length?lines:[''];
-  };
-  const periods=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean);
-  if(!periods.length)throw new Error('Không có dữ liệu Sáng, Chiều, Tối để tạo ảnh.');
-  const sections=periods.map(period=>{
-    const innerWidth=columnWidth-32;
-    const freeRows=(period.free||[]).map((m,idx)=>{
-      const name=m.name||m.mssv;
-      const mssvStr=m.mssv?`(${m.mssv})`:'';
-      const text=`${idx+1}. ${name} ${mssvStr}`.trim();
-      const lines=wrap(text,innerWidth-36,15,600);
-      const height=12+lines.length*20+8;
-      return {name,mssv:m.mssv||'',index:idx+1,lines,height};
-    });
-    const freeTotalHeight=freeRows.length?freeRows.reduce((sum,r)=>sum+r.height+6,0):48;
-
-    const busyRows=(period.busy||[]).map((m,idx)=>{
-      const name=m.name||m.mssv;
-      const mssvStr=m.mssv?`(${m.mssv})`:'';
-      const nameText=`${idx+1}. ${name} ${mssvStr}`.trim();
-      const nameLines=wrap(nameText,innerWidth-28,15,700);
-      const classLines=(m.classes||[]).flatMap(item=>{
-        const roomStr=item.room||item.room_name?` · P.${item.room||item.room_name}`:'';
-        const subjStr=item.subject||item.subject_name||'Môn học';
-        const timeStr=item.time_range||'';
-        return wrap(`⏱ ${timeStr} · ${subjStr}${roomStr}`,innerWidth-36,13.5,400);
-      });
-      const height=12+nameLines.length*20+Math.max(1,classLines.length)*19+10;
-      return {nameLines,classLines,height};
-    });
-    const busyTotalHeight=busyRows.length?busyRows.reduce((sum,r)=>sum+r.height+6,0):48;
-
-    const height=125+30+freeTotalHeight+16+30+busyTotalHeight+28;
-    return {period,freeRows,freeTotalHeight,busyRows,busyTotalHeight,height};
-  });
-  const maxSectionHeight=Math.max(...sections.map(s=>s.height));
-  const imageHeight=contentTop+maxSectionHeight+76;
-  canvas.width=width;canvas.height=imageHeight;ctx=canvas.getContext('2d');ctx.fillStyle='#f3f5f8';ctx.fillRect(0,0,width,imageHeight);
-  const round=(x,y,w,h,r,color,stroke=null)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}};
-  round(24,24,width-48,imageHeight-48,26,'#ffffff','#e0e5ed');round(pad,headerY,contentWidth,headerH,22,'#ffffff','#e0e5ed');
-  ctx.fillStyle='#2864db';setFont(19,700);ctx.fillText('LH-NaviX  ·  LỊCH TOÀN BỘ SINH VIÊN',pad+28,headerY+40);
-  ctx.fillStyle='#172033';setFont(31,700);ctx.fillText('LỊCH HỌC & TRẠNG THÁI RẢNH / BẬN',pad+28,headerY+82);
-  ctx.fillStyle='#465671';setFont(22);ctx.fillText(data.day||data.target_date||'',pad+28,headerY+119);
-  const updated=data.generatedAt?new Date(data.generatedAt).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'}):'theo lịch ME';
-  ctx.fillStyle='#8290a4';setFont(16);ctx.fillText(`Cập nhật từ ME · ${updated} · Giờ Việt Nam (UTC+7)`,pad+28,headerY+151);
-  const accents=['#f4a340','#5984ed','#8b70d6'];
-  sections.forEach(({period,freeRows,busyRows},index)=>{
-    const x=pad+index*(columnWidth+gap),y=contentTop,innerX=x+16,innerWidth=columnWidth-32;
-    const cardHeight=maxSectionHeight;
-    round(x,y,columnWidth,cardHeight,20,'#ffffff','#e0e5ed');round(x,y,10,cardHeight,5,accents[index%accents.length]);
-    ctx.fillStyle='#172033';setFont(23,700);ctx.fillText(period.label||'',x+25,y+35);
-    ctx.fillStyle='#667085';setFont(15);ctx.fillText(`${period.from||''} – ${period.to||''}`,x+25,y+62);
-    const badgeW=Math.floor((columnWidth-62)/2);
-    round(x+25,y+77,badgeW,38,18,'#e8f6ee');ctx.fillStyle='#16784a';setFont(15,700);ctx.fillText(`● ${period.free_count??period.free?.length??0} RẢNH`,x+40,y+101);
-    const busyX=x+25+badgeW+10;round(busyX,y+77,badgeW,38,18,'#fdeceb');ctx.fillStyle='#c63832';setFont(15,700);ctx.fillText(`● ${period.busy_count??period.busy?.length??0} BẬN`,busyX+14,y+101);
-
-    // Phần Rảnh
-    let curY=y+130;
-    ctx.fillStyle='#15803d';setFont(14,700);ctx.fillText(`✅ THÀNH VIÊN RẢNH (${period.free_count??period.free?.length??0})`,innerX+4,curY+14);
-    curY+=26;
-    if(!freeRows.length){
-      round(innerX,curY,innerWidth,46,10,'#f8fafc','#e2e8f0');
-      ctx.fillStyle='#64748b';setFont(14);ctx.fillText('Không có thành viên rảnh trong buổi này.',innerX+14,curY+28);
-      curY+=46+16;
-    }else{
-      freeRows.forEach(row=>{
-        round(innerX,curY,innerWidth,row.height,8,'#f0fdf4','#bbf7d0');
-        ctx.fillStyle='#16a34a';setFont(13,700);ctx.fillText('✓',innerX+12,curY+21);
-        ctx.fillStyle='#0f172a';setFont(14.5,600);
-        let tY=curY+21;
-        row.lines.forEach(line=>{ctx.fillText(line,innerX+28,tY);tY+=20;});
-        curY+=row.height+6;
-      });
-      curY+=10;
-    }
-
-    // Phần Bận
-    ctx.fillStyle='#dc2626';setFont(14,700);ctx.fillText(`⚠️ CÓ LỊCH HỌC TRƯỜNG (${period.busy_count??period.busy?.length??0})`,innerX+4,curY+14);
-    curY+=26;
-    if(!busyRows.length){
-      round(innerX,curY,innerWidth,46,10,'#f8fafc','#e2e8f0');
-      ctx.fillStyle='#64748b';setFont(14);ctx.fillText('Cả đội đều không vướng lịch học.',innerX+14,curY+28);
-      curY+=46;
-    }else{
-      busyRows.forEach(row=>{
-        round(innerX,curY,innerWidth,row.height,8,'#fff7f6','#fecaca');
-        let tY=curY+21;
-        ctx.fillStyle='#991b1b';setFont(14.5,700);
-        row.nameLines.forEach(line=>{ctx.fillText(line,innerX+12,tY);tY+=20;});
-        ctx.fillStyle='#475569';setFont(13.5,400);
-        row.classLines.forEach(line=>{ctx.fillText(line,innerX+12,tY);tY+=19;});
-        curY+=row.height+6;
-      });
-    }
-  });
-  ctx.fillStyle='#8a96a8';setFont(14);ctx.fillText('Trạng thái tính theo tiết học giao với từng buổi · Nguồn thời khóa biểu: ME · LH-NaviX',pad,imageHeight-38);
-  return new Promise(resolve=>canvas.toBlob(blob=>resolve(blob),'image/png'));
-}
-async function showZaloScheduleImage(data){
-  const blob=await renderZaloScheduleImage(data);if(!blob)throw new Error('Trình duyệt không tạo được ảnh PNG.');
-  if(window.zaloImageObjectUrl)URL.revokeObjectURL(window.zaloImageObjectUrl);window.zaloImageObjectUrl=URL.createObjectURL(blob);
-  document.getElementById('zaloImagePreview').src=window.zaloImageObjectUrl;
-  const download=document.getElementById('zaloImageDownload');download.href=window.zaloImageObjectUrl;download.download=`lich-ranh-${data.dateKey||data.target_date}.png`;download.style.pointerEvents='auto';download.style.opacity='1';
-  const periodTotals=['morning','afternoon','evening'].map(key=>data.periods?.[key]).filter(Boolean).map(p=>`• ${p.label} (${p.from}–${p.to}): ${p.free_count} rảnh, ${p.busy_count} bận`).join('\n');
-  document.getElementById('zaloCaptionPreview').textContent=`📅 LỊCH TOÀN BỘ SINH VIÊN NGÀY ${data.day||data.target_date}\n${periodTotals}\n\n👉 Chi tiết danh sách rảnh/bận theo từng ca xem trong ảnh đính kèm.`;
-  const copyButton=document.getElementById('zaloCopyCaptionButton');if(copyButton)copyButton.disabled=false;
-  document.getElementById('zaloImageArea').hidden=false;
-}
-function clearZaloScheduleImage(){
-  const area=document.getElementById('zaloImageArea'),download=document.getElementById('zaloImageDownload'),copyButton=document.getElementById('zaloCopyCaptionButton');
-  if(area)area.hidden=true;
-  if(download){download.removeAttribute('href');download.style.pointerEvents='none';download.style.opacity='.55';}
-  if(copyButton)copyButton.disabled=true;
-}
-async function loadPreparedZaloSchedule(){
-  const status=document.getElementById('zaloImageStatus'),dateKey=getVietnamDateKey(1);if(!status)return;
-  clearZaloScheduleImage();
-  status.textContent='Đang tải thời khóa biểu của ngày mai…';
-  const {data,error}=await supabase.rpc('admin_get_zalo_schedule_preview',{p_date:dateKey});
-  const previewIsNewerThanFailure=!data?.last_attempt||data.last_attempt.status==='ready'||new Date(data.last_attempt.generated_at)<=new Date(data.preview?.generated_at||0);
-  if(!error&&data?.ok&&data.preview&&previewIsNewerThanFailure){
-    const day=new Date(`${dateKey}T12:00:00+07:00`).toLocaleDateString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-    const preview=data.preview,imageData={dateKey,day,target_date:dateKey,generatedAt:preview.generated_at,periods:preview.periods};
-    try{await showZaloScheduleImage(imageData);status.textContent=`Bản ME chuẩn bị lúc ${new Date(preview.generated_at).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})} · ${day} · ${preview.member_count} sinh viên.`;return;}
-    catch(e){status.textContent='Không tạo được ảnh: '+(e?.message||e);return;}
+  if (!window.zaloSelectedDate) {
+    window.zaloSelectedDate = getVietnamDateKey(1);
   }
-  status.textContent='Chưa có bản mới hợp lệ cho ngày mai; đang đồng bộ đầy đủ từ ME…';
-  await syncAndCreateZaloImage();
+  const dateInput = document.getElementById('zaloDatePicker');
+  if (dateInput) dateInput.value = window.zaloSelectedDate;
+  updateZaloQuickButtons(window.zaloSelectedDate);
+  await loadZaloScheduleMatrix(window.zaloSelectedDate);
 }
-async function syncAndCreateZaloImage(){
-  const btn=document.getElementById('zaloSyncCopyButton');if(!btn)return;const old=btn.innerHTML;btn.disabled=true;
-  clearZaloScheduleImage();
-  try{
-    const dateKey=getVietnamDateKey(1);btn.innerHTML='<span class="spin"></span> Đang đồng bộ ME…';
-    const synced=await syncSchedulesFromME(true,dateKey,true,btn,true);
-    if(!synced)return;
-    btn.innerHTML='<span class="spin"></span> Đang tạo ảnh…';
-    if(!await loadZaloScheduleData(dateKey))return;
-    const data=window.zaloScheduleData;
-    const {data:saveResult,error:saveError}=await supabase.rpc('admin_save_zalo_schedule_preview',{p_date:dateKey,p_member_count:data.memberCount,p_periods:data.periods});
-    if(saveError||!saveResult?.ok)throw new Error(saveError?.message||saveResult?.message||'Không lưu được bản lịch.');
-    await showZaloScheduleImage(data);
-    document.getElementById('zaloImageStatus').textContent=`Đã đồng bộ ME cho ${data.memberCount} thành viên · ${data.day}. Lịch ca và môn học lấy từ thời khóa biểu của ngày này.`;
-    toast('ok','Đã làm mới lịch ME','Lịch ba ca đã cập nhật theo ngày và nhóm đang chọn.');
-  }catch(e){document.getElementById('zaloImageStatus').textContent='Chưa tạo được ảnh: '+(e?.message||e);toast('err','Chưa tạo được ảnh',e?.message||'Vui lòng thử lại.');}
-  finally{btn.disabled=false;btn.innerHTML=old;}
+
+function updateZaloQuickButtons(dateKey){
+  const today = getVietnamDateKey(0);
+  const tomorrow = getVietnamDateKey(1);
+  const dayAfter = getVietnamDateKey(2);
+  document.getElementById('btnQuickToday')?.classList.toggle('active', dateKey === today);
+  document.getElementById('btnQuickTomorrow')?.classList.toggle('active', dateKey === tomorrow);
+  document.getElementById('btnQuickDayAfter')?.classList.toggle('active', dateKey === dayAfter);
 }
-async function copyZaloCaption(){const text=document.getElementById('zaloCaptionPreview')?.textContent||'';try{await navigator.clipboard.writeText(text);toast('ok','Đã sao chép','Lời nhắn đã sẵn sàng để dán vào Zalo.');}catch(e){toast('warn','Không sao chép được','Bạn có thể chọn lời nhắn và sao chép thủ công.');}}
+
+function setZaloQuickDate(offsetDays){
+  const newDate = getVietnamDateKey(offsetDays);
+  const dateInput = document.getElementById('zaloDatePicker');
+  if (dateInput) dateInput.value = newDate;
+  onZaloDateChanged(newDate);
+}
+
+async function onZaloDateChanged(newDate){
+  if (!newDate) return;
+  window.zaloSelectedDate = newDate;
+  updateZaloQuickButtons(newDate);
+  await loadZaloScheduleMatrix(newDate);
+}
+
+async function loadZaloScheduleMatrix(dateKey){
+  const status = document.getElementById('zaloImageStatus');
+  const label = document.getElementById('zaloTargetDateLabel');
+  if (!dateKey) dateKey = getVietnamDateKey(1);
+  
+  const dayObj = new Date(`${dateKey}T12:00:00+07:00`);
+  const dayDisplay = dayObj.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  if (label) label.textContent = '📅 ' + dayDisplay;
+  if (status) status.innerHTML = '<span class="spin"></span> Đang tải ma trận thời khóa biểu từ hệ thống…';
+
+  try {
+    const from = new Date(`${dateKey}T00:00:00+07:00`).toISOString();
+    const to = new Date(new Date(from).getTime() + 86400000).toISOString();
+
+    const [{ data: rawMembers, error: e1 }, { data: schedules, error: e2 }] = await Promise.all([
+      supabase.from('students').select('mssv, name, is_active').order('mssv').limit(1000),
+      supabase.from('student_schedules').select('mssv, subject_name, room_name, start_time, end_time, buoi').lt('start_time', to).gte('end_time', from).order('start_time')
+    ]);
+
+    if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Lỗi truy vấn dữ liệu');
+
+    // Chỉ lấy sinh viên đang hoạt động (active)
+    const members = (rawMembers || []).filter(s => s.is_active !== false);
+    if (!members.length) {
+      if (status) status.textContent = 'Danh sách sinh viên đang trống.';
+      return;
+    }
+
+    const byId = new Map();
+    (schedules || []).forEach(x => {
+      const a = byId.get(x.mssv) || [];
+      a.push(x);
+      byId.set(x.mssv, a);
+    });
+
+    const periodsConfig = [
+      { key: 'morning', label: 'SÁNG', session: 1, from: '07:30', to: '11:25' },
+      { key: 'afternoon', label: 'CHIỀU', session: 2, from: '12:50', to: '16:45' },
+      { key: 'evening', label: 'TỐI', session: 3, from: '17:30', to: '20:50' }
+    ];
+
+    const matrixRows = [];
+    const periodStats = {
+      morning: { free: 0, busy: 0, busyMssvs: new Set(), classesByMssv: new Map() },
+      afternoon: { free: 0, busy: 0, busyMssvs: new Set(), classesByMssv: new Map() },
+      evening: { free: 0, busy: 0, busyMssvs: new Set(), classesByMssv: new Map() }
+    };
+
+    members.forEach((m, idx) => {
+      const studentScheds = byId.get(m.mssv) || [];
+      const rowItem = {
+        index: idx + 1,
+        mssv: m.mssv,
+        name: m.name || m.mssv,
+        periods: {}
+      };
+
+      periodsConfig.forEach(p => {
+        const rangeStart = new Date(`${dateKey}T${p.from}:00+07:00`).getTime();
+        const rangeEnd = new Date(`${dateKey}T${p.to}:00+07:00`).getTime();
+        const classes = studentScheds.filter(x => {
+          if (x.buoi != null) return Number(x.buoi) === p.session;
+          const sT = new Date(x.start_time).getTime();
+          const eT = new Date(x.end_time).getTime();
+          return sT < rangeEnd && eT > rangeStart;
+        }).map(x => ({
+          subject_name: x.subject_name || 'Môn học',
+          room_name: x.room_name || '',
+          time_range: `${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}–${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}`
+        }));
+
+        const isBusy = classes.length > 0;
+        rowItem.periods[p.key] = { isFree: !isBusy, classes };
+        if (isBusy) {
+          periodStats[p.key].busy++;
+          periodStats[p.key].busyMssvs.add(m.mssv);
+          periodStats[p.key].classesByMssv.set(m.mssv, classes);
+        } else {
+          periodStats[p.key].free++;
+        }
+      });
+
+      matrixRows.push(rowItem);
+    });
+
+    const totalStudents = members.length;
+
+    // 1. Cập nhật 3 KPI Cards
+    const updateKpi = (key, freeEl, busyEl, barEl) => {
+      const f = periodStats[key].free;
+      const b = periodStats[key].busy;
+      if (freeEl) freeEl.textContent = f;
+      if (busyEl) busyEl.textContent = b;
+      if (barEl) {
+        const pct = totalStudents ? Math.round((f / totalStudents) * 100) : 0;
+        barEl.style.width = pct + '%';
+      }
+    };
+    updateKpi('morning', document.getElementById('kpiMorningFree'), document.getElementById('kpiMorningBusy'), document.getElementById('kpiMorningBar'));
+    updateKpi('afternoon', document.getElementById('kpiAfternoonFree'), document.getElementById('kpiAfternoonBusy'), document.getElementById('kpiAfternoonBar'));
+    updateKpi('evening', document.getElementById('kpiEveningFree'), document.getElementById('kpiEveningBusy'), document.getElementById('kpiEveningBar'));
+
+    // 2. Cập nhật Lời nhắn Zalo
+    const mFree = periodStats.morning.free, mBusy = periodStats.morning.busy;
+    const aFree = periodStats.afternoon.free, aBusy = periodStats.afternoon.busy;
+    const eFree = periodStats.evening.free, eBusy = periodStats.evening.busy;
+
+    const caption = `📅 LỊCH TOÀN BỘ SINH VIÊN NGÀY ${dayDisplay}\n` +
+      `• SÁNG (07:30–11:25): ${mFree} rảnh, ${mBusy} bận\n` +
+      `• CHIỀU (12:50–16:45): ${aFree} rảnh, ${aBusy} bận\n` +
+      `• TỐI (17:30–20:50): ${eFree} rảnh, ${eBusy} bận\n\n` +
+      `👉 Chi tiết danh sách rảnh/bận theo từng ca xem trong file Excel đính kèm.`;
+
+    const captionBox = document.getElementById('zaloCaptionPreview');
+    if (captionBox) captionBox.textContent = caption;
+
+    // 3. Render Table Rows
+    const tbody = document.getElementById('zaloMatrixTbody');
+    if (tbody) {
+      tbody.innerHTML = matrixRows.map(r => {
+        const renderCell = (periodData) => {
+          if (periodData.isFree) {
+            return '<span class="badge-cell-free">🟢 Rảnh</span>';
+          }
+          const items = periodData.classes.map(c => {
+            const room = c.room_name ? ` · P.${c.room_name}` : '';
+            return `<div class="cell-class-info">⏱ ${c.time_range} · <b>${c.subject_name}</b>${room}</div>`;
+          }).join('');
+          return `<span class="badge-cell-busy">🔴 Bận</span>${items}`;
+        };
+
+        const hasBusy = !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree;
+
+        return `<tr class="matrix-row" 
+          data-name="${(r.name || '').toLowerCase()}" 
+          data-mssv="${r.mssv}"
+          data-free-morning="${r.periods.morning.isFree}"
+          data-free-afternoon="${r.periods.afternoon.isFree}"
+          data-free-evening="${r.periods.evening.isFree}"
+          data-has-busy="${hasBusy}">
+          <td style="text-align:center;color:var(--muted);font-weight:700">${r.index}</td>
+          <td style="font-family:monospace;font-weight:700">${r.mssv}</td>
+          <td style="font-weight:700">${r.name}</td>
+          <td>${renderCell(r.periods.morning)}</td>
+          <td>${renderCell(r.periods.afternoon)}</td>
+          <td>${renderCell(r.periods.evening)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // 4. Update Footer
+    const tfoot = document.getElementById('zaloMatrixTfoot');
+    if (tfoot) {
+      tfoot.style.display = '';
+      const fMorning = document.getElementById('tfootMorningSummary');
+      const fAfternoon = document.getElementById('tfootAfternoonSummary');
+      const fEvening = document.getElementById('tfootEveningSummary');
+      if (fMorning) fMorning.innerHTML = `<span style="color:var(--ok)">${mFree} Rảnh</span> / <span style="color:var(--err)">${mBusy} Bận</span>`;
+      if (fAfternoon) fAfternoon.innerHTML = `<span style="color:var(--ok)">${aFree} Rảnh</span> / <span style="color:var(--err)">${aBusy} Bận</span>`;
+      if (fEvening) fEvening.innerHTML = `<span style="color:var(--ok)">${eFree} Rảnh</span> / <span style="color:var(--err)">${eBusy} Bận</span>`;
+    }
+
+    // 5. Update Filter Button Counts
+    const cAll = document.getElementById('filterCountAll');
+    const cM = document.getElementById('filterCountMorning');
+    const cA = document.getElementById('filterCountAfternoon');
+    const cE = document.getElementById('filterCountEvening');
+    if (cAll) cAll.textContent = totalStudents;
+    if (cM) cM.textContent = mFree;
+    if (cA) cA.textContent = aFree;
+    if (cE) cE.textContent = eFree;
+
+    window.zaloScheduleMatrixData = {
+      dateKey,
+      day: dayDisplay,
+      list: members,
+      matrixRows,
+      periods: {
+        morning: { free_count: mFree, busy_count: mBusy, ...periodStats.morning },
+        afternoon: { free_count: aFree, busy_count: aBusy, ...periodStats.afternoon },
+        evening: { free_count: eFree, busy_count: eBusy, ...periodStats.evening }
+      }
+    };
+
+    filterZaloMatrix();
+    if (status) status.textContent = `Đã tải ma trận cho ${totalStudents} sinh viên · ${dayDisplay}.`;
+  } catch (err) {
+    console.error('loadZaloScheduleMatrix error:', err);
+    if (status) status.textContent = 'Chưa tải được lịch: ' + (err.message || err);
+    toast('err', 'Lỗi tải lịch', err.message || 'Không thể đọc dữ liệu.');
+  }
+}
+
+let _matrixCurrentFilter = 'all';
+function setMatrixFilter(filterType){
+  _matrixCurrentFilter = filterType;
+  document.querySelectorAll('#matrixFilterButtons .matrix-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filterType);
+  });
+  filterZaloMatrix();
+}
+
+function filterZaloMatrix(){
+  const search = (document.getElementById('zaloMatrixSearch')?.value || '').trim().toLowerCase();
+  const rows = document.querySelectorAll('#zaloMatrixTbody .matrix-row');
+  rows.forEach(r => {
+    const name = r.dataset.name || '';
+    const mssv = r.dataset.mssv || '';
+    const matchSearch = !search || name.includes(search) || mssv.includes(search);
+
+    let matchFilter = true;
+    if (_matrixCurrentFilter === 'free_morning') matchFilter = r.dataset.freeMorning === 'true';
+    else if (_matrixCurrentFilter === 'free_afternoon') matchFilter = r.dataset.freeAfternoon === 'true';
+    else if (_matrixCurrentFilter === 'free_evening') matchFilter = r.dataset.freeEvening === 'true';
+    else if (_matrixCurrentFilter === 'busy_any') matchFilter = r.dataset.hasBusy === 'true';
+
+    r.style.display = (matchSearch && matchFilter) ? '' : 'none';
+  });
+}
+
+function exportZaloScheduleExcel(){
+  if (!window.zaloScheduleMatrixData) {
+    toast('warn', 'Chưa có dữ liệu', 'Vui lòng chờ tải dữ liệu xong rồi xuất file.');
+    return;
+  }
+  const { dateKey, day, list, matrixRows, periods } = window.zaloScheduleMatrixData;
+  const morning = periods.morning;
+  const afternoon = periods.afternoon;
+  const evening = periods.evening;
+
+  const aoa = [
+    ['LH-NaviX — BẢNG TỔNG HỢP LỊCH RẢNH / BẬN SINH VIÊN'],
+    [`Ngày: ${day} (${dateKey}) — Dữ liệu thời khóa biểu ME`],
+    [],
+    ['STT', 'MSSV', 'Họ và tên', 'SÁNG (07:30–11:25)', 'CHIỀU (12:50–16:45)', 'TỐI (17:30–20:50)']
+  ];
+
+  matrixRows.forEach((r, idx) => {
+    const fmtPeriod = (pData) => {
+      if (pData.isFree) return 'Rảnh';
+      return 'Bận: ' + pData.classes.map(c => {
+        const room = c.room_name ? ` (P.${c.room_name})` : '';
+        return `${c.subject_name}${room} [${c.time_range}]`;
+      }).join('; ');
+    };
+
+    aoa.push([
+      idx + 1,
+      r.mssv,
+      r.name,
+      fmtPeriod(r.periods.morning),
+      fmtPeriod(r.periods.afternoon),
+      fmtPeriod(r.periods.evening)
+    ]);
+  });
+
+  aoa.push([]);
+  aoa.push([
+    'TỔNG KẾT',
+    '',
+    `${list.length} Sinh viên`,
+    `${morning.free_count} Rảnh / ${morning.busy_count} Bận`,
+    `${afternoon.free_count} Rảnh / ${afternoon.busy_count} Bận`,
+    `${evening.free_count} Rảnh / ${evening.busy_count} Bận`
+  ]);
+
+  const filename = `Lich_Ranh_Ban_${dateKey}.xlsx`;
+
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 42 },
+      { wch: 42 },
+      { wch: 42 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lịch Rảnh Bận');
+    XLSX.writeFile(wb, filename);
+    toast('ok', 'Đã xuất file Excel', `Tải thành công file ${filename}`);
+  } else {
+    // Fallback: UTF-8 BOM CSV
+    const csvContent = '\uFEFF' + aoa.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Lich_Ranh_Ban_${dateKey}.csv`;
+    link.click();
+    toast('ok', 'Đã xuất file CSV', `Tải thành công file Lich_Ranh_Ban_${dateKey}.csv`);
+  }
+}
+
+async function syncAndRefreshZaloSchedule(){
+  const dateKey = window.zaloSelectedDate || getVietnamDateKey(1);
+  const btn = document.getElementById('zaloSyncCopyButton');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Đang đồng bộ ME…';
+  }
+  try {
+    const synced = await syncSchedulesFromME(false, dateKey, true, btn, false);
+    if (synced) {
+      toast('ok', 'Đồng bộ thành công', `Đã cập nhật lịch ME ngày ${dateKey}.`);
+      await loadZaloScheduleMatrix(dateKey);
+    }
+  } catch (e) {
+    toast('err', 'Đồng bộ thất bại', e.message || 'Lỗi khi kết nối ME.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+}
+
+async function copyZaloCaption(){
+  const text = document.getElementById('zaloCaptionPreview')?.textContent || '';
+  if (!text) {
+    toast('warn', 'Chưa có nội dung', 'Vui lòng chờ tải lịch xong rồi sao chép.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('ok', 'Đã sao chép tin nhắn', 'Lời nhắn Zalo đã sẵn sàng để dán vào nhóm.');
+  } catch (e) {
+    toast('warn', 'Không sao chép được', 'Hãy bôi đen lời nhắn bên dưới để sao chép thủ công.');
+  }
+}
 
 let currentSession = null;
 let students = [];
