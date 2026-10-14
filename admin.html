@@ -2,7 +2,18 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes">
+<script>
+  (function(){
+    try {
+      if (localStorage.getItem('admin_viewport_mode') === 'desktop') {
+        document.documentElement.classList.add('force-desktop-mode');
+        const m = document.getElementById('viewportMeta');
+        if (m) m.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+      }
+    } catch(e) {}
+  })();
+</script>
 <title>LH-NaviX — Quản Lý Điểm Danh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1074,15 +1085,196 @@ tbody tr:last-child td { border-bottom: none; }
 .qr-panel:fullscreen .qr-actions { max-width: min(70vh,80vw); gap: 12px; }
 .qr-panel:fullscreen .qr-actions .btn { padding: 14px; font-size: 15px; }
 
+/* ==========================================================
+   DESKTOP / MOBILE VIEWPORT TOGGLE & RESPONSIVE TOUCH
+   ========================================================== */
+.btn-desktop-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.btn-desktop-toggle:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn-desktop-toggle.active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+/* KHI BẬT [BẢN PC] TRÊN ĐIỆN THOẠI:
+   Cố định chiều rộng 1280px bao quát toàn bộ dashboard như máy tính,
+   cho phép người dùng phóng to thu nhỏ (pinch-to-zoom) tự do 100% */
+html.force-desktop-mode,
+html.force-desktop-mode body,
+body.force-desktop-mode {
+  min-width: 1280px !important;
+  width: 1280px !important;
+  overflow-x: auto !important;
+  -webkit-text-size-adjust: 100% !important;
+}
+html.force-desktop-mode .app-wrapper,
+body.force-desktop-mode .app-wrapper {
+  min-width: 1280px !important;
+  width: 1280px !important;
+  max-width: 1280px !important;
+  padding: 16px 24px 48px !important;
+  margin: 0 auto !important;
+}
+html.force-desktop-mode .topbar-compact,
+body.force-desktop-mode .topbar-compact {
+  min-width: 1232px !important;
+  padding: 10px 18px !important;
+}
+html.force-desktop-mode .brand-titles .brand-section-badge,
+body.force-desktop-mode .brand-titles .brand-section-badge {
+  display: inline-block !important;
+}
+html.force-desktop-mode .user-profile-chip span,
+body.force-desktop-mode .user-profile-chip span {
+  display: inline !important;
+}
+html.force-desktop-mode .kpi-grid,
+body.force-desktop-mode .kpi-grid {
+  grid-template-columns: repeat(4, 1fr) !important;
+}
+html.force-desktop-mode .overview-main-grid,
+body.force-desktop-mode .overview-main-grid {
+  grid-template-columns: 1.15fr 0.85fr !important;
+}
+html.force-desktop-mode .main-grid,
+body.force-desktop-mode .main-grid {
+  grid-template-columns: 1.15fr 0.85fr !important;
+}
+html.force-desktop-mode .stats-grid,
+body.force-desktop-mode .stats-grid {
+  grid-template-columns: repeat(6, 1fr) !important;
+}
+html.force-desktop-mode .team-create-grid,
+html.force-desktop-mode .team-edit-grid,
+html.force-desktop-mode .team-tools,
+body.force-desktop-mode .team-create-grid,
+body.force-desktop-mode .team-edit-grid,
+body.force-desktop-mode .team-tools {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+html.force-desktop-mode .zalo-grid,
+body.force-desktop-mode .zalo-grid {
+  grid-template-columns: 1fr 1fr !important;
+}
+html.force-desktop-mode .sched-split-grid,
+body.force-desktop-mode .sched-split-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+html.force-desktop-mode .acc-sub,
+body.force-desktop-mode .acc-sub {
+  display: block !important;
+}
+
+/* CHẾ ĐỘ MOBILE TỰ NHIÊN (Khi chưa bật force-desktop-mode) */
 @media (max-width: 768px) {
-  .app-wrapper { padding: 10px 12px 30px; }
-  .topbar-compact { padding: 8px 12px; top: 6px; margin-bottom: 12px; }
-  .brand-titles .brand-section-badge { display: none; }
-  .user-profile-chip span { display: none; }
-  .tasks-filter-item { flex: 1 1 100%; justify-content: space-between; }
-  .tasks-filter-item select { flex: 1; max-width: none; }
-  .tasks-filter-bar .search-wrap { width: 100%; margin-left: 0 !important; }
-  .tasks-filter-bar .search-wrap input { width: 100%; }
+  body:not(.force-desktop-mode) .app-wrapper { padding: 10px 12px 30px; }
+  body:not(.force-desktop-mode) .topbar-compact { padding: 8px 10px; top: 6px; margin-bottom: 12px; gap: 6px; }
+  body:not(.force-desktop-mode) .topbar-right { gap: 6px; }
+  body:not(.force-desktop-mode) .brand-titles .brand-section-badge { display: none; }
+  body:not(.force-desktop-mode) .user-profile-chip span { display: none; }
+  body:not(.force-desktop-mode) .tasks-filter-item { flex: 1 1 100%; justify-content: space-between; }
+  body:not(.force-desktop-mode) .tasks-filter-item select { flex: 1; max-width: none; }
+  body:not(.force-desktop-mode) .tasks-filter-bar .search-wrap { width: 100%; margin-left: 0 !important; }
+  body:not(.force-desktop-mode) .tasks-filter-bar .search-wrap input { width: 100%; }
+
+  /* Tối ưu nút bấm cảm ứng (Touch targets) trên màn hình cảm ứng */
+  body:not(.force-desktop-mode) .btn {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 13px;
+    touch-action: manipulation;
+  }
+  body:not(.force-desktop-mode) .btn.btn-sm,
+  body:not(.force-desktop-mode) button.btn-sm {
+    min-height: 34px;
+    padding: 6px 11px;
+    font-size: 12px;
+    touch-action: manipulation;
+  }
+  body:not(.force-desktop-mode) .btn-icon {
+    min-width: 36px;
+    min-height: 36px;
+    touch-action: manipulation;
+  }
+  body:not(.force-desktop-mode) .matrix-filter-btn {
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+
+  /* Tránh Safari iOS tự động phóng to khó chịu khi focus ô nhập liệu */
+  body:not(.force-desktop-mode) input[type="text"],
+  body:not(.force-desktop-mode) input[type="search"],
+  body:not(.force-desktop-mode) input[type="password"],
+  body:not(.force-desktop-mode) input[type="date"],
+  body:not(.force-desktop-mode) input[type="time"],
+  body:not(.force-desktop-mode) input[type="number"],
+  body:not(.force-desktop-mode) select,
+  body:not(.force-desktop-mode) textarea {
+    font-size: 16px !important;
+  }
+
+  /* Thanh lọc cuộn ngang mượt mà bằng tay trên điện thoại */
+  body:not(.force-desktop-mode) .zalo-matrix-filters,
+  body:not(.force-desktop-mode) .feedback-quick-filters,
+  body:not(.force-desktop-mode) .leave-kpi-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  body:not(.force-desktop-mode) .matrix-filter-btn,
+  body:not(.force-desktop-mode) .feedback-kpi-card,
+  body:not(.force-desktop-mode) .leave-kpi-card {
+    flex-shrink: 0 !important;
+  }
+
+  /* Cuộn ngang mượt mà cho bảng */
+  body:not(.force-desktop-mode) .table-wrap,
+  body:not(.force-desktop-mode) .data-table-card,
+  body:not(.force-desktop-mode) .attendance-table-wrap,
+  body:not(.force-desktop-mode) .zalo-matrix-table-wrap,
+  body:not(.force-desktop-mode) .schedule-matrix-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* Hộp thoại modal vừa vặn trên điện thoại */
+  body:not(.force-desktop-mode) .modal-bg {
+    padding: 12px;
+  }
+  body:not(.force-desktop-mode) .modal {
+    max-width: 100% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 16px;
+  }
 }
 
 /* SCHEDULES DETAIL STYLES */
@@ -1347,6 +1539,10 @@ tbody tr:last-child td { border-bottom: none; }
     </div>
 
     <div class="topbar-right">
+      <button class="btn btn-sm btn-desktop-toggle" id="btnToggleDesktopMode" onclick="toggleDesktopMode()" title="Chuyển chế độ PC / Mobile (xem toàn cảnh rộng)" aria-label="Chuyển chế độ PC / Mobile">
+        <span class="desktop-toggle-icon">💻</span>
+        <span class="desktop-toggle-text">Bản PC</span>
+      </button>
       <span class="session-pill pill-off" id="topbarSessionPill"><span class="net-dot"></span><span>Đã đóng</span></span>
       <span class="net-badge net-online" id="netBadge"><span class="net-dot"></span><span>Online</span></span>
       <div class="user-profile-chip" title="Tài khoản Admin">
@@ -3468,6 +3664,49 @@ function closeSidebar() {
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && document.getElementById('sidebarDrawer')?.classList.contains('open')) closeSidebar();
 });
+
+/* ==========================================================
+   DESKTOP / MOBILE VIEWPORT TOGGLE
+   ========================================================== */
+function applyViewportMode(mode) {
+  const meta = document.getElementById('viewportMeta');
+  const btn = document.getElementById('btnToggleDesktopMode');
+  const isDesktop = mode === 'desktop';
+  if (isDesktop) {
+    document.documentElement.classList.add('force-desktop-mode');
+    document.body.classList.add('force-desktop-mode');
+    if (meta) meta.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
+    if (btn) {
+      btn.innerHTML = '<span class="desktop-toggle-icon">📱</span><span class="desktop-toggle-text">Bản Mobile</span>';
+      btn.classList.add('active');
+      btn.title = 'Chuyển về giao diện Mobile';
+    }
+  } else {
+    document.documentElement.classList.remove('force-desktop-mode');
+    document.body.classList.remove('force-desktop-mode');
+    if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes');
+    if (btn) {
+      btn.innerHTML = '<span class="desktop-toggle-icon">💻</span><span class="desktop-toggle-text">Bản PC</span>';
+      btn.classList.remove('active');
+      btn.title = 'Chuyển sang Bản PC (xem bao quát toàn màn hình như máy tính)';
+    }
+  }
+}
+
+function toggleDesktopMode() {
+  const current = localStorage.getItem('admin_viewport_mode') || 'mobile';
+  const next = current === 'desktop' ? 'mobile' : 'desktop';
+  localStorage.setItem('admin_viewport_mode', next);
+  applyViewportMode(next);
+}
+
+// Đồng bộ trạng thái giao diện đã lưu
+(function initAdminViewport() {
+  try {
+    const saved = localStorage.getItem('admin_viewport_mode') || 'mobile';
+    applyViewportMode(saved);
+  } catch (e) {}
+})();
 
 /* ==========================================================
    ROBOCON RULES & NOTES (TẠO, ĐIỀN, SỬA, XÓA)
