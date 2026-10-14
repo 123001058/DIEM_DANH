@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "lucian-uxui": {
+      "source": "Seokwoooo/lucian-uxui",
+      "sourceType": "github",
+      "skillPath": "skills/lucian-uxui/SKILL.md",
+      "computedHash": "1fb4487b08c188c206e083f98f9ad8305cac21378b908acac38bb52e5b43ca58"
+    }
+  }
+}
