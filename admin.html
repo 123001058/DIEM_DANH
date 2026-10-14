@@ -2,18 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes">
-<script>
-  (function(){
-    try {
-      if (localStorage.getItem('admin_viewport_mode') === 'desktop') {
-        document.documentElement.classList.add('force-desktop-mode');
-        const m = document.getElementById('viewportMeta');
-        if (m) m.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
-      }
-    } catch(e) {}
-  })();
-</script>
+<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, user-scalable=yes">
 <title>LH-NaviX — Quản Lý Điểm Danh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1086,136 +1075,144 @@ tbody tr:last-child td { border-bottom: none; }
 .qr-panel:fullscreen .qr-actions .btn { padding: 14px; font-size: 15px; }
 
 /* ==========================================================
-   DESKTOP / MOBILE VIEWPORT TOGGLE & RESPONSIVE TOUCH
+   MOBILE NATIVE EXPERIENCE & BOTTOM NAVIGATION
    ========================================================== */
-.btn-desktop-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 11.5px;
-  font-weight: 700;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  touch-action: manipulation;
-}
-.btn-desktop-toggle:hover {
-  background: var(--surface);
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.btn-desktop-toggle.active {
-  background: var(--primary-soft);
-  color: var(--primary);
-  border-color: var(--primary-border);
+.mobile-bottom-nav {
+  display: none;
 }
 
-/* KHI BẬT [BẢN PC] TRÊN ĐIỆN THOẠI:
-   Cố định chiều rộng 1280px bao quát toàn bộ dashboard như máy tính,
-   cho phép người dùng phóng to thu nhỏ (pinch-to-zoom) tự do 100% */
-html.force-desktop-mode,
-html.force-desktop-mode body,
-body.force-desktop-mode {
-  min-width: 1280px !important;
-  width: 1280px !important;
-  overflow-x: auto !important;
-  -webkit-text-size-adjust: 100% !important;
+/* Container thẻ sinh viên trên mobile cho Ma trận Zalo */
+.zalo-matrix-cards-mobile {
+  display: none;
 }
-html.force-desktop-mode .app-wrapper,
-body.force-desktop-mode .app-wrapper {
-  min-width: 1280px !important;
-  width: 1280px !important;
-  max-width: 1280px !important;
-  padding: 16px 24px 48px !important;
-  margin: 0 auto !important;
-}
-html.force-desktop-mode .topbar-compact,
-body.force-desktop-mode .topbar-compact {
-  min-width: 1232px !important;
-  padding: 10px 18px !important;
-}
-html.force-desktop-mode .brand-titles .brand-section-badge,
-body.force-desktop-mode .brand-titles .brand-section-badge {
-  display: inline-block !important;
-}
-html.force-desktop-mode .user-profile-chip span,
-body.force-desktop-mode .user-profile-chip span {
-  display: inline !important;
-}
-html.force-desktop-mode .kpi-grid,
-body.force-desktop-mode .kpi-grid {
-  grid-template-columns: repeat(4, 1fr) !important;
-}
-html.force-desktop-mode .overview-main-grid,
-body.force-desktop-mode .overview-main-grid {
-  grid-template-columns: 1.15fr 0.85fr !important;
-}
-html.force-desktop-mode .main-grid,
-body.force-desktop-mode .main-grid {
-  grid-template-columns: 1.15fr 0.85fr !important;
-}
-html.force-desktop-mode .stats-grid,
-body.force-desktop-mode .stats-grid {
-  grid-template-columns: repeat(6, 1fr) !important;
-}
-html.force-desktop-mode .team-create-grid,
-html.force-desktop-mode .team-edit-grid,
-html.force-desktop-mode .team-tools,
-body.force-desktop-mode .team-create-grid,
-body.force-desktop-mode .team-edit-grid,
-body.force-desktop-mode .team-tools {
-  grid-template-columns: repeat(3, 1fr) !important;
-}
-html.force-desktop-mode .zalo-grid,
-body.force-desktop-mode .zalo-grid {
-  grid-template-columns: 1fr 1fr !important;
-}
-html.force-desktop-mode .sched-split-grid,
-body.force-desktop-mode .sched-split-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-}
-html.force-desktop-mode .acc-sub,
-body.force-desktop-mode .acc-sub {
-  display: block !important;
+.zalo-week-carousel {
+  display: none;
 }
 
-/* CHẾ ĐỘ MOBILE TỰ NHIÊN (Khi chưa bật force-desktop-mode) */
 @media (max-width: 768px) {
-  body:not(.force-desktop-mode) .app-wrapper { padding: 10px 12px 30px; }
-  body:not(.force-desktop-mode) .topbar-compact { padding: 8px 10px; top: 6px; margin-bottom: 12px; gap: 6px; }
-  body:not(.force-desktop-mode) .topbar-right { gap: 6px; }
-  body:not(.force-desktop-mode) .brand-titles .brand-section-badge { display: none; }
-  body:not(.force-desktop-mode) .user-profile-chip span { display: none; }
-  body:not(.force-desktop-mode) .tasks-filter-item { flex: 1 1 100%; justify-content: space-between; }
-  body:not(.force-desktop-mode) .tasks-filter-item select { flex: 1; max-width: none; }
-  body:not(.force-desktop-mode) .tasks-filter-bar .search-wrap { width: 100%; margin-left: 0 !important; }
-  body:not(.force-desktop-mode) .tasks-filter-bar .search-wrap input { width: 100%; }
+  .app-wrapper {
+    padding: 10px 12px calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .topbar-compact {
+    padding: 8px 12px;
+    top: 6px;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  .brand-titles .brand-section-badge { display: none; }
+  .user-profile-chip span { display: none; }
+  .tasks-filter-item { flex: 1 1 100%; justify-content: space-between; }
+  .tasks-filter-item select { flex: 1; max-width: none; }
+  .tasks-filter-bar .search-wrap { width: 100%; margin-left: 0 !important; }
+  .tasks-filter-bar .search-wrap input { width: 100%; }
 
-  /* Tối ưu nút bấm cảm ứng (Touch targets) trên màn hình cảm ứng */
-  body:not(.force-desktop-mode) .btn {
+  /* 1. BOTTOM NAVIGATION BAR (Thanh menu đáy ngón cái kiểu App) */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    z-index: 1000;
+    padding: 0 4px;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex: 1;
+    height: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    padding: 4px 0;
+    transition: all 0.15s ease;
+    touch-action: manipulation;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-nav-item .mobile-nav-icon {
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .mobile-nav-item .mobile-nav-label {
+    letter-spacing: -0.01em;
+  }
+
+  .mobile-nav-item:active .mobile-nav-icon {
+    transform: scale(0.88);
+  }
+
+  .mobile-nav-item.active {
+    color: var(--primary);
+  }
+
+  .mobile-nav-item.active .mobile-nav-icon {
+    transform: scale(1.12);
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 18px);
+    background: var(--err);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 99px;
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    line-height: 1;
+  }
+
+  /* 2. TOUCH TARGETS (Nút bấm cảm ứng thoải mái cho ngón tay) */
+  .btn {
     min-height: 38px;
     padding: 8px 14px;
     font-size: 13px;
     touch-action: manipulation;
   }
-  body:not(.force-desktop-mode) .btn.btn-sm,
-  body:not(.force-desktop-mode) button.btn-sm {
+  .btn.btn-sm, button.btn-sm {
     min-height: 34px;
     padding: 6px 11px;
     font-size: 12px;
     touch-action: manipulation;
   }
-  body:not(.force-desktop-mode) .btn-icon {
+  .btn-icon {
     min-width: 36px;
     min-height: 36px;
     touch-action: manipulation;
   }
-  body:not(.force-desktop-mode) .matrix-filter-btn {
+  .matrix-filter-btn {
     min-height: 34px;
     padding: 6px 12px;
     font-size: 12px;
@@ -1223,22 +1220,22 @@ body.force-desktop-mode .acc-sub {
     touch-action: manipulation;
   }
 
-  /* Tránh Safari iOS tự động phóng to khó chịu khi focus ô nhập liệu */
-  body:not(.force-desktop-mode) input[type="text"],
-  body:not(.force-desktop-mode) input[type="search"],
-  body:not(.force-desktop-mode) input[type="password"],
-  body:not(.force-desktop-mode) input[type="date"],
-  body:not(.force-desktop-mode) input[type="time"],
-  body:not(.force-desktop-mode) input[type="number"],
-  body:not(.force-desktop-mode) select,
-  body:not(.force-desktop-mode) textarea {
+  /* 3. TRÁNH SAFARI IOS TỰ PHÓNG TO KHI CHẠM Ô NHẬP LIỆU */
+  input[type="text"],
+  input[type="search"],
+  input[type="password"],
+  input[type="date"],
+  input[type="time"],
+  input[type="number"],
+  select,
+  textarea {
     font-size: 16px !important;
   }
 
-  /* Thanh lọc cuộn ngang mượt mà bằng tay trên điện thoại */
-  body:not(.force-desktop-mode) .zalo-matrix-filters,
-  body:not(.force-desktop-mode) .feedback-quick-filters,
-  body:not(.force-desktop-mode) .leave-kpi-bar {
+  /* 4. VUỐT LƯỚT NGANG CHO CÁC THANH LỌC */
+  .zalo-matrix-filters,
+  .feedback-quick-filters,
+  .leave-kpi-bar {
     display: flex !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
@@ -1247,28 +1244,187 @@ body.force-desktop-mode .acc-sub {
     margin-bottom: 10px;
     gap: 8px;
   }
-  body:not(.force-desktop-mode) .matrix-filter-btn,
-  body:not(.force-desktop-mode) .feedback-kpi-card,
-  body:not(.force-desktop-mode) .leave-kpi-card {
+  .matrix-filter-btn,
+  .feedback-kpi-card,
+  .leave-kpi-card {
     flex-shrink: 0 !important;
   }
 
-  /* Cuộn ngang mượt mà cho bảng */
-  body:not(.force-desktop-mode) .table-wrap,
-  body:not(.force-desktop-mode) .data-table-card,
-  body:not(.force-desktop-mode) .attendance-table-wrap,
-  body:not(.force-desktop-mode) .zalo-matrix-table-wrap,
-  body:not(.force-desktop-mode) .schedule-matrix-wrap {
+  /* 5. MA TRẬN LỊCH ZALO: CHẾ ĐỘ THẺ CARD TRÊN MOBILE */
+  body:not(.zalo-show-table) .zalo-matrix-table-wrap {
+    display: none !important;
+  }
+  body:not(.zalo-show-table) .zalo-matrix-cards-mobile {
+    display: grid !important;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  body.zalo-show-table .zalo-matrix-table-wrap {
+    display: block !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
-    max-width: 100%;
+  }
+  body.zalo-show-table .zalo-matrix-cards-mobile {
+    display: none !important;
   }
 
-  /* Hộp thoại modal vừa vặn trên điện thoại */
-  body:not(.force-desktop-mode) .modal-bg {
-    padding: 12px;
+  .zalo-student-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
-  body:not(.force-desktop-mode) .modal {
+  .zalo-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .zalo-card-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .zalo-card-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-weight: 800;
+    font-size: 13px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .zalo-card-name {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .zalo-card-mssv {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: monospace;
+    font-weight: 600;
+  }
+  .zalo-card-badge {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 99px;
+    flex: none;
+  }
+  .zalo-card-badge.free-all {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+  .zalo-card-badge.has-busy {
+    background: var(--err-bg);
+    color: var(--err);
+    border: 1px solid rgba(194,56,46,0.2);
+  }
+  .zalo-card-badge.part-free {
+    background: var(--ok-bg);
+    color: var(--ok);
+    border: 1px solid rgba(15,122,74,0.2);
+  }
+  .zalo-card-shifts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: var(--surface-2);
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .zalo-card-shift {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+  }
+  .zalo-card-shift .shift-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .zalo-card-shift .shift-status {
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .zalo-card-shift.is-free .shift-status { color: var(--ok); }
+  .zalo-card-shift.is-busy .shift-status { color: var(--err); }
+
+  /* 6. WEEK CAROUSEL TRÊN MOBILE */
+  .zalo-week-carousel {
+    display: flex !important;
+    gap: 6px;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    margin-top: 10px;
+  }
+  .zalo-week-pill {
+    flex: 1;
+    min-width: 52px;
+    padding: 8px 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    touch-action: manipulation;
+  }
+  .zalo-week-pill .wp-day { font-size: 10px; font-weight: 700; color: var(--muted); }
+  .zalo-week-pill .wp-date { font-size: 13px; font-weight: 800; color: var(--text); }
+  .zalo-week-pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px -2px rgba(37,99,235,0.4);
+  }
+  .zalo-week-pill.active .wp-day,
+  .zalo-week-pill.active .wp-date { color: #fff; }
+
+  /* 7. ĐƠN NGHỈ: NÚT BẤM DUYỆT 1-CHẠM BỰ CHẢNG CHO NGÓN TAY */
+  .leave-quick-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+    margin-top: 10px;
+  }
+  .leave-quick-actions .btn {
+    min-height: 42px !important;
+    font-size: 13.5px !important;
+    font-weight: 800 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* 8. MODAL SHEET KIỂU NATIVE TRÊN ĐIỆN THOẠI */
+  .modal-bg { padding: 12px; }
+  .modal {
     max-width: 100% !important;
     max-height: 90vh !important;
     overflow-y: auto !important;
@@ -1539,10 +1695,6 @@ body.force-desktop-mode .acc-sub {
     </div>
 
     <div class="topbar-right">
-      <button class="btn btn-sm btn-desktop-toggle" id="btnToggleDesktopMode" onclick="toggleDesktopMode()" title="Chuyển chế độ PC / Mobile (xem toàn cảnh rộng)" aria-label="Chuyển chế độ PC / Mobile">
-        <span class="desktop-toggle-icon">💻</span>
-        <span class="desktop-toggle-text">Bản PC</span>
-      </button>
       <span class="session-pill pill-off" id="topbarSessionPill"><span class="net-dot"></span><span>Đã đóng</span></span>
       <span class="net-badge net-online" id="netBadge"><span class="net-dot"></span><span>Online</span></span>
       <div class="user-profile-chip" title="Tài khoản Admin">
@@ -2403,6 +2555,7 @@ body.force-desktop-mode .acc-sub {
                 <button type="button" class="zalo-quick-btn active" id="btnQuickTomorrow" onclick="setZaloQuickDate(1)">Ngày mai</button>
                 <button type="button" class="zalo-quick-btn" id="btnQuickDayAfter" onclick="setZaloQuickDate(2)">Ngày mốt</button>
               </div>
+              <div class="zalo-week-carousel" id="zaloWeekCarousel"></div>
             </div>
 
             <div class="zalo-action-btns">
@@ -2483,6 +2636,9 @@ body.force-desktop-mode .acc-sub {
               <button type="button" class="matrix-filter-btn" data-filter="busy_any" onclick="setMatrixFilter('busy_any')">🔴 Có lịch học (<span id="filterCountBusy">0</span>)</button>
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnToggleZaloView" onclick="toggleZaloViewMode()" title="Chuyển chế độ xem Thẻ / Bảng" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
+                <span>📊</span> <span id="zaloToggleViewText">Xem Bảng</span>
+              </button>
               <button type="button" class="btn btn-secondary btn-sm" id="btnCopyFilteredList" onclick="copyFilteredStudentList()" title="Sao chép danh sách sinh viên theo bộ lọc hiện tại để gửi Zalo" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
                 <span>📋</span> Copy DS đang lọc
               </button>
@@ -2517,6 +2673,8 @@ body.force-desktop-mode .acc-sub {
                 </tr>
               </tfoot>
             </table>
+          <div class="zalo-matrix-cards-mobile" id="zaloMatrixCardsMobile">
+            <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Đang tải danh sách lịch học…</div>
           </div>
         </div>
       </section>
@@ -2524,6 +2682,31 @@ body.force-desktop-mode .acc-sub {
 
 </main>
 </div>
+
+<!-- BOTTOM NAVIGATION BAR (Hiển thị cố định đáy màn hình trên Mobile) -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Thanh điều hướng di động">
+  <button type="button" class="mobile-nav-item active" data-view="overview" onclick="navTo('overview')">
+    <span class="mobile-nav-icon">⚡</span>
+    <span class="mobile-nav-label">Tổng quan</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-view="attendance" onclick="navTo('attendance')">
+    <span class="mobile-nav-icon">📋</span>
+    <span class="mobile-nav-label">Điểm danh</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-view="zalo" onclick="navTo('zalo')">
+    <span class="mobile-nav-icon">👥</span>
+    <span class="mobile-nav-label">Lịch rảnh</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-view="leave" onclick="navTo('leave')">
+    <span class="mobile-nav-icon">📝</span>
+    <span class="mobile-nav-label">Đơn nghỉ</span>
+    <span class="mobile-nav-badge" id="mobileNavLeaveBadge" style="display:none">0</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-view="menu" onclick="toggleSidebar()">
+    <span class="mobile-nav-icon">⋯</span>
+    <span class="mobile-nav-label">Menu</span>
+  </button>
+</nav>
 
 <!-- ==========================================================
      ALL MODALS
@@ -2992,6 +3175,11 @@ function navTo(viewName) {
   const targetNav = document.getElementById('nav-' + viewName);
   if (targetNav) targetNav.classList.add('active');
 
+  // Đồng bộ trạng thái active trên Bottom Navigation Mobile
+  document.querySelectorAll('.mobile-bottom-nav .mobile-nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-view') === viewName);
+  });
+
   const pageTitle = document.getElementById('pageCurrentSection');
   if (pageTitle) pageTitle.textContent = viewTitlesMap[viewName] || 'Tổng quan';
 
@@ -3138,6 +3326,11 @@ function renderLeaveRequests(){
 
   const count=document.getElementById('leaveRequestCount');if(count)count.textContent=`${rows.length} đơn`;
   const badge=document.getElementById('navLeaveBadge');if(badge)badge.textContent=countPending;
+  const mobileBadge=document.getElementById('mobileNavLeaveBadge');
+  if(mobileBadge){
+    mobileBadge.textContent=countPending;
+    mobileBadge.style.display=countPending>0?'inline-flex':'none';
+  }
 
   if(!rows.length){
     list.innerHTML='<div class="empty-state">Chưa có đơn xin nghỉ nào phù hợp bộ lọc.</div>';
@@ -3145,7 +3338,10 @@ function renderLeaveRequests(){
   }
 
   const days=[...new Set(rows.map(leaveRowDate))].sort().reverse();
-  if(selectedLeaveDay&&!days.includes(selectedLeaveDay)){
+  if(!selectedLeaveDay && days.length){
+    const pendingDay = days.find(day => rows.some(r => leaveRowDate(r) === day && r.status === 'pending'));
+    selectedLeaveDay = pendingDay || days[0];
+  } else if(selectedLeaveDay&&!days.includes(selectedLeaveDay)){
     selectedLeaveDay=null;
     selectedLeavePeriod=null;
   }
@@ -3206,13 +3402,19 @@ function renderLeaveRequests(){
         const statusBadgeColor=r.status==='approved'?'var(--ok)':r.status==='rejected'?'var(--err)':r.status==='pending'?'#b45309':'var(--muted)';
 
         const quickActionButtons = r.status === 'pending'
-          ? `<button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt phép</button>
-             <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">✕ Từ chối</button>`
+          ? `<div class="leave-quick-actions">
+               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:6px 14px;font-size:12.5px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt phép</button>
+               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:6px 14px;font-size:12.5px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">✕ Từ chối</button>
+             </div>`
           : r.status === 'approved'
-          ? `<button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">Chuyển Từ chối</button>
-             <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>`
-          : `<button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt lại</button>
-             <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>`;
+          ? `<div class="leave-quick-actions">
+               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">Chuyển Từ chối</button>
+               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
+             </div>`
+          : `<div class="leave-quick-actions">
+               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt lại</button>
+               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
+             </div>`;
 
         return `
           <article style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
@@ -3666,47 +3868,39 @@ document.addEventListener('keydown', event => {
 });
 
 /* ==========================================================
-   DESKTOP / MOBILE VIEWPORT TOGGLE
+   MOBILE ZALO SCHEDULE HELPERS: WEEK CAROUSEL & CARD VIEW
    ========================================================== */
-function applyViewportMode(mode) {
-  const meta = document.getElementById('viewportMeta');
-  const btn = document.getElementById('btnToggleDesktopMode');
-  const isDesktop = mode === 'desktop';
-  if (isDesktop) {
-    document.documentElement.classList.add('force-desktop-mode');
-    document.body.classList.add('force-desktop-mode');
-    if (meta) meta.setAttribute('content', 'width=1280, initial-scale=0.3, minimum-scale=0.2, maximum-scale=5.0, user-scalable=yes');
-    if (btn) {
-      btn.innerHTML = '<span class="desktop-toggle-icon">📱</span><span class="desktop-toggle-text">Bản Mobile</span>';
-      btn.classList.add('active');
-      btn.title = 'Chuyển về giao diện Mobile';
-    }
-  } else {
-    document.documentElement.classList.remove('force-desktop-mode');
-    document.body.classList.remove('force-desktop-mode');
-    if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1.0, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes');
-    if (btn) {
-      btn.innerHTML = '<span class="desktop-toggle-icon">💻</span><span class="desktop-toggle-text">Bản PC</span>';
-      btn.classList.remove('active');
-      btn.title = 'Chuyển sang Bản PC (xem bao quát toàn màn hình như máy tính)';
-    }
+function toggleZaloViewMode() {
+  const isTable = document.body.classList.toggle('zalo-show-table');
+  const txt = document.getElementById('zaloToggleViewText');
+  if (txt) txt.textContent = isTable ? 'Xem Thẻ' : 'Xem Bảng';
+}
+
+function renderZaloWeekPills(dateKey) {
+  const container = document.getElementById('zaloWeekCarousel');
+  if (!container) return;
+  const today = new Date();
+  const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const pills = [];
+  
+  // Hiển thị 7 ngày từ hôm qua (-1) đến 5 ngày sau (+5)
+  for (let offset = -1; offset <= 5; offset++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + offset);
+    const key = getVietnamDateKey(offset);
+    const labelDay = offset === 0 ? 'H.Nay' : offset === 1 ? 'N.Mai' : dayNames[d.getDay()];
+    const labelDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const isActive = (key === dateKey);
+
+    pills.push(`
+      <button type="button" class="zalo-week-pill ${isActive ? 'active' : ''}" onclick="setZaloQuickDate(${offset})">
+        <span class="wp-day">${labelDay}</span>
+        <span class="wp-date">${labelDate}</span>
+      </button>
+    `);
   }
+  container.innerHTML = pills.join('');
 }
-
-function toggleDesktopMode() {
-  const current = localStorage.getItem('admin_viewport_mode') || 'mobile';
-  const next = current === 'desktop' ? 'mobile' : 'desktop';
-  localStorage.setItem('admin_viewport_mode', next);
-  applyViewportMode(next);
-}
-
-// Đồng bộ trạng thái giao diện đã lưu
-(function initAdminViewport() {
-  try {
-    const saved = localStorage.getItem('admin_viewport_mode') || 'mobile';
-    applyViewportMode(saved);
-  } catch (e) {}
-})();
 
 /* ==========================================================
    ROBOCON RULES & NOTES (TẠO, ĐIỀN, SỬA, XÓA)
@@ -4594,6 +4788,55 @@ async function loadZaloScheduleMatrix(dateKey){
           <td class="col-shift col-shift-evening">${renderCell(r.periods.evening)}</td>
         </tr>`;
       }).join('');
+
+      // Render danh sách dạng Thẻ trên Mobile
+      const mobileCardsContainer = document.getElementById('zaloMatrixCardsMobile');
+      if (mobileCardsContainer) {
+        mobileCardsContainer.innerHTML = matrixRows.map(r => {
+          const hasBusy = !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree;
+          const isAllDayFree = r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree;
+          const badgeClass = isAllDayFree ? 'free-all' : hasBusy ? 'has-busy' : 'part-free';
+          const badgeText = isAllDayFree ? '🌟 Rảnh cả ngày' : hasBusy ? '🔴 Có lịch học' : '🟢 Rảnh';
+          const initial = (r.name || r.mssv).trim().split(' ').pop().slice(0, 2).toUpperCase() || 'SV';
+
+          return `
+            <div class="zalo-student-card" 
+              data-name="${(r.name || '').toLowerCase()}" 
+              data-mssv="${r.mssv}"
+              data-free-all-day="${isAllDayFree}"
+              data-free-morning="${r.periods.morning.isFree}"
+              data-free-afternoon="${r.periods.afternoon.isFree}"
+              data-free-evening="${r.periods.evening.isFree}"
+              data-has-busy="${hasBusy}">
+              <div class="zalo-card-header">
+                <div class="zalo-card-user">
+                  <div class="zalo-card-avatar">${escapeHtml(initial)}</div>
+                  <div style="min-width:0">
+                    <div class="zalo-card-name">${escapeHtml(r.name)}</div>
+                    <div class="zalo-card-mssv">${escapeHtml(r.mssv)}</div>
+                  </div>
+                </div>
+                <span class="zalo-card-badge ${badgeClass}">${badgeText}</span>
+              </div>
+              <div class="zalo-card-shifts">
+                <div class="zalo-card-shift ${r.periods.morning.isFree ? 'is-free' : 'is-busy'}">
+                  <span class="shift-name">Sáng</span>
+                  <span class="shift-status">${r.periods.morning.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.morning.classes[0]?.subject_name || 'Bận')}</span>
+                </div>
+                <div class="zalo-card-shift ${r.periods.afternoon.isFree ? 'is-free' : 'is-busy'}">
+                  <span class="shift-name">Chiều</span>
+                  <span class="shift-status">${r.periods.afternoon.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.afternoon.classes[0]?.subject_name || 'Bận')}</span>
+                </div>
+                <div class="zalo-card-shift ${r.periods.evening.isFree ? 'is-free' : 'is-busy'}">
+                  <span class="shift-name">Tối</span>
+                  <span class="shift-status">${r.periods.evening.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.evening.classes[0]?.subject_name || 'Bận')}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      renderZaloWeekPills(dateKey);
     }
 
     // 4. Update Footer
@@ -4697,6 +4940,23 @@ function filterZaloMatrix(){
       const sttCell = r.querySelector('.matrix-stt');
       if (sttCell) sttCell.textContent = visibleIndex;
     }
+  });
+
+  // Lọc song song cả danh sách thẻ mobile
+  const cards = document.querySelectorAll('#zaloMatrixCardsMobile .zalo-student-card');
+  cards.forEach(c => {
+    const name = c.dataset.name || '';
+    const mssv = c.dataset.mssv || '';
+    const matchSearch = !search || name.includes(search) || mssv.includes(search);
+
+    let matchFilter = true;
+    if (_matrixCurrentFilter === 'free_all_day') matchFilter = c.dataset.freeAllDay === 'true';
+    else if (_matrixCurrentFilter === 'free_morning') matchFilter = c.dataset.freeMorning === 'true';
+    else if (_matrixCurrentFilter === 'free_afternoon') matchFilter = c.dataset.freeAfternoon === 'true';
+    else if (_matrixCurrentFilter === 'free_evening') matchFilter = c.dataset.freeEvening === 'true';
+    else if (_matrixCurrentFilter === 'busy_any') matchFilter = c.dataset.hasBusy === 'true';
+
+    c.style.display = (matchSearch && matchFilter) ? '' : 'none';
   });
 
   // Hiển thị dòng thông báo nếu không có ai
