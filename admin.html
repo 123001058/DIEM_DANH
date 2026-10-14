@@ -663,6 +663,9 @@ body {
 .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
 @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
 .stat { padding: 10px 8px; text-align: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.stat.interactive { cursor: pointer; transition: all 0.15s ease; user-select: none; }
+.stat.interactive:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: var(--shadow-sm); }
+.stat.interactive.active { border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 2px var(--primary); }
 .stat-label { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .stat-num { font-size: 24px; font-weight: 800; line-height: 1.1; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .stat-num.blue { color: var(--info); }
@@ -1916,25 +1919,96 @@ tbody tr:last-child td { border-bottom: none; }
     <section class="app-view" id="view-leave">
       <section class="card" style="max-width:1380px;margin:0 auto;padding:22px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-          <div><h2 style="font-size:17px;font-weight:800;margin:0">📝 Quản lý đơn xin nghỉ</h2><p style="font-size:12px;color:var(--muted);margin:5px 0 0">Xem lịch rảnh/bận, duyệt đơn và lưu ghi chú. Có lịch trùng chỉ là cảnh báo.</p></div>
-          <button class="btn btn-secondary" onclick="loadLeaveManagement()">↻ Làm mới</button>
+          <div>
+            <h2 style="font-size:17px;font-weight:800;margin:0">📝 Quản lý đơn xin nghỉ</h2>
+            <p style="font-size:12px;color:var(--muted);margin:5px 0 0">Xem lịch rảnh/bận, duyệt đơn 1-chạm và lưu ghi chú. Có lịch trùng chỉ là cảnh báo.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="toggleAdminSelfLeaveForm()" id="btnToggleSelfLeave">＋ Tự nộp đơn</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadLeaveManagement()">↻ Làm mới</button>
+          </div>
         </div>
-        <details style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px">
-          <summary style="font-weight:800;cursor:pointer">＋ Nộp đơn xin nghỉ cho tài khoản của tôi</summary>
-          <div class="leave-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px">
-            <label>Ngày nghỉ<input id="adminLeaveDate" type="date" onchange="checkAdminLeaveConflict()" style="display:block;width:100%;padding:9px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></label>
-            <label>Buổi nghỉ<select id="adminLeavePeriod" onchange="checkAdminLeaveConflict()" style="display:block;width:100%;padding:9px;margin-top:4px;border:1px solid var(--border);border-radius:7px"><option value="full_day">Cả ngày</option><option value="morning">Buổi sáng</option><option value="afternoon">Buổi chiều</option><option value="evening">Buổi tối</option></select></label>
+
+        <!-- Khung nộp đơn cá nhân của Admin (Mặc định ẩn gọn gàng) -->
+        <div class="card" id="adminSelfLeaveCard" style="display:none;padding:16px;margin-bottom:16px;border-left:4px solid #3b82f6;background:var(--surface-2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="font-size:14px;font-weight:800;margin:0;display:flex;align-items:center;gap:6px">
+              <span>✍️</span> Nộp đơn xin nghỉ cho tài khoản của tôi
+            </h3>
+            <button class="btn btn-icon" onclick="toggleAdminSelfLeaveForm(false)" title="Đóng">✕</button>
+          </div>
+          <div class="leave-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+            <label style="font-size:12px;font-weight:600">Ngày nghỉ
+              <input id="adminLeaveDate" type="date" onchange="checkAdminLeaveConflict()" style="display:block;width:100%;padding:8px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-family:inherit">
+            </label>
+            <label style="font-size:12px;font-weight:600">Buổi nghỉ
+              <select id="adminLeavePeriod" onchange="checkAdminLeaveConflict()" style="display:block;width:100%;padding:8px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-family:inherit">
+                <option value="full_day">Cả ngày</option>
+                <option value="morning">Buổi sáng</option>
+                <option value="afternoon">Buổi chiều</option>
+                <option value="evening">Buổi tối</option>
+              </select>
+            </label>
           </div>
           <div id="adminLeaveConflict" style="font-size:12px;color:var(--warn);margin:6px 0"></div>
-          <label style="display:block;font-size:12px;margin:8px 0">Lý do<textarea id="adminLeaveReason" rows="2" style="display:block;width:100%;padding:9px;margin-top:4px;border:1px solid var(--border);border-radius:7px"></textarea></label>
-          <label style="display:block;font-size:12px;margin:8px 0">Ảnh minh chứng (nếu có)<input id="adminLeaveEvidence" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;margin-top:5px"></label>
-          <button class="btn btn-primary" onclick="submitAdminLeaveRequest()">Gửi đơn</button>
-        </details>
-        <div style="margin:6px 0 16px"><b>Thông báo</b><div id="adminLeaveNotifications" style="margin-top:6px"></div></div>
-        <div style="display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap">
-          <label style="font-size:12px">Trạng thái <select id="leaveFilterStatus" onchange="renderLeaveRequests()" style="padding:8px;border:1px solid var(--border);border-radius:7px"><option value="all">Tất cả</option><option value="pending">Chờ duyệt</option><option value="approved">Đã duyệt</option><option value="rejected">Từ chối</option><option value="cancelled">Đã hủy</option></select></label>
-          <span id="leaveRequestCount" style="font-size:12px;color:var(--muted)"></span>
+          <label style="display:block;font-size:12px;font-weight:600;margin:8px 0">Lý do
+            <textarea id="adminLeaveReason" rows="2" placeholder="Nhập lý do xin nghỉ..." style="display:block;width:100%;padding:8px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"></textarea>
+          </label>
+          <label style="display:block;font-size:12px;font-weight:600;margin:8px 0">Ảnh minh chứng (nếu có)
+            <input id="adminLeaveEvidence" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;margin-top:5px;font-size:12px">
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="submitAdminLeaveRequest()" style="margin-top:6px">Gửi đơn xin nghỉ</button>
         </div>
+
+        <!-- Dải thẻ KPI Trạng thái đơn -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
+          <div class="stat interactive" id="leaveKpiPending" onclick="setLeaveStatusFilter('pending')" title="Lọc đơn chờ duyệt">
+            <div class="stat-label">⏳ Chờ duyệt</div>
+            <div class="stat-num" style="color:#d97706" id="leaveStatPending">0</div>
+          </div>
+          <div class="stat interactive" id="leaveKpiApproved" onclick="setLeaveStatusFilter('approved')" title="Lọc đơn đã duyệt">
+            <div class="stat-label">🟢 Đã duyệt</div>
+            <div class="stat-num" style="color:#15803d" id="leaveStatApproved">0</div>
+          </div>
+          <div class="stat interactive" id="leaveKpiRejected" onclick="setLeaveStatusFilter('rejected')" title="Lọc đơn từ chối">
+            <div class="stat-label">🔴 Từ chối</div>
+            <div class="stat-num" style="color:#dc2626" id="leaveStatRejected">0</div>
+          </div>
+          <div class="stat interactive active" id="leaveKpiAll" onclick="setLeaveStatusFilter('all')" title="Xem tất cả đơn">
+            <div class="stat-label">📋 Tất cả đơn</div>
+            <div class="stat-num" style="color:var(--text)" id="leaveStatAll">0</div>
+          </div>
+        </div>
+
+        <!-- Thông báo rút gọn (Chỉ hiện khi có thông báo) -->
+        <div id="adminLeaveNotificationsWrap" style="display:none;margin-bottom:14px;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:700;color:var(--text)">🔔 Thông báo đơn xin nghỉ</span>
+            <span id="leaveNotifyCount" style="font-size:11px;color:var(--muted)"></span>
+          </div>
+          <div id="adminLeaveNotifications"></div>
+        </div>
+
+        <!-- Toolbar tìm kiếm & lọc -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:12px;font-weight:700">Trạng thái: 
+              <select id="leaveFilterStatus" onchange="renderLeaveRequests()" style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:12.5px;font-family:inherit">
+                <option value="all">Tất cả</option>
+                <option value="pending">Chờ duyệt</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="rejected">Từ chối</option>
+                <option value="cancelled">Đã hủy</option>
+              </select>
+            </label>
+            <span id="leaveRequestCount" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+          </div>
+
+          <div style="position:relative;min-width:240px;max-width:340px;flex:1">
+            <input type="text" id="leaveSearchInput" placeholder="Tìm theo tên hoặc MSSV..." oninput="renderLeaveRequests()" style="width:100%;padding:7px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:12.5px;font-family:inherit">
+          </div>
+        </div>
+
         <div id="leaveRequestDays"><div class="schedule-loading">Đang tải đơn xin nghỉ...</div></div>
       </section>
     </section>
@@ -1997,7 +2071,10 @@ tbody tr:last-child td { border-bottom: none; }
           <h2 style="font-size:16.5px;font-weight:800;letter-spacing:-0.01em">💬 Hộp thư phản hồi & Đóng góp ý kiến ẩn danh</h2>
           <p style="font-size:12px;color:var(--muted);margin-top:2px">Tiếp nhận ý kiến đóng góp, báo cáo hỏng hóc hoặc đề xuất thiết bị từ thành viên xưởng.</p>
         </div>
-        <button class="btn btn-secondary" onclick="window.open('checkin.html','_blank')">📝 Gửi phản hồi từ trang sinh viên</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="loadAdminFeedback()">↻ Làm mới</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.open('checkin.html','_blank')">📝 Gửi phản hồi từ trang sinh viên</button>
+        </div>
       </div>
 
       <div class="fb-privacy-banner">
@@ -2007,27 +2084,62 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="tasks-filter-bar">
-        <div class="tasks-filter-item">
-          <label>Loại ý kiến:</label>
-          <select id="fbFilterType" onchange="applyFeedbackFilters()">
-            <option value="all">Tất cả loại</option>
-            <option value="gopy">💡 Góp ý xưởng</option>
-            <option value="suco">⚠️ Báo hỏng / Sự cố</option>
-            <option value="muasam">🛠 Đề xuất thiết bị</option>
-            <option value="khac">💬 Khác</option>
-          </select>
+      <!-- Dải thẻ KPI Phản hồi -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px">
+        <div class="stat interactive" id="fbKpiSuco" onclick="setFeedbackFilter('type','suco')" title="Lọc các sự cố, hỏng hóc">
+          <div class="stat-label">⚠️ Báo sự cố</div>
+          <div class="stat-num" style="color:#dc2626" id="fbStatSuco">0</div>
+        </div>
+        <div class="stat interactive" id="fbKpiGopy" onclick="setFeedbackFilter('type','gopy')" title="Lọc góp ý xưởng">
+          <div class="stat-label">💡 Góp ý</div>
+          <div class="stat-num" style="color:#0284c7" id="fbStatGopy">0</div>
+        </div>
+        <div class="stat interactive" id="fbKpiMuasam" onclick="setFeedbackFilter('type','muasam')" title="Lọc đề xuất mua sắm">
+          <div class="stat-label">🛠 Mua sắm</div>
+          <div class="stat-num" style="color:#7c3aed" id="fbStatMuasam">0</div>
+        </div>
+        <div class="stat interactive" id="fbKpiProcessing" onclick="setFeedbackFilter('status','processing')" title="Lọc đang xử lý">
+          <div class="stat-label">⏳ Đang xử lý</div>
+          <div class="stat-num" style="color:#d97706" id="fbStatProcessing">0</div>
+        </div>
+        <div class="stat interactive" id="fbKpiResolved" onclick="setFeedbackFilter('status','resolved')" title="Lọc đã giải quyết">
+          <div class="stat-label">✓ Đã giải quyết</div>
+          <div class="stat-num" style="color:#15803d" id="fbStatResolved">0</div>
+        </div>
+        <div class="stat interactive active" id="fbKpiAll" onclick="setFeedbackFilter('all','all')" title="Xem tất cả phản hồi">
+          <div class="stat-label">📋 Tất cả</div>
+          <div class="stat-num" style="color:var(--text)" id="fbStatAll">0</div>
+        </div>
+      </div>
+
+      <!-- Toolbar lọc & tìm kiếm -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div class="tasks-filter-bar" style="margin:0">
+          <div class="tasks-filter-item">
+            <label>Loại ý kiến:</label>
+            <select id="fbFilterType" onchange="applyFeedbackFilters()">
+              <option value="all">Tất cả loại</option>
+              <option value="suco">⚠️ Báo hỏng / Sự cố</option>
+              <option value="gopy">💡 Góp ý xưởng</option>
+              <option value="muasam">🛠 Đề xuất thiết bị</option>
+              <option value="khac">💬 Khác</option>
+            </select>
+          </div>
+
+          <div class="tasks-filter-item">
+            <label>Trạng thái:</label>
+            <select id="fbFilterStatus" onchange="applyFeedbackFilters()">
+              <option value="all">Tất cả</option>
+              <option value="new">Mới nhận</option>
+              <option value="processing">⏳ Đang xử lý</option>
+              <option value="resolved">✓ Đã xử lý</option>
+              <option value="rejected">✕ Từ chối</option>
+            </select>
+          </div>
         </div>
 
-        <div class="tasks-filter-item">
-          <label>Trạng thái:</label>
-          <select id="fbFilterStatus" onchange="applyFeedbackFilters()">
-            <option value="all">Tất cả</option>
-            <option value="new">Mới nhận</option>
-            <option value="processing">⏳ Đang xử lý</option>
-            <option value="resolved">✓ Đã xử lý</option>
-            <option value="rejected">✕ Từ chối</option>
-          </select>
+        <div style="position:relative;min-width:240px;max-width:340px;flex:1">
+          <input type="text" id="fbSearchInput" placeholder="Tìm theo mã FB- hoặc nội dung..." oninput="applyFeedbackFilters()" style="width:100%;padding:7px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:12.5px;font-family:inherit">
         </div>
       </div>
 
@@ -2706,9 +2818,56 @@ const leaveTypeNames={full_session:'Nghỉ theo ngày/buổi',late:'Đi muộn',
 const leaveStatusNames={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Từ chối',cancelled:'Đã hủy'};
 const adminLeavePeriodNames={full_day:'Cả ngày',morning:'Buổi sáng',afternoon:'Buổi chiều',evening:'Buổi tối'};
 let adminLeaveCache=[], adminLeaveUser=null, adminLeaveProfile=null, adminLeaveSchedules=[], selectedLeaveDay=null, selectedLeavePeriod=null;
+
+function toggleAdminSelfLeaveForm(forceState) {
+  const card = document.getElementById('adminSelfLeaveCard');
+  const btn = document.getElementById('btnToggleSelfLeave');
+  if (!card) return;
+  const isCurrentlyOpen = (card.style.display !== 'none');
+  const shouldOpen = (forceState !== undefined) ? forceState : !isCurrentlyOpen;
+  card.style.display = shouldOpen ? 'block' : 'none';
+  if (btn) btn.textContent = shouldOpen ? '✕ Đóng form nộp' : '＋ Tự nộp đơn';
+}
+
+function setLeaveStatusFilter(status) {
+  const sel = document.getElementById('leaveFilterStatus');
+  if (sel) sel.value = status;
+  ['leaveKpiPending', 'leaveKpiApproved', 'leaveKpiRejected', 'leaveKpiAll'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  const map = { pending: 'leaveKpiPending', approved: 'leaveKpiApproved', rejected: 'leaveKpiRejected', all: 'leaveKpiAll' };
+  if (map[status]) document.getElementById(map[status])?.classList.add('active');
+  renderLeaveRequests();
+}
+
+function toggleLeaveCardEdit(id) {
+  const box = document.getElementById(`leaveEditBox_${id}`);
+  if (box) {
+    box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+  }
+}
+
+async function quickUpdateLeaveStatus(id, newStatus) {
+  const row = adminLeaveCache.find(r => r.id === id);
+  if (!row) return;
+  const statusLabel = leaveStatusNames[newStatus] || newStatus;
+  try {
+    const { error } = await supabase.from('leave_requests').update({
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (error) throw error;
+    toast('ok', 'Cập nhật thành công', `Đơn của ${row.students?.name || row.mssv} đã chuyển sang "${statusLabel}".`);
+    await loadLeaveManagement();
+  } catch (err) {
+    toast('err', 'Lỗi cập nhật', err.message || 'Không thể cập nhật trạng thái đơn.');
+  }
+}
+
 function adminLeaveBounds(date,period){if(!date)return null;const hours={full_day:[0,24],morning:[0,12],afternoon:[12,17],evening:[17,24]}[period];if(!hours)return null;const start=new Date(`${date}T00:00:00`);start.setHours(hours[0],0,0,0);const end=new Date(`${date}T00:00:00`);end.setHours(hours[1],0,0,0);return {start,end};}
 function leaveRowDate(r){return r.leave_date||r.sessions?.started_at?.slice(0,10)||new Date(r.created_at).toLocaleDateString('sv-SE');}
 function leaveRowPeriod(r){if(r.leave_period)return r.leave_period;const hour=new Date(r.starts_at||r.sessions?.started_at||r.created_at).getHours();return hour<12?'morning':hour<17?'afternoon':'evening';}
+
 async function checkAdminLeaveConflict(){
   const out=document.getElementById('adminLeaveConflict');if(!out)return;
   const bounds=adminLeaveBounds(document.getElementById('adminLeaveDate')?.value,document.getElementById('adminLeavePeriod')?.value);if(!bounds||!adminLeaveProfile?.mssv){out.textContent='';return;}const {start,end}=bounds;
@@ -2716,15 +2875,19 @@ async function checkAdminLeaveConflict(){
   if(error){out.textContent='Chưa kiểm tra được lịch học.';return;}if(!data?.length){out.textContent='⚪ Chưa có dữ liệu lịch học; vẫn có thể gửi đơn.';return;}
   const conflicts=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);out.textContent=conflicts.length?`⚠️ Trùng lịch học: ${conflicts.map(s=>s.subject_name).join(', ')}. Vẫn có thể gửi đơn.`:'Không thấy lịch học trùng thời gian.';
 }
+
 async function submitAdminLeaveRequest(){
   const leaveDate=document.getElementById('adminLeaveDate').value,leavePeriod=document.getElementById('adminLeavePeriod').value,reason=document.getElementById('adminLeaveReason').value.trim(),file=document.getElementById('adminLeaveEvidence').files?.[0];
   if(!adminLeaveProfile?.mssv)return toast('err','Thiếu MSSV','Tài khoản chưa liên kết MSSV.');if(!leaveDate||!reason)return toast('warn','Thiếu thông tin','Chọn ngày nghỉ và nhập lý do.');
   try{
     let evidence_path=null;if(file){if(file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Ảnh phải là JPG, PNG hoặc WebP và nhỏ hơn 5 MB.');const ext=file.type==='image/jpeg'?'jpg':file.type.split('/')[1];evidence_path=`${adminLeaveUser.id}/${crypto.randomUUID()}.${ext}`;const {error}=await supabase.storage.from('leave-evidence').upload(evidence_path,file,{contentType:file.type});if(error)throw error;}
     const {error}=await supabase.from('leave_requests').insert({session_id:null,leave_date:leaveDate,leave_period:leavePeriod,mssv:adminLeaveProfile.mssv,leave_type:'full_session',starts_at:null,ends_at:null,reason,evidence_path});if(error)throw error;
-    document.getElementById('adminLeaveDate').value='';document.getElementById('adminLeaveReason').value='';document.getElementById('adminLeaveEvidence').value='';await loadLeaveManagement();toast('ok','Đã gửi đơn','Đơn xin nghỉ của bạn đã được gửi.');
+    document.getElementById('adminLeaveDate').value='';document.getElementById('adminLeaveReason').value='';document.getElementById('adminLeaveEvidence').value='';
+    toggleAdminSelfLeaveForm(false);
+    await loadLeaveManagement();toast('ok','Đã gửi đơn','Đơn xin nghỉ của bạn đã được gửi.');
   }catch(e){toast('err','Không gửi được đơn',e.message||'Lỗi không xác định.');}
 }
+
 async function loadLeaveManagement(){
   const list=document.getElementById('leaveRequestDays');if(!list)return;list.innerHTML='<div class="schedule-loading">Đang tải đơn xin nghỉ...</div>';
   const {data:authData}=await supabase.auth.getSession();adminLeaveUser=authData?.session?.user||null;
@@ -2740,12 +2903,45 @@ async function loadLeaveManagement(){
   if(memberIds.length){const result=await supabase.from('student_schedules').select('mssv,subject_name,start_time,end_time').in('mssv',memberIds);schedules=result.data||[];}
   adminLeaveSchedules=schedules;renderLeaveRequests();
 }
+
 function renderLeaveRequests(){
   const list=document.getElementById('leaveRequestDays');if(!list)return;
   const filterStatus=document.getElementById('leaveFilterStatus')?.value||'all';
-  const rows=adminLeaveCache.filter(r=>filterStatus==='all'||r.status===filterStatus);
+  const search=(document.getElementById('leaveSearchInput')?.value||'').trim().toLowerCase();
+
+  // 1. Cập nhật số liệu KPI
+  const countPending = adminLeaveCache.filter(r=>r.status==='pending').length;
+  const countApproved = adminLeaveCache.filter(r=>r.status==='approved').length;
+  const countRejected = adminLeaveCache.filter(r=>r.status==='rejected').length;
+  const countAll = adminLeaveCache.length;
+
+  const elP=document.getElementById('leaveStatPending');
+  const elA=document.getElementById('leaveStatApproved');
+  const elR=document.getElementById('leaveStatRejected');
+  const elAll=document.getElementById('leaveStatAll');
+  if(elP) elP.textContent=countPending;
+  if(elA) elA.textContent=countApproved;
+  if(elR) elR.textContent=countRejected;
+  if(elAll) elAll.textContent=countAll;
+
+  // Highlight KPI card tương ứng
+  ['leaveKpiPending', 'leaveKpiApproved', 'leaveKpiRejected', 'leaveKpiAll'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  const mapKpi = { pending: 'leaveKpiPending', approved: 'leaveKpiApproved', rejected: 'leaveKpiRejected', all: 'leaveKpiAll' };
+  if (mapKpi[filterStatus]) document.getElementById(mapKpi[filterStatus])?.classList.add('active');
+
+  const rows=adminLeaveCache.filter(r=>{
+    const matchStatus=(filterStatus==='all'||r.status===filterStatus);
+    const name=(r.students?.name||'').toLowerCase();
+    const mssv=(r.mssv||'').toLowerCase();
+    const reason=(r.reason||'').toLowerCase();
+    const matchSearch=!search || name.includes(search) || mssv.includes(search) || reason.includes(search);
+    return matchStatus && matchSearch;
+  });
+
   const count=document.getElementById('leaveRequestCount');if(count)count.textContent=`${rows.length} đơn`;
-  const badge=document.getElementById('navLeaveBadge');if(badge)badge.textContent=adminLeaveCache.filter(r=>r.status==='pending').length;
+  const badge=document.getElementById('navLeaveBadge');if(badge)badge.textContent=countPending;
 
   if(!rows.length){
     list.innerHTML='<div class="empty-state">Chưa có đơn xin nghỉ nào phù hợp bộ lọc.</div>';
@@ -2813,14 +3009,23 @@ function renderLeaveRequests(){
         const statusBadgeBg=r.status==='approved'?'var(--ok-bg)':r.status==='rejected'?'var(--err-bg)':r.status==='pending'?'#fef3c7':'#f1f5f9';
         const statusBadgeColor=r.status==='approved'?'var(--ok)':r.status==='rejected'?'var(--err)':r.status==='pending'?'#b45309':'var(--muted)';
 
+        const quickActionButtons = r.status === 'pending'
+          ? `<button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt phép</button>
+             <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">✕ Từ chối</button>`
+          : r.status === 'approved'
+          ? `<button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">Chuyển Từ chối</button>
+             <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>`
+          : `<button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt lại</button>
+             <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:5px 10px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>`;
+
         return `
           <article style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
             <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">
               <div>
-                <strong style="font-size:13.5px">${escapeHtml(r.students?.name||r.mssv)}</strong>
-                <span style="font-size:12px;color:var(--muted)"> · ${escapeHtml(r.mssv)}</span>
+                <strong style="font-size:14px;color:var(--text)">${escapeHtml(r.students?.name||r.mssv)}</strong>
+                <span style="font-size:12px;color:var(--muted);font-family:monospace"> · ${escapeHtml(r.mssv)}</span>
                 <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
-                  ${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'} · Gửi lúc ${new Date(r.created_at).toLocaleString('vi-VN')}
+                  <b>${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'}</b> · Gửi lúc ${new Date(r.created_at).toLocaleString('vi-VN')}
                 </div>
               </div>
               <span style="font-size:11.5px;font-weight:700;padding:3px 10px;background:${statusBadgeBg};color:${statusBadgeColor};border-radius:99px">
@@ -2832,42 +3037,55 @@ function renderLeaveRequests(){
               ${availability}
             </div>
 
-            <div style="font-size:12px;margin-bottom:8px">
+            <div style="font-size:12.5px;margin-bottom:8px;line-height:1.5">
               <b>Lý do:</b> ${escapeHtml(r.reason)}
             </div>
 
             ${r.evidence_path?`<div style="margin-bottom:8px"><button type="button" class="btn btn-secondary btn-sm" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
 
+            ${r.reviewer_note ? `<div style="font-size:11.5px;color:var(--muted);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-bottom:8px"><b>Ghi chú BQT:</b> ${escapeHtml(r.reviewer_note)}</div>` : ''}
+
             ${historyHtml?`<details style="margin:8px 0;font-size:11.5px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử chỉnh sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:4px;padding:6px;background:var(--surface-2);border-radius:6px">${historyHtml}</div></details>`:''}
 
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
-              <label style="font-size:11px">Ngày nghỉ
-                <input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
-              </label>
-              <label style="font-size:11px">Buổi nghỉ
-                <select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
-                  ${Object.entries(adminLeavePeriodNames).map(([v,n])=>`<option value="${v}" ${(r.leave_period||'full_day')===v?'selected':''}>${n}</option>`).join('')}
-                </select>
-              </label>
-              <label style="font-size:11px">Trạng thái
-                <select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">
-                  ${statusOptions}
-                </select>
-              </label>
+            <!-- Hàng hành động 1-chạm -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                ${quickActionButtons}
+                <button type="button" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:12px" onclick="toggleLeaveCardEdit('${r.id}')" title="Chỉnh sửa ngày/buổi/ghi chú">✏️ Sửa chi tiết</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button type="button" class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:5px 9px;font-size:11.5px" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa</button>
+              </div>
             </div>
 
-            <label style="display:block;font-size:11px;margin-top:8px">Lý do
-              <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px">${escapeHtml(r.reason)}</textarea>
-            </label>
+            <!-- Khung chỉnh sửa chi tiết (Mặc định ẩn) -->
+            <div id="leaveEditBox_${r.id}" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:8px;border:1px dashed var(--border)">
+              <div style="font-size:11.5px;font-weight:700;margin-bottom:8px;color:var(--text)">✏️ Chỉnh sửa thông tin đơn:</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+                <label style="font-size:11px">Ngày nghỉ
+                  <input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                </label>
+                <label style="font-size:11px">Buổi nghỉ
+                  <select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                    ${Object.entries(adminLeavePeriodNames).map(([v,n])=>`<option value="${v}" ${(r.leave_period||'full_day')===v?'selected':''}>${n}</option>`).join('')}
+                  </select>
+                </label>
+                <label style="font-size:11px">Trạng thái
+                  <select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                    ${statusOptions}
+                  </select>
+                </label>
+              </div>
 
-            <label style="display:block;font-size:11px;margin-top:8px">Ghi chú quản lý
-              <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px" placeholder="Không bắt buộc">${escapeHtml(r.reviewer_note||'')}</textarea>
-            </label>
+              <label style="display:block;font-size:11px;margin-top:8px">Lý do
+                <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">${escapeHtml(r.reason)}</textarea>
+              </label>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap">
-              <small style="color:var(--muted)">Cập nhật: ${new Date(r.updated_at).toLocaleString('vi-VN')}</small>
-              <div style="display:flex;gap:8px">
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa đơn</button>
+              <label style="display:block;font-size:11px;margin-top:8px">Ghi chú quản lý
+                <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit" placeholder="Nhập ghi chú phản hồi cho sinh viên...">${escapeHtml(r.reviewer_note||'')}</textarea>
+              </label>
+
+              <div style="display:flex;justify-content:flex-end;margin-top:8px">
                 <button type="button" class="btn btn-primary btn-sm" onclick="saveLeaveReview('${r.id}')">💾 Lưu cập nhật</button>
               </div>
             </div>
@@ -2957,10 +3175,31 @@ async function saveLeaveReview(id){
   if(error){toast('err','Chưa lưu được đơn',error.message);return;}await loadLeaveManagement();toast('ok','Đã cập nhật','Trạng thái, ghi chú và lịch sử đã được lưu.');
 }
 async function openLeaveEvidence(id){const row=adminLeaveCache.find(r=>r.id===id);if(!row?.evidence_path)return;const {data,error}=await supabase.storage.from('leave-evidence').createSignedUrl(row.evidence_path,300);if(error||!data?.signedUrl){toast('err','Không mở được ảnh',error?.message||'');return;}window.open(data.signedUrl,'_blank','noopener');}
+
 async function loadAdminLeaveNotifications(){
-  const box=document.getElementById('adminLeaveNotifications');if(!box||!adminLeaveUser)return;const {data,error}=await supabase.from('in_app_notifications').select('*').eq('user_id',adminLeaveUser.id).order('created_at',{ascending:false}).limit(12);
-  if(error){box.innerHTML='<div style="font-size:12px;color:var(--muted)">Không tải được thông báo.</div>';return;}
-  const notifications=data||[];box.innerHTML=notifications.length?notifications.map(n=>`<div style="padding:8px;border-top:1px solid var(--border);font-size:12px;opacity:${n.is_read?'.65':'1'}"><b>${escapeHtml(n.title)}</b> · ${escapeHtml(n.message)} <small style="color:var(--muted)">${new Date(n.created_at).toLocaleString('vi-VN')}</small>${n.is_read?'':` <button onclick="markAdminLeaveNotificationRead('${n.id}')">Đã đọc</button>`}</div>`).join(''):'<div style="font-size:12px;color:var(--muted)">Chưa có thông báo.</div>';
+  const wrap=document.getElementById('adminLeaveNotificationsWrap');
+  const box=document.getElementById('adminLeaveNotifications');
+  const countEl=document.getElementById('leaveNotifyCount');
+  if(!box||!adminLeaveUser)return;
+  const {data,error}=await supabase.from('in_app_notifications').select('*').eq('user_id',adminLeaveUser.id).order('created_at',{ascending:false}).limit(8);
+  if(error){if(wrap)wrap.style.display='none';return;}
+  const notifications=data||[];
+  const unread=notifications.filter(n=>!n.is_read).length;
+  if(!notifications.length){
+    if(wrap)wrap.style.display='none';
+    return;
+  }
+  if(wrap)wrap.style.display='block';
+  if(countEl)countEl.textContent=unread?`(${unread} chưa đọc)`:`(${notifications.length} thông báo)`;
+  box.innerHTML=notifications.map(n=>`
+    <div style="padding:6px 0;border-top:1px solid var(--border);font-size:12px;opacity:${n.is_read?'.65':'1'};display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div>
+        <b>${escapeHtml(n.title)}</b> · ${escapeHtml(n.message)} 
+        <small style="color:var(--muted)">${new Date(n.created_at).toLocaleString('vi-VN')}</small>
+      </div>
+      ${n.is_read?'':`<button class="btn btn-sm" style="padding:2px 7px;font-size:11px" onclick="markAdminLeaveNotificationRead('${n.id}')">Đã đọc</button>`}
+    </div>
+  `).join('');
 }
 async function markAdminLeaveNotificationRead(id){await supabase.from('in_app_notifications').update({is_read:true}).eq('id',id);await loadAdminLeaveNotifications();}
 function renderSessionHistoryCard(s) {
@@ -3754,54 +3993,115 @@ function closeTaskDetailModal() {
   document.getElementById('taskDetailModal')?.classList.remove('show');
 }
 
+let adminFeedbackCache = [];
+
 function openStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.add('show');}
 function closeStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.remove('show');}
 async function submitStudentFeedback(){toast('warn','Gửi từ tài khoản sinh viên','Mở checkin.html để gửi phản hồi ẩn danh.');}
+
+function setFeedbackFilter(kind, val) {
+  if (kind === 'type') {
+    const tSel = document.getElementById('fbFilterType');
+    if (tSel) tSel.value = val;
+  } else if (kind === 'status') {
+    const sSel = document.getElementById('fbFilterStatus');
+    if (sSel) sSel.value = val;
+  } else if (kind === 'all') {
+    const tSel = document.getElementById('fbFilterType');
+    const sSel = document.getElementById('fbFilterStatus');
+    if (tSel) tSel.value = 'all';
+    if (sSel) sSel.value = 'all';
+  }
+  applyFeedbackFilters();
+}
+
+function updateFeedbackKpiStats() {
+  const suco = adminFeedbackCache.filter(x => x.type === 'suco').length;
+  const gopy = adminFeedbackCache.filter(x => x.type === 'gopy').length;
+  const muasam = adminFeedbackCache.filter(x => x.type === 'muasam').length;
+  const processing = adminFeedbackCache.filter(x => x.status === 'processing').length;
+  const resolved = adminFeedbackCache.filter(x => x.status === 'resolved').length;
+  const total = adminFeedbackCache.length;
+
+  const elSuco = document.getElementById('fbStatSuco');
+  const elGopy = document.getElementById('fbStatGopy');
+  const elMuasam = document.getElementById('fbStatMuasam');
+  const elProcessing = document.getElementById('fbStatProcessing');
+  const elResolved = document.getElementById('fbStatResolved');
+  const elAll = document.getElementById('fbStatAll');
+
+  if (elSuco) elSuco.textContent = suco;
+  if (elGopy) elGopy.textContent = gopy;
+  if (elMuasam) elMuasam.textContent = muasam;
+  if (elProcessing) elProcessing.textContent = processing;
+  if (elResolved) elResolved.textContent = resolved;
+  if (elAll) elAll.textContent = total;
+}
+
 async function loadAdminFeedback(){
   const box = document.getElementById('feedbackList');
   if(!box) return;
+  box.innerHTML = '<div class="schedule-loading">Đang tải phản hồi...</div>';
   const {data, error} = await supabase.rpc('admin_get_anonymous_feedback');
   if(error || !data?.ok){
     box.innerHTML = '<div class="empty-state">' + escapeHtml(error?.message || data?.message || 'Không tải được phản hồi.') + '</div>';
     return;
   }
-  const labels = { gopy: '💡 Góp ý', suco: '⚠️ Sự cố', muasam: '🛠 Mua sắm', khac: '💬 Khác' };
+  const labels = { gopy: '💡 Góp ý xưởng', suco: '⚠️ Báo hỏng / Sự cố', muasam: '🛠 Đề xuất thiết bị', khac: '💬 Khác' };
   const statusMeta = {
     new: { label: 'Mới nhận', icon: '📩', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
     seen: { label: 'Đã xem', icon: '👁️', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
     processing: { label: 'Đang xử lý', icon: '⏳', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
-    resolved: { label: 'Đã xử lý', icon: '✓', bg: 'var(--ok-bg)', color: 'var(--ok)', border: 'rgba(15,122,74,0.2)' },
+    resolved: { label: 'Đã giải quyết', icon: '✓', bg: 'var(--ok-bg)', color: 'var(--ok)', border: 'rgba(15,122,74,0.2)' },
     rejected: { label: 'Từ chối', icon: '✕', bg: 'var(--err-bg)', color: 'var(--err)', border: 'rgba(194,56,46,0.2)' }
   };
   const rows = data.items || [];
+  adminFeedbackCache = rows;
+  updateFeedbackKpiStats();
+
   box.innerHTML = rows.length ? rows.map(x => {
     const st = statusMeta[x.status] || statusMeta.new;
+    const isSuco = x.type === 'suco';
+    const borderAccent = isSuco ? 'border-left: 4px solid #ef4444' : x.type === 'muasam' ? 'border-left: 4px solid #7c3aed' : x.type === 'gopy' ? 'border-left: 4px solid #0284c7' : 'border-left: 4px solid #64748b';
+
+    const quickBtns = x.status !== 'resolved'
+      ? `<button class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','resolved')" title="Đánh dấu đã giải quyết xong">✓ Xong</button>`
+      : `<button class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','processing')" title="Chuyển về đang xử lý">Đang xử lý</button>`;
+
+    const processBtn = (x.status === 'new')
+      ? `<button class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','processing')" title="Tiếp nhận xử lý ý kiến này">⏳ Tiếp nhận</button>`
+      : '';
+
     return `
-      <article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}">
+      <article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}" data-code="${(x.code||'').toLowerCase()}" data-content="${(x.content||'').toLowerCase()}" style="${borderAccent};background:var(--surface)">
         <div class="fb-item-top">
-          <span class="fb-anon-tag">🔒 Ẩn danh ${escapeHtml(x.code)}</span>
-          <span class="fb-type-badge type-${x.type}">${labels[x.type] || x.type}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="fb-anon-tag">🔒 Mã: ${escapeHtml(x.code)}</span>
+            <span class="fb-type-badge type-${x.type}">${labels[x.type] || x.type}</span>
+          </div>
+          <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${st.bg};color:${st.color};border:1px solid ${st.border};display:inline-flex;align-items:center;gap:4px">
+            ${st.icon} ${st.label}
+          </span>
         </div>
-        <div class="fb-text">${escapeHtml(x.content)}</div>
-        <div class="fb-item-bottom">
+        <div class="fb-text" style="font-size:13px;line-height:1.55;background:var(--surface-2);border-radius:8px;padding:12px;border:1px solid var(--border)">${escapeHtml(x.content)}</div>
+        <div class="fb-item-bottom" style="margin-top:4px">
           <span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${st.bg};color:${st.color};border:1px solid ${st.border};display:inline-flex;align-items:center;gap:4px">
-              ${st.icon} ${st.label}
-            </span>
-            <select class="btn btn-sm" style="font-size:11.5px;padding:3px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer" onchange="updateFeedbackStatus('${x.id}', this.value)" title="Đổi trạng thái phản hồi">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${processBtn}
+            ${quickBtns}
+            <select class="btn btn-sm" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer" onchange="updateFeedbackStatus('${x.id}', this.value)" title="Đổi trạng thái khác">
               <option value="new" ${x.status==='new'?'selected':''}>Mới nhận</option>
               <option value="processing" ${x.status==='processing'?'selected':''}>⏳ Đang xử lý</option>
-              <option value="resolved" ${x.status==='resolved'?'selected':''}>✓ Đã xử lý</option>
+              <option value="resolved" ${x.status==='resolved'?'selected':''}>✓ Đã giải quyết</option>
               <option value="rejected" ${x.status==='rejected'?'selected':''}>✕ Từ chối</option>
             </select>
-            <button class="btn btn-sm btn-danger" style="font-size:11.5px;padding:3px 8px;border-radius:6px" onclick="deleteFeedbackItem('${x.id}')" title="Xóa phản hồi này">
+            <button class="btn btn-sm btn-danger" style="font-size:11px;padding:3px 8px;border-radius:6px" onclick="deleteFeedbackItem('${x.id}')" title="Xóa phản hồi này">
               🗑 Xóa
             </button>
           </div>
         </div>
       </article>`;
-  }).join('') : '<div class="empty-state">Chưa có phản hồi.</div>';
+  }).join('') : '<div class="empty-state">Chưa có phản hồi nào.</div>';
   applyFeedbackFilters();
 }
 
@@ -3812,7 +4112,7 @@ async function updateFeedbackStatus(id, newStatus){
     toast('err', 'Chưa cập nhật được', error?.message || data?.message || '');
     return;
   }
-  const label = { new: 'Mới nhận', processing: 'Đang xử lý', resolved: 'Đã xử lý', rejected: 'Từ chối' }[newStatus] || newStatus;
+  const label = { new: 'Mới nhận', processing: 'Đang xử lý', resolved: 'Đã giải quyết', rejected: 'Từ chối' }[newStatus] || newStatus;
   toast('ok', 'Đã cập nhật', `Trạng thái phản hồi đã chuyển sang "${label}".`);
   await loadAdminFeedback();
 }
@@ -3832,7 +4132,36 @@ async function deleteFeedbackItem(id){
 async function markFeedbackResolved(id){
   return updateFeedbackStatus(id, 'resolved');
 }
-function applyFeedbackFilters(){const type=document.getElementById('fbFilterType')?.value||'all',st=document.getElementById('fbFilterStatus')?.value||'all';document.querySelectorAll('#feedbackList .fb-item').forEach(x=>x.style.display=(type==='all'||x.dataset.type===type)&&(st==='all'||x.dataset.status===st)?'flex':'none');}
+
+function applyFeedbackFilters(){
+  const type = document.getElementById('fbFilterType')?.value || 'all';
+  const st = document.getElementById('fbFilterStatus')?.value || 'all';
+  const search = (document.getElementById('fbSearchInput')?.value || '').trim().toLowerCase();
+
+  // Highlight KPI card
+  ['fbKpiSuco', 'fbKpiGopy', 'fbKpiMuasam', 'fbKpiProcessing', 'fbKpiResolved', 'fbKpiAll'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  if (type === 'suco') document.getElementById('fbKpiSuco')?.classList.add('active');
+  else if (type === 'gopy') document.getElementById('fbKpiGopy')?.classList.add('active');
+  else if (type === 'muasam') document.getElementById('fbKpiMuasam')?.classList.add('active');
+  else if (st === 'processing') document.getElementById('fbKpiProcessing')?.classList.add('active');
+  else if (st === 'resolved') document.getElementById('fbKpiResolved')?.classList.add('active');
+  else if (type === 'all' && st === 'all') document.getElementById('fbKpiAll')?.classList.add('active');
+
+  let visibleCount = 0;
+  document.querySelectorAll('#feedbackList .fb-item').forEach(x => {
+    const matchType = (type === 'all' || x.dataset.type === type);
+    const matchStatus = (st === 'all' || x.dataset.status === st);
+    const code = x.dataset.code || '';
+    const content = x.dataset.content || '';
+    const matchSearch = !search || code.includes(search) || content.includes(search);
+
+    const isVisible = matchType && matchStatus && matchSearch;
+    x.style.display = isVisible ? 'flex' : 'none';
+    if (isVisible) visibleCount++;
+  });
+}
 function getVietnamDateKey(offsetDays=0){
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
   const val=k=>Number(parts.find(p=>p.type===k).value);
