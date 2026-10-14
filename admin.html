@@ -940,6 +940,9 @@ tbody tr:last-child td { border-bottom: none; }
 .zalo-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 16px; }
 .zalo-kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; }
 .zalo-kpi-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--card-accent, var(--primary)); }
+.zalo-kpi-card.interactive { cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; }
+.zalo-kpi-card.interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--card-accent, var(--primary)); }
+.zalo-kpi-card.interactive.active-focus { border-color: var(--card-accent, var(--primary)); box-shadow: 0 0 0 2px var(--card-accent, var(--primary)), var(--shadow-sm); background: var(--surface-hover); }
 .zalo-kpi-head { display: flex; justify-content: space-between; align-items: center; }
 .zalo-kpi-title { font-size: 13.5px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .zalo-kpi-time { font-size: 11.5px; color: var(--muted); font-weight: 600; }
@@ -966,6 +969,61 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-cell-free { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); font-weight: 700; font-size: 11.5px; }
 .badge-cell-busy { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--err-bg); color: var(--err); border: 1px solid var(--err-border); font-weight: 700; font-size: 11.5px; }
 .cell-class-info { margin-top: 5px; font-size: 11px; color: var(--muted); line-height: 1.4; background: var(--surface-2); padding: 4px 7px; border-radius: 6px; border: 1px dashed var(--border); }
+
+/* Focus shift column styling (Phương án A) */
+.zalo-matrix-table th.col-shift, .zalo-matrix-table td.col-shift { transition: opacity 0.2s ease, background-color 0.2s ease; }
+
+#zaloMatrixTable.focus-morning .col-shift-morning {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+  border-left: 2px solid rgba(245, 158, 11, 0.5) !important;
+  border-right: 2px solid rgba(245, 158, 11, 0.5) !important;
+}
+#zaloMatrixTable.focus-morning th.col-shift-morning {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #b45309 !important;
+}
+#zaloMatrixTable.focus-morning .col-shift-afternoon,
+#zaloMatrixTable.focus-morning .col-shift-evening {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+}
+
+#zaloMatrixTable.focus-afternoon .col-shift-afternoon {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  border-left: 2px solid rgba(59, 130, 246, 0.5) !important;
+  border-right: 2px solid rgba(59, 130, 246, 0.5) !important;
+}
+#zaloMatrixTable.focus-afternoon th.col-shift-afternoon {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  color: #1d4ed8 !important;
+}
+#zaloMatrixTable.focus-afternoon .col-shift-morning,
+#zaloMatrixTable.focus-afternoon .col-shift-evening {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+}
+
+#zaloMatrixTable.focus-evening .col-shift-evening {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+  border-left: 2px solid rgba(139, 92, 246, 0.5) !important;
+  border-right: 2px solid rgba(139, 92, 246, 0.5) !important;
+}
+#zaloMatrixTable.focus-evening th.col-shift-evening {
+  background-color: rgba(139, 92, 246, 0.18) !important;
+  color: #6d28d9 !important;
+}
+#zaloMatrixTable.focus-evening .col-shift-morning,
+#zaloMatrixTable.focus-evening .col-shift-afternoon {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+}
+
+#zaloMatrixTable tr:hover .col-shift-morning,
+#zaloMatrixTable tr:hover .col-shift-afternoon,
+#zaloMatrixTable tr:hover .col-shift-evening {
+  opacity: 0.92;
+  filter: none;
+}
 
 /* TOAST & MODALS */
 .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; max-width: 360px; pointer-events: none; }
@@ -2059,7 +2117,7 @@ tbody tr:last-child td { border-bottom: none; }
 
         <!-- 3 KPI Cards for Shift Statistics -->
         <div class="zalo-kpi-grid">
-          <div class="zalo-kpi-card" style="--card-accent:#f59e0b">
+          <div class="zalo-kpi-card interactive" id="kpiCardMorning" style="--card-accent:#f59e0b" onclick="setMatrixFilter('free_morning')" title="Bấm để lọc nhanh sinh viên rảnh ca Sáng">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">🌅 CA SÁNG</span>
               <span class="zalo-kpi-time">07:30 – 11:25</span>
@@ -2071,7 +2129,7 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiMorningBar" style="width:50%"></div></div>
           </div>
 
-          <div class="zalo-kpi-card" style="--card-accent:#3b82f6">
+          <div class="zalo-kpi-card interactive" id="kpiCardAfternoon" style="--card-accent:#3b82f6" onclick="setMatrixFilter('free_afternoon')" title="Bấm để lọc nhanh sinh viên rảnh ca Chiều">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">☀️ CA CHIỀU</span>
               <span class="zalo-kpi-time">12:50 – 16:45</span>
@@ -2083,7 +2141,7 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiAfternoonBar" style="width:50%"></div></div>
           </div>
 
-          <div class="zalo-kpi-card" style="--card-accent:#8b5cf6">
+          <div class="zalo-kpi-card interactive" id="kpiCardEvening" style="--card-accent:#8b5cf6" onclick="setMatrixFilter('free_evening')" title="Bấm để lọc nhanh sinh viên rảnh ca Tối">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">🌙 CA TỐI</span>
               <span class="zalo-kpi-time">17:30 – 20:50</span>
@@ -2110,14 +2168,20 @@ tbody tr:last-child td { border-bottom: none; }
           <div class="zalo-matrix-toolbar">
             <div class="zalo-matrix-filters" id="matrixFilterButtons">
               <button type="button" class="matrix-filter-btn active" data-filter="all" onclick="setMatrixFilter('all')">Tất cả (<span id="filterCountAll">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_morning" onclick="setMatrixFilter('free_morning')">🟢 Rảnh Sáng (<span id="filterCountMorning">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_afternoon" onclick="setMatrixFilter('free_afternoon')">🟢 Rảnh Chiều (<span id="filterCountAfternoon">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_evening" onclick="setMatrixFilter('free_evening')">🟢 Rảnh Tối (<span id="filterCountEvening">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="busy_any" onclick="setMatrixFilter('busy_any')">🔴 Có lịch học</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_all_day" onclick="setMatrixFilter('free_all_day')">🌟 Rảnh cả ngày (<span id="filterCountAllDay">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_morning" onclick="setMatrixFilter('free_morning')">🌅 Rảnh Sáng (<span id="filterCountMorning">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_afternoon" onclick="setMatrixFilter('free_afternoon')">☀️ Rảnh Chiều (<span id="filterCountAfternoon">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="free_evening" onclick="setMatrixFilter('free_evening')">🌙 Rảnh Tối (<span id="filterCountEvening">0</span>)</button>
+              <button type="button" class="matrix-filter-btn" data-filter="busy_any" onclick="setMatrixFilter('busy_any')">🔴 Có lịch học (<span id="filterCountBusy">0</span>)</button>
             </div>
-            <div class="zalo-search-box">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" color="var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" id="zaloMatrixSearch" placeholder="Tìm theo tên hoặc MSSV..." oninput="filterZaloMatrix()" autocomplete="off">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnCopyFilteredList" onclick="copyFilteredStudentList()" title="Sao chép danh sách sinh viên theo bộ lọc hiện tại để gửi Zalo" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
+                <span>📋</span> Copy DS đang lọc
+              </button>
+              <div class="zalo-search-box">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" color="var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="zaloMatrixSearch" placeholder="Tìm theo tên hoặc MSSV..." oninput="filterZaloMatrix()" autocomplete="off">
+              </div>
             </div>
           </div>
 
@@ -2128,9 +2192,9 @@ tbody tr:last-child td { border-bottom: none; }
                   <th style="width:48px;text-align:center">STT</th>
                   <th style="width:110px">MSSV</th>
                   <th style="width:200px">Họ và tên</th>
-                  <th style="min-width:210px">SÁNG (07:30–11:25)</th>
-                  <th style="min-width:210px">CHIỀU (12:50–16:45)</th>
-                  <th style="min-width:210px">TỐI (17:30–20:50)</th>
+                  <th class="col-shift col-shift-morning" style="min-width:210px">SÁNG (07:30–11:25)</th>
+                  <th class="col-shift col-shift-afternoon" style="min-width:210px">CHIỀU (12:50–16:45)</th>
+                  <th class="col-shift col-shift-evening" style="min-width:210px">TỐI (17:30–20:50)</th>
                 </tr>
               </thead>
               <tbody id="zaloMatrixTbody">
@@ -3944,20 +4008,22 @@ async function loadZaloScheduleMatrix(dateKey){
         };
 
         const hasBusy = !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree;
+        const isAllDayFree = r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree;
 
         return `<tr class="matrix-row" 
           data-name="${(r.name || '').toLowerCase()}" 
           data-mssv="${r.mssv}"
+          data-free-all-day="${isAllDayFree}"
           data-free-morning="${r.periods.morning.isFree}"
           data-free-afternoon="${r.periods.afternoon.isFree}"
           data-free-evening="${r.periods.evening.isFree}"
           data-has-busy="${hasBusy}">
-          <td style="text-align:center;color:var(--muted);font-weight:700">${r.index}</td>
+          <td class="matrix-stt" style="text-align:center;color:var(--muted);font-weight:700">${r.index}</td>
           <td style="font-family:monospace;font-weight:700">${r.mssv}</td>
           <td style="font-weight:700">${r.name}</td>
-          <td>${renderCell(r.periods.morning)}</td>
-          <td>${renderCell(r.periods.afternoon)}</td>
-          <td>${renderCell(r.periods.evening)}</td>
+          <td class="col-shift col-shift-morning">${renderCell(r.periods.morning)}</td>
+          <td class="col-shift col-shift-afternoon">${renderCell(r.periods.afternoon)}</td>
+          <td class="col-shift col-shift-evening">${renderCell(r.periods.evening)}</td>
         </tr>`;
       }).join('');
     }
@@ -3976,13 +4042,21 @@ async function loadZaloScheduleMatrix(dateKey){
 
     // 5. Update Filter Button Counts
     const cAll = document.getElementById('filterCountAll');
+    const cAllDay = document.getElementById('filterCountAllDay');
     const cM = document.getElementById('filterCountMorning');
     const cA = document.getElementById('filterCountAfternoon');
     const cE = document.getElementById('filterCountEvening');
+    const cBusy = document.getElementById('filterCountBusy');
+
+    const allDayFreeCount = matrixRows.filter(r => r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree).length;
+    const hasBusyCount = matrixRows.filter(r => !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree).length;
+
     if (cAll) cAll.textContent = totalStudents;
+    if (cAllDay) cAllDay.textContent = allDayFreeCount;
     if (cM) cM.textContent = mFree;
     if (cA) cA.textContent = aFree;
     if (cE) cE.textContent = eFree;
+    if (cBusy) cBusy.textContent = hasBusyCount;
 
     window.zaloScheduleMatrixData = {
       dateKey,
@@ -4011,25 +4085,118 @@ function setMatrixFilter(filterType){
   document.querySelectorAll('#matrixFilterButtons .matrix-filter-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === filterType);
   });
+
+  // Highlight table shift column (Phương án A)
+  const table = document.getElementById('zaloMatrixTable');
+  if (table) {
+    table.classList.remove('focus-morning', 'focus-afternoon', 'focus-evening');
+    if (filterType === 'free_morning') table.classList.add('focus-morning');
+    else if (filterType === 'free_afternoon') table.classList.add('focus-afternoon');
+    else if (filterType === 'free_evening') table.classList.add('focus-evening');
+  }
+
+  // Highlight KPI card
+  document.querySelectorAll('.zalo-kpi-card').forEach(c => c.classList.remove('active-focus'));
+  if (filterType === 'free_morning') document.getElementById('kpiCardMorning')?.classList.add('active-focus');
+  else if (filterType === 'free_afternoon') document.getElementById('kpiCardAfternoon')?.classList.add('active-focus');
+  else if (filterType === 'free_evening') document.getElementById('kpiCardEvening')?.classList.add('active-focus');
+
   filterZaloMatrix();
 }
 
 function filterZaloMatrix(){
   const search = (document.getElementById('zaloMatrixSearch')?.value || '').trim().toLowerCase();
   const rows = document.querySelectorAll('#zaloMatrixTbody .matrix-row');
+  let visibleIndex = 0;
+
   rows.forEach(r => {
     const name = r.dataset.name || '';
     const mssv = r.dataset.mssv || '';
     const matchSearch = !search || name.includes(search) || mssv.includes(search);
 
     let matchFilter = true;
-    if (_matrixCurrentFilter === 'free_morning') matchFilter = r.dataset.freeMorning === 'true';
+    if (_matrixCurrentFilter === 'free_all_day') matchFilter = r.dataset.freeAllDay === 'true';
+    else if (_matrixCurrentFilter === 'free_morning') matchFilter = r.dataset.freeMorning === 'true';
     else if (_matrixCurrentFilter === 'free_afternoon') matchFilter = r.dataset.freeAfternoon === 'true';
     else if (_matrixCurrentFilter === 'free_evening') matchFilter = r.dataset.freeEvening === 'true';
     else if (_matrixCurrentFilter === 'busy_any') matchFilter = r.dataset.hasBusy === 'true';
 
-    r.style.display = (matchSearch && matchFilter) ? '' : 'none';
+    const isVisible = (matchSearch && matchFilter);
+    r.style.display = isVisible ? '' : 'none';
+
+    if (isVisible) {
+      visibleIndex++;
+      const sttCell = r.querySelector('.matrix-stt');
+      if (sttCell) sttCell.textContent = visibleIndex;
+    }
   });
+
+  // Hiển thị dòng thông báo nếu không có ai
+  let noRowEl = document.getElementById('matrixEmptyRow');
+  if (visibleIndex === 0) {
+    if (!noRowEl) {
+      noRowEl = document.createElement('tr');
+      noRowEl.id = 'matrixEmptyRow';
+      noRowEl.innerHTML = '<td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Không tìm thấy sinh viên nào phù hợp với bộ lọc này.</td>';
+      document.getElementById('zaloMatrixTbody')?.appendChild(noRowEl);
+    }
+    noRowEl.style.display = '';
+  } else if (noRowEl) {
+    noRowEl.style.display = 'none';
+  }
+}
+
+function copyFilteredStudentList() {
+  const visibleRows = Array.from(document.querySelectorAll('#zaloMatrixTbody .matrix-row')).filter(r => r.style.display !== 'none');
+  if (!visibleRows.length) {
+    toast('warn', 'Không có dữ liệu', 'Không có sinh viên nào trong bộ lọc hiện tại để sao chép.');
+    return;
+  }
+  
+  let filterName = 'Tất cả sinh viên';
+  if (_matrixCurrentFilter === 'free_all_day') filterName = 'Rảnh cả ngày (Full 3 ca)';
+  else if (_matrixCurrentFilter === 'free_morning') filterName = 'Rảnh ca Sáng (07:30–11:25)';
+  else if (_matrixCurrentFilter === 'free_afternoon') filterName = 'Rảnh ca Chiều (12:50–16:45)';
+  else if (_matrixCurrentFilter === 'free_evening') filterName = 'Rảnh ca Tối (17:30–20:50)';
+  else if (_matrixCurrentFilter === 'busy_any') filterName = 'Có lịch học';
+
+  const dateStr = window.zaloScheduleMatrixData?.day || 'Hôm nay';
+  const lines = [
+    `📋 DANH SÁCH ${filterName.toUpperCase()} (${visibleRows.length} SV) — ${dateStr}:`
+  ];
+  visibleRows.forEach((r, idx) => {
+    const mssv = r.dataset.mssv || '';
+    const name = r.querySelector('td:nth-child(3)')?.textContent?.trim() || '';
+    lines.push(`${idx + 1}. ${name} - ${mssv}`);
+  });
+
+  const textToCopy = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      toast('ok', 'Đã sao chép', `Đã chép danh sách ${visibleRows.length} sinh viên vào bộ nhớ tạm.`);
+    }).catch(err => {
+      console.warn('Clipboard write error:', err);
+      fallbackCopyMatrixList(textToCopy, visibleRows.length);
+    });
+  } else {
+    fallbackCopyMatrixList(textToCopy, visibleRows.length);
+  }
+}
+
+function fallbackCopyMatrixList(text, count) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toast('ok', 'Đã sao chép', `Đã chép danh sách ${count} sinh viên vào bộ nhớ tạm.`);
+  } catch (e) {
+    toast('err', 'Không sao chép được', 'Trình duyệt chặn truy cập Clipboard.');
+  }
+  document.body.removeChild(ta);
 }
 
 function exportZaloScheduleExcel(){
