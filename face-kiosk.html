@@ -166,17 +166,30 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  padding: 12px;
 }
-#webcamVideo {
+.video-stage {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+}
+#webcamVideo, #espStreamImg {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+}
+#webcamVideo {
   transform: scaleX(-1);
 }
 #espStreamImg {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
   display: none;
 }
 #overlayCanvas {
@@ -186,6 +199,7 @@ body {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  z-index: 5;
 }
 
 .camera-hud {
@@ -475,12 +489,14 @@ body {
     </div>
 
     <div class="video-container" id="videoBox">
-      <!-- WEBCAM VIDEO -->
-      <video id="webcamVideo" autoplay muted playsinline></video>
-      <!-- ESP32 NATIVE STREAM (MƯỢT 30-60 FPS) -->
-      <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
-      <!-- DRAWING CANVAS (BBOX & LABELS) -->
-      <canvas id="overlayCanvas"></canvas>
+      <div class="video-stage" id="videoStage">
+        <!-- WEBCAM VIDEO -->
+        <video id="webcamVideo" autoplay muted playsinline></video>
+        <!-- ESP32 NATIVE STREAM (MƯỢT 30-60 FPS) -->
+        <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
+        <!-- DRAWING CANVAS (BBOX & LABELS) -->
+        <canvas id="overlayCanvas"></canvas>
+      </div>
 
       <div class="camera-hud">
         <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
@@ -575,6 +591,16 @@ body {
 // ==========================================
 // STATE & CONFIG
 // ==========================================
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 let cameraMode = 'webcam';
 let isModelLoaded = false;
 let isDetecting = false;
@@ -744,6 +770,7 @@ const webcamVideo = document.getElementById('webcamVideo');
 const espImg = document.getElementById('espStreamImg');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const hudStatus = document.getElementById('hudStatus');
+const videoStage = document.getElementById('videoStage');
 
 // ==========================================
 // 1. KHỞI TẠO HỆ THỐNG
@@ -1022,8 +1049,8 @@ async function startDetectionLoop() {
 
     if (isReady) {
       const displaySize = {
-        width: inputMedia.clientWidth || 640,
-        height: inputMedia.clientHeight || 480
+        width: videoStage ? videoStage.clientWidth : (inputMedia.clientWidth || 640),
+        height: videoStage ? videoStage.clientHeight : (inputMedia.clientHeight || 480)
       };
       if (overlayCanvas.width !== displaySize.width || overlayCanvas.height !== displaySize.height) {
         overlayCanvas.width = displaySize.width;
@@ -1180,6 +1207,7 @@ async function triggerCheckin(label) {
 
   if (!currentSession) {
     console.warn('Nhận diện được nhưng không có phiên mở.');
+    hudStatus.textContent = `⚠️ Nhận diện: ${name} (${mssv}) — Nhưng chưa có phiên mở!`;
     return;
   }
 
@@ -1390,6 +1418,13 @@ async function captureFaceSample() {
   const st = studentsList.find(s => s.mssv === mssv);
   if (!st) return alert('Vui lòng chọn sinh viên!');
 
+  if (cameraMode === 'webcam' && (!webcamVideo.srcObject || webcamVideo.readyState < 2)) {
+    return alert('Webcam chưa sẵn sàng! Vui lòng bật webcam trước.');
+  }
+  if (cameraMode === 'esp' && (!espImg.complete || espImg.naturalWidth === 0)) {
+    return alert('Chưa kết nối được luồng camera ESP32! Vui lòng kiểm tra IP và bấm "Kết nối".');
+  }
+
   const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
   const detection = await faceapi
     .detectSingleFace(inputMedia, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
@@ -1440,7 +1475,7 @@ function loadEnrolledFromStorage() {
   if (keys.length === 0) {
     listEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px 0;">Chưa có khuôn mặt nào được nạp</div>';
   } else {
-    listEl.innerHTML = keys.map(label => {
+    listEl.innerHTML = keys.map((label, idx) => {
       const mssv = label.split(' - ')[0];
       const avatarUrl = `images/faces/${mssv}.jpg`;
       return `
@@ -1449,7 +1484,7 @@ function loadEnrolledFromStorage() {
             <img src="${avatarUrl}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;" onerror="this.src='images/logo.png'">
             <span style="font-size:12px;font-weight:700;">${escapeHtml(label)} (${db[label].length} mẫu)</span>
           </div>
-          <button type="button" class="btn-del" onclick="deleteEnrolledFace('${escapeHtml(label)}')">Xóa</button>
+          <button type="button" class="btn-del" onclick="deleteEnrolledFaceByIndex(${idx})">Xóa</button>
         </div>
       `;
     }).join('');
@@ -1463,9 +1498,12 @@ function loadEnrolledFromStorage() {
   updateFaceMatcher();
 }
 
-function deleteEnrolledFace(label) {
+function deleteEnrolledFaceByIndex(idx) {
+  const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  const keys = Object.keys(db);
+  const label = keys[idx];
+  if (!label) return;
   if (!confirm(`Xóa khuôn mặt "${label}"?`)) return;
-  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
   delete db[label];
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
   loadEnrolledFromStorage();
