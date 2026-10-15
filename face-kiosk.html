@@ -556,7 +556,10 @@ body {
         <div class="db-list">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <span class="form-label">Đã nạp (<span id="dbTotal">0</span> người)</span>
-            <button type="button" class="btn-del" onclick="exportFaceDb()">Xuất JSON</button>
+            <div style="display:flex;gap:4px;">
+              <button type="button" class="btn-del" onclick="clearAllEnrolledFaces()" title="Xóa toàn bộ để nạp lại từ đầu">🗑️ Xóa hết</button>
+              <button type="button" class="btn-del" onclick="exportFaceDb()">Xuất JSON</button>
+            </div>
           </div>
           <div id="enrolledList" style="max-height:180px;overflow-y:auto;"></div>
         </div>
@@ -581,13 +584,14 @@ let studentsList = [];
 let localMapping = [];
 let recentCheckins = [];
 let lastCheckinTime = {};
+let consecutiveHits = {};
 let tempSamples = [];
 
 let espInterval = null;
 let espImgObj = new Image();
 
 const webcamVideo = document.getElementById('webcamVideo');
-const espCanvas = document.getElementById('espStreamCanvas');
+const espImg = document.getElementById('espStreamImg');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const hudStatus = document.getElementById('hudStatus');
 
@@ -845,8 +849,9 @@ async function startDetectionLoop() {
         overlayCanvas.height = displaySize.height;
       }
 
+      // Nhận diện TinyFaceDetector - Ngưỡng khắt khe 0.70 để chỉ nhận MẶT NGƯỜI THẬT
       const detections = await faceapi
-        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 }))
+        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.70 }))
         .withFaceLandmarks(true)
         .withFaceDescriptors();
 
@@ -854,11 +859,12 @@ async function startDetectionLoop() {
       const ctx = overlayCanvas.getContext('2d');
       ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
+      let detectedLabelsInThisFrame = new Set();
+
       if (resizedDetections.length > 0) {
         resizedDetections.forEach(detection => {
           let { box } = detection.detection;
           
-          // Lật tọa độ X nếu đang soi webcam (vì webcam bị scaleX(-1))
           let drawX = box.x;
           if (cameraMode === 'webcam') {
             drawX = displaySize.width - box.x - box.width;
@@ -870,11 +876,18 @@ async function startDetectionLoop() {
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            if (bestMatch.label !== 'unknown') {
+            // Chỉ chấp nhận khi khoảng cách < 0.42 (Độ giống > 65%)
+            if (bestMatch.label !== 'unknown' && bestMatch.distance <= 0.42) {
               label = bestMatch.label;
               isMatch = true;
               confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
-              triggerCheckin(label);
+              detectedLabelsInThisFrame.add(label);
+
+              // Tích lũy xác nhận qua nhiều khung hình (Tránh nháy hình / vật thể lạ)
+              consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
+              if (consecutiveHits[label] >= 3) {
+                triggerCheckin(label);
+              }
             }
           }
 
@@ -883,8 +896,7 @@ async function startDetectionLoop() {
           ctx.strokeStyle = isMatch ? '#22c55e' : '#38bdf8';
           ctx.strokeRect(drawX, box.y, box.width, box.height);
 
-          // Vẽ góc bo tròn hiện đại
-          const radius = 8;
+          // Vẽ nền label
           ctx.fillStyle = isMatch ? 'rgba(34, 197, 94, 0.9)' : 'rgba(56, 189, 248, 0.9)';
           const text = (isMatch ? `✓ ` : ``) + label + confidence;
           ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
@@ -896,6 +908,13 @@ async function startDetectionLoop() {
           ctx.fillStyle = '#ffffff';
           ctx.fillText(text, drawX + 8, labelY + 16);
         });
+      }
+
+      // Giảm dần các người không còn trong khung hình
+      for (const k in consecutiveHits) {
+        if (!detectedLabelsInThisFrame.has(k)) {
+          consecutiveHits[k] = Math.max(0, consecutiveHits[k] - 1);
+        }
       }
     }
 
@@ -1183,8 +1202,16 @@ function deleteEnrolledFace(label) {
   loadEnrolledFromStorage();
 }
 
+function clearAllEnrolledFaces() {
+  if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu khuôn mặt cũ không?')) return;
+  localStorage.removeItem('face_descriptors_db');
+  loadEnrolledFromStorage();
+  alert('Đã xóa sạch dữ liệu cũ! Bây giờ hãy bấm "⚡ Nạp khuôn mặt từ ảnh thẻ" để nạp lại ảnh chuẩn.');
+}
+
 function updateFaceMatcher() {
-  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.48) : null;
+  // Khoảng cách khắt khe 0.42: Chỉ nhận diện khi giống thật sự, loại bỏ hoàn toàn vật thể/tường
+  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.42) : null;
 }
 
 function exportFaceDb() {
