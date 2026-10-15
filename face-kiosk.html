@@ -612,10 +612,10 @@ function calculateEyeEAR(eyePoints) {
   return (p1_p5 + p2_p4) / (2.0 * p0_p3);
 }
 
-// Kiểm tra chớp mắt người thật (Liveness Detection)
+// Kiểm tra người thật (Liveness: Nhận diện chớp mắt thật, loại bỏ ảnh thẻ / ảnh điện thoại)
 function evaluateLiveness(label, landmarks) {
-  if (!antiSpoofEnabled) return { isLive: true, ear: 0.3 };
-  if (!landmarks) return { isLive: false, ear: 0.3 };
+  if (!antiSpoofEnabled) return { isLive: true, ear: 0.3, statusText: 'Đã tắt chống ảnh' };
+  if (!landmarks) return { isLive: false, ear: 0.3, statusText: 'Chưa thấy mặt rõ' };
 
   const leftEye = landmarks.getLeftEye();
   const rightEye = landmarks.getRightEye();
@@ -625,43 +625,55 @@ function evaluateLiveness(label, landmarks) {
 
   if (!livenessState[label]) {
     livenessState[label] = {
-      baselineEAR: avgEAR > 0.22 ? avgEAR : 0.3,
-      closedFrames: 0,
+      history: [avgEAR],
+      closedTimestamp: 0,
       blinkPassed: false,
       lastBlinkTime: 0,
-      earHistory: []
+      statusText: 'Chờ chớp mắt 👁️'
     };
   }
 
   const st = livenessState[label];
+  const now = Date.now();
 
-  // Nếu vừa chớp mắt thành công trong 10 giây qua, giữ trạng thái người thật
-  if (st.blinkPassed && (Date.now() - st.lastBlinkTime < 10000)) {
-    return { isLive: true, ear: avgEAR };
+  // Đã xác nhận người thật trong 15 giây gần nhất
+  if (st.blinkPassed && (now - st.lastBlinkTime < 15000)) {
+    return { isLive: true, ear: avgEAR, statusText: 'Người thật ✓' };
   }
 
-  // Cập nhật baseline động khi mắt đang mở
-  if (avgEAR >= 0.24) {
-    st.baselineEAR = st.baselineEAR * 0.9 + avgEAR * 0.1;
-  }
+  // Lưu lịch sử 12 mẫu EAR gần nhất
+  st.history.push(avgEAR);
+  if (st.history.length > 12) st.history.shift();
 
-  // Ngưỡng mắt nhắm: < 0.20 hoặc giảm > 28% so với baseline bình thường
-  const blinkThreshold = Math.min(0.21, st.baselineEAR * 0.72);
+  const maxEAR = Math.max(...st.history);
+  const earDrop = maxEAR - avgEAR;
 
-  if (avgEAR < blinkThreshold) {
-    st.closedFrames++;
+  // Nhận biết nhắm mắt / chớp mắt:
+  // 1) EAR thấp < 0.235 (ngưỡng nhắm mắt thực tế trên webcam)
+  // HOẶC 2) EAR giảm >= 0.035 so với lúc mắt mở to nhất
+  const isEyeClosed = (avgEAR < 0.235) || (earDrop >= 0.035 && avgEAR < 0.265);
+
+  if (isEyeClosed) {
+    st.closedTimestamp = now;
+    st.statusText = 'Đang nhắm mắt...';
   } else {
-    // Mắt vừa mở lại sau khi nhắm 1 đến 6 frame (tương đương 100ms - 700ms của 1 cú chớp mắt thật)
-    if (st.closedFrames >= 1 && st.closedFrames <= 7) {
+    // Nếu vừa nhắm mắt trong vòng 1.8 giây trước và giờ mắt mở lại (avgEAR >= 0.21)
+    if (st.closedTimestamp > 0 && (now - st.closedTimestamp < 1800) && (now - st.closedTimestamp > 50)) {
       st.blinkPassed = true;
-      st.lastBlinkTime = Date.now();
-      st.closedFrames = 0;
-      return { isLive: true, ear: avgEAR };
+      st.lastBlinkTime = now;
+      st.closedTimestamp = 0;
+      st.statusText = 'ĐÃ CHỚP MẮT ✓';
+      return { isLive: true, ear: avgEAR, statusText: st.statusText };
     }
-    st.closedFrames = 0;
+    
+    // Nếu nhắm quá lâu (> 2.5s như nhắm mắt giả hoặc ảnh người nhắm mắt), reset
+    if (st.closedTimestamp > 0 && (now - st.closedTimestamp >= 2500)) {
+      st.closedTimestamp = 0;
+    }
+    st.statusText = 'Chớp mắt để điểm danh 👁️';
   }
 
-  return { isLive: st.blinkPassed, ear: avgEAR };
+  return { isLive: st.blinkPassed, ear: avgEAR, statusText: st.statusText };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
@@ -966,13 +978,13 @@ async function startDetectionLoop() {
 
               if (isLive) {
                 consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
-                if (consecutiveHits[label] >= 2) {
+                if (consecutiveHits[label] >= 1) {
                   triggerCheckin(label);
                   if (livenessState[label]) livenessState[label].blinkPassed = false; // Reset sau khi điểm danh
                 }
               } else {
                 consecutiveHits[label] = 0; // Chưa chớp mắt -> Không cho điểm danh
-                hudStatus.textContent = `👁️ Phát hiện ${label.split(' - ')[1] || label} — Vui lòng chớp mắt để xác thực!`;
+                hudStatus.textContent = `👁️ Phát hiện ${label.split(' - ')[1] || label} — ${liveCheck.statusText}`;
               }
             }
           }
@@ -999,7 +1011,7 @@ async function startDetectionLoop() {
             if (isLive) {
               text = `✓ ` + label + confidence;
             } else {
-              text = `👁️ ` + (label.split(' - ')[1] || label) + ` (Chớp mắt để điểm danh)`;
+              text = `👁️ ` + (label.split(' - ')[1] || label) + ` · ` + (livenessState[label]?.statusText || 'Chờ chớp mắt');
             }
           }
 
@@ -1160,38 +1172,50 @@ async function enrollFromDocumentPhoto() {
   const mssv = document.getElementById('studentSelect').value;
   if (!mssv) return alert('Vui lòng chọn sinh viên!');
 
-  const st = studentsList.find(s => s.mssv === mssv);
+  const st = studentsList.find(s => s.mssv === mssv) || localMapping.find(s => s.mssv === mssv);
   if (!st) return;
 
-  const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
   hudStatus.textContent = `⏳ Đang quét và học khuôn mặt từ ảnh của ${st.name}...`;
 
-  try {
-    const img = await faceapi.fetchImage(avatarUrl);
-    const detection = await faceapi
-      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor();
+  const possibleUrls = [
+    st.avatar,
+    `images/faces/${st.mssv}.png`,
+    `images/faces/${st.mssv}.jpg`,
+    `images/faces/${st.mssv}.jpeg`
+  ].filter(Boolean);
 
-    if (!detection) {
-      alert(`Không phát hiện được rõ khuôn mặt trong ảnh ${avatarUrl}!`);
-      hudStatus.textContent = '⚠️ Không tìm thấy mặt trong ảnh.';
-      return;
-    }
+  let detection = null;
+  let usedUrl = '';
 
-    const label = `${st.mssv} - ${st.name}`;
-    let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
-    // Lưu descriptor
-    db[label] = [Array.from(detection.descriptor)];
-    localStorage.setItem('face_descriptors_db', JSON.stringify(db));
-
-    alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!`);
-    loadEnrolledFromStorage();
-    switchTab('recent');
-    hudStatus.textContent = `🟢 Đã nạp mặt của ${st.name}. Bạn có thể đứng trước camera test ngay!`;
-  } catch (err) {
-    alert('Lỗi nạp ảnh: ' + err.message);
+  for (const url of possibleUrls) {
+    try {
+      const img = await faceapi.fetchImage(url);
+      detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+      if (detection) {
+        usedUrl = url;
+        break;
+      }
+    } catch(e) {}
   }
+
+  if (!detection) {
+    alert(`Không phát hiện được rõ khuôn mặt trong ảnh của ${st.name} (${st.mssv})! Bạn có thể đứng trước camera bấm "Chụp mẫu từ Camera".`);
+    hudStatus.textContent = '⚠️ Không tìm thấy mặt trong ảnh thẻ.';
+    return;
+  }
+
+  const label = `${st.mssv} - ${st.name}`;
+  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  db[label] = [Array.from(detection.descriptor)];
+  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+
+  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!`);
+  loadEnrolledFromStorage();
+  switchTab('recent');
+  hudStatus.textContent = `🟢 Đã nạp mặt của ${st.name}. Bạn có thể đứng trước camera test ngay!`;
 }
 
 async function enrollAll30Students() {
@@ -1201,27 +1225,48 @@ async function enrollAll30Students() {
   let successCount = 0;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
 
-  for (const st of studentsList) {
-    const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
-    try {
-      const img = await faceapi.fetchImage(avatarUrl);
-      const detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
-        .withFaceLandmarks(true)
-        .withFaceDescriptor();
+  const sourceList = (localMapping && localMapping.length > 0) ? localMapping : studentsList;
+  const total = sourceList.length;
 
-      if (detection) {
-        const label = `${st.mssv} - ${st.name}`;
-        db[label] = [Array.from(detection.descriptor)];
-        successCount++;
-      }
-    } catch (e) {}
+  for (let i = 0; i < total; i++) {
+    const st = sourceList[i];
+    if (!st.mssv) continue;
+
+    hudStatus.textContent = `⏳ Đang nạp khuôn mặt (${i + 1}/${total}): ${st.name}...`;
+
+    const possibleUrls = [
+      st.avatar,
+      `images/faces/${st.mssv}.png`,
+      `images/faces/${st.mssv}.jpg`,
+      `images/faces/${st.mssv}.jpeg`
+    ].filter(Boolean);
+
+    let detection = null;
+
+    for (const url of possibleUrls) {
+      try {
+        const img = await faceapi.fetchImage(url);
+        detection = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+          .withFaceLandmarks(true)
+          .withFaceDescriptor();
+        if (detection) break;
+      } catch(e) {}
+    }
+
+    if (detection) {
+      const label = `${st.mssv} - ${st.name}`;
+      db[label] = [Array.from(detection.descriptor)];
+      successCount++;
+    } else {
+      console.warn(`Chưa nhận diện được mặt từ ảnh của ${st.name} (${st.mssv})`);
+    }
   }
 
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
   loadEnrolledFromStorage();
-  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount} sinh viên!`);
-  hudStatus.textContent = `🟢 Đã nạp xong ${successCount} sinh viên. Hệ thống sẵn sàng!`;
+  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên!`);
+  hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} sinh viên. Hệ thống sẵn sàng!`;
 }
 
 // Chụp trực tiếp từ camera
