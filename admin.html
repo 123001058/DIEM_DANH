@@ -2464,6 +2464,7 @@ tbody tr:last-child td { border-bottom: none; }
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                       <input type="text" id="searchInput" placeholder="Tìm tên hoặc MSSV...">
                     </div>
+                    <button class="btn btn-secondary" onclick="syncApprovedLeavesToSession(true)" title="Đồng bộ danh sách đơn xin nghỉ phép đã duyệt hôm nay vào phiên điểm danh">🔄 Đồng bộ đơn nghỉ</button>
                     <button class="btn" style="background:#0ea5e9;color:#fff;border:none" onclick="copyAttendanceList()">📋 Copy</button>
                     <button class="btn btn-danger" onclick="confirmMarkAllAbsent()">✗ Vắng tất cả</button>
                     <button class="btn btn-success" onclick="confirmMarkAllPresent()">✓ Có mặt tất cả</button>
@@ -3814,6 +3815,9 @@ async function quickUpdateLeaveStatus(id, newStatus) {
     }).eq('id', id);
     if (error) throw error;
     toast('ok', 'Cập nhật thành công', `Đơn của ${row.students?.name || row.mssv} đã chuyển sang "${statusLabel}".`);
+    if (newStatus === 'approved') {
+      await syncApprovedLeavesToSession(false);
+    }
     await loadLeaveManagement();
   } catch (err) {
     toast('err', 'Lỗi cập nhật', err.message || 'Không thể cập nhật trạng thái đơn.');
@@ -4152,7 +4156,11 @@ async function saveLeaveReview(id){
   const leave_date=document.getElementById(`leaveDate_${id}`).value,leave_period=document.getElementById(`leavePeriod_${id}`).value,status=document.getElementById(`leaveStatus_${id}`).value,reason=document.getElementById(`leaveReason_${id}`).value.trim();
   if(!leave_date)return toast('warn','Thiếu ngày','Chọn ngày nghỉ.');if(!reason)return toast('warn','Thiếu lý do','Lý do xin nghỉ là bắt buộc.');
   const {error}=await supabase.from('leave_requests').update({session_id:null,leave_date,leave_period,leave_type:'full_session',status,reason,starts_at:null,ends_at:null,reviewer_note:document.getElementById(`leaveNote_${id}`).value.trim()||null}).eq('id',id);
-  if(error){toast('err','Chưa lưu được đơn',error.message);return;}await loadLeaveManagement();toast('ok','Đã cập nhật','Trạng thái, ghi chú và lịch sử đã được lưu.');
+  if(error){toast('err','Chưa lưu được đơn',error.message);return;}
+  if(status === 'approved') {
+    await syncApprovedLeavesToSession(false);
+  }
+  await loadLeaveManagement();toast('ok','Đã cập nhật','Trạng thái, ghi chú và lịch sử đã được lưu.');
 }
 async function openLeaveEvidence(id){const row=adminLeaveCache.find(r=>r.id===id);if(!row?.evidence_path)return;const {data,error}=await supabase.storage.from('leave-evidence').createSignedUrl(row.evidence_path,300);if(error||!data?.signedUrl){toast('err','Không mở được ảnh',error?.message||'');return;}window.open(data.signedUrl,'_blank','noopener');}
 
@@ -5959,9 +5967,73 @@ async function loadAttendance(){
     attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), editedAt: latestAuditMap[r.mssv] || null, category: r.category || '', note: r.note || '' };
   });
 
+  // Tự động đồng bộ các đơn xin nghỉ phép ĐÃ DUYỆT (approved) của ngày hôm nay vào phiên
+  await syncApprovedLeavesToSession(false);
+
   // Load team members for group view (if teams exist)
   if (teamGroups.length) {
     loadTeamMembersForAttendance();
+  }
+}
+
+async function syncApprovedLeavesToSession(isManual = false) {
+  if (!currentSession || !currentSession.id) {
+    if (isManual) toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang mở.');
+    return;
+  }
+  try {
+    const sessionDate = currentSession.started_at ? new Date(currentSession.started_at).toLocaleDateString('sv-SE') : new Date().toLocaleDateString('sv-SE');
+    const { data: approvedLeaves, error } = await supabase.from('leave_requests')
+      .select('mssv, leave_date, reason')
+      .eq('status', 'approved')
+      .eq('leave_date', sessionDate);
+
+    if (error) throw error;
+    if (!approvedLeaves || !approvedLeaves.length) {
+      if (isManual) toast('ok', 'Đã kiểm tra', 'Hôm nay không có đơn xin nghỉ phép nào được duyệt.');
+      return;
+    }
+
+    const toUpsert = [];
+    approvedLeaves.forEach(lv => {
+      const cur = attendanceMap[lv.mssv];
+      // Chỉ tự động gán nếu chưa quét (chưa có mặt hoặc chưa đi muộn)
+      if (!cur || (cur.status !== 'có mặt' && cur.status !== 'đi muộn')) {
+        const s = students.find(x => x.mssv === lv.mssv);
+        const noteText = lv.reason ? `Nghỉ phép: ${lv.reason}` : 'Nghỉ phép (đã duyệt)';
+        toUpsert.push({
+          session_id: currentSession.id,
+          mssv: lv.mssv,
+          full_name: s?.name || lv.mssv,
+          status: 'vắng có phép',
+          category: '',
+          note: noteText
+        });
+      }
+    });
+
+    if (toUpsert.length > 0) {
+      const { error: upsertErr } = await supabase.from('attendance').upsert(toUpsert, { onConflict: 'session_id,mssv' });
+      if (upsertErr) throw upsertErr;
+
+      toUpsert.forEach(it => {
+        attendanceMap[it.mssv] = {
+          status: 'vắng có phép',
+          time: 'Đã duyệt',
+          editedAt: null,
+          category: '',
+          note: it.note
+        };
+      });
+      updateStats();
+      renderTable();
+      if (isManual) toast('ok', 'Đã đồng bộ đơn nghỉ', `Đã cập nhật ${toUpsert.length} sinh viên có đơn nghỉ phép.`);
+    } else if (isManual) {
+      toast('ok', 'Hoàn tất', 'Tất cả sinh viên có đơn nghỉ đã được ghi nhận.');
+    }
+  } catch(e) {
+    console.error('Lỗi đồng bộ đơn nghỉ:', e);
+    if (isManual) toast('err', 'Lỗi đồng bộ đơn', e.message);
   }
 }
 function showEmpty(){
