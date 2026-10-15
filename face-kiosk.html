@@ -601,9 +601,9 @@ function toggleAntiSpoof() {
 }
 
 // ==========================================
-// HỆ THỐNG CHỐNG GIAN LẬN BẰNG CHU TRÌNH CHỚP MẮT ĐỘNG (LIVENESS STATE MACHINE)
-// Bắt buộc chu trình 3 bước: 1) MẮT MỞ -> 2) MẮT NHẮM -> 3) MẮT MỞ LẠI
-// Loại bỏ 100% ảnh thẻ, ảnh cười, ảnh điện thoại tĩnh!
+// HỆ THỐNG CHỐNG GIAN LẬN 3D (HEAD YAW PARALLAX & DYNAMIC LIVENESS)
+// Chuyên dụng cho ESP32-CAM: Bắt cử động quay đầu 3D (Trái/Phải) hoặc chớp mắt
+// Loại bỏ 100% ảnh thẻ giấy và màn hình điện thoại phẳng!
 // ==========================================
 
 function calculateEyeEAR(eye) {
@@ -614,14 +614,33 @@ function calculateEyeEAR(eye) {
   return p0_p3 > 1 ? (p1_p5 + p2_p4) / (2.0 * p0_p3) : 0.3;
 }
 
+// Tính tỉ lệ lệch 3D chóp mũi so với 2 bên má (3D Head Yaw Parallax)
+function calculateHeadYaw(landmarks) {
+  if (!landmarks) return 1.0;
+  const nose = landmarks.getNose();
+  const jaw = landmarks.getJawOutline();
+  if (!nose || !jaw || jaw.length < 17) return 1.0;
+
+  const noseTip = nose[3] || nose[0]; // Chóp mũi (Landmark 30)
+  const leftCheek = jaw[1];           // Má trái (Landmark 1)
+  const rightCheek = jaw[15];         // Má phải (Landmark 15)
+
+  const dLeft = Math.hypot(noseTip.x - leftCheek.x, noseTip.y - leftCheek.y);
+  const dRight = Math.hypot(noseTip.x - rightCheek.x, noseTip.y - rightCheek.y);
+
+  if (dRight < 1) return 1.0;
+  return dLeft / dRight;
+}
+
 function evaluateLiveness(label, landmarks, box) {
   if (!antiSpoofEnabled) {
-    return { isLive: true, prompt: 'Đã tắt chống giả mạo', ear: 0.3 };
+    return { isLive: true, prompt: 'Đã tắt chống giả mạo' };
   }
   if (!landmarks) {
-    return { isLive: false, prompt: 'Đang tìm khuôn mặt...', ear: 0.3 };
+    return { isLive: false, prompt: 'Đang tìm khuôn mặt...' };
   }
 
+  const yaw = calculateHeadYaw(landmarks);
   const leftEAR = calculateEyeEAR(landmarks.getLeftEye());
   const rightEAR = calculateEyeEAR(landmarks.getRightEye());
   const avgEAR = (leftEAR + rightEAR) / 2.0;
@@ -629,85 +648,96 @@ function evaluateLiveness(label, landmarks, box) {
 
   if (!livenessState[label]) {
     livenessState[label] = {
-      state: 'WAIT_OPEN', // WAIT_OPEN -> WAIT_CLOSE -> WAIT_REOPEN -> PASSED
-      openFrames: 0,
-      openEAR: avgEAR,
-      baseBoxHeight: box ? box.height : 0,
-      closeTimestamp: 0,
+      state: 'WAIT_CENTER', // WAIT_CENTER -> WAIT_ACTION -> WAIT_RETURN -> PASSED
+      centerFrames: 0,
+      turnedDirection: '',
+      actionTimestamp: 0,
       isLivePassed: false
     };
   }
 
   const st = livenessState[label];
 
-  // BƯỚC 1: Đảm bảo mắt đang mở và ổn định trước (mắt mở >= 0.23 trong ít nhất 3 frame)
-  if (st.state === 'WAIT_OPEN') {
-    if (avgEAR >= 0.23) {
-      st.openFrames++;
-      st.openEAR = st.openEAR * 0.7 + avgEAR * 0.3;
-      if (box) st.baseBoxHeight = box.height;
-      if (st.openFrames >= 3) {
-        st.state = 'WAIT_CLOSE';
+  // BƯỚC 1: Nhìn thẳng camera trước (Yaw từ 0.75 đến 1.35 trong ít nhất 2 khung hình)
+  if (st.state === 'WAIT_CENTER') {
+    if (yaw >= 0.72 && yaw <= 1.38) {
+      st.centerFrames++;
+      if (st.centerFrames >= 2) {
+        st.state = 'WAIT_ACTION';
       }
     } else {
-      st.openFrames = 0;
+      st.centerFrames = 0;
     }
-    return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)} | Cần nhắm <0.20)`, ear: avgEAR };
+    return { isLive: false, prompt: '🔄 Hãy nhìn thẳng vào camera...' };
   }
 
-  // BƯỚC 2: Chờ mắt nhắm thật sự (EAR rớt xuống < 0.20 VÀ giảm >= 0.045 so với lúc mở)
-  // Ảnh thẻ tĩnh (kể cả ảnh cười, nghiêng) luôn có EAR ~ 0.27 - 0.33, KHÔNG BAO GIỜ rớt xuống dưới 0.20!
-  if (st.state === 'WAIT_CLOSE') {
-    if (avgEAR > st.openEAR) {
-      st.openEAR = avgEAR;
-      if (box) st.baseBoxHeight = box.height;
+  // BƯỚC 2: Yêu cầu cử động 3D: QUAY ĐẦU SANG TRÁI / PHẢI (hoặc chớp mắt thật)
+  // Ảnh thẻ in trên giấy / điện thoại phẳng lì tỷ lệ luôn giữ ~1.00, KHÔNG BAO GIỜ quay đầu được!
+  if (st.state === 'WAIT_ACTION') {
+    // 2A: Quay đầu sang trái (chóp mũi áp sát má trái: yaw < 0.55)
+    if (yaw < 0.55) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'TRÁI';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đã quay sang trái! Hãy nhìn thẳng lại' };
     }
 
-    const drop = st.openEAR - avgEAR;
-    // Kiểm tra box không bị biến dạng do nghiêng lắc ảnh giấy
-    const boxStable = !box || !st.baseBoxHeight || Math.abs(box.height - st.baseBoxHeight) < (st.baseBoxHeight * 0.12);
-    
-    // Ngưỡng siết chặt: EAR phải thật sự nhắm (< 0.20) và giảm rõ rệt
-    const isClosed = (avgEAR < 0.20) && (drop >= 0.045) && boxStable;
-
-    if (isClosed) {
-      st.state = 'WAIT_REOPEN';
-      st.closeTimestamp = now;
-      return { isLive: false, prompt: `👁️ Đang nhắm mắt (${avgEAR.toFixed(2)}) → Hãy mở mắt ra!`, ear: avgEAR };
+    // 2B: Quay đầu sang phải (chóp mũi áp sát má phải: yaw > 1.70)
+    if (yaw > 1.70) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'PHẢI';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đã quay sang phải! Hãy nhìn thẳng lại' };
     }
 
-    return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)} | Cần nhắm <0.20)`, ear: avgEAR };
+    // 2C: Hoặc chớp mắt nhắm sâu (EAR < 0.19)
+    if (avgEAR < 0.19) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'CHỚP MẮT';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đang nhắm mắt! Hãy mở mắt ra' };
+    }
+
+    return { isLive: false, prompt: '🔄 Hãy quay nhẹ đầu sang trái hoặc phải' };
   }
 
-  // BƯỚC 3: Chờ mắt mở to trở lại sau cú nhắm
-  if (st.state === 'WAIT_REOPEN') {
-    const closedDuration = now - st.closeTimestamp;
+  // BƯỚC 3: Quay mặt về nhìn thẳng trở lại (hoặc mở mắt) để hoàn tất chu trình 3D
+  if (st.state === 'WAIT_RETURN') {
+    const elapsed = now - st.actionTimestamp;
 
-    // Nếu nhắm quá 2.2 giây (như lấy ảnh nhắm mắt che lại), hủy chu trình và bắt đầu lại
-    if (closedDuration > 2200) {
-      st.state = 'WAIT_OPEN';
-      st.openFrames = 0;
-      return { isLive: false, prompt: '⚠️ Nhắm quá lâu, vui lòng chớp mắt lại', ear: avgEAR };
+    // Nếu quá 4 giây không quay về nhìn thẳng, reset lại từ đầu
+    if (elapsed > 4000) {
+      st.state = 'WAIT_CENTER';
+      st.centerFrames = 0;
+      return { isLive: false, prompt: '⚠️ Quá giờ, vui lòng làm lại' };
     }
 
-    // Mắt đã mở to trở lại (EAR >= 0.235)
-    const isReopened = (avgEAR >= Math.min(0.24, st.openEAR * 0.88)) && (st.openEAR - avgEAR < 0.035);
-
-    if (isReopened && closedDuration >= 60) {
-      // ĐÃ HOÀN THÀNH CHU TRÌNH: MỞ MẮT -> NHẮM THẬT (<0.20) -> MỞ LẠI!
-      st.state = 'PASSED';
-      st.isLivePassed = true;
-      return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!', ear: avgEAR };
+    // Nếu vừa quay đầu: Giờ quay về nhìn thẳng (0.75 <= yaw <= 1.35)
+    if (st.turnedDirection === 'TRÁI' || st.turnedDirection === 'PHẢI') {
+      if (yaw >= 0.72 && yaw <= 1.38 && elapsed >= 120) {
+        st.state = 'PASSED';
+        st.isLivePassed = true;
+        return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT 3D!' };
+      }
+      return { isLive: false, prompt: '↩️ Quay mặt về chính diện...' };
     }
 
-    return { isLive: false, prompt: `👁️ Đang nhắm mắt (${avgEAR.toFixed(2)}) → Hãy mở mắt ra!`, ear: avgEAR };
+    // Nếu vừa nhắm mắt: Giờ mở mắt ra
+    if (st.turnedDirection === 'CHỚP MẮT') {
+      if (avgEAR >= 0.23 && elapsed >= 80) {
+        st.state = 'PASSED';
+        st.isLivePassed = true;
+        return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
+      }
+      return { isLive: false, prompt: '👁️ Hãy mở mắt ra...' };
+    }
   }
 
   if (st.state === 'PASSED') {
-    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!', ear: avgEAR };
+    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT 3D!' };
   }
 
-  return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)})`, ear: avgEAR };
+  return { isLive: false, prompt: '🔄 Vui lòng quay đầu để điểm danh' };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
@@ -1047,7 +1077,7 @@ async function startDetectionLoop() {
             if (isLive) {
               text = `✓ ` + label + confidence;
             } else {
-              text = `👁️ ` + (label.split(' - ')[1] || label) + ` · Chờ chớp mắt`;
+              text = `🔄 ` + (label.split(' - ')[1] || label);
             }
           }
 
@@ -1058,26 +1088,27 @@ async function startDetectionLoop() {
           ctx.fillStyle = '#ffffff';
           ctx.fillText(text, drawX + 8, labelY + 16);
 
-          // Nếu là khuôn mặt khớp nhưng chưa chớp mắt: Hiện hướng dẫn và cảnh báo chống ảnh thẻ
+          // Nếu là khuôn mặt khớp nhưng chưa xác thực 3D: Hiện hướng dẫn quay đầu trực quan
           if (isMatch && !isLive && antiSpoofEnabled) {
             const st = livenessState[label];
-            const prompt = st?.prompt || 'Vui lòng chớp mắt để điểm danh';
+            const prompt = st?.prompt || liveCheck.prompt || 'Vui lòng quay đầu để điểm danh';
             
             const subY = box.y + box.height + 6;
-            const barWidth = Math.max(box.width, 240);
+            const barWidth = Math.max(box.width, 260);
             
             // Nền thanh hướng dẫn
-            ctx.fillStyle = (st?.state === 'WAIT_REOPEN') ? 'rgba(234, 179, 8, 0.95)' : 'rgba(15, 23, 42, 0.92)';
+            const isHalfway = (st?.state === 'WAIT_RETURN');
+            ctx.fillStyle = isHalfway ? 'rgba(34, 197, 94, 0.95)' : 'rgba(15, 23, 42, 0.92)';
             ctx.fillRect(drawX, subY, barWidth, 24);
             
             // Viền ngoài
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.strokeStyle = isHalfway ? '#22c55e' : 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1;
             ctx.strokeRect(drawX, subY, barWidth, 24);
 
             // Chữ hướng dẫn bên trong
-            ctx.font = 'bold 11px Plus Jakarta Sans, sans-serif';
-            ctx.fillStyle = (st?.state === 'WAIT_REOPEN') ? '#0f172a' : '#ffffff';
+            ctx.font = 'bold 11.5px Plus Jakarta Sans, sans-serif';
+            ctx.fillStyle = isHalfway ? '#052e16' : '#ffffff';
             ctx.fillText(prompt, drawX + 8, subY + 16);
           }
         });
