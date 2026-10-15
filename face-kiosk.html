@@ -464,11 +464,8 @@ body {
 
       <div class="toolbar-group" id="espConfigGroup" style="display:none;">
         <input type="text" class="input-ip" id="espIpInput" placeholder="IP ESP32" value="192.168.2.168">
-        <select id="espModeSelect" style="background:#1e293b;color:#fff;border:1px solid rgba(255,255,255,0.12);padding:6px;border-radius:8px;font-size:12px;">
-          <option value="snapshot">Ảnh liên tục (Cực ổn định)</option>
-          <option value="stream">Stream port 81 (Mượt)</option>
-        </select>
         <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
+        <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật ảnh nếu bị ngược">🔄 Xoay/Lật</button>
       </div>
 
       <div class="toolbar-group">
@@ -479,8 +476,8 @@ body {
     <div class="video-container" id="videoBox">
       <!-- WEBCAM VIDEO -->
       <video id="webcamVideo" autoplay muted playsinline></video>
-      <!-- ESP32 CANVAS STREAM -->
-      <canvas id="espStreamCanvas"></canvas>
+      <!-- ESP32 NATIVE STREAM (MƯỢT 30-60 FPS) -->
+      <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
       <!-- DRAWING CANVAS (BBOX & LABELS) -->
       <canvas id="overlayCanvas"></canvas>
 
@@ -802,49 +799,22 @@ function switchCameraMode(mode) {
   }
 }
 
+let espRotation = 0; // 0, 90, 180, 270
+
+function toggleEspFlip() {
+  espRotation = (espRotation + 180) % 360;
+  espImg.style.transform = `rotate(${espRotation}deg)`;
+}
+
 function connectEspCamera() {
   const ip = document.getElementById('espIpInput').value.trim();
-  const subMode = document.getElementById('espModeSelect').value;
   if (!ip) return;
 
-  if (espInterval) { clearInterval(espInterval); espInterval = null; }
   webcamVideo.style.display = 'none';
-  espCanvas.style.display = 'block';
+  espImg.style.display = 'block';
+  espImg.src = `http://${ip}:81/stream`;
 
-  hudStatus.textContent = `📡 Đang kết nối ESP32 (${ip})...`;
-  const ctx = espCanvas.getContext('2d');
-
-  if (subMode === 'snapshot') {
-    // Chế độ Snapshot: Fetch /capture định kỳ (Cực kỳ trâu bò, không đơ)
-    espInterval = setInterval(() => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = `http://${ip}/capture?t=${Date.now()}`;
-      img.onload = () => {
-        if (espCanvas.width !== img.width || espCanvas.height !== img.height) {
-          espCanvas.width = img.width;
-          espCanvas.height = img.height;
-        }
-        ctx.drawImage(img, 0, 0);
-      };
-    }, 200);
-    hudStatus.textContent = `📡 Đang nhận ảnh tĩnh liên tục từ ESP32: ${ip}`;
-  } else {
-    // Chế độ Stream port 81
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = `http://${ip}:81/stream`;
-    espInterval = setInterval(() => {
-      if (img.complete && img.naturalWidth > 0) {
-        if (espCanvas.width !== img.naturalWidth || espCanvas.height !== img.naturalHeight) {
-          espCanvas.width = img.naturalWidth;
-          espCanvas.height = img.naturalHeight;
-        }
-        ctx.drawImage(img, 0, 0);
-      }
-    }, 50);
-    hudStatus.textContent = `📡 Đang xem luồng Stream từ ESP32: ${ip}`;
-  }
+  hudStatus.textContent = `📡 Đang xem luồng Stream mượt từ ESP32: ${ip}`;
 }
 
 // ==========================================
@@ -860,10 +830,10 @@ async function startDetectionLoop() {
       return;
     }
 
-    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espCanvas;
+    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
     const isReady = (cameraMode === 'webcam') 
       ? (webcamVideo.readyState === 4)
-      : (espCanvas.width > 0 && espCanvas.height > 0);
+      : (espImg.complete && espImg.naturalWidth > 0);
 
     if (isReady) {
       const displaySize = {

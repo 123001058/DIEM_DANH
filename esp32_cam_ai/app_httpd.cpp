@@ -60,9 +60,8 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
     if (res != ESP_OK) break;
 
-    // Giảm tải CPU & chống nóng chip: Delay 30ms (~28-30 FPS)
-    // Giúp ESP32-S3 mát hơn 15 độ C và WiFi không bao giờ bị nghẽn
-    vTaskDelay(pdMS_TO_TICKS(30));
+    // Giảm tải CPU & chống nóng chip: Delay nhẹ 10ms (~30 FPS mượt mà)
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 
   return res;
