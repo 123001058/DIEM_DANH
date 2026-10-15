@@ -614,7 +614,7 @@ function calculateEyeEAR(eye) {
   return p0_p3 > 1 ? (p1_p5 + p2_p4) / (2.0 * p0_p3) : 0.3;
 }
 
-function evaluateLiveness(label, landmarks) {
+function evaluateLiveness(label, landmarks, box) {
   if (!antiSpoofEnabled) {
     return { isLive: true, prompt: 'Đã tắt chống giả mạo', ear: 0.3 };
   }
@@ -632,83 +632,82 @@ function evaluateLiveness(label, landmarks) {
       state: 'WAIT_OPEN', // WAIT_OPEN -> WAIT_CLOSE -> WAIT_REOPEN -> PASSED
       openFrames: 0,
       openEAR: avgEAR,
+      baseBoxHeight: box ? box.height : 0,
       closeTimestamp: 0,
-      isLivePassed: false,
-      lastPassedTime: 0
+      isLivePassed: false
     };
   }
 
   const st = livenessState[label];
 
-  // Giữ trạng thái đã xác thực thành công trong 15s (tránh bắt chớp mắt liên tục)
-  if (st.isLivePassed && (now - st.lastPassedTime < 15000)) {
-    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT', ear: avgEAR };
-  }
-
-  // BƯỚC 1: Đảm bảo mắt đang mở trước (mắt mở >= 0.22 trong ít nhất 2 frame)
-  // Ảnh nhắm mắt sẽ kẹt ở đây vĩnh viễn
+  // BƯỚC 1: Đảm bảo mắt đang mở và ổn định trước (mắt mở >= 0.23 trong ít nhất 3 frame)
   if (st.state === 'WAIT_OPEN') {
-    if (avgEAR >= 0.22) {
+    if (avgEAR >= 0.23) {
       st.openFrames++;
       st.openEAR = st.openEAR * 0.7 + avgEAR * 0.3;
-      if (st.openFrames >= 2) {
+      if (box) st.baseBoxHeight = box.height;
+      if (st.openFrames >= 3) {
         st.state = 'WAIT_CLOSE';
       }
     } else {
       st.openFrames = 0;
     }
-    return { isLive: false, prompt: '👁️ Vui lòng chớp mắt để điểm danh', ear: avgEAR };
+    return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)} | Cần nhắm <0.20)`, ear: avgEAR };
   }
 
-  // BƯỚC 2: Chờ mắt nhắm lại (EAR rớt xuống: giảm >= 0.035 hoặc < 0.215)
-  // Ảnh thẻ tĩnh (dù là ảnh cười hay nghiêm) sẽ kẹt ở đây vĩnh viễn vì mắt không bao giờ nhắm!
+  // BƯỚC 2: Chờ mắt nhắm thật sự (EAR rớt xuống < 0.20 VÀ giảm >= 0.045 so với lúc mở)
+  // Ảnh thẻ tĩnh (kể cả ảnh cười, nghiêng) luôn có EAR ~ 0.27 - 0.33, KHÔNG BAO GIỜ rớt xuống dưới 0.20!
   if (st.state === 'WAIT_CLOSE') {
     if (avgEAR > st.openEAR) {
       st.openEAR = avgEAR;
+      if (box) st.baseBoxHeight = box.height;
     }
 
     const drop = st.openEAR - avgEAR;
-    const isClosed = (drop >= 0.035 && avgEAR < 0.26) || (avgEAR < 0.215);
+    // Kiểm tra box không bị biến dạng do nghiêng lắc ảnh giấy
+    const boxStable = !box || !st.baseBoxHeight || Math.abs(box.height - st.baseBoxHeight) < (st.baseBoxHeight * 0.12);
+    
+    // Ngưỡng siết chặt: EAR phải thật sự nhắm (< 0.20) và giảm rõ rệt
+    const isClosed = (avgEAR < 0.20) && (drop >= 0.045) && boxStable;
 
     if (isClosed) {
       st.state = 'WAIT_REOPEN';
       st.closeTimestamp = now;
-      return { isLive: false, prompt: '👁️ Đang nhắm mắt (hãy mở mắt ra)...', ear: avgEAR };
+      return { isLive: false, prompt: `👁️ Đang nhắm mắt (${avgEAR.toFixed(2)}) → Hãy mở mắt ra!`, ear: avgEAR };
     }
 
-    return { isLive: false, prompt: '👁️ Vui lòng chớp mắt để điểm danh', ear: avgEAR };
+    return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)} | Cần nhắm <0.20)`, ear: avgEAR };
   }
 
-  // BƯỚC 3: Chờ mắt mở lại sau khi nhắm
+  // BƯỚC 3: Chờ mắt mở to trở lại sau cú nhắm
   if (st.state === 'WAIT_REOPEN') {
     const closedDuration = now - st.closeTimestamp;
 
-    // Nếu nhắm quá 2.5s (ví dụ ai đó lấy tay che mắt hoặc ảnh nhắm mắt), reset lại
-    if (closedDuration > 2500) {
+    // Nếu nhắm quá 2.2 giây (như lấy ảnh nhắm mắt che lại), hủy chu trình và bắt đầu lại
+    if (closedDuration > 2200) {
       st.state = 'WAIT_OPEN';
       st.openFrames = 0;
-      return { isLive: false, prompt: '👁️ Vui lòng chớp mắt lại', ear: avgEAR };
+      return { isLive: false, prompt: '⚠️ Nhắm quá lâu, vui lòng chớp mắt lại', ear: avgEAR };
     }
 
-    // Mắt đã mở lại
-    const isReopened = (avgEAR >= Math.min(0.23, st.openEAR * 0.85)) && (st.openEAR - avgEAR < 0.03);
+    // Mắt đã mở to trở lại (EAR >= 0.235)
+    const isReopened = (avgEAR >= Math.min(0.24, st.openEAR * 0.88)) && (st.openEAR - avgEAR < 0.035);
 
-    if (isReopened && closedDuration >= 50) {
-      // HOÀN THÀNH CHU TRÌNH ĐỘNG 3 BƯỚC: MỞ -> NHẮM -> MỞ!
+    if (isReopened && closedDuration >= 60) {
+      // ĐÃ HOÀN THÀNH CHU TRÌNH: MỞ MẮT -> NHẮM THẬT (<0.20) -> MỞ LẠI!
       st.state = 'PASSED';
       st.isLivePassed = true;
-      st.lastPassedTime = now;
       return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!', ear: avgEAR };
     }
 
-    return { isLive: false, prompt: '👁️ Đang nhắm mắt (hãy mở mắt ra)...', ear: avgEAR };
+    return { isLive: false, prompt: `👁️ Đang nhắm mắt (${avgEAR.toFixed(2)}) → Hãy mở mắt ra!`, ear: avgEAR };
   }
 
   if (st.state === 'PASSED') {
     return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!', ear: avgEAR };
   }
 
-  return { isLive: false, prompt: '👁️ Vui lòng chớp mắt để điểm danh', ear: avgEAR };
+  return { isLive: false, prompt: `👁️ Chờ chớp mắt (EAR: ${avgEAR.toFixed(2)})`, ear: avgEAR };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
@@ -1006,8 +1005,8 @@ async function startDetectionLoop() {
               confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
               detectedLabelsInThisFrame.add(label);
 
-              // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật
-              const liveCheck = evaluateLiveness(label, detection.landmarks);
+              // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật (truyền cả box)
+              const liveCheck = evaluateLiveness(label, detection.landmarks, box);
               isLive = liveCheck.isLive;
               currentEAR = liveCheck.ear;
 
@@ -1015,10 +1014,9 @@ async function startDetectionLoop() {
                 consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
                 if (consecutiveHits[label] >= 1) {
                   triggerCheckin(label);
-                  if (livenessState[label]) {
-                    livenessState[label].isLivePassed = false;
-                    livenessState[label].liveScore = 0;
-                  }
+                  // XÓA SẠCH TRẠNG THÁI NGAY: Không bao giờ lưu lại để ảnh thẻ dùng ké!
+                  delete livenessState[label];
+                  consecutiveHits[label] = 0;
                 }
               } else {
                 consecutiveHits[label] = 0;
@@ -1087,10 +1085,11 @@ async function startDetectionLoop() {
         hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera & chớp mắt để điểm danh';
       }
 
-      // Giảm dần các người không còn trong khung hình
+      // Giảm dần và xóa trạng thái các người không còn trong khung hình
       for (const k in consecutiveHits) {
         if (!detectedLabelsInThisFrame.has(k)) {
           consecutiveHits[k] = Math.max(0, consecutiveHits[k] - 1);
+          delete livenessState[k]; // Rời camera -> xóa sạch phiên cũ
         }
       }
     }
