@@ -16,9 +16,10 @@
 
 <style>
 :root {
-  --primary-glow: rgba(37, 99, 235, 0.35);
-  --success-glow: rgba(34, 197, 94, 0.4);
+  --primary-glow: rgba(37, 99, 235, 0.4);
+  --success-glow: rgba(34, 197, 94, 0.45);
 }
+* { box-sizing: border-box; }
 body {
   margin: 0;
   padding: 0;
@@ -34,7 +35,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 24px;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.9);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -44,19 +45,18 @@ body {
   gap: 12px;
 }
 .kiosk-logo-badge {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #2563eb, #38bdf8);
   display: grid;
   place-items: center;
-  font-size: 20px;
-  box-shadow: 0 4px 12px var(--primary-glow);
+  font-size: 22px;
+  box-shadow: 0 4px 14px var(--primary-glow);
 }
 .kiosk-title {
   font-size: 16px;
   font-weight: 800;
-  letter-spacing: -0.3px;
   color: #fff;
 }
 .kiosk-subtitle {
@@ -96,14 +96,13 @@ body {
 /* MAIN LAYOUT */
 .kiosk-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 420px);
+  grid-template-columns: minmax(0, 1.4fr) minmax(380px, 440px);
   gap: 20px;
   padding: 20px 24px;
   flex: 1;
-  max-width: 1560px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
-  box-sizing: border-box;
 }
 
 /* CAMERA STAGE */
@@ -114,7 +113,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .camera-toolbar {
   display: flex;
@@ -155,14 +154,14 @@ body {
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 12px;
-  width: 170px;
+  width: 150px;
 }
 
 .video-container {
   position: relative;
   background: #030712;
   flex: 1;
-  min-height: 440px;
+  min-height: 480px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -172,9 +171,9 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transform: scaleX(-1); /* Gương tự nhiên cho webcam */
+  transform: scaleX(-1);
 }
-#espStreamImg {
+#espStreamCanvas {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -191,16 +190,16 @@ body {
 
 .camera-hud {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
-  right: 16px;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   pointer-events: none;
 }
 .hud-pill {
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(8px);
   padding: 6px 14px;
   border-radius: 20px;
@@ -254,42 +253,52 @@ body {
   flex-direction: column;
 }
 
-/* RECENT CHECK-INS */
+/* MATCH POPUP CARD */
 .match-card {
-  padding: 14px 16px;
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-  animation: slide-in 0.3s ease-out;
+  gap: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 20px var(--success-glow);
+  animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-@keyframes slide-in {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
 }
-.match-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #22c55e;
-  color: #052e16;
-  font-size: 22px;
-  font-weight: 800;
-  display: grid;
-  place-items: center;
+.match-avatar-img {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 2px solid #22c55e;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
 .match-info b {
-  font-size: 15px;
+  font-size: 16px;
   color: #fff;
   display: block;
 }
 .match-info span {
   font-size: 12px;
   color: #86efac;
+  display: block;
+  margin-top: 2px;
+}
+.match-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .history-list {
@@ -313,6 +322,13 @@ body {
   align-items: center;
   gap: 10px;
 }
+.history-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #1e293b;
+}
 .history-name {
   font-size: 13px;
   font-weight: 700;
@@ -334,6 +350,23 @@ body {
   flex-direction: column;
   gap: 14px;
 }
+.student-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.preview-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 .form-label {
   font-size: 11px;
   font-weight: 800;
@@ -344,7 +377,6 @@ body {
 }
 .form-input, .form-select {
   width: 100%;
-  box-sizing: border-box;
   padding: 10px 12px;
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -352,11 +384,6 @@ body {
   color: #fff;
   font-family: inherit;
   font-size: 13px;
-}
-.form-input:focus, .form-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px var(--primary-glow);
 }
 .btn-action {
   padding: 11px 16px;
@@ -372,44 +399,11 @@ body {
   justify-content: center;
   gap: 8px;
 }
-.btn-primary {
-  background: #2563eb;
-  color: #fff;
-}
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-  box-shadow: 0 4px 14px var(--primary-glow);
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; box-shadow: 0 4px 14px var(--primary-glow); }
+.btn-success { background: #10b981; color: #fff; }
+.btn-success:hover:not(:disabled) { background: #059669; }
 
-.sample-chips {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-.sample-chip {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-.sample-chip.done {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-  border-color: rgba(34, 197, 94, 0.3);
-}
-
-.db-list {
-  margin-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 14px;
-}
 .db-item {
   display: flex;
   justify-content: space-between;
@@ -426,11 +420,8 @@ body {
   cursor: pointer;
   padding: 4px 8px;
   font-size: 12px;
-  border-radius: 4px;
 }
-.btn-del:hover { background: rgba(239, 68, 68, 0.15); }
 
-/* FULLSCREEN & RESPONSIVE */
 @media (max-width: 900px) {
   .kiosk-grid { grid-template-columns: 1fr; }
   .video-container { min-height: 320px; }
@@ -444,8 +435,8 @@ body {
   <div class="kiosk-brand">
     <div class="kiosk-logo-badge">📷</div>
     <div>
-      <div class="kiosk-title">LH-NaviX · Kiosk Khuôn Mặt</div>
-      <div class="kiosk-subtitle">Điểm danh tự động qua AI Camera</div>
+      <div class="kiosk-title">LH-NaviX · Kiosk Khuôn Mặt AI</div>
+      <div class="kiosk-subtitle">Nhận diện khuôn mặt & Tự động điểm danh</div>
     </div>
   </div>
 
@@ -454,6 +445,7 @@ body {
       <span class="status-pill" id="sessionPill"></span>
       <span id="sessionText">Đang tìm phiên...</span>
     </div>
+    <button type="button" id="btnQuickOpen" onclick="quickOpenSession()" style="display:none;background:#22c55e;color:#052e16;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;">+ Mở phiên ngay</button>
     <a href="admin.html" style="color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700;padding:6px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;">← Về Admin</a>
   </div>
 </header>
@@ -465,32 +457,36 @@ body {
   <section class="camera-card">
     <div class="camera-toolbar">
       <div class="toolbar-group">
-        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Nguồn camera:</span>
+        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Camera:</span>
         <button type="button" class="btn-toggle active" id="btnModeWebcam" onclick="switchCameraMode('webcam')">💻 Webcam máy tính</button>
         <button type="button" class="btn-toggle" id="btnModeEsp" onclick="switchCameraMode('esp')">📡 ESP32-S3 Cam</button>
       </div>
 
       <div class="toolbar-group" id="espConfigGroup" style="display:none;">
-        <input type="text" class="input-ip" id="espIpInput" placeholder="VD: 192.168.1.45" value="192.168.1.45">
+        <input type="text" class="input-ip" id="espIpInput" placeholder="IP ESP32" value="192.168.2.168">
+        <select id="espModeSelect" style="background:#1e293b;color:#fff;border:1px solid rgba(255,255,255,0.12);padding:6px;border-radius:8px;font-size:12px;">
+          <option value="snapshot">Ảnh liên tục (Cực ổn định)</option>
+          <option value="stream">Stream port 81 (Mượt)</option>
+        </select>
         <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
       </div>
 
       <div class="toolbar-group">
-        <button type="button" class="btn-toggle" onclick="toggleFullscreen()" title="Toàn màn hình">⛶ Fullscreen</button>
+        <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Fullscreen</button>
       </div>
     </div>
 
     <div class="video-container" id="videoBox">
       <!-- WEBCAM VIDEO -->
       <video id="webcamVideo" autoplay muted playsinline></video>
-      <!-- ESP32 MJPEG STREAM -->
-      <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
-      <!-- DRAWING CANVAS -->
+      <!-- ESP32 CANVAS STREAM -->
+      <canvas id="espStreamCanvas"></canvas>
+      <!-- DRAWING CANVAS (BBOX & LABELS) -->
       <canvas id="overlayCanvas"></canvas>
 
       <div class="camera-hud">
         <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
-        <div class="hud-pill" id="hudCount">Khuôn mặt đã học: <b id="enrolledCount">0</b></div>
+        <div class="hud-pill" id="hudCount">Đã học: <b id="enrolledCount">0</b> bạn</div>
       </div>
     </div>
   </section>
@@ -499,24 +495,25 @@ body {
   <aside class="side-card">
     <nav class="side-tabs">
       <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh</button>
-      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">➕ Đăng ký mặt bạn</button>
+      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">➕ Đăng ký khuôn mặt</button>
     </nav>
 
     <!-- TAB 1: RECENT CHECK-INS -->
     <div class="tab-pane active" id="tabRecent">
       <div id="latestMatchCard" style="display:none;">
         <div class="match-card">
-          <div class="match-avatar" id="matchAvatar">✓</div>
+          <img class="match-avatar-img" id="matchAvatar" src="images/logo.png" alt="Avatar">
           <div class="match-info">
             <b id="matchName">—</b>
             <span id="matchDetail">—</span>
+            <div class="match-badge">✓ Đã điểm danh thành công</div>
           </div>
         </div>
       </div>
 
-      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Lịch sử trong phiên:</div>
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Lịch sử nhận diện gần nhất:</div>
       <div class="history-list" id="historyList">
-        <div style="color:#64748b;font-size:13px;text-align:center;padding:30px 0;">Chưa có lượt điểm danh nào</div>
+        <div style="color:#64748b;font-size:13px;text-align:center;padding:40px 0;">Chưa có lượt điểm danh nào</div>
       </div>
     </div>
 
@@ -524,41 +521,44 @@ body {
     <div class="tab-pane" id="tabEnroll">
       <div class="enroll-box">
         <div>
-          <label class="form-label">Chọn bạn trong danh sách:</label>
+          <label class="form-label">Chọn sinh viên từ danh sách đội:</label>
           <select class="form-select" id="studentSelect" onchange="onStudentSelectChange()">
-            <option value="">-- Chọn sinh viên --</option>
+            <option value="">-- Đang tải danh sách... --</option>
           </select>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div>
-            <label class="form-label">MSSV:</label>
-            <input type="text" class="form-input" id="enrollMssv" placeholder="Nhập MSSV...">
-          </div>
-          <div>
-            <label class="form-label">Họ và tên:</label>
-            <input type="text" class="form-input" id="enrollName" placeholder="Tên của bạn...">
+        <div class="student-preview-card" id="studentPreviewCard" style="display:none;">
+          <img class="preview-avatar" id="previewAvatar" src="" alt="Avatar">
+          <div style="min-width:0;flex:1;">
+            <b style="font-size:14px;color:#fff;" id="previewName">—</b>
+            <div style="font-size:12px;color:#94a3b8;" id="previewMssv">—</div>
+            <div style="font-size:11px;color:#38bdf8;" id="previewClass">—</div>
           </div>
         </div>
 
-        <div>
+        <!-- AUTO ENROLL BUTTON FROM PHOTO -->
+        <button type="button" class="btn-action btn-success" id="btnAutoEnrollPhoto" onclick="enrollFromDocumentPhoto()" style="display:none;">
+          ⚡ Nạp khuôn mặt từ ảnh thẻ có sẵn
+        </button>
+
+        <button type="button" class="btn-action" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);" onclick="enrollAll30Students()">
+          📦 Tự động nạp khuôn mặt cả 30 bạn từ tài liệu
+        </button>
+
+        <div style="border-top:1px dashed rgba(255,255,255,0.1);padding-top:10px;">
+          <label class="form-label">Hoặc chụp trực tiếp từ camera:</label>
           <button type="button" class="btn-action btn-primary" id="btnCaptureSample" onclick="captureFaceSample()">
-            📸 Chụp mẫu khuôn mặt (<span id="sampleCount">0</span>/3)
+            📸 Chụp mẫu từ Camera (<span id="sampleCount">0</span>/3)
           </button>
-          <div class="sample-chips">
-            <span class="sample-chip" id="chip0">Góc 1: Chính diện</span>
-            <span class="sample-chip" id="chip1">Góc 2: Hơi trái</span>
-            <span class="sample-chip" id="chip2">Góc 3: Hơi phải</span>
-          </div>
         </div>
 
         <button type="button" class="btn-action" style="background:#10b981;color:#fff;" id="btnSaveEnroll" onclick="saveEnrolledFace()" disabled>
-          💾 Lưu khuôn mặt vào hệ thống
+          💾 Lưu khuôn mặt đã chụp
         </button>
 
         <div class="db-list">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span class="form-label">Đã học (<span id="dbTotal">0</span> người)</span>
+            <span class="form-label">Đã nạp (<span id="dbTotal">0</span> người)</span>
             <button type="button" class="btn-del" onclick="exportFaceDb()">Xuất JSON</button>
           </div>
           <div id="enrolledList" style="max-height:180px;overflow-y:auto;"></div>
@@ -574,21 +574,23 @@ body {
 // ==========================================
 // STATE & CONFIG
 // ==========================================
-let cameraMode = 'webcam'; // 'webcam' hoặc 'esp'
+let cameraMode = 'webcam';
 let isModelLoaded = false;
 let isDetecting = false;
 let currentSession = null;
 let labeledDescriptors = [];
 let faceMatcher = null;
 let studentsList = [];
+let localMapping = [];
 let recentCheckins = [];
-let lastCheckinTime = {}; // Cooldown map: mssv -> timestamp
-
-// Temporary samples during enrollment
+let lastCheckinTime = {};
 let tempSamples = [];
 
+let espInterval = null;
+let espImgObj = new Image();
+
 const webcamVideo = document.getElementById('webcamVideo');
-const espImg = document.getElementById('espStreamImg');
+const espCanvas = document.getElementById('espStreamCanvas');
 const overlayCanvas = document.getElementById('overlayCanvas');
 const hudStatus = document.getElementById('hudStatus');
 
@@ -596,44 +598,101 @@ const hudStatus = document.getElementById('hudStatus');
 // 1. KHỞI TẠO HỆ THỐNG
 // ==========================================
 window.addEventListener('DOMContentLoaded', async () => {
-  await loadStudentsDb();
+  await loadStudentsMapping();
   loadEnrolledFromStorage();
   await loadFaceModels();
   await checkActiveSession();
-  setInterval(checkActiveSession, 10000);
+  setInterval(checkActiveSession, 8000);
   await startWebcam();
+  
+  // Tự động chọn 123001058 (Nguyễn Khánh Hoà) sẵn để user test luôn
+  setTimeout(() => {
+    const sel = document.getElementById('studentSelect');
+    if (sel && sel.querySelector('option[value="123001058"]')) {
+      sel.value = '123001058';
+      onStudentSelectChange();
+    }
+  }, 1000);
 });
 
-// Load students from Supabase
-async function loadStudentsDb() {
+// Load mapping extracted from docx
+async function loadStudentsMapping() {
+  try {
+    const res = await fetch('images/faces/students_mapping.json');
+    if (res.ok) {
+      localMapping = await res.json();
+    }
+  } catch(e) {
+    console.warn('Chưa có students_mapping.json:', e);
+  }
+
+  // Load from Supabase
   try {
     const { data } = await window.supabase.from('students').select('*').order('name');
     studentsList = data || [];
-    const sel = document.getElementById('studentSelect');
-    sel.innerHTML = '<option value="">-- Hoặc chọn từ danh sách sinh viên --</option>';
-    studentsList.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.mssv;
-      opt.textContent = `${s.name} (${s.mssv})`;
-      sel.appendChild(opt);
-    });
+    
+    // Ghép thông tin avatar nếu có
+    if (localMapping.length > 0) {
+      localMapping.forEach(m => {
+        const found = studentsList.find(s => s.mssv === m.mssv);
+        if (found) {
+          found.avatar = m.avatar || `images/faces/${m.mssv}.jpg`;
+          found.class = m.class || '';
+          found.phone = m.phone || '';
+        } else {
+          studentsList.push({
+            mssv: m.mssv,
+            name: m.name,
+            class: m.class || '',
+            phone: m.phone || '',
+            avatar: m.avatar || `images/faces/${m.mssv}.jpg`
+          });
+        }
+      });
+    }
+
+    renderStudentSelect();
   } catch (e) {
-    console.error('Lỗi load danh sách sinh viên:', e);
+    console.error('Lỗi load sinh viên:', e);
   }
+}
+
+function renderStudentSelect() {
+  const sel = document.getElementById('studentSelect');
+  sel.innerHTML = '<option value="">-- Chọn sinh viên --</option>';
+  studentsList.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.mssv;
+    opt.textContent = `${s.name} (${s.mssv})`;
+    sel.appendChild(opt);
+  });
 }
 
 function onStudentSelectChange() {
   const mssv = document.getElementById('studentSelect').value;
-  if (!mssv) return;
+  const card = document.getElementById('studentPreviewCard');
+  const btnAuto = document.getElementById('btnAutoEnrollPhoto');
+  if (!mssv) {
+    card.style.display = 'none';
+    btnAuto.style.display = 'none';
+    return;
+  }
   const st = studentsList.find(s => s.mssv === mssv);
   if (st) {
-    document.getElementById('enrollMssv').value = st.mssv;
-    document.getElementById('enrollName').value = st.name;
+    card.style.display = 'flex';
+    document.getElementById('previewName').textContent = st.name;
+    document.getElementById('previewMssv').textContent = `MSSV: ${st.mssv}`;
+    document.getElementById('previewClass').textContent = st.class ? `Lớp: ${st.class}` : '';
+    
+    const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
+    document.getElementById('previewAvatar').src = avatarUrl;
+    btnAuto.style.display = 'flex';
+    btnAuto.textContent = `⚡ Nạp khuôn mặt ${st.name} từ ảnh thẻ`;
     resetSampleCollector();
   }
 }
 
-// Check active session from Supabase
+// Kiểm tra phiên điểm danh Supabase
 async function checkActiveSession() {
   try {
     const { data } = await window.supabase
@@ -646,18 +705,41 @@ async function checkActiveSession() {
 
     const pill = document.getElementById('sessionPill');
     const txt = document.getElementById('sessionText');
+    const btnQuick = document.getElementById('btnQuickOpen');
 
     if (data) {
       currentSession = data;
       pill.className = 'status-pill online';
       txt.textContent = `Phiên mở: ${data.session_name}`;
+      btnQuick.style.display = 'none';
     } else {
       currentSession = null;
       pill.className = 'status-pill offline';
       txt.textContent = 'Chưa có phiên nào mở';
+      btnQuick.style.display = 'inline-block';
     }
-  } catch (e) {
-    console.error('Lỗi kiểm tra phiên:', e);
+  } catch (e) {}
+}
+
+async function quickOpenSession() {
+  const name = prompt('Nhập tên phiên điểm danh nhanh:', 'Phiên Kiosk AI ' + new Date().toLocaleTimeString('vi-VN'));
+  if (!name) return;
+  try {
+    const { data, error } = await window.supabase.from('sessions').insert({
+      session_name: name,
+      is_open: true,
+      started_at: new Date().toISOString(),
+      duration_min: 60,
+      qr_token: 'kiosk_face_' + Date.now()
+    }).select().single();
+    if (!error) {
+      alert('Đã mở phiên thành công!');
+      await checkActiveSession();
+    } else {
+      alert('Lỗi mở phiên: ' + error.message);
+    }
+  } catch(e) {
+    alert(e.message);
   }
 }
 
@@ -665,15 +747,14 @@ async function checkActiveSession() {
 // 2. LOAD FACE-API MODELS
 // ==========================================
 async function loadFaceModels() {
-  hudStatus.textContent = '⏳ Đang tải mô hình Face AI...';
-  // Dùng model từ CDN jsDelivr chuẩn của @vladmandic/face-api
+  hudStatus.textContent = '⏳ Đang tải mô hình AI...';
   const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
   try {
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
     await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
     await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
     isModelLoaded = true;
-    hudStatus.textContent = '🟢 AI sẵn sàng — Hãy nhìn vào camera';
+    hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera để điểm danh';
     updateFaceMatcher();
     startDetectionLoop();
   } catch (err) {
@@ -683,7 +764,7 @@ async function loadFaceModels() {
 }
 
 // ==========================================
-// 3. CAMERA HANDLERS (WEBCAM / ESP32)
+// 3. NGUỒN CAMERA (WEBCAM / ESP32-S3)
 // ==========================================
 async function startWebcam() {
   try {
@@ -692,10 +773,11 @@ async function startWebcam() {
     });
     webcamVideo.srcObject = stream;
     webcamVideo.style.display = 'block';
-    espImg.style.display = 'none';
+    espCanvas.style.display = 'none';
+    if (espInterval) { clearInterval(espInterval); espInterval = null; }
   } catch (e) {
-    console.error('Không mở được webcam:', e);
-    hudStatus.textContent = '⚠️ Không tìm thấy webcam. Bạn có thể chuyển sang ESP32.';
+    console.warn('Webcam error:', e);
+    hudStatus.textContent = '⚠️ Chưa mở được webcam máy tính.';
   }
 }
 
@@ -722,16 +804,51 @@ function switchCameraMode(mode) {
 
 function connectEspCamera() {
   const ip = document.getElementById('espIpInput').value.trim();
+  const subMode = document.getElementById('espModeSelect').value;
   if (!ip) return;
-  const streamUrl = `http://${ip}:81/stream`;
-  espImg.src = streamUrl;
-  espImg.style.display = 'block';
+
+  if (espInterval) { clearInterval(espInterval); espInterval = null; }
   webcamVideo.style.display = 'none';
-  hudStatus.textContent = `📡 Đang nhận video từ ESP32: ${ip}`;
+  espCanvas.style.display = 'block';
+
+  hudStatus.textContent = `📡 Đang kết nối ESP32 (${ip})...`;
+  const ctx = espCanvas.getContext('2d');
+
+  if (subMode === 'snapshot') {
+    // Chế độ Snapshot: Fetch /capture định kỳ (Cực kỳ trâu bò, không đơ)
+    espInterval = setInterval(() => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = `http://${ip}/capture?t=${Date.now()}`;
+      img.onload = () => {
+        if (espCanvas.width !== img.width || espCanvas.height !== img.height) {
+          espCanvas.width = img.width;
+          espCanvas.height = img.height;
+        }
+        ctx.drawImage(img, 0, 0);
+      };
+    }, 200);
+    hudStatus.textContent = `📡 Đang nhận ảnh tĩnh liên tục từ ESP32: ${ip}`;
+  } else {
+    // Chế độ Stream port 81
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = `http://${ip}:81/stream`;
+    espInterval = setInterval(() => {
+      if (img.complete && img.naturalWidth > 0) {
+        if (espCanvas.width !== img.naturalWidth || espCanvas.height !== img.naturalHeight) {
+          espCanvas.width = img.naturalWidth;
+          espCanvas.height = img.naturalHeight;
+        }
+        ctx.drawImage(img, 0, 0);
+      }
+    }, 50);
+    hudStatus.textContent = `📡 Đang xem luồng Stream từ ESP32: ${ip}`;
+  }
 }
 
 // ==========================================
-// 4. FACE DETECTION & ATTENDANCE LOOP
+// 4. VÒNG LẶP NHẬN DIỆN KHUÔN MẶT
 // ==========================================
 async function startDetectionLoop() {
   if (isDetecting) return;
@@ -743,13 +860,12 @@ async function startDetectionLoop() {
       return;
     }
 
-    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
+    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espCanvas;
     const isReady = (cameraMode === 'webcam') 
       ? (webcamVideo.readyState === 4)
-      : (espImg.complete && espImg.naturalWidth > 0);
+      : (espCanvas.width > 0 && espCanvas.height > 0);
 
     if (isReady) {
-      // Điều chỉnh kích thước canvas đè khớp khung hình
       const displaySize = {
         width: inputMedia.clientWidth || 640,
         height: inputMedia.clientHeight || 480
@@ -759,9 +875,8 @@ async function startDetectionLoop() {
         overlayCanvas.height = displaySize.height;
       }
 
-      // Nhận diện TinyFaceDetector
       const detections = await faceapi
-        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 }))
         .withFaceLandmarks(true)
         .withFaceDescriptors();
 
@@ -771,71 +886,80 @@ async function startDetectionLoop() {
 
       if (resizedDetections.length > 0) {
         resizedDetections.forEach(detection => {
-          const { box } = detection.detection;
-          let label = 'Chưa nhận diện';
+          let { box } = detection.detection;
+          
+          // Lật tọa độ X nếu đang soi webcam (vì webcam bị scaleX(-1))
+          let drawX = box.x;
+          if (cameraMode === 'webcam') {
+            drawX = displaySize.width - box.x - box.width;
+          }
+
+          let label = 'Người lạ / Chưa học';
           let isMatch = false;
+          let confidence = '';
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
             if (bestMatch.label !== 'unknown') {
               label = bestMatch.label;
               isMatch = true;
+              confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
               triggerCheckin(label);
             }
           }
 
-          // Vẽ khung Bounding Box
+          // Vẽ khung nhận diện
           ctx.lineWidth = 3;
           ctx.strokeStyle = isMatch ? '#22c55e' : '#38bdf8';
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
+          ctx.strokeRect(drawX, box.y, box.width, box.height);
 
-          // Vẽ nền label
-          ctx.fillStyle = isMatch ? 'rgba(34, 197, 94, 0.85)' : 'rgba(56, 189, 248, 0.85)';
-          const text = isMatch ? `✓ ${label}` : label;
-          const textWidth = ctx.measureText(text).width;
-          ctx.fillRect(box.x, box.y > 24 ? box.y - 24 : box.y, textWidth + 16, 22);
-
-          // Vẽ chữ
-          ctx.fillStyle = '#ffffff';
+          // Vẽ góc bo tròn hiện đại
+          const radius = 8;
+          ctx.fillStyle = isMatch ? 'rgba(34, 197, 94, 0.9)' : 'rgba(56, 189, 248, 0.9)';
+          const text = (isMatch ? `✓ ` : ``) + label + confidence;
           ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
-          ctx.fillText(text, box.x + 8, box.y > 24 ? box.y - 8 : box.y + 16);
+          const textWidth = ctx.measureText(text).width;
+          
+          const labelY = box.y > 26 ? box.y - 26 : box.y;
+          ctx.fillRect(drawX, labelY, textWidth + 16, 24);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(text, drawX + 8, labelY + 16);
         });
       }
     }
 
-    // Delay 100ms giữa các frame để nhẹ máy
-    setTimeout(() => { requestAnimationFrame(loop); }, 100);
+    setTimeout(() => { requestAnimationFrame(loop); }, 120);
   };
 
   requestAnimationFrame(loop);
 }
 
 // ==========================================
-// 5. TRIGGER CHECK-IN SUPABASE
+// 5. ĐIỂM DANH & GỌI SUPABASE
 // ==========================================
 async function triggerCheckin(label) {
-  // label format: "MSSV - Tên"
   const mssv = label.split(' - ')[0]?.trim();
   const name = label.split(' - ')[1]?.trim() || mssv;
 
   const now = Date.now();
-  // Cooldown 15 giây mỗi người để không spam
   if (lastCheckinTime[mssv] && (now - lastCheckinTime[mssv] < 15000)) {
     return;
   }
   lastCheckinTime[mssv] = now;
 
-  // Hiển thị ngay lên màn hình
+  // Hiển thị Popup & Âm thanh
   showMatchPopup(name, mssv);
+  speakGreeting(name);
   playChime();
 
   if (!currentSession) {
-    console.warn('Nhận diện được nhưng hiện chưa có phiên điểm danh mở.');
+    console.warn('Nhận diện được nhưng không có phiên mở.');
     return;
   }
 
   try {
-    // 1. Thử gọi RPC kiosk_face_checkin nếu có
+    // 1. Thử RPC
     const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('kiosk_face_checkin', {
       p_mssv: mssv,
       p_session_id: String(currentSession.id)
@@ -844,8 +968,8 @@ async function triggerCheckin(label) {
     if (!rpcErr && rpcRes?.ok) {
       console.log('Điểm danh RPC thành công:', rpcRes);
     } else {
-      // 2. Dự phòng: Ghi trực tiếp vào bảng attendance
-      const { error: insErr } = await window.supabase.from('attendance').upsert({
+      // 2. Ghi trực tiếp bảng attendance
+      await window.supabase.from('attendance').upsert({
         session_id: currentSession.id,
         mssv: mssv,
         full_name: name,
@@ -853,11 +977,9 @@ async function triggerCheckin(label) {
         category: 'Khuôn mặt',
         note: 'Kiosk Face AI'
       }, { onConflict: 'session_id,mssv' });
-
-      if (insErr) console.warn('Lỗi ghi Supabase:', insErr.message);
     }
   } catch (err) {
-    console.error('Lỗi khi gửi điểm danh:', err);
+    console.error('Lỗi gửi điểm danh:', err);
   }
 }
 
@@ -865,25 +987,30 @@ function showMatchPopup(name, mssv) {
   const card = document.getElementById('latestMatchCard');
   document.getElementById('matchName').textContent = name;
   document.getElementById('matchDetail').textContent = `MSSV: ${mssv} · ${new Date().toLocaleTimeString('vi-VN')}`;
+  
+  const st = studentsList.find(s => s.mssv === mssv);
+  document.getElementById('matchAvatar').src = st?.avatar || `images/faces/${mssv}.jpg`;
+
   card.style.display = 'block';
 
-  // Thêm vào danh sách lịch sử
-  const item = {
-    name, mssv, time: new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
-  };
-  recentCheckins.unshift(item);
+  recentCheckins.unshift({
+    name, mssv,
+    avatar: st?.avatar || `images/faces/${mssv}.jpg`,
+    time: new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+  });
   renderHistory();
 }
 
 function renderHistory() {
   const container = document.getElementById('historyList');
   if (recentCheckins.length === 0) {
-    container.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:30px 0;">Chưa có lượt điểm danh nào</div>';
+    container.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:40px 0;">Chưa có lượt điểm danh nào</div>';
     return;
   }
   container.innerHTML = recentCheckins.slice(0, 15).map(item => `
     <div class="history-item">
       <div class="history-item-left">
+        <img class="history-avatar" src="${item.avatar}" onerror="this.src='images/logo.png'">
         <div>
           <div class="history-name">${escapeHtml(item.name)}</div>
           <div class="history-mssv">${escapeHtml(item.mssv)}</div>
@@ -894,81 +1021,150 @@ function renderHistory() {
   `).join('');
 }
 
+function speakGreeting(name) {
+  try {
+    if ('speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(`Xin chào ${name}, điểm danh thành công!`);
+      u.lang = 'vi-VN';
+      u.rate = 1.05;
+      window.speechSynthesis.speak(u);
+    }
+  } catch(e) {}
+}
+
 function playChime() {
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.35);
+    osc.stop(ctx.currentTime + 0.35);
   } catch (e) {}
 }
 
 // ==========================================
-// 6. ENROLL FACE SAMPLES (LƯU MẪU MẶT)
+// 6. TỰ ĐỘNG NẠP MẶT TỪ ẢNH THẺ CÓ SẴN
 // ==========================================
+async function enrollFromDocumentPhoto() {
+  const mssv = document.getElementById('studentSelect').value;
+  if (!mssv) return alert('Vui lòng chọn sinh viên!');
+
+  const st = studentsList.find(s => s.mssv === mssv);
+  if (!st) return;
+
+  const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
+  hudStatus.textContent = `⏳ Đang quét và học khuôn mặt từ ảnh của ${st.name}...`;
+
+  try {
+    const img = await faceapi.fetchImage(avatarUrl);
+    const detection = await faceapi
+      .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
+
+    if (!detection) {
+      alert(`Không phát hiện được rõ khuôn mặt trong ảnh ${avatarUrl}!`);
+      hudStatus.textContent = '⚠️ Không tìm thấy mặt trong ảnh.';
+      return;
+    }
+
+    const label = `${st.mssv} - ${st.name}`;
+    let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    // Lưu descriptor
+    db[label] = [Array.from(detection.descriptor)];
+    localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+
+    alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!`);
+    loadEnrolledFromStorage();
+    switchTab('recent');
+    hudStatus.textContent = `🟢 Đã nạp mặt của ${st.name}. Bạn có thể đứng trước camera test ngay!`;
+  } catch (err) {
+    alert('Lỗi nạp ảnh: ' + err.message);
+  }
+}
+
+async function enrollAll30Students() {
+  if (!confirm('Bạn có muốn tự động quét và nạp khuôn mặt của cả 30 thành viên từ tài liệu vào hệ thống không?')) return;
+
+  hudStatus.textContent = '⏳ Đang tự động nạp khuôn mặt cả đội...';
+  let successCount = 0;
+  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+
+  for (const st of studentsList) {
+    const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
+    try {
+      const img = await faceapi.fetchImage(avatarUrl);
+      const detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (detection) {
+        const label = `${st.mssv} - ${st.name}`;
+        db[label] = [Array.from(detection.descriptor)];
+        successCount++;
+      }
+    } catch (e) {}
+  }
+
+  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+  loadEnrolledFromStorage();
+  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount} sinh viên!`);
+  hudStatus.textContent = `🟢 Đã nạp xong ${successCount} sinh viên. Hệ thống sẵn sàng!`;
+}
+
+// Chụp trực tiếp từ camera
 function resetSampleCollector() {
   tempSamples = [];
   document.getElementById('sampleCount').textContent = '0';
   document.getElementById('btnSaveEnroll').disabled = true;
-  ['chip0', 'chip1', 'chip2'].forEach(id => {
-    document.getElementById(id).classList.remove('done');
-  });
 }
 
 async function captureFaceSample() {
-  const mssv = document.getElementById('enrollMssv').value.trim();
-  const name = document.getElementById('enrollName').value.trim();
-  if (!mssv || !name) {
-    alert('Vui lòng nhập MSSV và Tên của bạn trước khi chụp!');
-    return;
-  }
+  const mssv = document.getElementById('studentSelect').value;
+  const st = studentsList.find(s => s.mssv === mssv);
+  if (!st) return alert('Vui lòng chọn sinh viên!');
 
-  const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
+  const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espCanvas;
   const detection = await faceapi
     .detectSingleFace(inputMedia, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
     .withFaceLandmarks(true)
     .withFaceDescriptor();
 
   if (!detection) {
-    alert('Không tìm thấy khuôn mặt rõ ràng! Hãy nhìn thẳng vào camera và đủ ánh sáng.');
+    alert('Không tìm thấy khuôn mặt rõ ràng! Hãy đứng trước camera và đủ sáng.');
     return;
   }
 
   tempSamples.push(Array.from(detection.descriptor));
   const count = tempSamples.length;
   document.getElementById('sampleCount').textContent = count;
-  if (count <= 3) {
-    document.getElementById(`chip${count - 1}`).classList.add('done');
-  }
+  playChime();
 
   if (count >= 3) {
     document.getElementById('btnSaveEnroll').disabled = false;
-    alert('Đã chụp đủ 3 góc mặt! Bấm nút "Lưu khuôn mặt vào hệ thống" bên dưới.');
-  } else {
-    playChime();
+    alert('Đã đủ 3 mẫu mặt! Bấm nút "Lưu khuôn mặt đã chụp" để hoàn tất.');
   }
 }
 
 function saveEnrolledFace() {
-  const mssv = document.getElementById('enrollMssv').value.trim();
-  const name = document.getElementById('enrollName').value.trim();
-  if (!mssv || tempSamples.length === 0) return;
+  const mssv = document.getElementById('studentSelect').value;
+  const st = studentsList.find(s => s.mssv === mssv);
+  if (!st || tempSamples.length === 0) return;
 
-  const label = `${mssv} - ${name}`;
-  // Lưu vào localStorage
+  const label = `${st.mssv} - ${st.name}`;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
   db[label] = tempSamples;
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
 
-  alert(`✓ Đã lưu thành công khuôn mặt cho: ${name} (${mssv})!`);
+  alert(`✓ Đã lưu khuôn mặt chụp cho ${st.name}!`);
   resetSampleCollector();
   loadEnrolledFromStorage();
   switchTab('recent');
@@ -984,17 +1180,23 @@ function loadEnrolledFromStorage() {
   document.getElementById('enrolledCount').textContent = keys.length;
 
   if (keys.length === 0) {
-    listEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px 0;">Chưa có khuôn mặt nào được đăng ký</div>';
+    listEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px 0;">Chưa có khuôn mặt nào được nạp</div>';
   } else {
-    listEl.innerHTML = keys.map(label => `
-      <div class="db-item">
-        <span style="font-size:12.5px;font-weight:700;">${escapeHtml(label)} (${db[label].length} mẫu)</span>
-        <button type="button" class="btn-del" onclick="deleteEnrolledFace('${escapeHtml(label)}')">Xóa</button>
-      </div>
-    `).join('');
+    listEl.innerHTML = keys.map(label => {
+      const mssv = label.split(' - ')[0];
+      const avatarUrl = `images/faces/${mssv}.jpg`;
+      return `
+        <div class="db-item">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <img src="${avatarUrl}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;" onerror="this.src='images/logo.png'">
+            <span style="font-size:12px;font-weight:700;">${escapeHtml(label)} (${db[label].length} mẫu)</span>
+          </div>
+          <button type="button" class="btn-del" onclick="deleteEnrolledFace('${escapeHtml(label)}')">Xóa</button>
+        </div>
+      `;
+    }).join('');
   }
 
-  // Convert sang LabeledFaceDescriptors cho FaceMatcher
   keys.forEach(label => {
     const descriptors = db[label].map(arr => new Float32Array(arr));
     labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(label, descriptors));
@@ -1004,7 +1206,7 @@ function loadEnrolledFromStorage() {
 }
 
 function deleteEnrolledFace(label) {
-  if (!confirm(`Bạn có chắc muốn xóa khuôn mặt "${label}" không?`)) return;
+  if (!confirm(`Xóa khuôn mặt "${label}"?`)) return;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
   delete db[label];
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
@@ -1012,12 +1214,7 @@ function deleteEnrolledFace(label) {
 }
 
 function updateFaceMatcher() {
-  if (labeledDescriptors.length > 0) {
-    // Distance threshold 0.5 (chuẩn so khớp tốt nhất)
-    faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.5);
-  } else {
-    faceMatcher = null;
-  }
+  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.48) : null;
 }
 
 function exportFaceDb() {
@@ -1025,11 +1222,11 @@ function exportFaceDb() {
   const blob = new Blob([data], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `face_db_backup_${Date.now()}.json`;
+  a.download = `face_db_${Date.now()}.json`;
   a.click();
 }
 
-// UI TABS & UTILS
+// UI TABS
 function switchTab(tab) {
   document.getElementById('tabBtnRecent').classList.toggle('active', tab === 'recent');
   document.getElementById('tabBtnEnroll').classList.toggle('active', tab === 'enroll');
@@ -1038,11 +1235,8 @@ function switchTab(tab) {
 }
 
 function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  } else {
-    document.exitFullscreen().catch(() => {});
-  }
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  else document.exitFullscreen().catch(() => {});
 }
 </script>
 

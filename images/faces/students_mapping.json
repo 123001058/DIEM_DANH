@@ -1,0 +1,227 @@
+[
+  {
+    "image": "image1.png",
+    "name": "Cao Thanh Nghĩa",
+    "class": "23OT112",
+    "mssv": "123000651",
+    "phone": "0889258633",
+    "avatar": "images/faces/123000651.jpg"
+  },
+  {
+    "image": "image2.png",
+    "name": "Đỗ Văn Quyền",
+    "class": "23TD111",
+    "mssv": "123001394",
+    "phone": "0943007300",
+    "avatar": "images/faces/123001394.jpg"
+  },
+  {
+    "image": "image3.png",
+    "name": "Bùi Trần Thanh Sang",
+    "class": "23OT112",
+    "mssv": "123000722",
+    "phone": "0988039416",
+    "avatar": "images/faces/123000722.jpg"
+  },
+  {
+    "image": "image4.png",
+    "name": "Nguyễn Khánh Hòa",
+    "class": "23TD111",
+    "mssv": "123001058",
+    "phone": "0327714104",
+    "avatar": "images/faces/123001058.jpg"
+  },
+  {
+    "image": "image5.png",
+    "name": "Trần Thành Long",
+    "class": "23TD111",
+    "mssv": "123000432",
+    "phone": "0799698594",
+    "avatar": "images/faces/123000432.jpg"
+  },
+  {
+    "image": "image6.png",
+    "name": "Nguyễn Đình Hậu",
+    "class": "23TD111",
+    "mssv": "123000872",
+    "phone": "0363009846",
+    "avatar": "images/faces/123000872.jpg"
+  },
+  {
+    "image": "item1.xml5",
+    "name": "Nguyễn Lê Vũ Duy",
+    "class": "23TD111",
+    "mssv": "12300555",
+    "phone": "0888189218"
+  },
+  {
+    "image": "image8.png",
+    "name": "Trần Hải Nam",
+    "class": "23TD111",
+    "mssv": "123000078",
+    "phone": "0372767101",
+    "avatar": "images/faces/123000078.jpg"
+  },
+  {
+    "image": "image9.png",
+    "name": "Lê Văn Minh",
+    "class": "23TD111",
+    "mssv": "123000185",
+    "phone": "0988878095",
+    "avatar": "images/faces/123000185.jpg"
+  },
+  {
+    "image": "numbering.xml0",
+    "name": "Nguyễn Hồng Hiệp",
+    "class": "24CD111",
+    "mssv": "124001589",
+    "phone": "0859892579"
+  },
+  {
+    "image": "numbering.xml2",
+    "name": "Phạm Anh Tuấn",
+    "class": "23TD111",
+    "mssv": "123001188",
+    "phone": "0334869213"
+  },
+  {
+    "image": "numbering.xml4",
+    "name": "Nguyễn Ngọc Bình An",
+    "class": "24CD111",
+    "mssv": "124000534",
+    "phone": "0868449373"
+  },
+  {
+    "image": "numbering.xml5",
+    "name": "Phạm Đinh Tài Lộc",
+    "class": "23TD111",
+    "mssv": "123000375",
+    "phone": "0784728289"
+  },
+  {
+    "image": "image14.png",
+    "name": "Nguyễn Đức Huy",
+    "class": "24CD111",
+    "mssv": "124001238",
+    "phone": "0813766418",
+    "avatar": "images/faces/124001238.jpg"
+  },
+  {
+    "image": "numbering.xml8",
+    "name": "Phạm Tuấn Phát",
+    "class": "24OT112",
+    "mssv": "124000737",
+    "phone": "0333649910"
+  },
+  {
+    "image": "numbering.xml9",
+    "name": "Nguyễn Duy Tiến",
+    "class": "25CK111",
+    "mssv": "125000550",
+    "phone": "0798584673"
+  },
+  {
+    "image": "image17.png",
+    "name": "Nguyễn Thị Thùy",
+    "class": "24AI111",
+    "mssv": "124001851",
+    "phone": "0837665752",
+    "avatar": "images/faces/124001851.jpg"
+  },
+  {
+    "image": "styles.xml3",
+    "name": "Nguyễn Thiện Nhân",
+    "class": "25CK111",
+    "mssv": "125001579",
+    "phone": "0359583253"
+  },
+  {
+    "image": "image19.jpeg",
+    "name": "Phan Công Thịnh",
+    "class": "24TD111",
+    "mssv": "124000354",
+    "phone": "0327459215",
+    "avatar": "images/faces/124000354.jpg"
+  },
+  {
+    "image": "styles.xml6",
+    "name": "Nguyễn Thanh Thái",
+    "class": "25CK111",
+    "mssv": "125001809",
+    "phone": "0389562809"
+  },
+  {
+    "image": "styles.xml8",
+    "name": "Cao Anh Tú",
+    "class": "25OT112",
+    "mssv": "125001087",
+    "phone": "0378740764"
+  },
+  {
+    "image": "image22.png",
+    "name": "Nguyễn Hoàng",
+    "class": "25CK111",
+    "mssv": "125001875",
+    "phone": "0988270632",
+    "avatar": "images/faces/125001875.jpg"
+  },
+  {
+    "image": "image23.png",
+    "name": "Cao Thế Phi",
+    "class": "25OT112",
+    "mssv": "125002381",
+    "phone": "081305623",
+    "avatar": "images/faces/125002381.jpg"
+  },
+  {
+    "image": "image24.png",
+    "name": "Phan Quốc Bảo",
+    "class": "25CK111",
+    "mssv": "125000568",
+    "phone": "0986994012",
+    "avatar": "images/faces/125000568.jpg"
+  },
+  {
+    "image": "settings.xml6",
+    "name": "Lê Ngô Gia Bảo",
+    "class": "25OT112",
+    "mssv": "125000890",
+    "phone": "0845314234"
+  },
+  {
+    "image": "settings.xml8",
+    "name": "Nguyễn Huỳnh",
+    "class": "25TD112",
+    "mssv": "125000372",
+    "phone": "0926079067"
+  },
+  {
+    "image": "image27.png",
+    "name": "Dương Công Mạnh",
+    "class": "25OT112",
+    "mssv": "125001343",
+    "phone": "",
+    "avatar": "images/faces/125001343.jpg"
+  },
+  {
+    "image": "webSettings.xml1",
+    "name": "Nguyễn Thanh Tiến",
+    "class": "25TD112",
+    "mssv": "125001648",
+    "phone": "0964865031"
+  },
+  {
+    "image": "image29.png",
+    "name": "Nguyễn Minh Khang",
+    "class": "25CK111",
+    "mssv": "125000798",
+    "phone": "0336152365",
+    "avatar": "images/faces/125000798.jpg"
+  },
+  {
+    "name": "Nguyễn Văn Hậu",
+    "class": "22CT113",
+    "mssv": "122000426",
+    "phone": ""
+  }
+]
