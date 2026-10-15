@@ -870,25 +870,40 @@ function onStudentSelectChange() {
   }
 }
 
-// Kiểm tra phiên điểm danh Supabase
+// Kiểm tra phiên điểm danh Supabase (kết hợp RPC get_open_session được cấp quyền cho anon)
 async function checkActiveSession() {
   try {
-    const { data } = await window.supabase
-      .from('sessions')
-      .select('*')
-      .eq('is_open', true)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 1. Ưu tiên gọi hàm RPC get_open_session chuẩn của Supabase (không bị RLS chặn)
+    let active = null;
+    try {
+      const { data: openData, error: rpcErr } = await window.supabase.rpc('get_open_session');
+      if (!rpcErr && openData && openData.id) {
+        active = openData;
+      }
+    } catch(e) {}
+
+    // 2. Dự phòng: query trực tiếp bảng sessions
+    if (!active) {
+      try {
+        const { data: tblData } = await window.supabase
+          .from('sessions')
+          .select('*')
+          .eq('is_open', true)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (tblData) active = tblData;
+      } catch(e) {}
+    }
 
     const pill = document.getElementById('sessionPill');
     const txt = document.getElementById('sessionText');
     const btnQuick = document.getElementById('btnQuickOpen');
 
-    if (data) {
-      currentSession = data;
+    if (active) {
+      currentSession = active;
       pill.className = 'status-pill online';
-      txt.textContent = `Phiên mở: ${data.session_name}`;
+      txt.textContent = `Phiên mở: ${active.session_name}`;
       btnQuick.style.display = 'none';
     } else {
       currentSession = null;
@@ -896,28 +911,68 @@ async function checkActiveSession() {
       txt.textContent = 'Chưa có phiên nào mở';
       btnQuick.style.display = 'inline-block';
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('checkActiveSession error:', e);
+  }
 }
 
 async function quickOpenSession() {
-  const name = prompt('Nhập tên phiên điểm danh nhanh:', 'Phiên Kiosk AI ' + new Date().toLocaleTimeString('vi-VN'));
+  const name = prompt('Nhập tên phiên điểm danh nhanh:', 'Phiên Kiosk Face ' + new Date().toLocaleTimeString('vi-VN'));
   if (!name) return;
+
   try {
-    const { data, error } = await window.supabase.from('sessions').insert({
+    // 1. Thử gọi RPC admin_open_session
+    const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('admin_open_session', {
+      p_name: name,
+      p_duration_min: 90,
+      p_warn_before_min: 10
+    });
+
+    if (!rpcErr && rpcRes?.ok) {
+      alert('✓ Đã mở phiên điểm danh trên Supabase thành công!');
+      await checkActiveSession();
+      return;
+    }
+
+    // 2. Thử insert trực tiếp bảng sessions
+    const { data: insData, error: insErr } = await window.supabase.from('sessions').insert({
       session_name: name,
       is_open: true,
       started_at: new Date().toISOString(),
-      duration_min: 60,
+      duration_min: 90,
       qr_token: 'kiosk_face_' + Date.now()
     }).select().single();
-    if (!error) {
-      alert('Đã mở phiên thành công!');
+
+    if (!insErr && insData) {
+      alert('✓ Đã mở phiên điểm danh thành công!');
       await checkActiveSession();
+      return;
+    }
+
+    // 3. Nếu cả 2 đều bị Supabase RLS chặn (do chưa đăng nhập Admin)
+    const openAdmin = confirm(
+      '⚠️ Mở phiên điểm danh trên Cơ sở dữ liệu cần đăng nhập tài khoản Admin (trên trang Quản lý).\n\n' +
+      '👉 Bạn có muốn chuyển sang trang Quản lý (admin.html) để mở phiên không?'
+    );
+    if (openAdmin) {
+      window.open('admin.html', '_blank');
     } else {
-      alert('Lỗi mở phiên: ' + error.message);
+      // Kích hoạt phiên Kiosk tạm thời cục bộ để bạn test nhận diện thoải mái
+      currentSession = {
+        id: 'kiosk_local_' + Date.now(),
+        session_name: name + ' (Kiosk Offline)'
+      };
+      const pill = document.getElementById('sessionPill');
+      const txt = document.getElementById('sessionText');
+      const btnQuick = document.getElementById('btnQuickOpen');
+      pill.className = 'status-pill online';
+      txt.textContent = `Phiên test: ${name}`;
+      btnQuick.style.display = 'none';
+      alert('✓ Đã kích hoạt phiên Kiosk thử nghiệm! Giờ bạn có thể đứng trước camera điểm danh.');
     }
   } catch(e) {
-    alert(e.message);
+    console.error('quickOpenSession error:', e);
+    alert('Lỗi: ' + e.message);
   }
 }
 
@@ -1032,156 +1087,175 @@ function connectEspCamera() {
 // ==========================================
 // 4. VÒNG LẶP NHẬN DIỆN KHUÔN MẶT
 // ==========================================
+// Canvas ngầm để chụp frame tĩnh từ luồng video/stream (chống lỗi buffer MJPEG & CORS)
+const captureCanvas = document.createElement('canvas');
+const captureCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
+
 async function startDetectionLoop() {
   if (isDetecting) return;
   isDetecting = true;
 
   const loop = async () => {
-    if (!isModelLoaded) {
-      requestAnimationFrame(loop);
-      return;
-    }
-
-    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
-    const isReady = (cameraMode === 'webcam') 
-      ? (webcamVideo.readyState === 4)
-      : (espImg.complete && espImg.naturalWidth > 0);
-
-    if (isReady) {
-      const displaySize = {
-        width: videoStage ? videoStage.clientWidth : (inputMedia.clientWidth || 640),
-        height: videoStage ? videoStage.clientHeight : (inputMedia.clientHeight || 480)
-      };
-      if (overlayCanvas.width !== displaySize.width || overlayCanvas.height !== displaySize.height) {
-        overlayCanvas.width = displaySize.width;
-        overlayCanvas.height = displaySize.height;
+    try {
+      if (!isModelLoaded) {
+        requestAnimationFrame(loop);
+        return;
       }
 
-      // Nhận diện TinyFaceDetector - Ngưỡng khắt khe 0.70 để chỉ nhận MẶT NGƯỜI THẬT
-      const detections = await faceapi
-        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.70 }))
-        .withFaceLandmarks(true)
-        .withFaceDescriptors();
+      const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
+      // QUAN TRỌNG: Với luồng MJPEG từ ESP32, KHÔNG ĐƯỢC CHECK espImg.complete vì nó luôn là false!
+      const isReady = (cameraMode === 'webcam') 
+        ? (webcamVideo.readyState >= 2 && webcamVideo.videoWidth > 0)
+        : (espImg.naturalWidth > 0 || espImg.width > 0);
 
-      const resizedDetections = faceapi.resizeResults(detections, displaySize);
-      const ctx = overlayCanvas.getContext('2d');
-      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      if (isReady) {
+        const displaySize = {
+          width: videoStage ? videoStage.clientWidth : (inputMedia.clientWidth || 640),
+          height: videoStage ? videoStage.clientHeight : (inputMedia.clientHeight || 480)
+        };
+        if (overlayCanvas.width !== displaySize.width || overlayCanvas.height !== displaySize.height) {
+          overlayCanvas.width = displaySize.width;
+          overlayCanvas.height = displaySize.height;
+        }
 
-      let detectedLabelsInThisFrame = new Set();
+        // Chụp 1 frame tĩnh lên canvas ngầm để AI đọc điểm ảnh ổn định tuyệt đối
+        const frameW = inputMedia.videoWidth || inputMedia.naturalWidth || 640;
+        const frameH = inputMedia.videoHeight || inputMedia.naturalHeight || 480;
+        if (captureCanvas.width !== frameW || captureCanvas.height !== frameH) {
+          captureCanvas.width = frameW;
+          captureCanvas.height = frameH;
+        }
+        captureCtx.drawImage(inputMedia, 0, 0, frameW, frameH);
 
-      if (resizedDetections.length > 0) {
-        resizedDetections.forEach(detection => {
-          let { box } = detection.detection;
-          
-          const isMirrored = (cameraMode === 'webcam') || (cameraMode === 'esp' && espMirrored);
-          const drawX = isMirrored ? (displaySize.width - box.x - box.width) : box.x;
+        // Nhận diện TinyFaceDetector - Ngưỡng 0.45 tối ưu cực chuẩn cho cảm biến OV2640
+        const detections = await faceapi
+          .detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+          .withFaceLandmarks(true)
+          .withFaceDescriptors();
 
-          let label = 'Người lạ / Chưa học';
-          let isMatch = false;
-          let isLive = true;
-          let confidence = '';
-          let currentEAR = 0.3;
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-          if (faceMatcher) {
-            const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            // Chỉ chấp nhận khi khoảng cách < 0.42 (Độ giống > 65%)
-            if (bestMatch.label !== 'unknown' && bestMatch.distance <= 0.42) {
-              label = bestMatch.label;
-              isMatch = true;
-              confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
-              detectedLabelsInThisFrame.add(label);
+        let detectedLabelsInThisFrame = new Set();
 
-              // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật (truyền cả box)
-              const liveCheck = evaluateLiveness(label, detection.landmarks, box);
-              isLive = liveCheck.isLive;
-              currentEAR = liveCheck.ear;
+        if (resizedDetections.length > 0) {
+          resizedDetections.forEach(detection => {
+            let { box } = detection.detection;
+            
+            const isMirrored = (cameraMode === 'webcam') || (cameraMode === 'esp' && espMirrored);
+            const drawX = isMirrored ? (displaySize.width - box.x - box.width) : box.x;
 
-              if (isLive) {
-                consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
-                if (consecutiveHits[label] >= 1) {
-                  triggerCheckin(label);
-                  // XÓA SẠCH TRẠNG THÁI NGAY: Không bao giờ lưu lại để ảnh thẻ dùng ké!
-                  delete livenessState[label];
+            let label = 'Người lạ / Chưa học';
+            let isMatch = false;
+            let isLive = true;
+            let confidence = '';
+            let currentEAR = 0.3;
+
+            if (faceMatcher) {
+              const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+              // Khoảng cách nhận diện <= 0.48 (Độ giống > 55%)
+              if (bestMatch.label !== 'unknown' && bestMatch.distance <= 0.48) {
+                label = bestMatch.label;
+                isMatch = true;
+                confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
+                detectedLabelsInThisFrame.add(label);
+
+                // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật (truyền cả box)
+                const liveCheck = evaluateLiveness(label, detection.landmarks, box);
+                isLive = liveCheck.isLive;
+                currentEAR = liveCheck.ear;
+
+                if (isLive) {
+                  consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
+                  if (consecutiveHits[label] >= 1) {
+                    triggerCheckin(label);
+                    // XÓA SẠCH TRẠNG THÁI NGAY: Không bao giờ lưu lại để ảnh thẻ dùng ké!
+                    delete livenessState[label];
+                    consecutiveHits[label] = 0;
+                  }
+                } else {
                   consecutiveHits[label] = 0;
+                  hudStatus.textContent = `👁️ ${label.split(' - ')[1] || label}: ${liveCheck.prompt}`;
                 }
-              } else {
-                consecutiveHits[label] = 0;
-                hudStatus.textContent = `👁️ ${label.split(' - ')[1] || label}: ${liveCheck.prompt}`;
               }
             }
-          }
 
-          // Vẽ khung nhận diện
-          ctx.lineWidth = 3;
-          if (!isMatch) {
-            ctx.strokeStyle = '#38bdf8';
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
-          } else if (isLive) {
-            ctx.strokeStyle = '#22c55e';
-            ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
-          } else {
-            ctx.strokeStyle = '#f59e0b'; // Màu cam cảnh báo: đang chờ cử động người thật
-            ctx.fillStyle = 'rgba(245, 158, 11, 0.95)';
-          }
-
-          ctx.strokeRect(drawX, box.y, box.width, box.height);
-
-          // Vẽ label phía trên
-          ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
-          let text = label;
-          if (isMatch) {
-            if (isLive) {
-              text = `✓ ` + label + confidence;
+            // Vẽ khung nhận diện
+            ctx.lineWidth = 3;
+            if (!isMatch) {
+              ctx.strokeStyle = '#38bdf8';
+              ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+            } else if (isLive) {
+              ctx.strokeStyle = '#22c55e';
+              ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
             } else {
-              text = `🔄 ` + (label.split(' - ')[1] || label);
+              ctx.strokeStyle = '#f59e0b'; // Màu cam cảnh báo: đang chờ cử động người thật
+              ctx.fillStyle = 'rgba(245, 158, 11, 0.95)';
             }
+
+            ctx.strokeRect(drawX, box.y, box.width, box.height);
+
+            // Vẽ label phía trên
+            ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
+            let text = label;
+            if (isMatch) {
+              if (isLive) {
+                text = `✓ ` + label + confidence;
+              } else {
+                text = `🔄 ` + (label.split(' - ')[1] || label);
+              }
+            }
+
+            const textWidth = ctx.measureText(text).width;
+            const labelY = box.y > 26 ? box.y - 26 : box.y;
+            ctx.fillRect(drawX, labelY, textWidth + 16, 24);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, drawX + 8, labelY + 16);
+
+            // Nếu là khuôn mặt khớp nhưng chưa xác thực 3D: Hiện hướng dẫn quay đầu trực quan
+            if (isMatch && !isLive && antiSpoofEnabled) {
+              const st = livenessState[label];
+              const prompt = st?.prompt || liveCheck.prompt || 'Vui lòng quay đầu để điểm danh';
+              
+              const subY = box.y + box.height + 6;
+              const barWidth = Math.max(box.width, 260);
+              
+              // Nền thanh hướng dẫn
+              const isHalfway = (st?.state === 'WAIT_RETURN');
+              ctx.fillStyle = isHalfway ? 'rgba(34, 197, 94, 0.95)' : 'rgba(15, 23, 42, 0.92)';
+              ctx.fillRect(drawX, subY, barWidth, 24);
+              
+              // Viền ngoài
+              ctx.strokeStyle = isHalfway ? '#22c55e' : 'rgba(255, 255, 255, 0.2)';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(drawX, subY, barWidth, 24);
+
+              // Chữ hướng dẫn bên trong
+              ctx.font = 'bold 11.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillStyle = isHalfway ? '#052e16' : '#ffffff';
+              ctx.fillText(prompt, drawX + 8, subY + 16);
+            }
+          });
+        } else {
+          hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera & chớp mắt để điểm danh';
+        }
+
+        // Giảm dần và xóa trạng thái các người không còn trong khung hình
+        for (const k in consecutiveHits) {
+          if (!detectedLabelsInThisFrame.has(k)) {
+            consecutiveHits[k] = Math.max(0, consecutiveHits[k] - 1);
+            delete livenessState[k]; // Rời camera -> xóa sạch phiên cũ
           }
-
-          const textWidth = ctx.measureText(text).width;
-          const labelY = box.y > 26 ? box.y - 26 : box.y;
-          ctx.fillRect(drawX, labelY, textWidth + 16, 24);
-
-          ctx.fillStyle = '#ffffff';
-          ctx.fillText(text, drawX + 8, labelY + 16);
-
-          // Nếu là khuôn mặt khớp nhưng chưa xác thực 3D: Hiện hướng dẫn quay đầu trực quan
-          if (isMatch && !isLive && antiSpoofEnabled) {
-            const st = livenessState[label];
-            const prompt = st?.prompt || liveCheck.prompt || 'Vui lòng quay đầu để điểm danh';
-            
-            const subY = box.y + box.height + 6;
-            const barWidth = Math.max(box.width, 260);
-            
-            // Nền thanh hướng dẫn
-            const isHalfway = (st?.state === 'WAIT_RETURN');
-            ctx.fillStyle = isHalfway ? 'rgba(34, 197, 94, 0.95)' : 'rgba(15, 23, 42, 0.92)';
-            ctx.fillRect(drawX, subY, barWidth, 24);
-            
-            // Viền ngoài
-            ctx.strokeStyle = isHalfway ? '#22c55e' : 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(drawX, subY, barWidth, 24);
-
-            // Chữ hướng dẫn bên trong
-            ctx.font = 'bold 11.5px Plus Jakarta Sans, sans-serif';
-            ctx.fillStyle = isHalfway ? '#052e16' : '#ffffff';
-            ctx.fillText(prompt, drawX + 8, subY + 16);
-          }
-        });
-      } else {
-        hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera & chớp mắt để điểm danh';
-      }
-
-      // Giảm dần và xóa trạng thái các người không còn trong khung hình
-      for (const k in consecutiveHits) {
-        if (!detectedLabelsInThisFrame.has(k)) {
-          consecutiveHits[k] = Math.max(0, consecutiveHits[k] - 1);
-          delete livenessState[k]; // Rời camera -> xóa sạch phiên cũ
         }
       }
+    } catch (err) {
+      console.warn('Lỗi trong vòng lặp nhận diện AI:', err);
+    } finally {
+      // Đảm bảo vòng lặp KHÔNG BAO GIỜ BỊ CHẾT ĐỨNG
+      setTimeout(() => { requestAnimationFrame(loop); }, 100);
     }
-
-    setTimeout(() => { requestAnimationFrame(loop); }, 120);
   };
 
   requestAnimationFrame(loop);
