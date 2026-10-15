@@ -469,6 +469,7 @@ body {
       </div>
 
       <div class="toolbar-group">
+        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Chống gian lận bằng ảnh thẻ / màn hình điện thoại">🛡️ Chống ảnh thẻ: BẬT</button>
         <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Fullscreen</button>
       </div>
     </div>
@@ -587,8 +588,81 @@ let lastCheckinTime = {};
 let consecutiveHits = {};
 let tempSamples = [];
 
-let espInterval = null;
-let espImgObj = new Image();
+let antiSpoofEnabled = true;
+const livenessState = {}; // label -> { baselineEAR: 0.3, closedFrames: 0, blinkPassed: false, lastBlinkTime: 0, earHistory: [] }
+
+function toggleAntiSpoof() {
+  antiSpoofEnabled = !antiSpoofEnabled;
+  const btn = document.getElementById('btnAntiSpoof');
+  if (btn) {
+    btn.classList.toggle('active', antiSpoofEnabled);
+    btn.textContent = antiSpoofEnabled ? '🛡️ Chống ảnh thẻ: BẬT' : '⚠️ Chống ảnh thẻ: TẮT';
+  }
+}
+
+// Tính tỉ lệ mở mắt (Eye Aspect Ratio - EAR)
+function calculateEyeEAR(eyePoints) {
+  if (!eyePoints || eyePoints.length < 6) return 0.3;
+  // Khoảng cách thẳng đứng mí trên - mí dưới
+  const p1_p5 = Math.hypot(eyePoints[1].x - eyePoints[5].x, eyePoints[1].y - eyePoints[5].y);
+  const p2_p4 = Math.hypot(eyePoints[2].x - eyePoints[4].x, eyePoints[2].y - eyePoints[4].y);
+  // Khoảng cách bề ngang khóe mắt trong - khóe mắt ngoài
+  const p0_p3 = Math.hypot(eyePoints[0].x - eyePoints[3].x, eyePoints[0].y - eyePoints[3].y);
+  if (p0_p3 < 1) return 0.3;
+  return (p1_p5 + p2_p4) / (2.0 * p0_p3);
+}
+
+// Kiểm tra chớp mắt người thật (Liveness Detection)
+function evaluateLiveness(label, landmarks) {
+  if (!antiSpoofEnabled) return { isLive: true, ear: 0.3 };
+  if (!landmarks) return { isLive: false, ear: 0.3 };
+
+  const leftEye = landmarks.getLeftEye();
+  const rightEye = landmarks.getRightEye();
+  const leftEAR = calculateEyeEAR(leftEye);
+  const rightEAR = calculateEyeEAR(rightEye);
+  const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+  if (!livenessState[label]) {
+    livenessState[label] = {
+      baselineEAR: avgEAR > 0.22 ? avgEAR : 0.3,
+      closedFrames: 0,
+      blinkPassed: false,
+      lastBlinkTime: 0,
+      earHistory: []
+    };
+  }
+
+  const st = livenessState[label];
+
+  // Nếu vừa chớp mắt thành công trong 10 giây qua, giữ trạng thái người thật
+  if (st.blinkPassed && (Date.now() - st.lastBlinkTime < 10000)) {
+    return { isLive: true, ear: avgEAR };
+  }
+
+  // Cập nhật baseline động khi mắt đang mở
+  if (avgEAR >= 0.24) {
+    st.baselineEAR = st.baselineEAR * 0.9 + avgEAR * 0.1;
+  }
+
+  // Ngưỡng mắt nhắm: < 0.20 hoặc giảm > 28% so với baseline bình thường
+  const blinkThreshold = Math.min(0.21, st.baselineEAR * 0.72);
+
+  if (avgEAR < blinkThreshold) {
+    st.closedFrames++;
+  } else {
+    // Mắt vừa mở lại sau khi nhắm 1 đến 6 frame (tương đương 100ms - 700ms của 1 cú chớp mắt thật)
+    if (st.closedFrames >= 1 && st.closedFrames <= 7) {
+      st.blinkPassed = true;
+      st.lastBlinkTime = Date.now();
+      st.closedFrames = 0;
+      return { isLive: true, ear: avgEAR };
+    }
+    st.closedFrames = 0;
+  }
+
+  return { isLive: st.blinkPassed, ear: avgEAR };
+}
 
 const webcamVideo = document.getElementById('webcamVideo');
 const espImg = document.getElementById('espStreamImg');
@@ -872,7 +946,9 @@ async function startDetectionLoop() {
 
           let label = 'Người lạ / Chưa học';
           let isMatch = false;
+          let isLive = true;
           let confidence = '';
+          let currentEAR = 0.3;
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
@@ -883,31 +959,70 @@ async function startDetectionLoop() {
               confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
               detectedLabelsInThisFrame.add(label);
 
-              // Tích lũy xác nhận qua nhiều khung hình (Tránh nháy hình / vật thể lạ)
-              consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
-              if (consecutiveHits[label] >= 3) {
-                triggerCheckin(label);
+              // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật
+              const liveCheck = evaluateLiveness(label, detection.landmarks);
+              isLive = liveCheck.isLive;
+              currentEAR = liveCheck.ear;
+
+              if (isLive) {
+                consecutiveHits[label] = (consecutiveHits[label] || 0) + 1;
+                if (consecutiveHits[label] >= 2) {
+                  triggerCheckin(label);
+                  if (livenessState[label]) livenessState[label].blinkPassed = false; // Reset sau khi điểm danh
+                }
+              } else {
+                consecutiveHits[label] = 0; // Chưa chớp mắt -> Không cho điểm danh
+                hudStatus.textContent = `👁️ Phát hiện ${label.split(' - ')[1] || label} — Vui lòng chớp mắt để xác thực!`;
               }
             }
           }
 
           // Vẽ khung nhận diện
           ctx.lineWidth = 3;
-          ctx.strokeStyle = isMatch ? '#22c55e' : '#38bdf8';
+          if (!isMatch) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+          } else if (isLive) {
+            ctx.strokeStyle = '#22c55e';
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.9)';
+          } else {
+            ctx.strokeStyle = '#f59e0b'; // Màu cam cảnh báo: đang chờ chớp mắt người thật
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.95)';
+          }
+
           ctx.strokeRect(drawX, box.y, box.width, box.height);
 
-          // Vẽ nền label
-          ctx.fillStyle = isMatch ? 'rgba(34, 197, 94, 0.9)' : 'rgba(56, 189, 248, 0.9)';
-          const text = (isMatch ? `✓ ` : ``) + label + confidence;
+          // Vẽ label phía trên
           ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
+          let text = label;
+          if (isMatch) {
+            if (isLive) {
+              text = `✓ ` + label + confidence;
+            } else {
+              text = `👁️ ` + (label.split(' - ')[1] || label) + ` (Chớp mắt để điểm danh)`;
+            }
+          }
+
           const textWidth = ctx.measureText(text).width;
-          
           const labelY = box.y > 26 ? box.y - 26 : box.y;
           ctx.fillRect(drawX, labelY, textWidth + 16, 24);
 
           ctx.fillStyle = '#ffffff';
           ctx.fillText(text, drawX + 8, labelY + 16);
+
+          // Nếu là khuôn mặt khớp nhưng chưa chớp mắt: Hiện nhãn cảnh báo chống ảnh thẻ phía dưới
+          if (isMatch && !isLive && antiSpoofEnabled) {
+            const subText = `🛡️ Chống ảnh thẻ · EAR: ${currentEAR.toFixed(2)}`;
+            const subWidth = ctx.measureText(subText).width;
+            const subY = box.y + box.height + 4;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.fillRect(drawX, subY, subWidth + 16, 22);
+            ctx.fillStyle = '#fde68a';
+            ctx.fillText(subText, drawX + 8, subY + 15);
+          }
         });
+      } else {
+        hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera & chớp mắt để điểm danh';
       }
 
       // Giảm dần các người không còn trong khung hình
