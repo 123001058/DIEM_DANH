@@ -2439,15 +2439,7 @@ tbody tr:last-child td { border-bottom: none; }
           </aside>
 
           <section class="card main-panel">
-            <div class="stats-grid">
-              <div class="stat"><div class="stat-label">Tổng SV</div><div class="stat-num blue" id="statTotal">0</div></div>
-              <div class="stat"><div class="stat-label">Có mặt</div><div class="stat-num green" id="statPresent">0</div></div>
-              <div class="stat"><div class="stat-label">Đi muộn</div><div class="stat-num amber" id="statLate">0</div></div>
-              <div class="stat"><div class="stat-label">Vắng K.phép</div><div class="stat-num red" id="statAbsent">0</div></div>
-              <div class="stat"><div class="stat-label">Có phép</div><div class="stat-num purple" id="statExcused">0</div></div>
-            </div>
-
-            <div class="session-tabs" style="margin-top:14px;">
+            <div class="session-tabs">
               <button class="session-tab active" id="tabBtnStudents" onclick="switchSessionTab('students')">📋 Danh sách điểm danh</button>
               <button class="session-tab" id="tabBtnGroups" onclick="switchSessionTab('groups')">👥 Theo nhóm</button>
               <button class="session-tab" id="tabBtnAudit" onclick="switchSessionTab('audit')">🕒 Lịch sử thay đổi (Audit Log) <span id="auditLogCountBadge" style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.07)">0</span></button>
@@ -6062,15 +6054,16 @@ function updateStats(){
     else if (a && a.status === 'vắng có phép') excused++;
     else absent++; // Chưa điểm danh hoặc vắng không phép tính hết vào vắng k phép
   });
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statPresent').textContent = present;
+  const elTotal = document.getElementById('statTotal');
+  if (elTotal) elTotal.textContent = total;
+  const elPres = document.getElementById('statPresent');
+  if (elPres) elPres.textContent = present;
   const lateEl = document.getElementById('statLate');
   if (lateEl) lateEl.textContent = late;
-  document.getElementById('statAbsent').textContent = absent;
+  const elAbs = document.getElementById('statAbsent');
+  if (elAbs) elAbs.textContent = absent;
   const excEl = document.getElementById('statExcused');
   if (excEl) excEl.textContent = excused;
-  const unmEl = document.getElementById('statUnmarked');
-  if (unmEl) unmEl.textContent = 0;
 
   const pct = total ? Math.round(((present + late) / total) * 100) : 0;
   const progressPct = document.getElementById('progressPct');
