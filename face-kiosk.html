@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LH-NaviX — Kiosk Điểm Danh Khuôn Mặt AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+
+<!-- Load Supabase & Face-API -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+<style>
+:root {
+  --primary-glow: rgba(37, 99, 235, 0.35);
+  --success-glow: rgba(34, 197, 94, 0.4);
+}
+body {
+  margin: 0;
+  padding: 0;
+  background: #0b0f19;
+  color: #f1f5f9;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.kiosk-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.kiosk-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kiosk-logo-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+.kiosk-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: #fff;
+}
+.kiosk-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.kiosk-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.status-pill {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.status-pill.online {
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e;
+  animation: pulse-dot 2s infinite;
+}
+.status-pill.offline {
+  background: #ef4444;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* MAIN LAYOUT */
+.kiosk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 420px);
+  gap: 20px;
+  padding: 20px 24px;
+  flex: 1;
+  max-width: 1560px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* CAMERA STAGE */
+.camera-card {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.camera-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: rgba(17, 24, 39, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-toggle {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-toggle.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px var(--primary-glow);
+}
+.input-ip {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  width: 170px;
+}
+
+.video-container {
+  position: relative;
+  background: #030712;
+  flex: 1;
+  min-height: 440px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#webcamVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleX(-1); /* Gương tự nhiên cho webcam */
+}
+#espStreamImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
+}
+#overlayCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.camera-hud {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.hud-pill {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* SIDE PANEL */
+.side-card {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.side-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 24, 39, 0.6);
+}
+.side-tab-btn {
+  flex: 1;
+  padding: 13px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.side-tab-btn.active {
+  color: #60a5fa;
+  border-bottom-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.tab-pane {
+  display: none;
+  padding: 18px;
+  flex: 1;
+  overflow-y: auto;
+}
+.tab-pane.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* RECENT CHECK-INS */
+.match-card {
+  padding: 14px 16px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  animation: slide-in 0.3s ease-out;
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.match-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #052e16;
+  font-size: 22px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.match-info b {
+  font-size: 15px;
+  color: #fff;
+  display: block;
+}
+.match-info span {
+  font-size: 12px;
+  color: #86efac;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+.history-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.history-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.history-mssv {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.history-time {
+  font-size: 12px;
+  color: #22c55e;
+  font-weight: 700;
+}
+
+/* ENROLL FORM */
+.enroll-box {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+.form-input, .form-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+}
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+.btn-action {
+  padding: 11px 16px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sample-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sample-chip {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+.sample-chip.done {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.db-list {
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+}
+.db-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+.btn-del {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.btn-del:hover { background: rgba(239, 68, 68, 0.15); }
+
+/* FULLSCREEN & RESPONSIVE */
+@media (max-width: 900px) {
+  .kiosk-grid { grid-template-columns: 1fr; }
+  .video-container { min-height: 320px; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<header class="kiosk-nav">
+  <div class="kiosk-brand">
+    <div class="kiosk-logo-badge">📷</div>
+    <div>
+      <div class="kiosk-title">LH-NaviX · Kiosk Khuôn Mặt</div>
+      <div class="kiosk-subtitle">Điểm danh tự động qua AI Camera</div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="kiosk-status-badge" id="sessionBadge">
+      <span class="status-pill" id="sessionPill"></span>
+      <span id="sessionText">Đang tìm phiên...</span>
+    </div>
+    <a href="admin.html" style="color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700;padding:6px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;">← Về Admin</a>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="kiosk-grid">
+
+  <!-- LEFT: CAMERA STAGE -->
+  <section class="camera-card">
+    <div class="camera-toolbar">
+      <div class="toolbar-group">
+        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Nguồn camera:</span>
+        <button type="button" class="btn-toggle active" id="btnModeWebcam" onclick="switchCameraMode('webcam')">💻 Webcam máy tính</button>
+        <button type="button" class="btn-toggle" id="btnModeEsp" onclick="switchCameraMode('esp')">📡 ESP32-S3 Cam</button>
+      </div>
+
+      <div class="toolbar-group" id="espConfigGroup" style="display:none;">
+        <input type="text" class="input-ip" id="espIpInput" placeholder="VD: 192.168.1.45" value="192.168.1.45">
+        <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button type="button" class="btn-toggle" onclick="toggleFullscreen()" title="Toàn màn hình">⛶ Fullscreen</button>
+      </div>
+    </div>
+
+    <div class="video-container" id="videoBox">
+      <!-- WEBCAM VIDEO -->
+      <video id="webcamVideo" autoplay muted playsinline></video>
+      <!-- ESP32 MJPEG STREAM -->
+      <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
+      <!-- DRAWING CANVAS -->
+      <canvas id="overlayCanvas"></canvas>
+
+      <div class="camera-hud">
+        <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
+        <div class="hud-pill" id="hudCount">Khuôn mặt đã học: <b id="enrolledCount">0</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: SIDEBAR (RECENT & ENROLL) -->
+  <aside class="side-card">
+    <nav class="side-tabs">
+      <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh</button>
+      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">➕ Đăng ký mặt bạn</button>
+    </nav>
+
+    <!-- TAB 1: RECENT CHECK-INS -->
+    <div class="tab-pane active" id="tabRecent">
+      <div id="latestMatchCard" style="display:none;">
+        <div class="match-card">
+          <div class="match-avatar" id="matchAvatar">✓</div>
+          <div class="match-info">
+            <b id="matchName">—</b>
+            <span id="matchDetail">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Lịch sử trong phiên:</div>
+      <div class="history-list" id="historyList">
+        <div style="color:#64748b;font-size:13px;text-align:center;padding:30px 0;">Chưa có lượt điểm danh nào</div>
+      </div>
+    </div>
+
+    <!-- TAB 2: ENROLL FACES -->
+    <div class="tab-pane" id="tabEnroll">
+      <div class="enroll-box">
+        <div>
+          <label class="form-label">Chọn bạn trong danh sách:</label>
+          <select class="form-select" id="studentSelect" onchange="onStudentSelectChange()">
+            <option value="">-- Chọn sinh viên --</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label class="form-label">MSSV:</label>
+            <input type="text" class="form-input" id="enrollMssv" placeholder="Nhập MSSV...">
+          </div>
+          <div>
+            <label class="form-label">Họ và tên:</label>
+            <input type="text" class="form-input" id="enrollName" placeholder="Tên của bạn...">
+          </div>
+        </div>
+
+        <div>
+          <button type="button" class="btn-action btn-primary" id="btnCaptureSample" onclick="captureFaceSample()">
+            📸 Chụp mẫu khuôn mặt (<span id="sampleCount">0</span>/3)
+          </button>
+          <div class="sample-chips">
+            <span class="sample-chip" id="chip0">Góc 1: Chính diện</span>
+            <span class="sample-chip" id="chip1">Góc 2: Hơi trái</span>
+            <span class="sample-chip" id="chip2">Góc 3: Hơi phải</span>
+          </div>
+        </div>
+
+        <button type="button" class="btn-action" style="background:#10b981;color:#fff;" id="btnSaveEnroll" onclick="saveEnrolledFace()" disabled>
+          💾 Lưu khuôn mặt vào hệ thống
+        </button>
+
+        <div class="db-list">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span class="form-label">Đã học (<span id="dbTotal">0</span> người)</span>
+            <button type="button" class="btn-del" onclick="exportFaceDb()">Xuất JSON</button>
+          </div>
+          <div id="enrolledList" style="max-height:180px;overflow-y:auto;"></div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+</main>
+
+<script>
+// ==========================================
+// STATE & CONFIG
+// ==========================================
+let cameraMode = 'webcam'; // 'webcam' hoặc 'esp'
+let isModelLoaded = false;
+let isDetecting = false;
+let currentSession = null;
+let labeledDescriptors = [];
+let faceMatcher = null;
+let studentsList = [];
+let recentCheckins = [];
+let lastCheckinTime = {}; // Cooldown map: mssv -> timestamp
+
+// Temporary samples during enrollment
+let tempSamples = [];
+
+const webcamVideo = document.getElementById('webcamVideo');
+const espImg = document.getElementById('espStreamImg');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const hudStatus = document.getElementById('hudStatus');
+
+// ==========================================
+// 1. KHỞI TẠO HỆ THỐNG
+// ==========================================
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadStudentsDb();
+  loadEnrolledFromStorage();
+  await loadFaceModels();
+  await checkActiveSession();
+  setInterval(checkActiveSession, 10000);
+  await startWebcam();
+});
+
+// Load students from Supabase
+async function loadStudentsDb() {
+  try {
+    const { data } = await window.supabase.from('students').select('*').order('name');
+    studentsList = data || [];
+    const sel = document.getElementById('studentSelect');
+    sel.innerHTML = '<option value="">-- Hoặc chọn từ danh sách sinh viên --</option>';
+    studentsList.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.mssv;
+      opt.textContent = `${s.name} (${s.mssv})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('Lỗi load danh sách sinh viên:', e);
+  }
+}
+
+function onStudentSelectChange() {
+  const mssv = document.getElementById('studentSelect').value;
+  if (!mssv) return;
+  const st = studentsList.find(s => s.mssv === mssv);
+  if (st) {
+    document.getElementById('enrollMssv').value = st.mssv;
+    document.getElementById('enrollName').value = st.name;
+    resetSampleCollector();
+  }
+}
+
+// Check active session from Supabase
+async function checkActiveSession() {
+  try {
+    const { data } = await window.supabase
+      .from('sessions')
+      .select('*')
+      .eq('is_open', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const pill = document.getElementById('sessionPill');
+    const txt = document.getElementById('sessionText');
+
+    if (data) {
+      currentSession = data;
+      pill.className = 'status-pill online';
+      txt.textContent = `Phiên mở: ${data.session_name}`;
+    } else {
+      currentSession = null;
+      pill.className = 'status-pill offline';
+      txt.textContent = 'Chưa có phiên nào mở';
+    }
+  } catch (e) {
+    console.error('Lỗi kiểm tra phiên:', e);
+  }
+}
+
+// ==========================================
+// 2. LOAD FACE-API MODELS
+// ==========================================
+async function loadFaceModels() {
+  hudStatus.textContent = '⏳ Đang tải mô hình Face AI...';
+  // Dùng model từ CDN jsDelivr chuẩn của @vladmandic/face-api
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    isModelLoaded = true;
+    hudStatus.textContent = '🟢 AI sẵn sàng — Hãy nhìn vào camera';
+    updateFaceMatcher();
+    startDetectionLoop();
+  } catch (err) {
+    console.error('Lỗi tải model:', err);
+    hudStatus.textContent = '❌ Lỗi tải AI models. Kiểm tra mạng internet.';
+  }
+}
+
+// ==========================================
+// 3. CAMERA HANDLERS (WEBCAM / ESP32)
+// ==========================================
+async function startWebcam() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+    });
+    webcamVideo.srcObject = stream;
+    webcamVideo.style.display = 'block';
+    espImg.style.display = 'none';
+  } catch (e) {
+    console.error('Không mở được webcam:', e);
+    hudStatus.textContent = '⚠️ Không tìm thấy webcam. Bạn có thể chuyển sang ESP32.';
+  }
+}
+
+function stopWebcam() {
+  if (webcamVideo.srcObject) {
+    webcamVideo.srcObject.getTracks().forEach(t => t.stop());
+    webcamVideo.srcObject = null;
+  }
+}
+
+function switchCameraMode(mode) {
+  cameraMode = mode;
+  document.getElementById('btnModeWebcam').classList.toggle('active', mode === 'webcam');
+  document.getElementById('btnModeEsp').classList.toggle('active', mode === 'esp');
+  document.getElementById('espConfigGroup').style.display = (mode === 'esp') ? 'flex' : 'none';
+
+  if (mode === 'webcam') {
+    startWebcam();
+  } else {
+    stopWebcam();
+    connectEspCamera();
+  }
+}
+
+function connectEspCamera() {
+  const ip = document.getElementById('espIpInput').value.trim();
+  if (!ip) return;
+  const streamUrl = `http://${ip}:81/stream`;
+  espImg.src = streamUrl;
+  espImg.style.display = 'block';
+  webcamVideo.style.display = 'none';
+  hudStatus.textContent = `📡 Đang nhận video từ ESP32: ${ip}`;
+}
+
+// ==========================================
+// 4. FACE DETECTION & ATTENDANCE LOOP
+// ==========================================
+async function startDetectionLoop() {
+  if (isDetecting) return;
+  isDetecting = true;
+
+  const loop = async () => {
+    if (!isModelLoaded) {
+      requestAnimationFrame(loop);
+      return;
+    }
+
+    const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
+    const isReady = (cameraMode === 'webcam') 
+      ? (webcamVideo.readyState === 4)
+      : (espImg.complete && espImg.naturalWidth > 0);
+
+    if (isReady) {
+      // Điều chỉnh kích thước canvas đè khớp khung hình
+      const displaySize = {
+        width: inputMedia.clientWidth || 640,
+        height: inputMedia.clientHeight || 480
+      };
+      if (overlayCanvas.width !== displaySize.width || overlayCanvas.height !== displaySize.height) {
+        overlayCanvas.width = displaySize.width;
+        overlayCanvas.height = displaySize.height;
+      }
+
+      // Nhận diện TinyFaceDetector
+      const detections = await faceapi
+        .detectAllFaces(inputMedia, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptors();
+
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
+      const ctx = overlayCanvas.getContext('2d');
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+      if (resizedDetections.length > 0) {
+        resizedDetections.forEach(detection => {
+          const { box } = detection.detection;
+          let label = 'Chưa nhận diện';
+          let isMatch = false;
+
+          if (faceMatcher) {
+            const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+            if (bestMatch.label !== 'unknown') {
+              label = bestMatch.label;
+              isMatch = true;
+              triggerCheckin(label);
+            }
+          }
+
+          // Vẽ khung Bounding Box
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = isMatch ? '#22c55e' : '#38bdf8';
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+          // Vẽ nền label
+          ctx.fillStyle = isMatch ? 'rgba(34, 197, 94, 0.85)' : 'rgba(56, 189, 248, 0.85)';
+          const text = isMatch ? `✓ ${label}` : label;
+          const textWidth = ctx.measureText(text).width;
+          ctx.fillRect(box.x, box.y > 24 ? box.y - 24 : box.y, textWidth + 16, 22);
+
+          // Vẽ chữ
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 12.5px Plus Jakarta Sans, sans-serif';
+          ctx.fillText(text, box.x + 8, box.y > 24 ? box.y - 8 : box.y + 16);
+        });
+      }
+    }
+
+    // Delay 100ms giữa các frame để nhẹ máy
+    setTimeout(() => { requestAnimationFrame(loop); }, 100);
+  };
+
+  requestAnimationFrame(loop);
+}
+
+// ==========================================
+// 5. TRIGGER CHECK-IN SUPABASE
+// ==========================================
+async function triggerCheckin(label) {
+  // label format: "MSSV - Tên"
+  const mssv = label.split(' - ')[0]?.trim();
+  const name = label.split(' - ')[1]?.trim() || mssv;
+
+  const now = Date.now();
+  // Cooldown 15 giây mỗi người để không spam
+  if (lastCheckinTime[mssv] && (now - lastCheckinTime[mssv] < 15000)) {
+    return;
+  }
+  lastCheckinTime[mssv] = now;
+
+  // Hiển thị ngay lên màn hình
+  showMatchPopup(name, mssv);
+  playChime();
+
+  if (!currentSession) {
+    console.warn('Nhận diện được nhưng hiện chưa có phiên điểm danh mở.');
+    return;
+  }
+
+  try {
+    // 1. Thử gọi RPC kiosk_face_checkin nếu có
+    const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('kiosk_face_checkin', {
+      p_mssv: mssv,
+      p_session_id: String(currentSession.id)
+    });
+
+    if (!rpcErr && rpcRes?.ok) {
+      console.log('Điểm danh RPC thành công:', rpcRes);
+    } else {
+      // 2. Dự phòng: Ghi trực tiếp vào bảng attendance
+      const { error: insErr } = await window.supabase.from('attendance').upsert({
+        session_id: currentSession.id,
+        mssv: mssv,
+        full_name: name,
+        status: 'có mặt',
+        category: 'Khuôn mặt',
+        note: 'Kiosk Face AI'
+      }, { onConflict: 'session_id,mssv' });
+
+      if (insErr) console.warn('Lỗi ghi Supabase:', insErr.message);
+    }
+  } catch (err) {
+    console.error('Lỗi khi gửi điểm danh:', err);
+  }
+}
+
+function showMatchPopup(name, mssv) {
+  const card = document.getElementById('latestMatchCard');
+  document.getElementById('matchName').textContent = name;
+  document.getElementById('matchDetail').textContent = `MSSV: ${mssv} · ${new Date().toLocaleTimeString('vi-VN')}`;
+  card.style.display = 'block';
+
+  // Thêm vào danh sách lịch sử
+  const item = {
+    name, mssv, time: new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+  };
+  recentCheckins.unshift(item);
+  renderHistory();
+}
+
+function renderHistory() {
+  const container = document.getElementById('historyList');
+  if (recentCheckins.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:30px 0;">Chưa có lượt điểm danh nào</div>';
+    return;
+  }
+  container.innerHTML = recentCheckins.slice(0, 15).map(item => `
+    <div class="history-item">
+      <div class="history-item-left">
+        <div>
+          <div class="history-name">${escapeHtml(item.name)}</div>
+          <div class="history-mssv">${escapeHtml(item.mssv)}</div>
+        </div>
+      </div>
+      <div class="history-time">${item.time}</div>
+    </div>
+  `).join('');
+}
+
+function playChime() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.35);
+  } catch (e) {}
+}
+
+// ==========================================
+// 6. ENROLL FACE SAMPLES (LƯU MẪU MẶT)
+// ==========================================
+function resetSampleCollector() {
+  tempSamples = [];
+  document.getElementById('sampleCount').textContent = '0';
+  document.getElementById('btnSaveEnroll').disabled = true;
+  ['chip0', 'chip1', 'chip2'].forEach(id => {
+    document.getElementById(id).classList.remove('done');
+  });
+}
+
+async function captureFaceSample() {
+  const mssv = document.getElementById('enrollMssv').value.trim();
+  const name = document.getElementById('enrollName').value.trim();
+  if (!mssv || !name) {
+    alert('Vui lòng nhập MSSV và Tên của bạn trước khi chụp!');
+    return;
+  }
+
+  const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
+  const detection = await faceapi
+    .detectSingleFace(inputMedia, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+    .withFaceLandmarks(true)
+    .withFaceDescriptor();
+
+  if (!detection) {
+    alert('Không tìm thấy khuôn mặt rõ ràng! Hãy nhìn thẳng vào camera và đủ ánh sáng.');
+    return;
+  }
+
+  tempSamples.push(Array.from(detection.descriptor));
+  const count = tempSamples.length;
+  document.getElementById('sampleCount').textContent = count;
+  if (count <= 3) {
+    document.getElementById(`chip${count - 1}`).classList.add('done');
+  }
+
+  if (count >= 3) {
+    document.getElementById('btnSaveEnroll').disabled = false;
+    alert('Đã chụp đủ 3 góc mặt! Bấm nút "Lưu khuôn mặt vào hệ thống" bên dưới.');
+  } else {
+    playChime();
+  }
+}
+
+function saveEnrolledFace() {
+  const mssv = document.getElementById('enrollMssv').value.trim();
+  const name = document.getElementById('enrollName').value.trim();
+  if (!mssv || tempSamples.length === 0) return;
+
+  const label = `${mssv} - ${name}`;
+  // Lưu vào localStorage
+  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  db[label] = tempSamples;
+  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+
+  alert(`✓ Đã lưu thành công khuôn mặt cho: ${name} (${mssv})!`);
+  resetSampleCollector();
+  loadEnrolledFromStorage();
+  switchTab('recent');
+}
+
+function loadEnrolledFromStorage() {
+  const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  labeledDescriptors = [];
+
+  const listEl = document.getElementById('enrolledList');
+  const keys = Object.keys(db);
+  document.getElementById('dbTotal').textContent = keys.length;
+  document.getElementById('enrolledCount').textContent = keys.length;
+
+  if (keys.length === 0) {
+    listEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px 0;">Chưa có khuôn mặt nào được đăng ký</div>';
+  } else {
+    listEl.innerHTML = keys.map(label => `
+      <div class="db-item">
+        <span style="font-size:12.5px;font-weight:700;">${escapeHtml(label)} (${db[label].length} mẫu)</span>
+        <button type="button" class="btn-del" onclick="deleteEnrolledFace('${escapeHtml(label)}')">Xóa</button>
+      </div>
+    `).join('');
+  }
+
+  // Convert sang LabeledFaceDescriptors cho FaceMatcher
+  keys.forEach(label => {
+    const descriptors = db[label].map(arr => new Float32Array(arr));
+    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(label, descriptors));
+  });
+
+  updateFaceMatcher();
+}
+
+function deleteEnrolledFace(label) {
+  if (!confirm(`Bạn có chắc muốn xóa khuôn mặt "${label}" không?`)) return;
+  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  delete db[label];
+  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+  loadEnrolledFromStorage();
+}
+
+function updateFaceMatcher() {
+  if (labeledDescriptors.length > 0) {
+    // Distance threshold 0.5 (chuẩn so khớp tốt nhất)
+    faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.5);
+  } else {
+    faceMatcher = null;
+  }
+}
+
+function exportFaceDb() {
+  const data = localStorage.getItem('face_descriptors_db') || '{}';
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `face_db_backup_${Date.now()}.json`;
+  a.click();
+}
+
+// UI TABS & UTILS
+function switchTab(tab) {
+  document.getElementById('tabBtnRecent').classList.toggle('active', tab === 'recent');
+  document.getElementById('tabBtnEnroll').classList.toggle('active', tab === 'enroll');
+  document.getElementById('tabRecent').classList.toggle('active', tab === 'recent');
+  document.getElementById('tabEnroll').classList.toggle('active', tab === 'enroll');
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+</script>
+
+</body>
+</html>
