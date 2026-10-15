@@ -1977,6 +1977,169 @@ tbody tr:last-child td { border-bottom: none; }
 .zalo-admin-panel { background:#fff; color:var(--text); border-color:var(--border); }
 .zalo-admin-panel .zalo-admin-description { color:var(--muted); }
 
+/* Lucian UX/UI Audit Log & Leave Management Styles */
+.audit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  padding-left: 18px;
+  border-left: 2px solid var(--border);
+  margin-top: 10px;
+}
+.audit-row {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: transform .2s var(--ux-spring, ease), box-shadow .2s ease;
+}
+.audit-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+.audit-row::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary, #0284c7);
+  box-shadow: 0 0 0 3px var(--surface);
+}
+.audit-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.audit-time-tag {
+  font-family: monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.audit-user-tag {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.audit-student-name {
+  color: var(--text);
+  font-weight: 700;
+}
+.audit-mssv-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: monospace;
+}
+.audit-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+.audit-arrow {
+  color: var(--muted);
+  font-weight: bold;
+}
+.audit-st-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+}
+.audit-st-pill.ok { background: #dcfce7; color: #15803d; }
+.audit-st-pill.late { background: #fef3c7; color: #b45309; }
+.audit-st-pill.excused { background: #ede9fe; color: #7c3aed; }
+.audit-st-pill.unexcused { background: #fee2e2; color: #dc2626; }
+.audit-st-pill.none { background: #f1f5f9; color: #64748b; }
+.audit-reason-quote {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--info, #0284c7);
+  background: rgba(2, 132, 199, 0.05);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--info, #0284c7);
+}
+.audit-tech-details {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.audit-tech-details summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+.audit-tech-details summary:hover {
+  color: var(--text);
+}
+.audit-tech-content {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Leave Day Accordion */
+.leave-day-accordion {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  transition: box-shadow .2s ease;
+}
+.leave-day-accordion.open {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+.leave-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+  transition: background .15s ease;
+}
+.leave-day-head:hover {
+  background: var(--surface-2);
+}
+.leave-day-accordion.open .leave-day-head {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.leave-card-compact {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.leave-card-compact:hover {
+  box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+}
+
 </style>
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2753,6 +2916,10 @@ tbody tr:last-child td { border-bottom: none; }
               </select>
             </label>
             <span id="leaveRequestCount" style="font-size:12px;color:var(--muted);font-weight:600"></span>
+            <div style="display:inline-flex;gap:4px;margin-left:4px">
+              <button class="btn btn-secondary btn-sm" type="button" onclick="toggleAllLeaveDays(true)" style="padding:4px 8px;font-size:11.5px" title="Mở tất cả các ngày">📂 Mở hết</button>
+              <button class="btn btn-secondary btn-sm" type="button" onclick="toggleAllLeaveDays(false)" style="padding:4px 8px;font-size:11.5px" title="Thu gọn tất cả các ngày">📁 Thu gọn</button>
+            </div>
           </div>
 
           <div style="position:relative;min-width:240px;max-width:340px;flex:1">
@@ -3630,7 +3797,7 @@ function navTo(viewName) {
 const leaveTypeNames={full_session:'Nghỉ theo ngày/buổi',late:'Đi muộn',early:'Về sớm',partial:'Vắng một phần'};
 const leaveStatusNames={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Từ chối',cancelled:'Đã hủy'};
 const adminLeavePeriodNames={full_day:'Cả ngày',morning:'Buổi sáng',afternoon:'Buổi chiều',evening:'Buổi tối'};
-let adminLeaveCache=[], adminLeaveUser=null, adminLeaveProfile=null, adminLeaveSchedules=[], selectedLeaveDay=null, selectedLeavePeriod=null;
+let adminLeaveCache=[], adminLeaveUser=null, adminLeaveProfile=null, adminLeaveSchedules=[], expandedLeaveDays=null, leaveDayPeriods={};
 
 function toggleAdminSelfLeaveForm(forceState) {
   const card = document.getElementById('adminSelfLeaveCard');
@@ -3767,18 +3934,18 @@ function renderLeaveRequests(){
   }
 
   const days=[...new Set(rows.map(leaveRowDate))].sort().reverse();
-  if(!selectedLeaveDay && days.length){
+  if(expandedLeaveDays === null && days.length){
+    expandedLeaveDays = new Set();
     const pendingDay = days.find(day => rows.some(r => leaveRowDate(r) === day && r.status === 'pending'));
-    selectedLeaveDay = pendingDay || days[0];
-  } else if(selectedLeaveDay&&!days.includes(selectedLeaveDay)){
-    selectedLeaveDay=null;
-    selectedLeavePeriod=null;
+    expandedLeaveDays.add(pendingDay || days[0]);
+  } else if(!expandedLeaveDays){
+    expandedLeaveDays = new Set();
   }
 
   list.innerHTML=days.map(day=>{
     const dayRows=rows.filter(r=>leaveRowDate(r)===day);
     const dayPending=dayRows.filter(r=>r.status==='pending').length;
-    const isExpanded=(selectedLeaveDay===day);
+    const isExpanded=expandedLeaveDays.has(day);
 
     const dayDateObj=new Date(`${day}T00:00:00`);
     const dayFormatted=isNaN(dayDateObj)?day:dayDateObj.toLocaleDateString('vi-VN',{
@@ -3787,7 +3954,7 @@ function renderLeaveRequests(){
 
     let bodyHtml='';
     if(isExpanded){
-      const periodFilter=selectedLeavePeriod||'all';
+      const periodFilter=leaveDayPeriods[day]||'all';
       const periods=[
         {id:'all',label:'Tất cả các buổi'},
         {id:'morning',label:'Buổi sáng'},
@@ -3800,7 +3967,7 @@ function renderLeaveRequests(){
           ?dayRows.length
           :dayRows.filter(r=>leaveRowPeriod(r)===p.id||leaveRowPeriod(r)==='full_day').length;
         const activeClass=(periodFilter===p.id)?'btn-primary':'btn-secondary';
-        return `<button type="button" class="btn btn-sm ${activeClass}" onclick="selectLeavePeriod('${day}','${p.id}',event)">${p.label} · ${countP}</button>`;
+        return `<button type="button" class="btn btn-sm ${activeClass}" style="padding:4px 9px;font-size:11.5px" onclick="selectLeavePeriod('${day}','${p.id}',event)">${p.label} · ${countP}</button>`;
       }).join('');
 
       const filteredDayRows=(periodFilter==='all')
@@ -3831,98 +3998,97 @@ function renderLeaveRequests(){
         const statusBadgeColor=r.status==='approved'?'var(--ok)':r.status==='rejected'?'var(--err)':r.status==='pending'?'#b45309':'var(--muted)';
 
         const quickActionButtons = r.status === 'pending'
-          ? `<div class="leave-quick-actions">
-               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:6px 14px;font-size:12.5px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt phép</button>
-               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:6px 14px;font-size:12.5px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">✕ Từ chối</button>
+          ? `<div class="leave-quick-actions" style="display:flex;gap:6px">
+               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt phép</button>
+               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:5px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">✕ Từ chối</button>
              </div>`
           : r.status === 'approved'
-          ? `<div class="leave-quick-actions">
-               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">Chuyển Từ chối</button>
-               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
+          ? `<div class="leave-quick-actions" style="display:flex;gap:6px">
+               <button type="button" class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="quickUpdateLeaveStatus('${r.id}','rejected')">Chuyển Từ chối</button>
+               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
              </div>`
-          : `<div class="leave-quick-actions">
-               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt lại</button>
-               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:6px 12px;font-size:12px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
+          : `<div class="leave-quick-actions" style="display:flex;gap:6px">
+               <button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="quickUpdateLeaveStatus('${r.id}','approved')">✓ Duyệt lại</button>
+               <button type="button" class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="quickUpdateLeaveStatus('${r.id}','pending')">Để Chờ duyệt</button>
              </div>`;
 
         return `
-          <article style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">
-              <div>
-                <strong style="font-size:14px;color:var(--text)">${escapeHtml(r.students?.name||r.mssv)}</strong>
-                <span style="font-size:12px;color:var(--muted);font-family:monospace"> · ${escapeHtml(r.mssv)}</span>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">
-                  <b>${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'}</b> · Gửi lúc ${new Date(r.created_at).toLocaleString('vi-VN')}
-                </div>
+          <article class="leave-card-compact" style="border-left: 4px solid ${r.status==='approved'?'#10b981':r.status==='rejected'?'#ef4444':r.status==='pending'?'#f59e0b':'#94a3b8'}">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:13.5px;color:var(--text)">${escapeHtml(r.students?.name||r.mssv)}</strong>
+                <span style="font-size:11.5px;color:var(--muted);font-family:monospace">${escapeHtml(r.mssv)}</span>
+                <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:var(--surface-2);font-weight:600;color:var(--text)">
+                  ${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'}
+                </span>
+                <span style="font-size:11px;color:var(--muted)">🕒 ${new Date(r.created_at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</span>
               </div>
-              <span style="font-size:11.5px;font-weight:700;padding:3px 10px;background:${statusBadgeBg};color:${statusBadgeColor};border-radius:99px">
+              <span style="font-size:11px;font-weight:700;padding:2px 9px;background:${statusBadgeBg};color:${statusBadgeColor};border-radius:99px">
                 ${leaveStatusNames[r.status]||r.status}
               </span>
             </div>
 
-            <div style="font-size:12px;margin:8px 0;color:${matches.length?'var(--warn)':'var(--ok)'}">
+            <div style="font-size:11.5px;margin:6px 0 4px;color:${matches.length?'var(--warn)':'var(--ok)'}">
               ${availability}
             </div>
 
-            <div style="font-size:12.5px;margin-bottom:8px;line-height:1.5">
-              <b>Lý do:</b> ${escapeHtml(r.reason)}
+            <div style="font-size:12px;margin-bottom:6px;line-height:1.45;color:var(--text)">
+              <b style="color:var(--muted)">Lý do:</b> ${escapeHtml(r.reason)}
             </div>
 
-            ${r.evidence_path?`<div style="margin-bottom:8px"><button type="button" class="btn btn-secondary btn-sm" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
-
-            ${r.reviewer_note ? `<div style="font-size:11.5px;color:var(--muted);background:var(--surface-2);padding:6px 10px;border-radius:6px;margin-bottom:8px"><b>Ghi chú BQT:</b> ${escapeHtml(r.reviewer_note)}</div>` : ''}
-
-            ${historyHtml?`<details style="margin:8px 0;font-size:11.5px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử chỉnh sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:4px;padding:6px;background:var(--surface-2);border-radius:6px">${historyHtml}</div></details>`:''}
+            ${r.evidence_path?`<div style="margin-bottom:6px"><button type="button" class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 8px" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
+            ${r.reviewer_note ? `<div style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:4px 8px;border-radius:6px;margin-bottom:6px"><b>Ghi chú:</b> ${escapeHtml(r.reviewer_note)}</div>` : ''}
+            ${historyHtml?`<details style="margin:4px 0 6px;font-size:11px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:3px;padding:5px;background:var(--surface-2);border-radius:5px">${historyHtml}</div></details>`:''}
 
             <!-- Hàng hành động 1-chạm -->
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;gap:8px">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);flex-wrap:wrap;gap:6px">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 ${quickActionButtons}
-                <button type="button" class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:12px" onclick="toggleLeaveCardEdit('${r.id}')" title="Chỉnh sửa ngày/buổi/ghi chú">✏️ Sửa chi tiết</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11.5px" onclick="toggleLeaveCardEdit('${r.id}')" title="Chỉnh sửa ngày/buổi/ghi chú">✏️ Sửa chi tiết</button>
               </div>
               <div style="display:flex;align-items:center;gap:6px">
-                <button type="button" class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:5px 9px;font-size:11.5px" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa</button>
+                <button type="button" class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:3px 8px;font-size:11px" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa</button>
               </div>
             </div>
 
             <!-- Khung chỉnh sửa chi tiết (Mặc định ẩn) -->
-            <div id="leaveEditBox_${r.id}" style="display:none;margin-top:10px;padding:12px;background:var(--surface-2);border-radius:8px;border:1px dashed var(--border)">
-              <div style="font-size:11.5px;font-weight:700;margin-bottom:8px;color:var(--text)">✏️ Chỉnh sửa thông tin đơn:</div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+            <div id="leaveEditBox_${r.id}" style="display:none;margin-top:8px;padding:10px;background:var(--surface-2);border-radius:8px;border:1px dashed var(--border)">
+              <div style="font-size:11.5px;font-weight:700;margin-bottom:6px;color:var(--text)">✏️ Chỉnh sửa thông tin đơn:</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px">
                 <label style="font-size:11px">Ngày nghỉ
-                  <input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                  <input id="leaveDate_${r.id}" type="date" value="${leaveRowDate(r)}" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
                 </label>
                 <label style="font-size:11px">Buổi nghỉ
-                  <select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                  <select id="leavePeriod_${r.id}" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
                     ${Object.entries(adminLeavePeriodNames).map(([v,n])=>`<option value="${v}" ${(r.leave_period||'full_day')===v?'selected':''}>${n}</option>`).join('')}
                   </select>
                 </label>
                 <label style="font-size:11px">Trạng thái
-                  <select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
+                  <select id="leaveStatus_${r.id}" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">
                     ${statusOptions}
                   </select>
                 </label>
               </div>
 
-              <label style="display:block;font-size:11px;margin-top:8px">Lý do
-                <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">${escapeHtml(r.reason)}</textarea>
+              <label style="display:block;font-size:11px;margin-top:6px">Lý do
+                <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">${escapeHtml(r.reason)}</textarea>
               </label>
 
-              <label style="display:block;font-size:11px;margin-top:8px">Ghi chú quản lý
-                <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:7px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit" placeholder="Nhập ghi chú phản hồi cho sinh viên...">${escapeHtml(r.reviewer_note||'')}</textarea>
+              <label style="display:block;font-size:11px;margin-top:6px">Ghi chú quản lý
+                <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit" placeholder="Nhập ghi chú phản hồi cho sinh viên...">${escapeHtml(r.reviewer_note||'')}</textarea>
               </label>
 
-              <div style="display:flex;justify-content:flex-end;margin-top:8px">
+              <div style="display:flex;justify-content:flex-end;margin-top:6px">
                 <button type="button" class="btn btn-primary btn-sm" onclick="saveLeaveReview('${r.id}')">💾 Lưu cập nhật</button>
               </div>
             </div>
           </article>
         `;
-      }).join(''):'<div class="empty-state" style="padding:14px">Không có đơn xin nghỉ trong buổi này.</div>';
+      }).join(''):'<div class="empty-state" style="padding:12px">Không có đơn xin nghỉ trong buổi này.</div>';
 
       bodyHtml=`
-        <div style="padding:14px;border-top:1px solid var(--border);background:var(--surface-2, #fafafa)">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <div style="padding:12px;border-top:1px solid var(--border);background:var(--surface-2, #fafafa)">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
             <span style="font-size:11.5px;color:var(--muted);margin-right:4px">Lọc buổi:</span>
             ${periodPills}
           </div>
@@ -3932,8 +4098,8 @@ function renderLeaveRequests(){
     }
 
     return `
-      <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface)">
-        <div onclick="toggleLeaveDay('${day}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;user-select:none;background:${isExpanded?'var(--surface-2, #f8fafc)':'var(--surface)'};transition:background .15s">
+      <div class="leave-day-accordion ${isExpanded?'open':''}">
+        <div class="leave-day-head" onclick="toggleLeaveDay('${day}')">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-size:15px">${isExpanded?'📂':'📁'}</span>
             <strong style="font-size:13.5px">${dayFormatted}</strong>
@@ -3949,20 +4115,31 @@ function renderLeaveRequests(){
 }
 
 function toggleLeaveDay(day){
-  if(selectedLeaveDay===day){
-    selectedLeaveDay=null;
-    selectedLeavePeriod=null;
+  if(!expandedLeaveDays) expandedLeaveDays = new Set();
+  if(expandedLeaveDays.has(day)){
+    expandedLeaveDays.delete(day);
   } else {
-    selectedLeaveDay=day;
-    selectedLeavePeriod='all';
+    expandedLeaveDays.add(day);
+  }
+  renderLeaveRequests();
+}
+
+function toggleAllLeaveDays(expand){
+  const days = [...new Set((adminLeaveCache||[]).map(leaveRowDate))];
+  if(!expandedLeaveDays) expandedLeaveDays = new Set();
+  if(expand){
+    days.forEach(d => expandedLeaveDays.add(d));
+  } else {
+    expandedLeaveDays.clear();
   }
   renderLeaveRequests();
 }
 
 function selectLeavePeriod(day,period,event){
   if(event)event.stopPropagation();
-  selectedLeaveDay=day;
-  selectedLeavePeriod=period;
+  leaveDayPeriods[day]=period;
+  if(!expandedLeaveDays) expandedLeaveDays = new Set();
+  expandedLeaveDays.add(day);
   renderLeaveRequests();
 }
 
@@ -4049,6 +4226,7 @@ function renderSessionHistoryCard(s) {
       '</div>' +
       '<div class="th-actions" style="margin:0;display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">' +
         '<button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11.5px" onclick="viewPastSession(\'' + s.id + '\')">👁 Xem</button>' +
+        '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#059669;color:#fff;border:none;font-weight:600;display:inline-flex;align-items:center;gap:3px" onclick="exportPastSessionExcel(\'' + s.id + '\', this)" title="Xuất file Excel cho riêng phiên này">📥 Xuất Excel</button>' +
         (s.is_open
           ? '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#dc2626;color:#fff;border:none" onclick="quickCloseSession(\'' + s.id + '\')">■ Đóng</button>'
           : '<button class="btn btn-sm" style="padding:4px 9px;font-size:11.5px;background:#334155;color:#fff;border:none" onclick="quickReopenSession(\'' + s.id + '\')">🔄 Mở lại</button>') +
@@ -4937,13 +5115,12 @@ async function loadAdminFeedback(){
     const isSuco = x.type === 'suco';
     const borderAccent = isSuco ? 'border-left: 4px solid #ef4444' : x.type === 'muasam' ? 'border-left: 4px solid #7c3aed' : x.type === 'gopy' ? 'border-left: 4px solid #0284c7' : 'border-left: 4px solid #64748b';
 
-    const quickBtns = x.status !== 'resolved'
-      ? `<button class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','resolved')" title="Đánh dấu đã giải quyết xong">✓ Xong</button>`
-      : `<button class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','processing')" title="Chuyển về đang xử lý">Đang xử lý</button>`;
-
-    const processBtn = (x.status === 'new')
-      ? `<button class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','processing')" title="Tiếp nhận xử lý ý kiến này">⏳ Tiếp nhận</button>`
-      : '';
+    const actionBtns = (x.status === 'resolved')
+      ? `<button class="btn btn-secondary btn-sm" style="font-size:11.5px;padding:4px 10px;font-weight:600" onclick="updateFeedbackStatus('${x.id}','processing')" title="Mở lại ý kiến này để xử lý tiếp">↺ Mở lại xử lý</button>`
+      : (x.status === 'processing')
+      ? `<button class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:4px 12px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','resolved')" title="Đánh dấu đã giải quyết xong">✓ Đã giải quyết</button>`
+      : `<button class="btn btn-sm" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','processing')" title="Tiếp nhận xử lý ý kiến này">⏳ Tiếp nhận</button>
+         <button class="btn btn-sm" style="background:#15803d;color:#fff;border:none;font-weight:700;padding:4px 10px;font-size:11.5px" onclick="updateFeedbackStatus('${x.id}','resolved')" title="Đánh dấu đã giải quyết xong">✓ Xong</button>`;
 
     return `
       <article class="fb-item" data-id="${x.id}" data-type="${x.type}" data-status="${x.status}" data-code="${(x.code||'').toLowerCase()}" data-content="${(x.content||'').toLowerCase()}" style="${borderAccent};background:var(--surface)">
@@ -4957,11 +5134,10 @@ async function loadAdminFeedback(){
           </span>
         </div>
         <div class="fb-text" style="font-size:13px;line-height:1.55;background:var(--surface-2);border-radius:8px;padding:12px;border:1px solid var(--border)">${escapeHtml(x.content)}</div>
-        <div class="fb-item-bottom" style="margin-top:4px">
-          <span>📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span>
+        <div class="fb-item-bottom" style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <span style="font-size:11.5px;color:var(--muted)">📅 ${new Date(x.created_at).toLocaleString('vi-VN')}</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            ${processBtn}
-            ${quickBtns}
+            ${actionBtns}
             <select class="btn btn-sm" style="font-size:11px;padding:3px 6px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer" onchange="updateFeedbackStatus('${x.id}', this.value)" title="Đổi trạng thái khác">
               <option value="new" ${x.status==='new'?'selected':''}>Mới nhận</option>
               <option value="processing" ${x.status==='processing'?'selected':''}>⏳ Đang xử lý</option>
@@ -6198,6 +6374,16 @@ async function executeStatusChange(){
   const { mssv, studentName, oldStatus } = _pendingStatusChange;
   const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
   const reason = (document.getElementById('reasonInput')?.value || '').trim();
+
+  // Bỏ qua nếu chọn lại đúng trạng thái cũ và không có lý do mới
+  if (oldStatus && oldStatus.trim() === (newStatus || '').trim() && !reason) {
+    toast('info', 'Không có thay đổi', studentName + ' đã ở trạng thái "' + newStatus + '".');
+    const modal = document.getElementById('reasonModal');
+    if (modal) modal.classList.remove('show');
+    _pendingStatusChange = null;
+    return;
+  }
+
   const btn = document.getElementById('reasonConfirmBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
 
@@ -6307,47 +6493,91 @@ async function loadAuditLogs(){
       listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi tải Audit Log: ' + escapeHtml(error?.message || data?.message || 'Không thể tải') + '</div>';
       return;
     }
-    const logs = data.logs || [];
+    const allLogs = data.logs || [];
+    // LỌC BỎ CÁC RECORD TRÙNG LẶP / VÔ NGHĨA (cùng trạng thái & không ghi lý do)
+    const logs = allLogs.filter(l => (l.old_status || '').trim() !== (l.new_status || '').trim() || (l.reason && l.reason.trim()));
     if (badgeEl) badgeEl.textContent = logs.length;
+
+    const statusPill = st => {
+      const s = (st || '').trim().toLowerCase();
+      if (s === 'có mặt') return '<span class="audit-st-pill ok">Có mặt</span>';
+      if (s === 'đi muộn') return '<span class="audit-st-pill late">Đi muộn</span>';
+      if (s === 'vắng có phép') return '<span class="audit-st-pill excused">Có phép</span>';
+      if (s === 'vắng không phép') return '<span class="audit-st-pill unexcused">Không phép</span>';
+      return `<span class="audit-st-pill none">${escapeHtml(st || 'Chưa ĐD')}</span>`;
+    };
+
     const statusHtml = logs.length ? logs.map(l => {
-      const t = new Date(l.changed_at).toLocaleString('vi-VN');
-      const user = escapeHtml(l.changed_by || 'Admin');
+      const d = new Date(l.changed_at);
+      const t = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+      const rawUser = (l.changed_by || 'Admin').split('@')[0];
+      const user = escapeHtml(rawUser);
       const sName = escapeHtml(l.student_name || l.mssv);
-      const oldSt = escapeHtml(l.old_status || 'chưa điểm danh');
-      const newSt = escapeHtml(l.new_status);
-      const reason = l.reason ? '<div class="audit-reason">💬 Lý do: ' + escapeHtml(l.reason) + '</div>' : '';
-      return '<div class="audit-item">' +
-        '<div class="audit-item-top">' +
-          '<span class="audit-item-time">⏱ ' + t + '</span>' +
-          '<span class="audit-item-user">👤 ' + user + '</span>' +
-        '</div>' +
-        '<div class="audit-item-action">' +
-          '<b>' + sName + '</b> (' + escapeHtml(l.mssv) + '): ' +
-          '<span class="audit-badge old">' + oldSt + '</span> ➔ ' +
-          '<span class="audit-badge new">' + newSt + '</span>' +
-        '</div>' +
-        reason +
-      '</div>';
-    }).join('') : '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có thay đổi trạng thái.</div>';
-    let recordHtml = '<div style="padding:18px 4px;color:var(--muted);font-size:12px">Chưa có bản ghi chỉnh sửa. Các lần sửa sau khi bật tính năng sẽ được lưu tại đây.</div>';
+      const oldPill = statusPill(l.old_status || 'chưa điểm danh');
+      const newPill = statusPill(l.new_status);
+      const reason = l.reason ? `<div class="audit-reason-quote">💬 "${escapeHtml(l.reason)}"</div>` : '';
+
+      return `
+        <div class="audit-row">
+          <div class="audit-row-main">
+            <span class="audit-time-tag">⏱ ${t}</span>
+            <span class="audit-user-tag">👤 ${user}</span>
+            <strong class="audit-student-name">${sName}</strong>
+            <span class="audit-mssv-sub">(${escapeHtml(l.mssv)})</span>
+            <span class="audit-flow">${oldPill} <span class="audit-arrow">➔</span> ${newPill}</span>
+          </div>
+          ${reason}
+        </div>`;
+    }).join('') : '<div style="padding:18px 4px;color:var(--muted);font-size:12px;text-align:center">Chưa có thay đổi trạng thái nào trong phiên này.</div>';
+
+    let recordHtml = '';
     try {
       const { data: historyData, error: historyError } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(currentSession.id) });
-      if (!historyError && historyData?.ok) {
-        const records = historyData.records || [];
-        if (records.length) recordHtml = records.map(h => {
+      if (!historyError && historyData?.ok && historyData.records?.length) {
+        const records = historyData.records;
+        const time = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
+        const details = (label, value) => '<div style="font-size:11.5px;color:var(--muted);margin-top:3px">' + label + ': <b>' + escapeHtml(value || '—') + '</b></div>';
+
+        const rows = records.map(h => {
           const old = h.old_record || {}, next = h.new_record || {};
-          const time = value => value ? new Date(value).toLocaleString('vi-VN') : '—';
-          const details = (label, value) => '<div style="font-size:11.5px;color:var(--muted);margin-top:4px">' + label + ': ' + escapeHtml(value || '—') + '</div>';
-          return '<div class="audit-item"><div class="audit-head"><span class="audit-time">' + time(h.changed_at) + '</span><span class="audit-user">👤 ' + escapeHtml(h.changed_by || 'Admin') + '</span></div>' +
-            '<div class="audit-change"><b>' + escapeHtml(h.student_name || h.mssv) + ' (' + escapeHtml(h.mssv) + ')</b></div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Trước khi sửa</b>' +
-              details('Trạng thái', old.status) + details('Giờ điểm danh', time(old.checked_at)) + details('Phân loại', old.category) + details('Ghi chú', old.note) + '</div><div style="padding:8px;background:#fff;border:1px solid var(--border);border-radius:7px"><b>Sau khi sửa</b>' +
-              details('Trạng thái', next.status) + details('Giờ điểm danh', time(next.checked_at)) + details('Phân loại', next.category) + details('Ghi chú', next.note) + '</div></div></div>';
+          return `
+            <div style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <strong style="font-size:12.5px">${escapeHtml(h.student_name || h.mssv)} (${escapeHtml(h.mssv)})</strong>
+                <span style="font-size:11px;color:var(--muted)">⏱ ${time(h.changed_at)} · 👤 ${escapeHtml((h.changed_by || 'Admin').split('@')[0])}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div style="padding:6px 8px;background:var(--surface-2);border-radius:6px;font-size:11.5px">
+                  <div style="font-weight:700;color:var(--muted);margin-bottom:2px">Trước khi sửa</div>
+                  ${details('Trạng thái', old.status)}
+                  ${details('Giờ ĐD', time(old.checked_at))}
+                  ${details('Ghi chú', old.note)}
+                </div>
+                <div style="padding:6px 8px;background:var(--surface-2);border-radius:6px;font-size:11.5px">
+                  <div style="font-weight:700;color:var(--ok);margin-bottom:2px">Sau khi sửa</div>
+                  ${details('Trạng thái', next.status)}
+                  ${details('Giờ ĐD', time(next.checked_at))}
+                  ${details('Ghi chú', next.note)}
+                </div>
+              </div>
+            </div>`;
         }).join('');
+
+        recordHtml = `
+          <details class="audit-tech-details">
+            <summary>🔍 Lịch sử bản ghi đối chiếu (giờ cũ / mới) — ${records.length} lần sửa</summary>
+            <div class="audit-tech-content">${rows}</div>
+          </details>`;
       }
-    } catch (_) { /* the base schema can be migrated independently */ }
-    listEl.innerHTML = '<h3 style="font-size:13px;margin:2px 0 8px">Thay đổi trạng thái</h3><div class="audit-timeline">' + statusHtml + '</div>' +
-      '<h3 style="font-size:13px;margin:18px 0 8px">Lịch sử bản ghi điểm danh (giờ cũ và mới)</h3><div class="audit-timeline">' + recordHtml + '</div>';
+    } catch (_) { /* schema migration fallback */ }
+
+    listEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <h3 style="font-size:13px;font-weight:700;margin:0">Dòng thời gian thay đổi trạng thái</h3>
+        <span style="font-size:11.5px;color:var(--muted)">${logs.length} thao tác thực tế</span>
+      </div>
+      <div class="audit-timeline">${statusHtml}</div>
+      ${recordHtml}`;
   } catch(e){
     listEl.innerHTML = '<div style="padding:24px 16px;text-align:center;color:var(--err);font-size:13px">Lỗi kết nối: ' + escapeHtml(e.message) + '</div>';
   }
@@ -8300,54 +8530,84 @@ window.loadPastSessionAudit = async function(sid, button) {
   }
 };
 window.exportPastSessionExcel = async function(sid, button) {
-  const oldText = button?.textContent || '';
-  if (button) { button.disabled = true; button.textContent = 'Đang tạo file...'; }
+  const oldText = button?.innerHTML || '';
+  if (button) { button.disabled = true; button.textContent = 'Đang xuất...'; }
   try {
     if (typeof XLSX === 'undefined') await loadSheetJS();
-    const { data, error } = await supabase.from('attendance')
-      .select('mssv,full_name,status,created_at')
-      .eq('session_id', sid)
-      .order('mssv');
-    if (error) throw error;
-    const rowsByMssv = new Map((data || []).map(row => [String(row.mssv), row]));
+
+    const [{ data: attData, error: attError }, { data: sessionData }] = await Promise.all([
+      supabase.from('attendance')
+        .select('mssv,full_name,status,category,note,created_at')
+        .eq('session_id', sid)
+        .order('mssv'),
+      supabase.from('sessions')
+        .select('session_name,started_at,is_open')
+        .eq('id', sid)
+        .maybeSingle()
+    ]);
+
+    if (attError) throw attError;
+
+    const session = sessionData || window._todaySessionsMap?.[sid] || {};
+    const sessionName = session.session_name || 'Phiên điểm danh';
+    const startedTime = session.started_at ? new Date(session.started_at).toLocaleString('vi-VN') : '—';
+
+    const rowsByMssv = new Map((attData || []).map(row => [String(row.mssv), row]));
     const studentByMssv = new Map((students || []).map(student => [String(student.mssv), student]));
-    (data || []).forEach(row => {
+    (attData || []).forEach(row => {
       if (!studentByMssv.has(String(row.mssv))) studentByMssv.set(String(row.mssv), { mssv: row.mssv, name: row.full_name || row.mssv });
     });
     const studentList = Array.from(studentByMssv.values()).sort((a, b) =>
       String(a.name || a.mssv).localeCompare(String(b.name || b.mssv), 'vi')
     );
-    const session = window._todaySessionsMap?.[sid] || {};
-    const sessionName = session.session_name || 'Phiên điểm danh';
+
+    let countPresent = 0, countLate = 0, countExcused = 0, countUnexcused = 0;
+    const tableRows = studentList.map((student, idx) => {
+      const row = rowsByMssv.get(String(student.mssv));
+      const st = row?.status || 'Chưa điểm danh';
+      if (st === 'có mặt') countPresent++;
+      else if (st === 'đi muộn') countLate++;
+      else if (st === 'vắng có phép') countExcused++;
+      else if (st === 'vắng không phép') countUnexcused++;
+
+      return [
+        idx + 1,
+        String(student.mssv || ''),
+        String(student.name || row?.full_name || student.mssv || ''),
+        st,
+        row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
+        row?.category || '—',
+        row?.note || '—'
+      ];
+    });
+
+    const totalSv = studentList.length;
+    const attended = countPresent + countLate;
+    const pRate = totalSv ? Math.round(attended * 100 / totalSv) : 0;
+
     const sheetData = [
-      ['MSSV', 'Họ tên', 'Thời gian điểm danh', 'Trạng thái'],
-      ...studentList.map(student => {
-        const row = rowsByMssv.get(String(student.mssv));
-        return [
-          String(student.mssv || ''),
-          String(student.name || row?.full_name || student.mssv || ''),
-          row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
-          row?.status || 'Chưa điểm danh'
-        ];
-      })
+      ['BÁO CÁO ĐIỂM DANH PHIÊN - ĐỘI ROBOCON & XƯỞNG'],
+      ['Tên phiên:', sessionName, 'Thời gian mở:', startedTime, 'Trạng thái:', session.is_open ? 'Đang mở' : 'Đã đóng'],
+      ['Tổng SV:', totalSv, 'Có mặt:', countPresent, 'Đi muộn:', countLate, 'Có phép:', countExcused, 'Không phép:', countUnexcused, 'Tỉ lệ chuyên cần:', pRate + '%'],
+      [],
+      ['STT', 'MSSV', 'Họ và tên', 'Trạng thái', 'Thời gian điểm danh', 'Phân loại', 'Ghi chú'],
+      ...tableRows
     ];
+
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-    worksheet['!cols'] = [{ wch: 16 }, { wch: 30 }, { wch: 25 }, { wch: 22 }];
-    worksheet['!autofilter'] = { ref: 'A1:D' + Math.max(1, sheetData.length) };
+    worksheet['!cols'] = [{ wch: 6 }, { wch: 15 }, { wch: 28 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 30 }];
+    worksheet['!autofilter'] = { ref: 'A5:G' + Math.max(5, sheetData.length) };
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Điểm danh');
-    const safeName = sessionName.replace(/[<>:\"\/\\|?*]/g, '_').slice(0, 80);
-    const sessionDate = session.started_at ? new Date(session.started_at) : new Date();
-    const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(sessionDate);
-    const dateStamp = dateParts.find(part => part.type === 'year').value + '-' +
-      dateParts.find(part => part.type === 'month').value + '-' +
-      dateParts.find(part => part.type === 'day').value;
-    XLSX.writeFile(workbook, 'DiemDanh_' + safeName + '_' + dateStamp + '.xlsx');
-    toast('ok', 'Đã xuất Excel', 'File có MSSV, họ tên, thời gian điểm danh và trạng thái.');
+
+    const safeName = sessionName.replace(/[<>:\"\/\\|?*]/g, '_').slice(0, 60);
+    const dateStamp = session.started_at ? new Date(session.started_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `DiemDanh_${safeName}_${dateStamp}.xlsx`);
+    toast('ok', 'Đã xuất file Excel', `Đã tải về file "DiemDanh_${safeName}_${dateStamp}.xlsx".`);
   } catch (error) {
     toast('err', 'Xuất Excel thất bại', error.message || 'Không tạo được file .xlsx.');
   } finally {
-    if (button) { button.disabled = false; button.textContent = oldText; }
+    if (button) { button.disabled = false; button.innerHTML = oldText; }
   }
 };
 function runAdminStartupTask(name, task, onTimeout) {
