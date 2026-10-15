@@ -2447,14 +2447,7 @@ tbody tr:last-child td { border-bottom: none; }
               <div class="stat"><div class="stat-label">Có phép</div><div class="stat-num purple" id="statExcused">0</div></div>
             </div>
 
-            <div class="feed-wrap">
-              <div class="feed-header">
-                <div class="feed-title"><span class="feed-live-dot"></span><span>Vừa điểm danh</span></div>
-              </div>
-              <div class="feed-list" id="feedList"><div class="feed-empty">Chưa có ai điểm danh</div></div>
-            </div>
-
-            <div class="session-tabs">
+            <div class="session-tabs" style="margin-top:14px;">
               <button class="session-tab active" id="tabBtnStudents" onclick="switchSessionTab('students')">📋 Danh sách điểm danh</button>
               <button class="session-tab" id="tabBtnGroups" onclick="switchSessionTab('groups')">👥 Theo nhóm</button>
               <button class="session-tab" id="tabBtnAudit" onclick="switchSessionTab('audit')">🕒 Lịch sử thay đổi (Audit Log) <span id="auditLogCountBadge" style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;background:rgba(0,0,0,.07)">0</span></button>
@@ -6146,6 +6139,7 @@ function renderTable(){
 }
 function renderFeed(){
   const feed = document.getElementById('feedList');
+  if (!feed) return;
   const recent = Object.entries(attendanceMap)
     .filter(([_, a]) => a.status === 'có mặt' || a.status === 'đi muộn')
     .sort((a, b) => (b[1].time || '').localeCompare(a[1].time || ''))
