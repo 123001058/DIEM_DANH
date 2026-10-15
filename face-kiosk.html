@@ -173,7 +173,7 @@ body {
   object-fit: contain;
   transform: scaleX(-1);
 }
-#espStreamCanvas {
+#espStreamImg {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -924,7 +924,10 @@ async function startWebcam() {
     });
     webcamVideo.srcObject = stream;
     webcamVideo.style.display = 'block';
-    espCanvas.style.display = 'none';
+    if (espImg) {
+      espImg.style.display = 'none';
+      espImg.src = '';
+    }
     if (espInterval) { clearInterval(espInterval); espInterval = null; }
   } catch (e) {
     console.warn('Webcam error:', e);
@@ -946,9 +949,14 @@ function switchCameraMode(mode) {
   document.getElementById('espConfigGroup').style.display = (mode === 'esp') ? 'flex' : 'none';
 
   if (mode === 'webcam') {
+    if (espImg) {
+      espImg.style.display = 'none';
+      espImg.src = '';
+    }
     startWebcam();
   } else {
     stopWebcam();
+    webcamVideo.style.display = 'none';
     connectEspCamera();
   }
 }
@@ -1361,7 +1369,7 @@ async function captureFaceSample() {
   const st = studentsList.find(s => s.mssv === mssv);
   if (!st) return alert('Vui lòng chọn sinh viên!');
 
-  const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espCanvas;
+  const inputMedia = (cameraMode === 'webcam') ? webcamVideo : espImg;
   const detection = await faceapi
     .detectSingleFace(inputMedia, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
     .withFaceLandmarks(true)
