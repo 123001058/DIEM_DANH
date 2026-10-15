@@ -2445,15 +2445,6 @@ tbody tr:last-child td { border-bottom: none; }
               <div class="stat"><div class="stat-label">Đi muộn</div><div class="stat-num amber" id="statLate">0</div></div>
               <div class="stat"><div class="stat-label">Vắng K.phép</div><div class="stat-num red" id="statAbsent">0</div></div>
               <div class="stat"><div class="stat-label">Có phép</div><div class="stat-num purple" id="statExcused">0</div></div>
-              <div class="stat" id="statUnmarkedCard" style="display:none"><div class="stat-label">Chưa quét</div><div class="stat-num gray" id="statUnmarked">0</div></div>
-            </div>
-
-            <div class="progress-wrap">
-              <div class="progress-row">
-                <span class="progress-lbl">Tỉ lệ điểm danh</span>
-                <span class="progress-pct" id="progressPct">0%</span>
-              </div>
-              <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
             </div>
 
             <div class="feed-wrap">
@@ -4238,9 +4229,8 @@ function renderSessionHistoryCard(s) {
       '<span>' + totalSv + ' SV</span> · ' +
       '<span style="color:var(--ok);font-weight:700">' + (s.present || 0) + ' có mặt</span>' +
       lateText +
-      ' · <span style="color:var(--err);font-weight:700">' + (s.absent || 0) + ' vắng</span>' +
+      ' · <span style="color:var(--err);font-weight:700">' + (s.unexcused || 0) + ' không phép</span>' +
       excusedText +
-      ' · <span style="color:#2563eb;font-weight:700">' + pRate + '%</span>' +
     '</div>' +
     '<div class="past-session-detail" data-session-detail="' + escapeHtml(String(s.id)) + '" onclick="event.stopPropagation()"></div>' +
   '</div>';
@@ -4307,8 +4297,8 @@ async function loadAttendanceReport(){
     const p = list.filter(a => a.status === 'có mặt').length;
     const l = list.filter(a => a.status === 'đi muộn').length;
     const ex = list.filter(a => a.status === 'vắng có phép').length;
-    const un = list.filter(a => a.status === 'vắng không phép').length;
-    const totalSv = totalStudentsCount || (p + l + ex + un);
+    const totalSv = totalStudentsCount || 30;
+    const un = Math.max(0, totalSv - p - l - ex);
     const absent = un + ex;
     const sessionObj = {
       ...s,
@@ -4327,11 +4317,10 @@ async function loadAttendanceReport(){
 
   // Tính KPI tổng
   const totalSessions = decoratedSessions.length;
-  const countStatus = st => (attendance || []).filter(a => a.status === st).length;
-  const totalPresent = countStatus('có mặt');
-  const totalLate = countStatus('đi muộn');
-  const totalExcused = countStatus('vắng có phép');
-  const totalUnexcused = countStatus('vắng không phép');
+  const totalPresent = decoratedSessions.reduce((acc, s) => acc + (s.present || 0), 0);
+  const totalLate = decoratedSessions.reduce((acc, s) => acc + (s.late || 0), 0);
+  const totalExcused = decoratedSessions.reduce((acc, s) => acc + (s.excused || 0), 0);
+  const totalUnexcused = decoratedSessions.reduce((acc, s) => acc + (s.unexcused || 0), 0);
   const totalExpected = totalSessions * (totalStudentsCount || 30);
   const totalRate = totalExpected ? Math.round((totalPresent + totalLate) * 100 / totalExpected) : 0;
 
@@ -4346,8 +4335,7 @@ async function loadAttendanceReport(){
     tile('Có mặt', totalPresent, '#15803d') +
     tile('Đi muộn', totalLate, '#b45309') +
     tile('Có phép', totalExcused, '#7c3aed') +
-    tile('Không phép', totalUnexcused, '#dc2626') +
-    tile('Tỉ lệ', totalRate + '%', '#2563eb');
+    tile('Không phép', totalUnexcused, '#dc2626');
 
   if (countEl) countEl.textContent = `Tổng cộng: ${totalSessions} phiên`;
 
@@ -6073,14 +6061,13 @@ function toggleFullscreen(){
 function updateStats(){
   const activeStudents = students.filter(s => s.is_active !== false);
   const total = activeStudents.length;
-  let present = 0, late = 0, absent = 0, excused = 0, unmarked = 0;
+  let present = 0, late = 0, excused = 0, absent = 0;
   activeStudents.forEach(s => {
     const a = attendanceMap[s.mssv];
-    if (!a) unmarked++;
-    else if (a.status === 'có mặt') present++;
-    else if (a.status === 'đi muộn') late++;
-    else if (a.status === 'vắng có phép') excused++;
-    else absent++;
+    if (a && a.status === 'có mặt') present++;
+    else if (a && a.status === 'đi muộn') late++;
+    else if (a && a.status === 'vắng có phép') excused++;
+    else absent++; // Chưa điểm danh hoặc vắng không phép tính hết vào vắng k phép
   });
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statPresent').textContent = present;
@@ -6090,11 +6077,13 @@ function updateStats(){
   const excEl = document.getElementById('statExcused');
   if (excEl) excEl.textContent = excused;
   const unmEl = document.getElementById('statUnmarked');
-  if (unmEl) unmEl.textContent = unmarked;
+  if (unmEl) unmEl.textContent = 0;
 
   const pct = total ? Math.round(((present + late) / total) * 100) : 0;
-  document.getElementById('progressPct').textContent = pct + '%';
-  document.getElementById('progressFill').style.width = pct + '%';
+  const progressPct = document.getElementById('progressPct');
+  if (progressPct) progressPct.textContent = pct + '%';
+  const progressFill = document.getElementById('progressFill');
+  if (progressFill) progressFill.style.width = pct + '%';
 
   const fAll = document.querySelector('.filter[data-status="all"] .count');
   if (fAll) fAll.textContent = total;
@@ -6107,17 +6096,13 @@ function updateStats(){
   const fExc = document.querySelector('.filter[data-status="excused"] .count');
   if (fExc) fExc.textContent = excused;
   const fUnm = document.querySelector('.filter[data-status="unmarked"]');
-  if (fUnm) {
-    const fUnmCount = fUnm.querySelector('.count');
-    if (fUnmCount) fUnmCount.textContent = unmarked;
-    fUnm.style.display = unmarked > 0 ? 'inline-flex' : 'none';
-  }
+  if (fUnm) fUnm.style.display = 'none';
 }
 function renderTable(){
   const activeStudents = students.filter(s => s.is_active !== false);
   const list = activeStudents.filter(s => {
     const a = attendanceMap[s.mssv];
-    const status = !a ? 'unmarked' : (a.status === 'có mặt' ? 'present' : (a.status === 'đi muộn' ? 'late' : (a.status === 'vắng có phép' ? 'excused' : 'absent')));
+    const status = (a && a.status === 'có mặt') ? 'present' : ((a && a.status === 'đi muộn') ? 'late' : ((a && a.status === 'vắng có phép') ? 'excused' : 'absent'));
     const ok1 = currentFilter === 'all' || currentFilter === status;
     const q = currentSearch.toLowerCase();
     const ok2 = !q || s.name.toLowerCase().includes(q) || s.mssv.includes(q);

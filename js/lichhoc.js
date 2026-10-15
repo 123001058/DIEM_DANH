@@ -259,6 +259,12 @@
       const { data: schedulesData, error: schErr } = await schedulesQuery;
       if (schErr) throw schErr;
 
+      // Lấy thêm Lịch Ngoài (External Schedules)
+      let extSchedulesQuery = window.supabase.from('student_external_schedules').select('*');
+      if (!isAdmin) extSchedulesQuery = extSchedulesQuery.eq('mssv', ownMssv);
+      const { data: extSchedulesData, error: extErr } = await extSchedulesQuery;
+      if (extErr) console.warn('Lỗi lấy lịch ngoài:', extErr);
+
       const schedMap = {};
       (schedulesData || []).forEach(s => {
         if (!schedMap[s.mssv]) schedMap[s.mssv] = [];
@@ -269,6 +275,8 @@
         else if (hour >= 17) buoi = 3;
 
         schedMap[s.mssv].push({
+          id: s.id,
+          isExternal: false,
           ThoiGianBD: s.start_time,
           ThoiGianKT: s.end_time,
           TenMonHoc: s.subject_name,
@@ -281,11 +289,51 @@
         });
       });
 
+      // Mở rộng lịch ngoài theo khoảng ngày và các thứ lặp lại
+      (extSchedulesData || []).forEach(ext => {
+        if (!schedMap[ext.mssv]) schedMap[ext.mssv] = [];
+        const startD = parseISODateOnly(ext.start_date);
+        const endD = parseISODateOnly(ext.end_date);
+        endD.setHours(23, 59, 59, 999);
+
+        const cur = new Date(startD);
+        while (cur <= endD) {
+          const dayThu = cur.getDay() === 0 ? 8 : cur.getDay() + 1;
+          const daysArr = Array.isArray(ext.days_of_week) ? ext.days_of_week : [];
+          if (daysArr.includes(dayThu)) {
+            const dateStr = toLocalDateStr(cur);
+            const startH = ext.start_time ? parseInt(ext.start_time.split(':')[0]) : 18;
+            schedMap[ext.mssv].push({
+              id: ext.id,
+              isExternal: true,
+              ThoiGianBD: `${dateStr}T${ext.start_time}`,
+              ThoiGianKT: `${dateStr}T${ext.end_time}`,
+              TenMonHoc: ext.subject_name,
+              TenPhong: ext.room_name || 'Ngoài trường',
+              GiaoVien: ext.teacher_name || '',
+              Thu: dayThu,
+              Buoi: ext.buoi || (startH >= 17 ? 3 : (startH >= 12 ? 2 : 1)),
+              TenCoSo: 'Lịch ngoài',
+              GoogleMap: '',
+              note: ext.note || ''
+            });
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+      });
+
       allStudentsData = activeStudents.map(st => ({
         mssv: st.mssv,
         name: st.name,
         schedule: schedMap[st.mssv] || []
       }));
+
+      window._currentSemesterEnd = semEnd;
+      window._isAdminUser = isAdmin;
+      window._ownMssv = ownMssv;
+      window._activeStudents = activeStudents;
+
+      initExternalScheduleHandlers(isAdmin, ownMssv, activeStudents, semEnd);
 
       buildSemesterWeeks(semStart, semEnd);
       renderStudentDropdown();
@@ -568,11 +616,22 @@
               ? `<a class="card-campus-link" href="${item.GoogleMap}" target="_blank" title="Xem trên Google Maps">📍 ${item.TenCoSo || 'Trường'}</a>`
               : `<span>📍 ${item.TenCoSo || 'Cơ sở'}</span>`;
 
+            const extBadge = item.isExternal
+              ? `<span style="background:#ea580c;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;">Lịch ngoài</span>`
+              : '';
+            const deleteBtn = item.isExternal
+              ? `<button onclick="window.deleteExternalSchedule('${item.id}', '${encodeURIComponent(item.TenMonHoc)}')" style="background:none;border:none;cursor:pointer;color:#dc2626;padding:1px 4px;font-size:13px;" title="Xóa lịch ngoài này">🗑</button>`
+              : '';
+            const noteItem = item.note ? `<div class="card-meta-item" style="color:#2563eb;font-weight:600;"><span>📝 ${item.note}</span></div>` : '';
+
             html += `
               <div class="subject-card ${theme}">
                 <div class="card-top">
-                  <div class="card-subject-name">${item.TenMonHoc}</div>
-                  <span class="card-group">${item.TenNhom || ''}</span>
+                  <div class="card-subject-name">${item.TenMonHoc} ${extBadge}</div>
+                  <div style="display:flex;align-items:center;gap:2px;">
+                    <span class="card-group">${item.TenNhom || ''}</span>
+                    ${deleteBtn}
+                  </div>
                 </div>
                 <div class="card-room-badge">
                   <span>Phòng:</span> <b>${item.TenPhong || 'Chưa rõ'}</b>
@@ -587,6 +646,7 @@
                   <div class="card-meta-item" style="color:var(--text);font-weight:700;">
                     <span>⏱ ${timeBD} – ${timeKT}</span>
                   </div>
+                  ${noteItem}
                 </div>
               </div>
             `;
@@ -1294,6 +1354,168 @@
   function printTimetable() {
     window.print();
   }
+
+  // Quản lý Modal & Thao tác Lịch Ngoài (External Schedules)
+  let extHandlersInitialized = false;
+  function initExternalScheduleHandlers(isAdmin, ownMssv, activeStudents, semEnd) {
+    const modal = document.getElementById('modalExternalSchedule');
+    const btnOpen = document.getElementById('btnAddExternalSchedule');
+    const btnClose = document.getElementById('btnCloseModalExt');
+    const btnCancel = document.getElementById('btnCancelModalExt');
+    const form = document.getElementById('formExternalSchedule');
+    const extStudentSelectWrap = document.getElementById('extStudentSelectWrap');
+    const extStudentSelect = document.getElementById('extStudentSelect');
+    const extStartDate = document.getElementById('extStartDate');
+    const extEndDate = document.getElementById('extEndDate');
+    const extStartTime = document.getElementById('extStartTime');
+    const extEndTime = document.getElementById('extEndTime');
+    const extBuoi = document.getElementById('extBuoi');
+
+    if (!modal || !btnOpen || !form) return;
+
+    if (!extHandlersInitialized) {
+      extHandlersInitialized = true;
+
+      const closeModal = () => {
+        modal.style.display = 'none';
+        form.reset();
+      };
+
+      btnOpen.addEventListener('click', () => {
+        // Cấu hình SV áp dụng
+        if (isAdmin && extStudentSelectWrap && extStudentSelect) {
+          extStudentSelectWrap.style.display = 'block';
+          extStudentSelect.innerHTML = activeStudents.map(st => 
+            `<option value="${st.mssv}">${st.name} (${st.mssv})</option>`
+          ).join('');
+          if (currentStudent) extStudentSelect.value = currentStudent.mssv;
+        } else if (extStudentSelectWrap) {
+          extStudentSelectWrap.style.display = 'none';
+        }
+
+        // Ngày bắt đầu mặc định: hôm nay
+        const todayStr = toLocalDateStr(new Date());
+        if (extStartDate) extStartDate.value = todayStr;
+        if (extEndDate) extEndDate.value = semEnd || todayStr;
+
+        // Mặc định chọn các ngày Thứ 2, 4, 6
+        const defaultDays = [2, 4, 6];
+        document.querySelectorAll('#extDaysOfWeekGroup input[name="extDays"]').forEach(cb => {
+          cb.checked = defaultDays.includes(parseInt(cb.value));
+        });
+
+        modal.style.display = 'flex';
+      });
+
+      if (btnClose) btnClose.addEventListener('click', closeModal);
+      if (btnCancel) btnCancel.addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+
+      // Tự động đổi Buổi khi chọn giờ bắt đầu
+      if (extStartTime && extBuoi) {
+        extStartTime.addEventListener('change', () => {
+          const h = parseInt(extStartTime.value.split(':')[0]) || 0;
+          if (h >= 17) extBuoi.value = '3';
+          else if (h >= 12) extBuoi.value = '2';
+          else extBuoi.value = '1';
+        });
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitModalExt');
+        const oldText = submitBtn ? submitBtn.innerHTML : '';
+        try {
+          const subject_name = document.getElementById('extSubjectName').value.trim();
+          const room_name = document.getElementById('extRoomName').value.trim() || 'Ngoài trường';
+          const teacher_name = document.getElementById('extTeacherName').value.trim();
+          const start_date = extStartDate.value;
+          const end_date = extEndDate.value;
+          const start_time = extStartTime.value + (extStartTime.value.length === 5 ? ':00' : '');
+          const end_time = extEndTime.value + (extEndTime.value.length === 5 ? ':00' : '');
+          const buoi = parseInt(extBuoi.value) || 3;
+          const note = document.getElementById('extNote').value.trim();
+
+          const days_of_week = Array.from(document.querySelectorAll('#extDaysOfWeekGroup input[name="extDays"]:checked'))
+            .map(cb => parseInt(cb.value));
+
+          if (!subject_name) {
+            alert('Vui lòng nhập tên khóa học/môn học.');
+            return;
+          }
+          if (days_of_week.length === 0) {
+            alert('Vui lòng tích chọn ít nhất 1 Thứ trong tuần diễn ra khóa học.');
+            return;
+          }
+          if (start_date > end_date) {
+            alert('Ngày bắt đầu không được lớn hơn ngày kết thúc.');
+            return;
+          }
+          if (start_time >= end_time) {
+            alert('Giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+            return;
+          }
+
+          const targetMssv = (isAdmin && extStudentSelect) ? extStudentSelect.value : ownMssv;
+          if (!targetMssv) {
+            alert('Không xác định được MSSV sinh viên.');
+            return;
+          }
+
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Đang lưu...';
+          }
+
+          const { error: insErr } = await window.supabase.from('student_external_schedules').insert([{
+            mssv: targetMssv,
+            subject_name,
+            room_name,
+            teacher_name,
+            start_date,
+            end_date,
+            days_of_week,
+            start_time,
+            end_time,
+            buoi,
+            note
+          }]);
+
+          if (insErr) throw insErr;
+
+          showToast('Đã lưu lịch ngoài thành công!');
+          closeModal();
+          await loadData();
+        } catch (err) {
+          console.error(err);
+          alert('Lỗi lưu lịch ngoài: ' + err.message);
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = oldText;
+          }
+        }
+      });
+    }
+  }
+
+  // Hàm xóa lịch ngoài toàn cục để gọi từ button trong card môn học
+  window.deleteExternalSchedule = async function(id, encodedSubjName) {
+    const subjName = decodeURIComponent(encodedSubjName || 'Khóa học');
+    if (!confirm(`Bạn có chắc muốn xóa lịch ngoài "${subjName}" không?`)) return;
+
+    try {
+      const { error } = await window.supabase.from('student_external_schedules').delete().eq('id', id);
+      if (error) throw error;
+      showToast(`Đã xóa lịch ngoài "${subjName}"`);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi khi xóa lịch ngoài: ' + err.message);
+    }
+  };
 
   // Bind Export Buttons
   const btnExportICal = document.getElementById('btnExportICal');
