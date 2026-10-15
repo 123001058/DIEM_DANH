@@ -5994,46 +5994,40 @@ async function syncApprovedLeavesToSession(isManual = false) {
       return;
     }
 
-    const toUpsert = [];
-    approvedLeaves.forEach(lv => {
+    const needSync = approvedLeaves.filter(lv => {
       const cur = attendanceMap[lv.mssv];
-      // Chỉ tự động gán nếu chưa quét (chưa có mặt hoặc chưa đi muộn)
-      if (!cur || (cur.status !== 'có mặt' && cur.status !== 'đi muộn')) {
-        const s = students.find(x => x.mssv === lv.mssv);
-        const noteText = lv.reason ? `Nghỉ phép: ${lv.reason}` : 'Nghỉ phép (đã duyệt)';
-        toUpsert.push({
-          session_id: currentSession.id,
-          mssv: lv.mssv,
-          full_name: s?.name || lv.mssv,
-          status: 'vắng có phép',
-          category: '',
-          note: noteText
-        });
-      }
+      return !cur || (cur.status !== 'có mặt' && cur.status !== 'đi muộn' && cur.status !== 'vắng có phép');
     });
 
-    if (toUpsert.length > 0) {
-      const { error: upsertErr } = await supabase.from('attendance').upsert(toUpsert, { onConflict: 'session_id,mssv' });
-      if (upsertErr) throw upsertErr;
+    if (needSync.length > 0) {
+      for (const lv of needSync) {
+        const reasonText = lv.reason ? `Nghỉ phép: ${lv.reason}` : 'Nghỉ phép (đã duyệt)';
+        const { error: rpcErr } = await supabase.rpc('admin_set_status', {
+          p_session_id: String(currentSession.id),
+          p_mssv: lv.mssv,
+          p_status: 'vắng có phép',
+          p_reason: reasonText
+        });
+        if (!rpcErr) {
+          attendanceMap[lv.mssv] = {
+            status: 'vắng có phép',
+            time: 'Đã duyệt',
+            editedAt: null,
+            category: '',
+            note: reasonText
+          };
+        }
+      }
 
-      toUpsert.forEach(it => {
-        attendanceMap[it.mssv] = {
-          status: 'vắng có phép',
-          time: 'Đã duyệt',
-          editedAt: null,
-          category: '',
-          note: it.note
-        };
-      });
       updateStats();
       renderTable();
-      if (isManual) toast('ok', 'Đã đồng bộ đơn nghỉ', `Đã cập nhật ${toUpsert.length} sinh viên có đơn nghỉ phép.`);
+      if (isManual) toast('ok', 'Đã đồng bộ đơn nghỉ', `Đã cập nhật ${needSync.length} sinh viên có đơn nghỉ phép.`);
     } else if (isManual) {
       toast('ok', 'Hoàn tất', 'Tất cả sinh viên có đơn nghỉ đã được ghi nhận.');
     }
   } catch(e) {
     console.error('Lỗi đồng bộ đơn nghỉ:', e);
-    if (isManual) toast('err', 'Lỗi đồng bộ đơn', e.message);
+    if (isManual) toast('err', 'Lỗi đồng bộ đơn', e.message || 'Không thể đồng bộ đơn nghỉ.');
   }
 }
 function showEmpty(){
