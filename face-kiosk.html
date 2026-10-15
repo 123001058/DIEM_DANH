@@ -963,18 +963,41 @@ function switchCameraMode(mode) {
 
 let espRotation = 0; // 0, 90, 180, 270
 
+let espMirrored = false;
+
 function toggleEspFlip() {
-  espRotation = (espRotation + 180) % 360;
-  espImg.style.transform = `rotate(${espRotation}deg)`;
+  espMirrored = !espMirrored;
+  if (espImg) {
+    espImg.style.transform = espMirrored ? 'scaleX(-1)' : 'none';
+  }
+  hudStatus.textContent = espMirrored ? '🔄 Chế độ ESP32: Lật gương (Soi gương)' : '🔄 Chế độ ESP32: Bình thường';
 }
 
 function connectEspCamera() {
   const ip = document.getElementById('espIpInput').value.trim();
-  if (!ip) return;
+  if (!ip) {
+    alert('Vui lòng nhập địa chỉ IP của ESP32!');
+    return;
+  }
 
-  webcamVideo.style.display = 'none';
-  espImg.style.display = 'block';
-  espImg.src = `http://${ip}:81/stream`;
+  // 1. Chuyển triệt để cameraMode sang 'esp'
+  cameraMode = 'esp';
+  stopWebcam();
+  if (webcamVideo) {
+    webcamVideo.style.display = 'none';
+  }
+
+  // 2. Cập nhật trạng thái nút bấm
+  document.getElementById('btnModeWebcam').classList.remove('active');
+  document.getElementById('btnModeEsp').classList.add('active');
+  document.getElementById('espConfigGroup').style.display = 'flex';
+
+  // 3. Bật luồng stream ESP32
+  if (espImg) {
+    espImg.style.display = 'block';
+    espImg.style.transform = espMirrored ? 'scaleX(-1)' : 'none';
+    espImg.src = `http://${ip}:81/stream`;
+  }
 
   hudStatus.textContent = `📡 Đang xem luồng Stream mượt từ ESP32: ${ip}`;
 }
@@ -1023,10 +1046,8 @@ async function startDetectionLoop() {
         resizedDetections.forEach(detection => {
           let { box } = detection.detection;
           
-          let drawX = box.x;
-          if (cameraMode === 'webcam') {
-            drawX = displaySize.width - box.x - box.width;
-          }
+          const isMirrored = (cameraMode === 'webcam') || (cameraMode === 'esp' && espMirrored);
+          const drawX = isMirrored ? (displaySize.width - box.x - box.width) : box.x;
 
           let label = 'Người lạ / Chưa học';
           let isMatch = false;
