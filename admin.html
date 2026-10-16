@@ -2215,13 +2215,6 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-label">Điểm danh (Phiên & QR)</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
     </button>
-    <button class="sidebar-nav-item" id="nav-history" onclick="navTo('history')">
-      <span class="nav-icon">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="9"></circle></svg>
-      </span>
-      <span class="nav-label">Danh sách phiên điểm danh</span>
-      <span class="nav-badge" style="background:#e0f2fe;color:#0369a1;font-weight:700">Lịch sử</span>
-    </button>
     <button class="sidebar-nav-item" id="nav-face-cam" onclick="navTo('face-cam')">
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
@@ -2602,37 +2595,14 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <!-- Thẻ chuyển nhanh sang Danh sách phiên điểm danh -->
-      <div class="card" style="padding:14px 18px;margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:36px;height:36px;border-radius:8px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;font-size:18px">🕒</div>
-          <div>
-            <div style="font-size:13.5px;font-weight:700;color:var(--text)">Danh sách & Lịch sử các phiên điểm danh</div>
-            <div style="font-size:12px;color:var(--muted)">Xem lại, chỉnh sửa hoặc xuất Excel các phiên điểm danh theo khoảng ngày.</div>
-          </div>
-        </div>
-        <button type="button" class="btn btn-primary btn-sm" onclick="navTo('history')" style="font-weight:700;padding:8px 16px;">
-          Mở danh sách phiên điểm danh →
-        </button>
-      </div>
-    </section>
-
-    <!-- ==========================================================
-         VIEW: DANH SÁCH & LỊCH SỬ CÁC PHIÊN ĐIỂM DANH (HISTORY)
-         ========================================================== -->
-    <section class="app-view" id="view-history">
-      <div class="card" style="padding:20px 24px;margin-bottom:16px;">
+      <!-- Lịch sử & Báo cáo các phiên điểm danh (Tích hợp trực tiếp bên trong Điểm danh) -->
+      <section class="card history-widget-card" id="attendanceReportCard" style="margin-top:20px;padding:20px 24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
           <div>
             <h2 style="font-size:16px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
               <span>🕒</span> Lịch sử & Báo cáo các phiên điểm danh
             </h2>
-            <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0">Thống kê theo khoảng ngày, xem lại, sửa đổi hoặc xóa từng phiên</p>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="navTo('attendance')" style="display:inline-flex;align-items:center;gap:6px;font-weight:600">
-              <span>⚡</span> Phiên hiện tại & QR →
-            </button>
+            <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0">Chọn phiên để xem toàn trang, chỉnh sửa trạng thái điểm danh hoặc xuất Excel</p>
           </div>
         </div>
 
@@ -2665,7 +2635,7 @@ tbody tr:last-child td { border-bottom: none; }
 
         <!-- Danh sách phiên điểm danh duy nhất -->
         <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
-      </div>
+      </section>
     </section>
 
     <!-- ==========================================================
@@ -3978,10 +3948,15 @@ function navTo(viewName) {
 
   closeSidebar();
 
-  if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
-  else if (viewName === 'history') {
-    if (typeof openHistoryAndReport === 'function') openHistoryAndReport();
+  if (viewName === 'history') {
+    navTo('attendance');
+    const rCard = document.getElementById('attendanceReportCard');
+    if (rCard) rCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
   }
+  if (viewName === 'attendance') {
+    if (typeof openHistoryAndReport === 'function') openHistoryAndReport();
+  } else if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
   else if (viewName === 'face-cam') {
     if (typeof initFaceCamInAdmin === 'function') initFaceCamInAdmin();
     const stStatus = document.getElementById('faceCamSessionStatus');
@@ -8738,113 +8713,89 @@ async function refreshAll(){
 }
 
 window.backFromPastSession = async function() {
-  await refreshAll();
+  window._isViewingPastSession = false;
+  window._currentViewingSessionId = null;
+  await loadSession();
+  if (currentSession && currentSession.is_open) {
+    await refreshAll();
+  } else {
+    showEmpty();
+    const rCard = document.getElementById('attendanceReportCard');
+    if (rCard) rCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 };
 
 window.viewPastSession = async function(sid, forceRefresh = false) {
-  const targets = Array.from(document.querySelectorAll('.past-session-detail'))
-    .filter(el => el.dataset.sessionDetail === String(sid));
-  if (!targets.length) return;
-  const alreadyOpen = targets.some(el => el.dataset.loaded === 'true');
-  if (alreadyOpen && !forceRefresh) {
-    targets.forEach(el => { el.innerHTML = ''; el.dataset.loaded = 'false'; });
+  if (!sid) return;
+
+  // 1. Tìm thông tin phiên điểm danh
+  let sess = window._todaySessionsMap ? window._todaySessionsMap[sid] : null;
+  if (!sess) {
+    const { data } = await supabase.from('sessions').select('*').eq('id', sid).maybeSingle();
+    sess = data;
+  }
+  if (!sess) {
+    toast('warn', 'Không tìm thấy phiên', 'Không thể tải thông tin phiên điểm danh này.');
     return;
   }
+
+  // 2. Chuyển sang xem phiên trên toàn trang Dashboard to đầy đủ
+  window._isViewingPastSession = true;
+  window._currentViewingSessionId = String(sid);
+  currentSession = sess;
+
+  // Cấu hình giao diện to (Full Dashboard): Ẩn QR, dàn đều 100% chiều rộng
+  const mainGrid = document.querySelector('.main-grid');
+  if (mainGrid) mainGrid.style.gridTemplateColumns = '1fr';
+  const qrPanel = document.getElementById('qrPanel');
+  if (qrPanel) qrPanel.style.display = 'none';
+  const dz = document.querySelector('.danger-zone');
+  if (dz) dz.style.display = 'none';
+  const btnClose = document.getElementById('btnCloseSession');
+  if (btnClose) btnClose.style.display = 'none';
+  const btnReopen = document.getElementById('btnReopenSession');
+  if (btnReopen) btnReopen.style.display = sess.is_open ? 'none' : 'inline-flex';
+  const btnBack = document.getElementById('btnBackToActive');
+  if (btnBack) {
+    btnBack.style.display = 'inline-flex';
+    btnBack.innerHTML = '← Quay lại danh sách';
+  }
+  const chip = document.getElementById('countdownChip');
+  if (chip) chip.style.display = 'none';
+
+  const sPill = document.getElementById('sessionBarPill');
+  if (sPill) {
+    sPill.className = sess.is_open ? 'session-pill pill-on' : 'session-pill pill-off';
+    sPill.innerHTML = sess.is_open ? '<span class="net-dot"></span>Đang mở' : '<span class="net-dot"></span>Đã đóng';
+  }
+
+  const nameEl = document.getElementById('sessionBarName');
+  if (nameEl) nameEl.textContent = sess.session_name || 'Phiên điểm danh';
+  const startEl = document.getElementById('sessionStartTime');
+  if (startEl) startEl.textContent = sess.started_at ? new Date(sess.started_at).toLocaleString('vi-VN') : '—';
+  const idEl = document.getElementById('sessionIdDisplay');
+  if (idEl) idEl.textContent = String(sess.id).slice(0, 8);
+  const durEl = document.getElementById('sessionDurationDisplay');
+  if (durEl) durEl.textContent = sess.duration_min ? sess.duration_min + ' phút' : 'Không giới hạn';
+
+  // Hiển thị Dashboard to
+  const emptyState = document.getElementById('emptyState');
+  if (emptyState) emptyState.style.display = 'none';
+  const dashboard = document.getElementById('dashboard');
+  if (dashboard) dashboard.style.display = 'block';
+
+  // Nạp dữ liệu điểm danh và hiển thị đầy đủ bảng sinh viên, bộ lọc, phân trang
+  _lastMssvSet = new Set();
+  await loadAttendance();
+  Object.keys(attendanceMap).forEach(m => _lastMssvSet.add(m));
+  renderAll();
+  switchSessionTab('students');
+
+  // Cuộn mượt lên đầu dashboard to để người dùng xem và chỉnh sửa
   if (!forceRefresh) {
-    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Đang tải chi tiết phiên...</div>'; });
+    dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast('info', 'Xem toàn trang', `Đang mở toàn trang phiên: "${sess.session_name}"`);
   }
-  const { data, error } = await supabase.from('attendance')
-    .select('mssv, full_name, status, category, note, created_at')
-    .eq('session_id', sid)
-    .order('mssv');
-  if (error) {
-    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--err)">Không tải được chi tiết phiên: ' + escapeHtml(error.message) + '</div>'; });
-    return;
-  }
-
-  const attMap = {};
-  (data || []).forEach(r => { attMap[r.mssv] = r; });
-
-  let studentList = (students && students.length) ? [...students] : [];
-  (data || []).forEach(r => {
-    if (!studentList.some(s => s.mssv === r.mssv)) {
-      studentList.push({ mssv: r.mssv, name: r.full_name || r.mssv });
-    }
-  });
-
-  if (!studentList.length) {
-    targets.forEach(el => { el.innerHTML = '<div style="margin-top:10px;padding:14px;color:var(--muted)">Phiên này chưa có bản ghi điểm danh nào.</div>'; el.dataset.loaded = 'true'; });
-    return;
-  }
-
-  studentList.sort((a, b) => (a.name || a.mssv).localeCompare(b.name || b.mssv, 'vi'));
-
-  const detailHtml = `
-    <div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <input type="text" placeholder="🔍 Lọc sinh viên..." 
-            style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px;outline:none" 
-            oninput="filterPastSessionTable('${escapeHtml(String(sid))}', this.value)"
-            onclick="event.stopPropagation()">
-          <span style="font-size:11.5px;color:var(--muted)">${studentList.length} sinh viên</span>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-success btn-sm" type="button" onclick="exportPastSessionExcel('${escapeHtml(String(sid))}',this)">⬇ Xuất Excel (.xlsx)</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="loadPastSessionAudit('${escapeHtml(String(sid))}',this)">🕒 Lịch sử chỉnh sửa</button>
-        </div>
-      </div>
-      <div style="overflow:auto;max-height:360px;border:1px solid var(--border);border-radius:8px">
-        <table class="past-session-tbl" data-session-table="${escapeHtml(String(sid))}" style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="background:var(--surface-2);text-align:left;position:sticky;top:0;z-index:2">
-              <th style="padding:8px 10px;width:120px">MSSV</th>
-              <th style="padding:8px 10px">Họ tên</th>
-              <th style="padding:8px 10px;width:150px">Trạng thái</th>
-              <th style="padding:8px 10px;width:155px">Thời gian điểm danh</th>
-              <th style="padding:8px 10px">Ghi chú</th>
-              <th style="padding:8px 10px;width:60px;text-align:center">Sửa</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${studentList.map(s => {
-              const a = attMap[s.mssv];
-              const rawStatus = a?.status || 'unmarked';
-              const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
-              const noteText = a?.note ? escapeHtml(a.note) : '';
-              const noteHtml = noteText ? `<span style="font-size:11px;color:#2563eb;font-weight:500">📚 ${noteText}</span>` : '<span style="color:var(--faint)">—</span>';
-              const sName = s.name || a?.full_name || s.mssv;
-              return `<tr class="past-session-row" data-search="${escapeHtml((s.mssv + ' ' + sName).toLowerCase())}" style="border-top:1px solid var(--border)">
-                <td class="td-mono" style="padding:8px 10px">${escapeHtml(s.mssv)}</td>
-                <td style="padding:8px 10px;font-weight:600">${escapeHtml(sName)}</td>
-                <td style="padding:8px 10px">
-                  <select class="status-select ${selClass}" 
-                    onchange="event.stopPropagation();promptChangeStatus('${escapeHtml(s.mssv)}', this.value, this, '${escapeHtml(String(sid))}', '${escapeHtml(rawStatus)}', '${escapeHtml(sName)}')"
-                    onclick="event.stopPropagation()">
-                    ${rawStatus === 'unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : ''}
-                    <option value="có mặt" ${rawStatus === 'có mặt' ? 'selected' : ''}>Có mặt</option>
-                    <option value="đi muộn" ${rawStatus === 'đi muộn' ? 'selected' : ''}>Đi muộn</option>
-                    <option value="vắng có phép" ${rawStatus === 'vắng có phép' ? 'selected' : ''}>Vắng có phép</option>
-                    <option value="vắng không phép" ${rawStatus === 'vắng không phép' ? 'selected' : ''}>Vắng không phép</option>
-                  </select>
-                </td>
-                <td style="padding:8px 10px;white-space:nowrap">${(rawStatus === 'có mặt' || rawStatus === 'đi muộn' || rawStatus === 'vắng có phép') && a?.created_at ? vietnamDateTime(a.created_at) : '<span style="color:var(--muted)">—</span>'}</td>
-                <td style="padding:8px 10px">${noteHtml}</td>
-                <td style="padding:8px 10px;text-align:center">
-                  <button class="btn btn-secondary" style="padding:3px 7px;font-size:11px;border-radius:4px" 
-                    title="Chỉnh sửa trạng thái & ghi chú"
-                    onclick="event.stopPropagation();promptChangeStatus('${escapeHtml(s.mssv)}', '${rawStatus === 'unmarked' ? 'có mặt' : rawStatus}', null, '${escapeHtml(String(sid))}', '${escapeHtml(rawStatus)}', '${escapeHtml(sName)}')">✏️</button>
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-      <div class="past-session-audit" data-audit-session="${escapeHtml(String(sid))}" style="margin-top:10px"></div>
-    </div>
-  `;
-
-  targets.forEach(el => { el.innerHTML = detailHtml; el.dataset.loaded = 'true'; });
 };
 
 window.filterPastSessionTable = function(sid, query) {
