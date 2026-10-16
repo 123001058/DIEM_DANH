@@ -733,6 +733,12 @@ function calculateHeadYaw(landmarks) {
   return dLeft / dRight;
 }
 
+// ──────────────────────────────────────────────────────────────
+// HEAD-TURN CHALLENGE — chống ảnh 2D / màn hình điện thoại
+// Nguyên lý: ảnh 2D trên màn hình KHÔNG THỂ fake parallax 3D
+// khi quay đầu. calculateHeadYaw() theo dõi tỉ lệ dLeft/dRight
+// (nose tip vs jaw outline). Thẳng ≈ 1.0 | Trái < 0.68 | Phải > 1.45
+// ──────────────────────────────────────────────────────────────
 function evaluateLiveness(label, landmarks, box) {
   if (!antiSpoofEnabled) {
     return { isLive: true, prompt: '⚡ Siêu tốc (Điểm danh tức thì)', isStaticPhoto: false, isFailed: false };
@@ -741,107 +747,56 @@ function evaluateLiveness(label, landmarks, box) {
     return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
   }
 
-  const leftEAR  = calculateEyeEAR(landmarks.getLeftEye());
-  const rightEAR = calculateEyeEAR(landmarks.getRightEye());
-  const avgEAR   = (leftEAR + rightEAR) / 2.0;
-  const now      = Date.now();
-
-  // Lấy tọa độ điểm mốc: chóp mũi + góc miệng trái để tính chuyển động vi tế
-  const nose  = landmarks.getNose();
-  const mouth = landmarks.getMouth();
-  const noseTip = nose && nose.length > 3 ? nose[3] : (nose && nose[0]);
-  const mouthL  = mouth && mouth.length > 0 ? mouth[0] : null;
+  const now = Date.now();
+  const yaw = calculateHeadYaw(landmarks); // dLeft / dRight
 
   if (!livenessState[label]) {
+    // Chọn ngẫu nhiên thử thách: quay trái hay phải
+    const dir = Math.random() < 0.5 ? 'left' : 'right';
     livenessState[label] = {
-      startTime:       now,
-      baselineEAR:     avgEAR,
-      blinkDetected:   false,
-      eyesClosed:      false,
-      // Lịch sử tọa độ để đo micro-motion (tối đa 30 frame ~3 giây)
-      noseHistory:     noseTip ? [{ x: noseTip.x, y: noseTip.y }] : [],
-      mouthHistory:    mouthL  ? [{ x: mouthL.x,  y: mouthL.y  }] : [],
-      staticWarnings:  0
+      startTime:    now,
+      direction:    dir,        // 'left' | 'right'
+      baselineYaw:  yaw,        // yaw khi vừa phát hiện mặt
+      passed:       false,
+      yawHistory:   [yaw],
+      phaseMsg:     dir === 'left' ? '👈 Hãy quay đầu sang TRÁI một chút...' : '👉 Hãy quay đầu sang PHẢI một chút...'
     };
+    return { isLive: false, prompt: livenessState[label].phaseMsg, isStaticPhoto: false, isFailed: false };
   }
 
   const st = livenessState[label];
 
-  // --- Cập nhật baseline EAR (chậm, để chống drift ảnh sáng) ---
-  st.baselineEAR = st.baselineEAR * 0.90 + avgEAR * 0.10;
+  // Tích lũy yaw history (tối đa 40 frame ≈ 4s)
+  st.yawHistory.push(yaw);
+  if (st.yawHistory.length > 40) st.yawHistory.shift();
 
-  // --- Ghi lịch sử tọa độ (giới hạn 30 frame) ---
-  if (noseTip) {
-    st.noseHistory.push({ x: noseTip.x, y: noseTip.y });
-    if (st.noseHistory.length > 30) st.noseHistory.shift();
-  }
-  if (mouthL) {
-    st.mouthHistory.push({ x: mouthL.x, y: mouthL.y });
-    if (st.mouthHistory.length > 30) st.mouthHistory.shift();
-  }
+  // Tìm giá trị yaw cực trị trong history
+  const minYaw = Math.min(...st.yawHistory);
+  const maxYaw = Math.max(...st.yawHistory);
 
-  // --- Tính motion variance (chỉ khi có đủ ≥10 frame) ---
-  let motionOK = true; // mặc định cho pass nếu chưa đủ dữ liệu
-  if (st.noseHistory.length >= 10) {
-    const xs = st.noseHistory.map(p => p.x);
-    const ys = st.noseHistory.map(p => p.y);
-    const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
-    const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const varX  = xs.reduce((a, b) => a + (b - meanX) ** 2, 0) / xs.length;
-    const varY  = ys.reduce((a, b) => a + (b - meanY) ** 2, 0) / ys.length;
-    const totalVariance = varX + varY;
+  // Kiểm tra xem đầu có thực sự quay đủ không
+  // - Quay trái: yaw phải giảm xuống dưới 0.70 (so với baseline ~1.0)
+  // - Quay phải: yaw phải tăng lên trên 1.40
+  // Dùng delta so với baseline để tránh case mặt nghiêng sẵn
+  const YAW_DELTA = 0.28; // phải thay đổi ít nhất 28% so với baseline
 
-    // Ngưỡng: ảnh tĩnh/màn hình: variance < 0.08px²
-    // Người thật hít thở bình thường: variance thường > 0.15px²
-    // Dùng ngưỡng 0.10 để có biên an toàn
-    if (totalVariance < 0.10) {
-      motionOK = false;
-      st.staticWarnings++;
-    } else {
-      st.staticWarnings = Math.max(0, st.staticWarnings - 1); // giảm dần nếu có motion
-    }
-  }
+  let turned = false;
+  if (st.direction === 'left'  && (st.baselineYaw - minYaw) >= YAW_DELTA) turned = true;
+  if (st.direction === 'right' && (maxYaw - st.baselineYaw) >= YAW_DELTA) turned = true;
 
-  // Nếu phát hiện ảnh tĩnh quá nhiều lần liên tiếp → chặn hẳn
-  if (st.staticWarnings >= 8) {
-    // Reset để cho phép thử lại sau 3s
-    if (now - st.startTime > 3000) {
-      delete livenessState[label];
-    }
-    return { isLive: false, prompt: '🚫 Phát hiện ảnh tĩnh / màn hình — Hãy đứng thật trước camera!', isStaticPhoto: true, isFailed: false };
-  }
-
-  // --- Phát hiện blink: mắt nhắm xuống rồi mở lại ---
-  const blinkThreshold = Math.min(st.baselineEAR * 0.72, 0.18);
-  const openThreshold  = Math.max(st.baselineEAR * 0.85, 0.21);
-
-  if (!st.eyesClosed && avgEAR < blinkThreshold) {
-    st.eyesClosed = true; // bắt đầu nhắm
-  }
-  if (st.eyesClosed && avgEAR >= openThreshold) {
-    st.blinkDetected = true; // mở lại → hoàn thành blink
-    st.eyesClosed = false;
-  }
-
-  // --- Pass: cần blink VÀ có micro-motion (không phải ảnh đứng yên) ---
-  if (st.blinkDetected && motionOK) {
+  if (turned) {
+    // Đã xác minh người thật: có parallax 3D thật sự
     return { isLive: true, prompt: '✅ Xác minh người thật thành công!', isStaticPhoto: false, isFailed: false };
   }
 
-  // --- Hết giờ → reset để thử lại ---
-  if (now - st.startTime > 9000) {
+  // Hết 10 giây → reset (đổi hướng mới để tránh đoán)
+  if (now - st.startTime > 10000) {
     delete livenessState[label];
-    return { isLive: false, prompt: '👁️ Hãy chớp mắt tự nhiên trước camera...', isStaticPhoto: false, isFailed: false };
+    return { isLive: false, prompt: '⏱️ Hết giờ — Thử lại lần nữa...', isStaticPhoto: false, isFailed: false };
   }
 
-  // --- Hướng dẫn theo tình huống ---
-  if (!motionOK) {
-    return { isLive: false, prompt: '🚫 Phát hiện màn hình/ảnh — Di chuyển một chút!', isStaticPhoto: true, isFailed: false };
-  }
-  if (st.eyesClosed) {
-    return { isLive: false, prompt: '👁️ Mở mắt ra... (đang nhắm)', isStaticPhoto: false, isFailed: false };
-  }
-  return { isLive: false, prompt: '👁️ Hãy CHỚP MẮT 1 lần để điểm danh...', isStaticPhoto: false, isFailed: false };
+  // Hiển thị tiến độ (yaw hiện tại so với mục tiêu)
+  return { isLive: false, prompt: st.phaseMsg, isStaticPhoto: false, isFailed: false };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
