@@ -44,7 +44,7 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode    = CAMERA_GRAB_LATEST;
   config.fb_location  = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 10; // Chất lượng cao, ảnh mịn không vỡ hạt
+  config.jpeg_quality = 12; // Cân bằng độ nét và băng thông, giúp stream mượt 20-30 FPS không giật
   config.fb_count     = 2;
 
   // Khởi tạo camera
@@ -55,25 +55,25 @@ void setup() {
   }
   Serial.println("✓ Camera OV2640 khoi tao thanh cong!");
 
-  // Bật các bộ lọc nâng cao độ nét phần cứng (DSP) của chip OV2640
+  // Cấu hình cảm biến OV2640 tối ưu cho mô hình Face AI & Liveness
   sensor_t *s = esp_camera_sensor_get();
   if (s) {
-    s->set_framesize(s, FRAMESIZE_VGA);  // 640x480 chuẩn nét
-    s->set_quality(s, 10);               // Độ nén ít, giữ chi tiết mắt mũi
-    s->set_sharpness(s, 2);              // TĂNG ĐỘ NÉT CẠNH TỐI ĐA (+2)
-    s->set_contrast(s, 1);               // Tăng tương phản (+1)
-    s->set_brightness(s, 0);             // Độ sáng cân bằng
+    s->set_framesize(s, FRAMESIZE_VGA);  // 640x480
+    s->set_quality(s, 12);
+    s->set_sharpness(s, 0);              // Độ nét tự nhiên (0): Tránh hiện tượng gai viền nhân tạo làm AI lệch landmark mắt mũi
+    s->set_contrast(s, 0);               // Giữ chi tiết vùng bóng đổ quanh hốc mắt
+    s->set_brightness(s, 1);             // Nâng nhẹ độ sáng (+1) giúp mặt người trong phòng không bị tối đen
     s->set_saturation(s, 0);
-    s->set_denoise(s, 1);                // Bật bộ lọc khử nhiễu hạt
-    s->set_lenc(s, 1);                   // Bật tính năng bù quang sai ống kính (Lens Correction)
-    s->set_gainceiling(s, GAINCEILING_4X);
-    s->set_whitebal(s, 1);               // Cân bằng trắng tự động
+    s->set_denoise(s, 1);                // Bật bộ lọc khử nhiễu hạt cảm biến
+    s->set_lenc(s, 1);                   // Bù méo viền thấu kính OV2640
+    s->set_gainceiling(s, GAINCEILING_8X); // Tăng dải nhạy sáng cho phòng học/kiosk
+    s->set_whitebal(s, 1);               // Cân bằng trắng tự động (AWB)
     s->set_awb_gain(s, 1);
-    s->set_exposure_ctrl(s, 1);          // Tự động phơi sáng
+    s->set_exposure_ctrl(s, 1);          // Tự động phơi sáng (AEC)
     s->set_aec2(s, 1);                   // Thuật toán đo sáng nâng cao
-    s->set_ae_level(s, 0);
-    s->set_bpc(s, 1);                    // Bù điểm ảnh đen
-    s->set_wpc(s, 1);                    // Bù điểm ảnh trắng
+    s->set_ae_level(s, 1);               // Nâng mức sáng mục tiêu thêm 1 nấc cho rõ mặt
+    s->set_bpc(s, 1);                    // Khử điểm ảnh đen chết (Black Pixel Correction)
+    s->set_wpc(s, 1);                    // Khử điểm ảnh trắng chết (White Pixel Correction)
   }
 
   // Kết nối WiFi

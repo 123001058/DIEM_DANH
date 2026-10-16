@@ -525,7 +525,12 @@ body {
         </div>
       </div>
 
-      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Lịch sử nhận diện gần nhất:</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;">Lịch sử nhận diện gần nhất:</span>
+        <button type="button" class="btn-del" id="btnClearHistory" onclick="clearAttendanceHistory()" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+          🗑️ Xóa lịch sử
+        </button>
+      </div>
       <div class="history-list" id="historyList">
         <div style="color:#64748b;font-size:13px;text-align:center;padding:40px 0;">Chưa có lượt điểm danh nào</div>
       </div>
@@ -678,17 +683,24 @@ function evaluateLiveness(label, landmarks, box) {
       centerFrames: 0,
       turnedDirection: '',
       actionTimestamp: 0,
-      isLivePassed: false
+      isLivePassed: false,
+      lastSeen: now
     };
   }
 
   const st = livenessState[label];
+  st.lastSeen = now;
 
-  // BƯỚC 1: Nhìn thẳng camera trước (Yaw từ 0.75 đến 1.35 trong ít nhất 2 khung hình)
+  // Nếu đã hoàn thành xác thực cử động người thật
+  if (st.isLivePassed || st.state === 'PASSED') {
+    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
+  }
+
+  // BƯỚC 1: Nhìn thẳng camera trước (Yaw từ 0.70 đến 1.40)
   if (st.state === 'WAIT_CENTER') {
-    if (yaw >= 0.72 && yaw <= 1.38) {
+    if (yaw >= 0.70 && yaw <= 1.40) {
       st.centerFrames++;
-      if (st.centerFrames >= 2) {
+      if (st.centerFrames >= 1) { // 1-2 frame là đủ, phản hồi tức thì
         st.state = 'WAIT_ACTION';
       }
     } else {
@@ -697,50 +709,49 @@ function evaluateLiveness(label, landmarks, box) {
     return { isLive: false, prompt: '🔄 Hãy nhìn thẳng vào camera...' };
   }
 
-  // BƯỚC 2: Yêu cầu cử động 3D: QUAY ĐẦU SANG TRÁI / PHẢI (hoặc chớp mắt thật)
-  // Ảnh thẻ in trên giấy / điện thoại phẳng lì tỷ lệ luôn giữ ~1.00, KHÔNG BAO GIỜ quay đầu được!
+  // BƯỚC 2: Cử động người thật: Quay nhẹ đầu (Trái / Phải) HOẶC Chớp mắt tự nhiên
   if (st.state === 'WAIT_ACTION') {
-    // 2A: Quay đầu sang trái (chóp mũi áp sát má trái: yaw < 0.55)
-    if (yaw < 0.55) {
+    // 2A: Quay nhẹ sang trái (yaw < 0.68 thay vì 0.55 quá gắt)
+    if (yaw < 0.68) {
       st.state = 'WAIT_RETURN';
       st.turnedDirection = 'TRÁI';
       st.actionTimestamp = now;
       return { isLive: false, prompt: '✅ Đã quay sang trái! Hãy nhìn thẳng lại' };
     }
 
-    // 2B: Quay đầu sang phải (chóp mũi áp sát má phải: yaw > 1.70)
-    if (yaw > 1.70) {
+    // 2B: Quay nhẹ sang phải (yaw > 1.45 thay vì 1.70 quá gắt)
+    if (yaw > 1.45) {
       st.state = 'WAIT_RETURN';
       st.turnedDirection = 'PHẢI';
       st.actionTimestamp = now;
       return { isLive: false, prompt: '✅ Đã quay sang phải! Hãy nhìn thẳng lại' };
     }
 
-    // 2C: Hoặc chớp mắt nhắm sâu (EAR < 0.19)
-    if (avgEAR < 0.19) {
+    // 2C: Hoặc chớp/nhắm mắt (avgEAR < 0.225 thay vì 0.19 bất khả thi trên OV2640)
+    if (avgEAR < 0.225) {
       st.state = 'WAIT_RETURN';
       st.turnedDirection = 'CHỚP MẮT';
       st.actionTimestamp = now;
       return { isLive: false, prompt: '✅ Đang nhắm mắt! Hãy mở mắt ra' };
     }
 
-    return { isLive: false, prompt: '🔄 Hãy quay nhẹ đầu sang trái hoặc phải' };
+    return { isLive: false, prompt: '🔄 Quay nhẹ đầu hoặc chớp mắt để điểm danh' };
   }
 
-  // BƯỚC 3: Quay mặt về nhìn thẳng trở lại (hoặc mở mắt) để hoàn tất chu trình 3D
+  // BƯỚC 3: Quay mặt về nhìn thẳng trở lại (hoặc mở mắt) để hoàn tất chu trình
   if (st.state === 'WAIT_RETURN') {
     const elapsed = now - st.actionTimestamp;
 
-    // Nếu quá 4 giây không quay về nhìn thẳng, reset lại từ đầu
-    if (elapsed > 4000) {
+    // Cho phép tới 5 giây để hoàn tất quay lại
+    if (elapsed > 5000) {
       st.state = 'WAIT_CENTER';
       st.centerFrames = 0;
       return { isLive: false, prompt: '⚠️ Quá giờ, vui lòng làm lại' };
     }
 
-    // Nếu vừa quay đầu: Giờ quay về nhìn thẳng (0.75 <= yaw <= 1.35)
+    // Nếu vừa quay đầu: Giờ quay về nhìn thẳng (0.70 <= yaw <= 1.40)
     if (st.turnedDirection === 'TRÁI' || st.turnedDirection === 'PHẢI') {
-      if (yaw >= 0.72 && yaw <= 1.38 && elapsed >= 120) {
+      if (yaw >= 0.70 && yaw <= 1.40 && elapsed >= 80) {
         st.state = 'PASSED';
         st.isLivePassed = true;
         return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT 3D!' };
@@ -748,9 +759,9 @@ function evaluateLiveness(label, landmarks, box) {
       return { isLive: false, prompt: '↩️ Quay mặt về chính diện...' };
     }
 
-    // Nếu vừa nhắm mắt: Giờ mở mắt ra
+    // Nếu vừa nhắm mắt: Giờ mở mắt ra (avgEAR >= 0.235)
     if (st.turnedDirection === 'CHỚP MẮT') {
-      if (avgEAR >= 0.23 && elapsed >= 80) {
+      if (avgEAR >= 0.235 && elapsed >= 60) {
         st.state = 'PASSED';
         st.isLivePassed = true;
         return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
@@ -760,10 +771,10 @@ function evaluateLiveness(label, landmarks, box) {
   }
 
   if (st.state === 'PASSED') {
-    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT 3D!' };
+    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
   }
 
-  return { isLive: false, prompt: '🔄 Vui lòng quay đầu để điểm danh' };
+  return { isLive: false, prompt: '🔄 Vui lòng quay đầu hoặc chớp mắt' };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
@@ -1127,9 +1138,9 @@ async function startDetectionLoop() {
         }
         captureCtx.drawImage(inputMedia, 0, 0, frameW, frameH);
 
-        // Nhận diện TinyFaceDetector - Ngưỡng 0.45 tối ưu cực chuẩn cho cảm biến OV2640
+        // Nhận diện TinyFaceDetector - Ngưỡng 0.32 giúp bắt mặt liên tục ngay cả khi nhắm mắt hoặc nghiêng nhẹ
         const detections = await faceapi
-          .detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+          .detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.32 }))
           .withFaceLandmarks(true)
           .withFaceDescriptors();
 
@@ -1242,11 +1253,22 @@ async function startDetectionLoop() {
           hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera & chớp mắt để điểm danh';
         }
 
-        // Giảm dần và xóa trạng thái các người không còn trong khung hình
-        for (const k in consecutiveHits) {
+        // Cập nhật timestamp nhận diện cho các bạn đang trong khung hình
+        const nowMs = Date.now();
+        detectedLabelsInThisFrame.forEach(lbl => {
+          if (livenessState[lbl]) {
+            livenessState[lbl].lastSeen = nowMs;
+          }
+        });
+
+        // Chỉ xóa trạng thái người khi họ thực sự biến mất khỏi camera hơn 2.5 giây
+        for (const k in livenessState) {
           if (!detectedLabelsInThisFrame.has(k)) {
-            consecutiveHits[k] = Math.max(0, consecutiveHits[k] - 1);
-            delete livenessState[k]; // Rời camera -> xóa sạch phiên cũ
+            const lastSeen = livenessState[k]?.lastSeen || nowMs;
+            if (nowMs - lastSeen > 2500) {
+              delete livenessState[k];
+              if (consecutiveHits[k]) consecutiveHits[k] = 0;
+            }
           }
         }
       }
@@ -1348,6 +1370,42 @@ function renderHistory() {
   `).join('');
 }
 
+// XÓA LỊCH SỬ ĐIỂM DANH (THEO YÊU CẦU NGƯỜI DÙNG)
+async function clearAttendanceHistory() {
+  if (recentCheckins.length === 0) {
+    alert('Lịch sử nhận diện hiện đang trống.');
+    return;
+  }
+
+  const ok = confirm('Bạn có muốn xóa danh sách lịch sử điểm danh hiển thị trên màn hình không?\n(Sau khi xóa, sinh viên có thể điểm danh lại ngay)');
+  if (!ok) return;
+
+  recentCheckins = [];
+  lastCheckinTime = {};
+  renderHistory();
+  const latestCard = document.getElementById('latestMatchCard');
+  if (latestCard) latestCard.style.display = 'none';
+
+  if (currentSession && currentSession.id) {
+    const delDb = confirm(`Bạn có muốn XÓA LUÔN dữ liệu điểm danh của phiên "${currentSession.session_name}" trên Supabase không?`);
+    if (delDb) {
+      try {
+        const { error } = await window.supabase
+          .from('attendance')
+          .delete()
+          .eq('session_id', currentSession.id);
+        if (error) {
+          alert('Lỗi xóa trên Supabase: ' + error.message);
+        } else {
+          alert('✓ Đã xóa sạch dữ liệu điểm danh của phiên này trên Supabase!');
+        }
+      } catch (err) {
+        console.error('Lỗi khi xóa attendance trên Supabase:', err);
+      }
+    }
+  }
+}
+
 function speakGreeting(name) {
   try {
     if ('speechSynthesis' in window) {
@@ -1376,6 +1434,18 @@ function playChime() {
   } catch (e) {}
 }
 
+// Hàm bổ trợ: Tạo canvas lật gương ngang từ ảnh gốc để nhân đôi góc nhận diện 2 bên má
+function getMirroredCanvas(img) {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width || img.naturalWidth || 320;
+  canvas.height = img.height || img.naturalHeight || 320;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 // ==========================================
 // 6. TỰ ĐỘNG NẠP MẶT TỪ ẢNH THẺ CÓ SẴN
 // ==========================================
@@ -1396,34 +1466,47 @@ async function enrollFromDocumentPhoto() {
   ].filter(Boolean);
 
   let detection = null;
-  let usedUrl = '';
+  let loadedImg = null;
 
   for (const url of possibleUrls) {
     try {
       const img = await faceapi.fetchImage(url);
       detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
         .withFaceLandmarks(true)
         .withFaceDescriptor();
       if (detection) {
-        usedUrl = url;
+        loadedImg = img;
         break;
       }
     } catch(e) {}
   }
 
-  if (!detection) {
+  if (!detection || !loadedImg) {
     alert(`Không phát hiện được rõ khuôn mặt trong ảnh của ${st.name} (${st.mssv})! Bạn có thể đứng trước camera bấm "Chụp mẫu từ Camera".`);
     hudStatus.textContent = '⚠️ Không tìm thấy mặt trong ảnh thẻ.';
     return;
   }
 
+  const descriptors = [Array.from(detection.descriptor)];
+  // Tự động tạo thêm vector lật gương đối xứng (Mirror Augmentation)
+  try {
+    const mirrorCanvas = getMirroredCanvas(loadedImg);
+    const mirrorDet = await faceapi
+      .detectSingleFace(mirrorCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
+    if (mirrorDet) {
+      descriptors.push(Array.from(mirrorDet.descriptor));
+    }
+  } catch(e) {}
+
   const label = `${st.mssv} - ${st.name}`;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
-  db[label] = [Array.from(detection.descriptor)];
+  db[label] = descriptors;
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
 
-  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!`);
+  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv}) (${descriptors.length} góc đặc trưng)!`);
   loadEnrolledFromStorage();
   switchTab('recent');
   hudStatus.textContent = `🟢 Đã nạp mặt của ${st.name}. Bạn có thể đứng trước camera test ngay!`;
@@ -1453,21 +1536,38 @@ async function enrollAll30Students() {
     ].filter(Boolean);
 
     let detection = null;
+    let loadedImg = null;
 
     for (const url of possibleUrls) {
       try {
         const img = await faceapi.fetchImage(url);
         detection = await faceapi
-          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
           .withFaceLandmarks(true)
           .withFaceDescriptor();
-        if (detection) break;
+        if (detection) {
+          loadedImg = img;
+          break;
+        }
       } catch(e) {}
     }
 
-    if (detection) {
+    if (detection && loadedImg) {
+      const descriptors = [Array.from(detection.descriptor)];
+      // Tạo vector lật gương đối xứng
+      try {
+        const mirrorCanvas = getMirroredCanvas(loadedImg);
+        const mirrorDet = await faceapi
+          .detectSingleFace(mirrorCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
+          .withFaceLandmarks(true)
+          .withFaceDescriptor();
+        if (mirrorDet) {
+          descriptors.push(Array.from(mirrorDet.descriptor));
+        }
+      } catch(e) {}
+
       const label = `${st.mssv} - ${st.name}`;
-      db[label] = [Array.from(detection.descriptor)];
+      db[label] = descriptors;
       successCount++;
     } else {
       console.warn(`Chưa nhận diện được mặt từ ảnh của ${st.name} (${st.mssv})`);
@@ -1476,7 +1576,7 @@ async function enrollAll30Students() {
 
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
   loadEnrolledFromStorage();
-  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên!`);
+  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên (kèm góc đối xứng 2 bên)!`);
   hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} sinh viên. Hệ thống sẵn sàng!`;
 }
 
@@ -1591,8 +1691,8 @@ function clearAllEnrolledFaces() {
 }
 
 function updateFaceMatcher() {
-  // Khoảng cách khắt khe 0.42: Chỉ nhận diện khi giống thật sự, loại bỏ hoàn toàn vật thể/tường
-  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.42) : null;
+  // Khoảng cách 0.48: Tối ưu cho camera ESP32 OV2640, nhận diện nhạy mà không nhận nhầm người khác
+  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.48) : null;
 }
 
 function exportFaceDb() {
