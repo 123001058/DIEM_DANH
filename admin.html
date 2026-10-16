@@ -2521,7 +2521,7 @@ tbody tr:last-child td { border-bottom: none; }
               <div class="tbl-wrap">
                 <div class="tbl-scroll">
                   <table>
-                    <thead><tr><th style="width:40%">Sinh viên</th><th style="width:18%">MSSV</th><th style="width:24%">Trạng thái</th><th style="width:18%">Thời gian</th></tr></thead>
+                    <thead><tr><th style="width:23%">Sinh viên</th><th style="width:12%">MSSV</th><th style="width:16%">Trạng thái</th><th style="width:12%">Thời gian</th><th style="width:21%">Lịch học (TKB ME)</th><th style="width:16%">Ghi chú</th></tr></thead>
                     <tbody id="studentTbody"></tbody>
                   </table>
                 </div>
@@ -3830,6 +3830,28 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closeReasonModal()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-family:inherit;font-weight:600">Huỷ</button>
       <button id="reasonConfirmBtn" onclick="executeStatusChange()" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Lưu thay đổi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHỈNH SỬA GHI CHÚ RIÊNG BIỆT (CHỈ CỘT GHI CHÚ MỚI ĐƯỢC PHÉP CHỈNH SỬA) -->
+<div class="modal-bg" id="noteEditModal">
+  <div class="modal" style="text-align:left;max-width:440px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="modal-ic" style="margin:0;width:40px;height:40px;font-size:18px;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;border-radius:10px">📝</div>
+      <div>
+        <h3 style="margin:0;font-size:16px">Ghi chú sinh viên</h3>
+        <p style="margin:2px 0 0;font-size:12.5px;color:var(--muted)" id="noteEditStudentInfo">—</p>
+      </div>
+    </div>
+    <div class="form-field" style="margin-bottom:14px">
+      <label for="noteEditInput" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">NỘI DUNG GHI CHÚ (LÝ DO XIN NGHỈ, GHI CHÚ BUỔI HỌC...):</label>
+      <textarea id="noteEditInput" rows="3" placeholder="Nhập ghi chú cho sinh viên này..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit;resize:vertical;background:var(--surface);color:var(--text)"></textarea>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px">📌 Cột Lịch học (TKB) được tự động cố định từ hệ thống ME, độc lập hoàn toàn với cột Ghi chú này.</div>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeNoteEditModal()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer;font-family:inherit;font-weight:600">Huỷ</button>
+      <button id="noteEditConfirmBtn" onclick="saveStudentNote()" style="background:var(--text);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit">Lưu ghi chú</button>
     </div>
   </div>
 </div>
@@ -6190,14 +6212,19 @@ async function loadAttendance(){
 
   attendanceMap = {};
   (data || []).forEach(r => {
+    let cleanNote = (r.note || '').trim();
+    if (cleanNote === 'Không có dữ liệu tham gia' || cleanNote === 'Camera ESP32 điểm danh AI' || cleanNote.startsWith('Camera ESP32')) {
+      cleanNote = '';
+    }
+    const cat = r.category === 'Khuôn mặt' ? 'Admin' : (r.category || '');
     // Hiển thị thời gian điểm danh thực tế (ưu tiên thời điểm đổi trạng thái gần nhất trong audit log)
     const effectiveTime = latestAuditMap[r.mssv] || r.created_at;
     attendanceMap[r.mssv] = {
       status: r.status,
       time: effectiveTime ? fmtClock(new Date(effectiveTime)) : '—',
       editedAt: latestAuditMap[r.mssv] || null,
-      category: r.category || '',
-      note: r.note || ''
+      category: cat,
+      note: cleanNote
     };
   });
 
@@ -6385,22 +6412,61 @@ function updateStats(){
   if (fUnm) fUnm.style.display = 'none';
 }
 
+function getStudentCleanNote(note) {
+  if (!note) return '';
+  let clean = String(note).trim();
+  if (clean === 'Không có dữ liệu tham gia' || 
+      clean === 'Camera ESP32 điểm danh AI' || 
+      clean.startsWith('Camera ESP32') || 
+      clean === 'Tích chọn' || 
+      clean === 'Tích chọn thủ công' || 
+      clean === 'Admin tích chọn' ||
+      clean === 'Cập nhật hàng loạt') {
+    return '';
+  }
+  return clean;
+}
+
+function getStudentScheduleCellHtml(mssv) {
+  const info = window._todayStudentScheduleMap ? window._todayStudentScheduleMap[mssv] : null;
+  if (!info) {
+    return '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
+  }
+  if (info.leaveText) {
+    return `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe" title="${escapeHtml(info.leaveText)}">📝 Nghỉ phép</div>`;
+  }
+  if (info.status === 'in_class') {
+    const cur = info.currentClass;
+    const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Đang trong giờ học';
+    const subText = cur ? `<div style="font-size:10.5px;color:#dc2626;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.room)})</div>` : '';
+    return `<div><span class="sched-status-tag tag-busy-now" style="font-size:10px" title="${escapeHtml(title)}">🔴 Đang học</span>${subText}</div>`;
+  }
+  if (info.status === 'upcoming_class') {
+    const cur = info.upcomingClass || (info.classes && info.classes[0]);
+    const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Có ca học sắp tới';
+    const subText = cur ? `<div style="font-size:10.5px;color:#d97706;font-weight:500;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.timeRange)})</div>` : '';
+    return `<div><span class="sched-status-tag tag-busy-future" style="font-size:10px" title="${escapeHtml(title)}">⏳ Sắp học</span>${subText}</div>`;
+  }
+  if (info.status === 'finished_classes') {
+    return `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Đã kết thúc các ca học hôm nay">🟢 Đã học xong (Rảnh)</span>`;
+  }
+  if (info.status === 'free_all_day') {
+    return `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Không có lịch học trường hôm nay">🟢 Rảnh cả ngày</span>`;
+  }
+  return '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
+}
+
 function renderAttendanceMethodBadge(a) {
   if (!a) return '';
   const rawStatus = a.status || 'unmarked';
   const cat = (a.category || '').trim();
   const note = (a.note || '').trim();
   let methodBadge = '';
-  let cleanNote = note;
 
-  if (cat === 'Khuôn mặt' || note.includes('ESP32') || note.includes('Camera')) {
-    methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe">📷 Camera ESP32</span>';
-    if (cleanNote === 'Camera ESP32 điểm danh AI') cleanNote = '';
-  } else if (cat === 'Admin' || cat === 'Admin Batch' || note.includes('Admin') || note.includes('Tích chọn') || note.includes('Thủ công')) {
+  if (cat === 'Admin' || cat === 'Admin Batch' || note.includes('Admin') || note.includes('Tích chọn') || note.includes('Thủ công')) {
     methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">✍️ Tích chọn</span>';
-    if (cleanNote === 'Tích chọn' || cleanNote === 'Tích chọn thủ công' || cleanNote === 'Admin tích chọn' || cleanNote === 'Cập nhật hàng loạt') cleanNote = '';
   } else if (rawStatus === 'có mặt' || rawStatus === 'đi muộn') {
-    const catLabel = cat && cat !== 'Đi học' ? ` (${escapeHtml(cat)})` : '';
+    const catLabel = cat && cat !== 'Đi học' && cat !== 'Khuôn mặt' ? ` (${escapeHtml(cat)})` : '';
     methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">📱 Quét QR' + catLabel + '</span>';
   } else if (rawStatus === 'vắng có phép') {
     if (note.includes('Lịch học') || cat === 'Học trường') {
@@ -6410,9 +6476,7 @@ function renderAttendanceMethodBadge(a) {
     }
   }
 
-  if (cleanNote === 'Không có dữ liệu tham gia') cleanNote = '';
-  const extraNoteHtml = cleanNote ? '<span style="font-size:11px;color:var(--muted);font-weight:500">· ' + escapeHtml(cleanNote) + '</span>' : '';
-  return methodBadge ? '<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">' + methodBadge + extraNoteHtml + '</div>' : (extraNoteHtml ? '<div style="margin-top:2px">' + extraNoteHtml + '</div>' : '');
+  return methodBadge ? '<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">' + methodBadge + '</div>' : '';
 }
 
 function renderTable(){
@@ -6432,7 +6496,7 @@ function renderTable(){
   const page = list.slice(start, start + pageSize);
   const tbody = document.getElementById('studentTbody');
   if (!page.length){
-    tbody.innerHTML = '<tr><td colspan="4"><div class="tbl-empty"><div class="tbl-empty-icon">🔍</div><b>Không có sinh viên nào</b><span>Thử đổi bộ lọc hoặc từ khoá.</span></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6"><div class="tbl-empty"><div class="tbl-empty-icon">🔍</div><b>Không có sinh viên nào</b><span>Thử đổi bộ lọc hoặc từ khoá.</span></div></td></tr>';
   } else {
     tbody.innerHTML = page.map(s => {
       const a = attendanceMap[s.mssv];
@@ -6441,6 +6505,11 @@ function renderTable(){
       const rawStatus = a?.status || 'unmarked';
       const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
       const methodRow = renderAttendanceMethodBadge(a);
+      const schedColHtml = getStudentScheduleCellHtml(s.mssv);
+      const cleanNote = getStudentCleanNote(a?.note);
+      const noteHtml = cleanNote
+        ? `<span style="font-size:11.5px;color:var(--text);font-weight:600;word-break:break-word" title="${escapeHtml(cleanNote)}">📝 ${escapeHtml(cleanNote)}</span>`
+        : `<span style="font-size:11px;color:var(--muted);font-style:italic">—</span>`;
 
       return '<tr>' +
         '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + methodRow + resetRequestLabel + '</div></div></td>' +
@@ -6452,7 +6521,13 @@ function renderTable(){
           '<option value="vắng có phép" ' + (rawStatus==='vắng có phép'?'selected':'') + '>Vắng có phép</option>' +
           '<option value="vắng không phép" ' + (rawStatus==='vắng không phép'?'selected':'') + '>Vắng không phép</option>' +
         '</select></td>' +
-        '<td class="td-mono">' + (a?.time || '—') + '</td></tr>';
+        '<td class="td-mono">' + (a?.time || '—') + '</td>' +
+        '<td>' + schedColHtml + '</td>' +
+        '<td><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
+          '<div style="flex:1;min-width:0">' + noteHtml + '</div>' +
+          '<button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:10.5px;flex:none;border-radius:4px" onclick="openEditNoteModal(\'' + s.mssv + '\', \'' + escapeHtml(s.name) + '\')" title="Chỉnh sửa ghi chú">✏️</button>' +
+        '</div></td>' +
+      '</tr>';
     }).join('');
   }
   const end = Math.min(start + pageSize, total);
@@ -6748,7 +6823,7 @@ async function executeStatusChange(){
     const updatePayload = {
       status: newStatus,
       category: 'Admin',
-      note: reason || 'Tích chọn thủ công',
+      note: reason || '',
       created_at: targetTime.toISOString()
     };
     const { error: upErr } = await supabase.from('attendance')
@@ -6779,7 +6854,7 @@ async function executeStatusChange(){
     attendanceMap[mssv].created_at = targetTime.toISOString();
     attendanceMap[mssv].editedAt = targetTime.toISOString();
     attendanceMap[mssv].category = 'Admin';
-    attendanceMap[mssv].note = reason || 'Tích chọn thủ công';
+    attendanceMap[mssv].note = reason || '';
 
     renderAll();
     await loadAttendance();
@@ -6807,6 +6882,66 @@ document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeSt
 document.getElementById('reasonInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') executeStatusChange();
 });
+
+// XỬ LÝ CHỈNH SỬA GHI CHÚ RIÊNG BIỆT (CHỈ CỘT GHI CHÚ MỚI ĐƯỢC PHÉP CHỈNH SỬA)
+let _pendingNoteEdit = null;
+function openEditNoteModal(mssv, customStudentName = null) {
+  const sid = currentSession?.id;
+  if (!sid) {
+    toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào để cập nhật ghi chú.');
+    return;
+  }
+  const s = (students || []).find(x => x.mssv === mssv);
+  const studentName = customStudentName || s?.name || mssv;
+  const currentNote = getStudentCleanNote(attendanceMap[mssv]?.note);
+  _pendingNoteEdit = { mssv, studentName, sessionId: sid };
+
+  const modal = document.getElementById('noteEditModal');
+  const infoEl = document.getElementById('noteEditStudentInfo');
+  const input = document.getElementById('noteEditInput');
+  if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(studentName) + '</b> (MSSV: ' + escapeHtml(mssv) + ')';
+  if (input) input.value = currentNote;
+  if (modal) modal.classList.add('show');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+window.openEditNoteModal = openEditNoteModal;
+
+function closeNoteEditModal() {
+  const modal = document.getElementById('noteEditModal');
+  if (modal) modal.classList.remove('show');
+  _pendingNoteEdit = null;
+}
+window.closeNoteEditModal = closeNoteEditModal;
+
+async function saveStudentNote() {
+  if (!_pendingNoteEdit) return;
+  const { mssv, studentName, sessionId } = _pendingNoteEdit;
+  const input = document.getElementById('noteEditInput');
+  const newNote = (input?.value || '').trim();
+  const btn = document.getElementById('noteEditConfirmBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
+
+  try {
+    const { error } = await supabase.from('attendance')
+      .update({ note: newNote })
+      .eq('session_id', sessionId)
+      .eq('mssv', mssv);
+    if (error) throw error;
+
+    if (attendanceMap[mssv]) {
+      attendanceMap[mssv].note = newNote;
+    }
+    renderTable();
+    toast('ok', 'Đã lưu ghi chú', `Cập nhật ghi chú cho ${studentName}`);
+    closeNoteEditModal();
+  } catch (err) {
+    console.error('saveStudentNote error:', err);
+    toast('err', 'Không lưu được ghi chú', err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu ghi chú'; }
+  }
+}
+window.saveStudentNote = saveStudentNote;
 
 // Chuyển Tabs trong Phiên
 function switchSessionTab(tabName){
@@ -7425,14 +7560,23 @@ async function loadTodaySchoolSchedule(){
     const freeList = [];
     const busyList = [];
     const unknownList = [];
+    window._todayStudentScheduleMap = {};
 
     allStudents.forEach(s => {
       const sMssv = s.mssv;
       const sName = s.name || studentMap[sMssv] || sMssv;
       const sScheds = scheduleByStudent[sMssv] || [];
+      const leaves = todayLeaveByStudent[sMssv] || [];
+      const leaveText = leaves.length ? leaves.join('; ') : '';
 
       if (!studentsWithCalendar.has(sMssv)) {
         unknownList.push({mssv:sMssv,name:sName});
+        window._todayStudentScheduleMap[sMssv] = {
+          status: 'unknown',
+          statusText: '⚪ Chưa có dữ liệu',
+          leaveText: leaveText,
+          classes: []
+        };
       } else if (sScheds.length === 0) {
         freeList.push({
           mssv: sMssv,
@@ -7441,6 +7585,12 @@ async function loadTodaySchoolSchedule(){
           statusText: '🟢 Rảnh cả ngày',
           classes: []
         });
+        window._todayStudentScheduleMap[sMssv] = {
+          status: 'free_all_day',
+          statusText: '🟢 Rảnh cả ngày',
+          leaveText: leaveText,
+          classes: []
+        };
       } else {
         // Has classes today - check real-time state
         let currentlyInClass = false;
@@ -7481,6 +7631,9 @@ async function loadTodaySchoolSchedule(){
           };
         });
 
+        const currentClass = classDetails.find(c => c.isCurrent);
+        const upcomingClass = classDetails.find(c => c.stateTag && c.stateTag.includes('Sắp'));
+
         if (currentlyInClass) {
           busyList.push({
             mssv: sMssv,
@@ -7490,6 +7643,14 @@ async function loadTodaySchoolSchedule(){
             tagClass: 'tag-busy-now',
             classes: classDetails
           });
+          window._todayStudentScheduleMap[sMssv] = {
+            status: 'in_class',
+            statusText: '🔴 Đang học',
+            currentClass: currentClass,
+            upcomingClass: upcomingClass,
+            leaveText: leaveText,
+            classes: classDetails
+          };
         } else if (futureClasses > 0) {
           busyList.push({
             mssv: sMssv,
@@ -7499,6 +7660,14 @@ async function loadTodaySchoolSchedule(){
             tagClass: 'tag-busy-future',
             classes: classDetails
           });
+          window._todayStudentScheduleMap[sMssv] = {
+            status: 'upcoming_class',
+            statusText: '⏳ Sắp học',
+            currentClass: null,
+            upcomingClass: upcomingClass,
+            leaveText: leaveText,
+            classes: classDetails
+          };
         } else {
           // All classes have ended -> Currently free!
           freeList.push({
@@ -7508,9 +7677,22 @@ async function loadTodaySchoolSchedule(){
             statusText: '🟢 Đã xong ca học (Đang rảnh)',
             classes: classDetails
           });
+          window._todayStudentScheduleMap[sMssv] = {
+            status: 'finished_classes',
+            statusText: '🟢 Đã xong ca học (Rảnh)',
+            currentClass: null,
+            upcomingClass: null,
+            leaveText: leaveText,
+            classes: classDetails
+          };
         }
       }
     });
+
+    // Cập nhật lại giao diện bảng điểm danh nếu đang mở
+    if (document.getElementById('studentTbody') && typeof renderTable === 'function') {
+      renderTable();
+    }
 
     // Update counts
     const freeCount = freeList.length;
@@ -9120,6 +9302,7 @@ function openGroupDetail(teamId){
   const rows = memberMssvs.map(mssv => {
     const a = attendanceMap[mssv];
     const rawStatus = a?.status || 'unmarked';
+    const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
     const methodRow = renderAttendanceMethodBadge(a);
     const timeHtml = a?.time || '—';
     
@@ -9834,80 +10017,27 @@ async function startAdminFaceLoop() {
   requestAnimationFrame(step);
 }
 
-// Xử lý điểm danh khi phát hiện khuôn mặt sinh viên
+// Xử lý kiểm thử nhận diện khuôn mặt sinh viên (ĐÃ TẮT TỰ ĐỘNG GHI ĐIỂM DANH THEO YÊU CẦU)
 async function handleAdminFaceCheckin(label) {
   const mssv = label.split(' - ')[0]?.trim();
   const name = label.split(' - ')[1]?.trim() || mssv;
   if (!mssv) return;
 
   const nowMs = Date.now();
-  if (adminLastCheckinTime[mssv] && (nowMs - adminLastCheckinTime[mssv] < 15000)) {
-    return; // Đã quét trong vòng 15 giây, bỏ qua để tránh spam
+  if (adminLastCheckinTime[mssv] && (nowMs - adminLastCheckinTime[mssv] < 12000)) {
+    return; // Đã quét trong vòng 12 giây, bỏ qua để tránh spam
   }
   adminLastCheckinTime[mssv] = nowMs;
 
-  // 1. Hiển thị Popup chúc mừng & âm thanh
+  // 1. Hiển thị Popup chúc mừng & âm thanh trên màn hình camera
   showAdminMatchPopup(name, mssv);
   playAdminBeep();
 
-  // 2. Thêm vào danh sách vừa quét
+  // 2. Thêm vào danh sách vừa quét (chỉ hiển thị test trên card camera)
   addAdminRecentScan(name, mssv);
 
-  // 3. Kiểm tra xem có phiên nào đang mở không
-  if (!currentSession || !currentSession.id) {
-    toast('warn', 'Chưa có phiên', `Nhận diện ${name} (${mssv}) nhưng hiện chưa có phiên điểm danh nào mở!`);
-    return;
-  }
-
-  // 4. LƯU VÀO SUPABASE & TÍNH TOÁN ĐI MUỘN
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const timeFormatted = fmtClock(now);
-
-  const sessionStartMs = currentSession.started_at ? new Date(currentSession.started_at).getTime() : nowMs;
-  const elapsedMin = (nowMs - sessionStartMs) / 60000;
-  const lateThresholdMin = (currentSession.warn_before_min && currentSession.warn_before_min > 5)
-    ? currentSession.warn_before_min
-    : 15;
-  const isLate = elapsedMin > lateThresholdMin;
-  const targetStatus = isLate ? 'đi muộn' : 'có mặt';
-  const lateMinRound = Math.round(elapsedMin);
-  const checkinNote = isLate
-    ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
-    : 'Camera ESP32 điểm danh AI';
-
-  try {
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_set_status', {
-      p_session_id: String(currentSession.id),
-      p_mssv: mssv,
-      p_status: targetStatus,
-      p_reason: checkinNote
-    });
-
-    // Cập nhật created_at của bảng attendance về đúng thời gian thực vừa quét
-    await supabase.from('attendance').update({
-      created_at: nowIso,
-      status: targetStatus,
-      category: 'Khuôn mặt',
-      note: checkinNote
-    }).eq('session_id', currentSession.id).eq('mssv', mssv);
-  } catch(e) {
-    console.error('Lỗi lưu điểm danh:', e);
-  }
-
-  // 5. ĐỒNG BỘ TRẠNG THÁI GIAO DIỆN ADMIN NGAY LẬP TỨC (KHÔNG CẦN CHỜ WEBSOCKET)
-  const prev = attendanceMap[mssv] || {};
-  attendanceMap[mssv] = {
-    ...prev,
-    status: targetStatus,
-    time: timeFormatted,
-    editedAt: nowIso,
-    category: prev.category || 'Khuôn mặt',
-    note: checkinNote
-  };
-  renderAll(); // Cập nhật bảng điểm danh & KPI thành màu xanh / vàng ngay lập tức!
-  const statusLabel = isLate ? 'Đi muộn' : 'Có mặt';
-  toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${statusLabel} (${timeFormatted})`);
+  // Thông báo nhận diện thành công ở góc màn hình, KHÔNG ghi đè phiên điểm danh
+  toast('info', 'Nhận diện khuôn mặt', `${name} (${mssv}) · Khớp nhận diện (Chế độ xem trước/kiểm thử)`);
 }
 
 // Hiển thị Card chúc mừng lớn
