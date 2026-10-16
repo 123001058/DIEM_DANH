@@ -1434,16 +1434,67 @@ function playChime() {
   } catch (e) {}
 }
 
-// Hàm bổ trợ: Tạo canvas lật gương ngang từ ảnh gốc để nhân đôi góc nhận diện 2 bên má
-function getMirroredCanvas(img) {
+// ==========================================
+// THUẬT TOÁN DATA AUGMENTATION (TỰ ĐỘNG SINH 5 BIẾN THỂ TỪ 1 ẢNH THẺ)
+// Giải quyết dứt điểm vấn đề "chỉ có 1 ảnh / người":
+// Tự động sinh: Gốc, Lật gương (trái/phải), Nghiêng trái (-9°), Nghiêng phải (+9°), và Zoom cận cảnh (1.12x)
+// ==========================================
+async function extractAugmentedDescriptors(loadedImg, baseDetection) {
+  const descriptors = [Array.from(baseDetection.descriptor)];
+  const w = loadedImg.width || loadedImg.naturalWidth || 320;
+  const h = loadedImg.height || loadedImg.naturalHeight || 320;
+
+  const transforms = [
+    // 1. Lật gương đối xứng hai bên má
+    (ctx) => {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(loadedImg, 0, 0, w, h);
+    },
+    // 2. Nghiêng đầu sang trái -9 độ
+    (ctx) => {
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(-9 * Math.PI / 180);
+      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    },
+    // 3. Nghiêng đầu sang phải +9 độ
+    (ctx) => {
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(9 * Math.PI / 180);
+      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    },
+    // 4. Lại gần camera (Zoom 1.12x)
+    (ctx) => {
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(1.12, 1.12);
+      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    }
+  ];
+
   const canvas = document.createElement('canvas');
-  canvas.width = img.width || img.naturalWidth || 320;
-  canvas.height = img.height || img.naturalHeight || 320;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas;
+
+  for (const tf of transforms) {
+    try {
+      ctx.save();
+      ctx.clearRect(0, 0, w, h);
+      tf(ctx);
+      ctx.restore();
+
+      const det = await faceapi
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.18 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (det) {
+        descriptors.push(Array.from(det.descriptor));
+      }
+    } catch(e) {}
+  }
+
+  return descriptors;
 }
 
 // ==========================================
@@ -1456,7 +1507,7 @@ async function enrollFromDocumentPhoto() {
   const st = studentsList.find(s => s.mssv === mssv) || localMapping.find(s => s.mssv === mssv);
   if (!st) return;
 
-  hudStatus.textContent = `⏳ Đang quét và học khuôn mặt từ ảnh của ${st.name}...`;
+  hudStatus.textContent = `⏳ Đang quét và phân tích đa góc mặt cho ${st.name}...`;
 
   const possibleUrls = [
     st.avatar,
@@ -1488,35 +1539,26 @@ async function enrollFromDocumentPhoto() {
     return;
   }
 
-  const descriptors = [Array.from(detection.descriptor)];
-  // Tự động tạo thêm vector lật gương đối xứng (Mirror Augmentation)
-  try {
-    const mirrorCanvas = getMirroredCanvas(loadedImg);
-    const mirrorDet = await faceapi
-      .detectSingleFace(mirrorCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor();
-    if (mirrorDet) {
-      descriptors.push(Array.from(mirrorDet.descriptor));
-    }
-  } catch(e) {}
+  // Tự động sinh bộ vector đa góc mặt
+  const descriptors = await extractAugmentedDescriptors(loadedImg, detection);
 
   const label = `${st.mssv} - ${st.name}`;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
   db[label] = descriptors;
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
 
-  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv}) (${descriptors.length} góc đặc trưng)!`);
+  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!\nĐã tự động tạo ${descriptors.length} góc đặc trưng (thẳng, nghiêng trái, nghiêng phải, lật gương, zoom).`);
   loadEnrolledFromStorage();
   switchTab('recent');
-  hudStatus.textContent = `🟢 Đã nạp mặt của ${st.name}. Bạn có thể đứng trước camera test ngay!`;
+  hudStatus.textContent = `🟢 Đã nạp xong ${descriptors.length} góc cho ${st.name}. Bạn có thể đứng trước camera test ngay!`;
 }
 
 async function enrollAll30Students() {
-  if (!confirm('Bạn có muốn tự động quét và nạp khuôn mặt của cả 30 thành viên từ tài liệu vào hệ thống không?')) return;
+  if (!confirm('Bạn có muốn tự động quét và nạp khuôn mặt của cả 30 thành viên từ tài liệu vào hệ thống không? (Hệ thống sẽ tự sinh đa góc nghiêng cho từng người)')) return;
 
   hudStatus.textContent = '⏳ Đang tự động nạp khuôn mặt cả đội...';
   let successCount = 0;
+  let totalVectors = 0;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
 
   const sourceList = (localMapping && localMapping.length > 0) ? localMapping : studentsList;
@@ -1526,7 +1568,7 @@ async function enrollAll30Students() {
     const st = sourceList[i];
     if (!st.mssv) continue;
 
-    hudStatus.textContent = `⏳ Đang nạp khuôn mặt (${i + 1}/${total}): ${st.name}...`;
+    hudStatus.textContent = `⏳ Đang nạp & sinh đa góc (${i + 1}/${total}): ${st.name}...`;
 
     const possibleUrls = [
       st.avatar,
@@ -1553,22 +1595,11 @@ async function enrollAll30Students() {
     }
 
     if (detection && loadedImg) {
-      const descriptors = [Array.from(detection.descriptor)];
-      // Tạo vector lật gương đối xứng
-      try {
-        const mirrorCanvas = getMirroredCanvas(loadedImg);
-        const mirrorDet = await faceapi
-          .detectSingleFace(mirrorCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
-          .withFaceLandmarks(true)
-          .withFaceDescriptor();
-        if (mirrorDet) {
-          descriptors.push(Array.from(mirrorDet.descriptor));
-        }
-      } catch(e) {}
-
+      const descriptors = await extractAugmentedDescriptors(loadedImg, detection);
       const label = `${st.mssv} - ${st.name}`;
       db[label] = descriptors;
       successCount++;
+      totalVectors += descriptors.length;
     } else {
       console.warn(`Chưa nhận diện được mặt từ ảnh của ${st.name} (${st.mssv})`);
     }
@@ -1576,8 +1607,8 @@ async function enrollAll30Students() {
 
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
   loadEnrolledFromStorage();
-  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên (kèm góc đối xứng 2 bên)!`);
-  hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} sinh viên. Hệ thống sẵn sàng!`;
+  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên!\nTổng cộng đã sinh ra ${totalVectors} vector đặc trưng đa góc.`);
+  hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} bạn (${totalVectors} vector). Hệ thống sẵn sàng!`;
 }
 
 // Chụp trực tiếp từ camera
