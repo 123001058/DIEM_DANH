@@ -13,7 +13,7 @@
   :root { --face-accent: #2563eb; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
-  .face-page { max-width: 720px; width: 100%; margin: 0 auto; padding: 14px 12px 60px; }
+  .face-page { max-width: 720px; width: 100%; margin: 0 auto; padding: 14px 12px 140px; }
   .face-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .face-header a.back { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 700; text-decoration: none; }
   .face-header a.back:hover { background: var(--surface-2); }
@@ -28,7 +28,7 @@
   #overlayCanvas { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
   .hud-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 6; padding: 12px; }
   .hud-pill { background: rgba(15,23,42,0.85); backdrop-filter: blur(8px); padding: 8px 14px; border-radius: 20px; color: #fff; font-weight: 800; font-size: 12.5px; border: 1px solid rgba(255,255,255,0.12); white-space: nowrap; }
-  .hud-hint { margin-top: 8px; font-size: 12px; color: #cbd5e1; text-align: center; }
+  .hud-hint { margin-top: 8px; font-size: 12.5px; color: #cbd5e1; text-align: center; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
 
   .slots-title { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 10px; gap: 8px; flex-wrap: wrap; }
   .slots-title b { font-size: 14.5px; font-weight: 800; }
@@ -52,8 +52,8 @@
 
   .actions-bar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
   .actions-bar .btn { flex: 1 1 220px; min-width: 0; }
-  .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 10px 12px; z-index: 100; display: flex; gap: 10px; justify-content: center; }
-  .sticky-bottom .btn { flex: 1 1 260px; }
+  .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 12px 14px; z-index: 100; display: flex; gap: 10px; justify-content: center; box-shadow: 0 -4px 16px rgba(0,0,0,0.06); }
+  .sticky-bottom .btn { flex: 1 1 260px; max-width: 320px; }
 
   .result { margin-top: 10px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5; display: none; animation: rise 0.3s ease both; border: 1px solid; }
   .result.show { display: block; }
@@ -64,7 +64,7 @@
   .note { font-size: 12px; color: var(--muted); margin-top: 8px; padding: 8px 12px; background: var(--surface-2); border: 1px dashed var(--border-strong); border-radius: 8px; }
   .note b { color: var(--text); }
 
-  @media (max-width: 480px) { .face-page { padding: 10px 8px 50px; } .sticky-bottom .btn { flex: 1 1 100%; } }
+  @media (max-width: 480px) { .face-page { padding: 10px 8px 140px; } .sticky-bottom .btn { flex: 1 1 100%; } }
 </style>
 </head>
 <body>
@@ -83,7 +83,7 @@
   <div class="camera-card">
     <div class="camera-toolbar">
       <span class="label">🎥 Camera tự chụp</span>
-      <span class="label" id="camModeText">Tự động bắt góc</span>
+      <span class="label" id="camModeText">Tự động bắt góc (hoặc bấm nút)</span>
     </div>
     <div class="video-stage">
       <video id="faceVideo" autoplay muted playsinline></video>
@@ -92,6 +92,12 @@
         <div class="hud-pill" id="hudStatus">🔍 Đang mở camera...</div>
         <div class="hud-hint" id="hudHint">Đặt khuôn mặt vào khung hình để bắt đầu</div>
       </div>
+    </div>
+    <!-- NÚT CHỤP THỦ CÔNG TỨC THÌ (CHO MỌI TRƯỜNG HỢP) -->
+    <div style="padding: 10px 14px; background: var(--surface-2); display: flex; gap: 8px; justify-content: center; align-items: center; border-top: 1px solid var(--border);">
+      <button type="button" class="btn btn-primary" id="btnSnapCurrent" onclick="app.snapCurrent()" style="flex:1;max-width:420px;padding:12px 18px;font-size:14px;font-weight:800;border-radius:10px;box-shadow:0 4px 12px rgba(37,99,235,0.35);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
+        📸 BẤM CHỤP GÓC NÀY NGAY (Phím Cách)
+      </button>
     </div>
   </div>
 
@@ -102,7 +108,7 @@
   <div class="slots-grid" id="slotsGrid"></div>
 
   <div class="note">
-    <b>Cách chụp:</b> AI sẽ hướng dẫn từng góc. Khi góc mặt đạt chuẩn, hệ thống tự "tít" chụp (hoặc bạn tự bấm <b>"Chụp góc này"</b>). Sau khi đủ 5 góc, bấm <b>"Lưu dữ liệu"</b> để gửi lên hệ thống.
+    <b>Cách chụp:</b> Khi khuôn mặt đúng hướng, hệ thống tự động đếm và chụp. Bạn cũng có thể bấm nút to <b>"📸 BẤM CHỤP GÓC NÀY NGAY"</b> (hoặc ấn <b>phím Cách / Space</b> trên bàn phím) để chụp tức thì mà không cần đợi. Sau khi đủ 5 góc, bấm <b>"Lưu dữ liệu khuôn mặt"</b>.
   </div>
 
   <div class="sticky-bottom">
@@ -125,14 +131,44 @@
   let latestDetection = null; // {detection:{box,descriptor}, landmarks, image}
   let basePitch = null, baseMar = null;
   let currentIndex = 0;
-  const STABLE_FRAMES = 12;
+  const STABLE_FRAMES = 4;
 
   const SLOTS_DEF = [
-    { id: 'straight', label: 'Góc 1: Nhìn thẳng', guide: 'Hãy nhìn thẳng vào camera, mặt tự nhiên', target: (m) => m.yawOk && m.eyeOpen && m.mouthNeutral, hint: (m) => m.yawOk ? '' : (m.yaw < 0.88 ? '👈 Quay về giữa' : '👉 Quay về giữa') },
-    { id: 'left', label: 'Góc 2: Nghiêng trái ~15°', guide: 'Quay nhẹ đầu sang TRÁI của bạn', target: (m) => m.yaw <= 0.74, hint: (m) => 'Quay thêm sang trái...' },
-    { id: 'right', label: 'Góc 3: Nghiêng phải ~15°', guide: 'Quay nhẹ đầu sang PHẢI của bạn', target: (m) => m.yaw >= 1.26, hint: (m) => 'Quay thêm sang phải...' },
-    { id: 'tilt', label: 'Góc 4: Ngẩng / cúi ~10°', guide: 'Ngẩng hoặc cúi nhẹ đầu', target: (m) => basePitch != null && Math.abs(m.pitch - basePitch) > 0.07, hint: (m) => basePitch == null ? 'Chụp góc 1 trước' : 'Ngẩng/cúi thêm một chút...' },
-    { id: 'smile', label: 'Góc 5: Cười nhẹ', guide: 'Cười nhẹ, biểu cảm tự nhiên', target: (m) => baseMar != null && m.mar >= baseMar * 1.32, hint: (m) => baseMar == null ? 'Chụp góc 1 trước' : 'Cười nhẹ lên...' }
+    { 
+      id: 'straight', 
+      label: 'Góc 1: Nhìn thẳng', 
+      guide: 'Nhìn thẳng vào camera, mặt tự nhiên', 
+      target: (m) => m.yawOk, 
+      hint: (m) => m.yaw < 0.80 ? '👉 Quay mặt nhẹ sang phải' : (m.yaw > 1.20 ? '👈 Quay mặt nhẹ sang trái' : 'Nhìn thẳng vào giữa camera') 
+    },
+    { 
+      id: 'left', 
+      label: 'Góc 2: Nghiêng trái ~15°', 
+      guide: 'Quay nhẹ đầu sang TRÁI của bạn', 
+      target: (m) => m.yaw <= 0.84, 
+      hint: (m) => 'Quay thêm nhẹ sang TRÁI...' 
+    },
+    { 
+      id: 'right', 
+      label: 'Góc 3: Nghiêng phải ~15°', 
+      guide: 'Quay nhẹ đầu sang PHẢI của bạn', 
+      target: (m) => m.yaw >= 1.16, 
+      hint: (m) => 'Quay thêm nhẹ sang PHẢI...' 
+    },
+    { 
+      id: 'tilt', 
+      label: 'Góc 4: Ngẩng / cúi ~10°', 
+      guide: 'Ngẩng hoặc cúi nhẹ đầu', 
+      target: (m) => (basePitch != null && Math.abs(m.pitch - basePitch) > 0.035) || m.pitch > 0.49 || m.pitch < 0.38, 
+      hint: (m) => 'Ngẩng hoặc cúi nhẹ đầu...' 
+    },
+    { 
+      id: 'smile', 
+      label: 'Góc 5: Cười nhẹ', 
+      guide: 'Cười nhẹ, biểu cảm tự nhiên', 
+      target: (m) => (baseMar != null && m.mar >= baseMar * 1.15) || m.mar > 0.20, 
+      hint: (m) => 'Mỉm cười nhẹ...' 
+    }
   ];
 
   let slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
@@ -306,10 +342,12 @@
     const ear = (eyeEAR(lm.getLeftEye()) + eyeEAR(lm.getRightEye()))/2;
     const mar = mouthMAR(lm.getMouth());
     const pitch = pitchM(lm);
-    return { yaw, ear, mar, pitch,
-      yawOk: yaw >= 0.88 && yaw <= 1.12,
-      eyeOpen: ear >= 0.22,
-      mouthNeutral: mar <= 0.32 };
+    return { 
+      yaw, ear, mar, pitch,
+      yawOk: yaw >= 0.80 && yaw <= 1.20,
+      eyeOpen: ear >= 0.14,
+      mouthNeutral: mar <= 0.40 
+    };
   }
 
   async function captureFromDetection(det, slotIndex){
@@ -377,6 +415,25 @@
     await applyCapture(i, cap);
     toastOk('Đã chụp ' + slots[i].label);
   };
+
+  window.app.snapCurrent = async function(){
+    hideResult();
+    let targetIdx = currentIndex;
+    if (targetIdx >= 5) {
+      targetIdx = slots.findIndex(s => !s.done);
+      if (targetIdx === -1) targetIdx = 0;
+    }
+    await window.app.captureManual(targetIdx);
+  };
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.key === 'Enter') {
+      if (e.target && ['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
+      e.preventDefault();
+      if (window.app && window.app.snapCurrent) window.app.snapCurrent();
+    }
+  });
+
   window.app.deleteSlot = async function(i){
     if (!confirm('Xóa góc "' + slots[i].label + '"? Bạn có thể chụp lại sau.')) return;
     slots[i] = { id: slots[i].id, label: slots[i].label, done: false, descriptor: null, thumbnail: null, guide: slots[i].guide };
@@ -468,9 +525,8 @@
         if (currentIndex < 5) {
           const slot = slots[currentIndex];
           if (!slot.done && SLOTS_DEF[currentIndex].target(m)) {
-            if (!slot._stable) slot._stable = 0;
-            slot._stable++;
-            hudHint.textContent = SLOTS_DEF[currentIndex].hint(m) || 'Giữ yên... đang chụp tự động (' + slot._stable + '/' + STABLE_FRAMES + ')';
+            slot._stable = (slot._stable || 0) + 1;
+            hudHint.textContent = `🟢 Góc chuẩn! Giữ yên... (${slot._stable}/${STABLE_FRAMES})`;
             if (slot._stable >= STABLE_FRAMES) {
               slot._stable = 0;
               const cap = await captureFromDetection(detections[0], currentIndex);
@@ -478,7 +534,7 @@
             }
           } else {
             slot._stable = 0;
-            hudHint.textContent = SLOTS_DEF[currentIndex].hint(m) || '';
+            hudHint.textContent = SLOTS_DEF[currentIndex].hint(m) || 'Giữ khuôn mặt trong khung hình';
           }
         }
       } else {

@@ -409,38 +409,109 @@ body {
   font-weight: 700;
 }
 
-/* ENROLL FORM */
-.enroll-box {
+/* ROSTER LIST */
+.roster-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  padding-right: 2px;
 }
-.student-preview-card {
+.roster-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  transition: all 0.2s;
 }
-.preview-avatar {
-  width: 60px;
-  height: 60px;
+.roster-item.checked-in {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+.roster-avatar {
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   object-fit: cover;
   background: #1e293b;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+.roster-item.checked-in .roster-avatar {
+  border-color: #22c55e;
+}
+.roster-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.roster-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.roster-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.roster-status-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.roster-status-badge.ok {
+  background: #22c55e;
+  color: #052e16;
+}
+.roster-status-badge.pending {
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.form-label {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.roster-bottom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
   color: #94a3b8;
-  margin-bottom: 4px;
+  flex-wrap: wrap;
 }
-.form-input, .form-select {
+.roster-mssv b {
+  color: #38bdf8;
+  font-weight: 800;
+}
+.roster-class {
+  color: #94a3b8;
+}
+.roster-face-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+.roster-face-tag.warn {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.form-input {
   width: 100%;
   padding: 10px 12px;
   background: #1e293b;
@@ -449,34 +520,6 @@ body {
   color: #fff;
   font-family: inherit;
   font-size: 13px;
-}
-.btn-action {
-  padding: 11px 16px;
-  border-radius: 9px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  border: none;
-  cursor: pointer;
-  transition: all 0.18s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.btn-primary { background: #2563eb; color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #1d4ed8; box-shadow: 0 4px 14px var(--primary-glow); }
-.btn-success { background: #10b981; color: #fff; }
-.btn-success:hover:not(:disabled) { background: #059669; }
-
-.db-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
-  margin-bottom: 6px;
 }
 .btn-del {
   background: transparent;
@@ -521,12 +564,14 @@ body {
   <section class="camera-card">
     <div class="camera-toolbar">
       <div class="toolbar-group">
-        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Chế độ:</span>
-        <button type="button" class="btn-toggle" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật kiểm tra người thật 3D (Yêu cầu quay đầu/chớp mắt)">🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)</button>
+        <span style="font-size:12px;font-weight:700;color:#94a3b8;">📡 ESP32:</span>
+        <input type="text" class="input-ip" id="espIpInput" placeholder="192.168.2.168" value="192.168.2.168" style="width:130px;padding:5px 8px;font-size:12px;">
+        <button type="button" class="btn-toggle active" onclick="connectEspCamera()" style="padding:5px 10px;font-size:12px;">Kết nối</button>
       </div>
 
       <div class="toolbar-group">
-        <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật gương camera nếu bị ngược chiều">🔄 Lật camera</button>
+        <button type="button" class="btn-toggle" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật kiểm tra người thật 3D (Yêu cầu quay đầu/chớp mắt)">🛡️ Nghiêm ngặt</button>
+        <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật gương camera nếu bị ngược chiều">🔄 Lật</button>
         <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
       </div>
     </div>
@@ -562,17 +607,17 @@ body {
     </div>
   </section>
 
-  <!-- RIGHT: SIDEBAR (PHÂN TÁCH 2 VAI TRÒ SINH VIÊN & ADMIN) -->
+  <!-- RIGHT: SIDEBAR (DANH SÁCH SINH VIÊN KÈM AVATAR & LƯỢT VỪA ĐIỂM DANH) -->
   <aside class="side-card">
     <nav class="side-tabs">
-      <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh</button>
-      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">⚙️ Quản lý & Nạp mẫu</button>
+      <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh (<span id="recentCount">0</span>)</button>
+      <button type="button" class="side-tab-btn" id="tabBtnRoster" onclick="switchTab('roster')">👥 Danh sách sinh viên (<span id="rosterCount">0</span>)</button>
     </nav>
 
-    <!-- TAB 1: RECENT CHECK-INS (DÀNH CHO SINH VIÊN - SIÊU SẠCH) -->
+    <!-- TAB 1: RECENT CHECK-INS (VỪA ĐIỂM DANH) -->
     <div class="tab-pane active" id="tabRecent">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <span style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;">Danh sách vừa điểm danh:</span>
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;">Lượt vừa nhận diện:</span>
         <button type="button" class="btn-del" id="btnClearHistory" onclick="clearAttendanceHistory()" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
           🗑️ Xóa danh sách
         </button>
@@ -582,97 +627,15 @@ body {
       </div>
     </div>
 
-    <!-- TAB 2: ENROLL FACES (DÀNH CHO ADMIN CẤU HÌNH & NẠP MẪU) -->
-    <div class="tab-pane" id="tabEnroll">
-      <div class="enroll-box">
-
-        <!-- CẤU HÌNH CAMERA ESP32 -->
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
-          <label class="form-label">📡 Nguồn Camera ESP32-CAM (Stream MJPEG):</label>
-          <div style="display:flex;gap:6px;">
-            <input type="text" class="input-ip" id="espIpInput" placeholder="Ví dụ: 192.168.2.168" value="192.168.2.168" style="flex:1;">
-            <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
-          </div>
-        </div>
-
-        <div>
-          <label class="form-label">Chọn sinh viên từ danh sách đội:</label>
-          <select class="form-select" id="studentSelect" onchange="onStudentSelectChange()">
-            <option value="">-- Đang tải danh sách... --</option>
-          </select>
-        </div>
-
-        <div class="student-preview-card" id="studentPreviewCard" style="display:none;">
-          <img class="preview-avatar" id="previewAvatar" src="" alt="Avatar">
-          <div style="min-width:0;flex:1;">
-            <b style="font-size:14px;color:#fff;" id="previewName">—</b>
-            <div style="font-size:12px;color:#94a3b8;" id="previewMssv">—</div>
-            <div style="font-size:11px;color:#38bdf8;" id="previewClass">—</div>
-          </div>
-        </div>
-
-        <!-- KHUNG HIỂN THỊ TRỰC QUAN 5 GÓC MẶT AI ĐÃ SINH -->
-        <div id="augmentedPreviewBox" style="display:none;background:rgba(15,23,42,0.6);border:1px solid rgba(56,189,248,0.25);border-radius:10px;padding:10px;">
-          <div style="font-size:11px;font-weight:800;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
-            <span>📸 Bộ 5 góc AI sinh từ ảnh thẻ:</span>
-            <span id="augmentedCountBadge" style="background:#0284c7;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:800;">5 góc</span>
-          </div>
-          <div id="augmentedThumbsStrip" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;"></div>
-        </div>
-
-        <!-- NẠP ẢNH TỪ FILE HOẶC ẢNH THẺ -->
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <!-- NẠP ẢNH THẺ CÓ SẴN (SINH 5 GÓC) -->
-          <button type="button" class="btn-action btn-success" id="btnAutoEnrollPhoto" onclick="enrollFromDocumentPhoto()" style="display:none;">
-            ⚡ Nạp từ ảnh thẻ có sẵn (Tự sinh 5 góc)
-          </button>
-
-          <!-- TẢI THÊM NHIỀU ẢNH TỪ MÁY TÍNH KHI SINH VIÊN GỬI THÊM -->
-          <input type="file" id="additionalPhotoInput" multiple accept="image/*" style="display:none;" onchange="handleAdditionalPhotoFiles(this.files)">
-          <button type="button" class="btn-action" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);" onclick="triggerUploadMorePhotos()">
-            📁 Tải thêm ảnh từ máy tính (Nhiều ảnh)
-          </button>
-
-          <!-- NẠP CẢ 30 BẠN -->
-          <button type="button" class="btn-action" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);" onclick="enrollAll30Students()">
-            📦 Tự động nạp cả 30 bạn từ tài liệu
-          </button>
-        </div>
-
-        <div style="border-top:1px dashed rgba(255,255,255,0.1);padding-top:10px;">
-          <label class="form-label">Hoặc chụp trực tiếp từ camera:</label>
-          <button type="button" class="btn-action btn-primary" id="btnCaptureSample" onclick="captureFaceSample()">
-            📸 Chụp mẫu từ Camera (<span id="sampleCount">0</span>/3)
-          </button>
-        </div>
-
-        <button type="button" class="btn-action" style="background:#10b981;color:#fff;" id="btnSaveEnroll" onclick="saveEnrolledFace()" disabled>
-          💾 Lưu khuôn mặt đã chụp
-        </button>
-
-        <div class="db-list">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span class="form-label">Đã nạp (<span id="dbTotal">0</span> người)</span>
-            <div style="display:flex;gap:4px;">
-              <button type="button" class="btn-del" onclick="clearAllEnrolledFaces()" title="Xóa toàn bộ để nạp lại từ đầu">🗑️ Xóa hết</button>
-              <button type="button" class="btn-del" onclick="exportFaceDb()">Xuất JSON</button>
-            </div>
-          </div>
-          <div id="enrolledList" style="max-height:180px;overflow-y:auto;"></div>
-        </div>
-
-        <!-- QUẢN LÝ DỮ LIỆU KHUÔN MẶT TRÊN SERVER (ADMIN XEM & XÓA TỪNG SINH VIÊN) -->
-        <div style="border-top:1px dashed rgba(255,255,255,0.1);margin-top:14px;padding-top:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-            <span class="form-label">☁️ Dữ liệu khuôn mặt trên Server (Supabase)</span>
-            <button type="button" class="btn-toggle" onclick="syncFaceDataFromServer()">🔄 Kéo dữ liệu từ Server</button>
-          </div>
-          <div id="serverFaceList" style="max-height:250px;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;background:rgba(15,23,42,0.4);"></div>
-          <div id="serverFaceStatus" style="font-size:11px;color:#94a3b8;margin-top:6px;"></div>
-        </div>
+    <!-- TAB 2: ROSTER (DANH SÁCH TẤT CẢ SINH VIÊN - AVATAR KÈM MSSV) -->
+    <div class="tab-pane" id="tabRoster">
+      <div style="margin-bottom:10px;">
+        <input type="text" class="form-input" id="rosterSearchInput" placeholder="🔍 Tìm theo MSSV hoặc Họ tên..." oninput="filterRoster(this.value)">
+      </div>
+      <div class="roster-list" id="rosterList">
+        <div style="color:#64748b;font-size:13px;text-align:center;padding:40px 0;">Đang tải danh sách sinh viên...</div>
       </div>
     </div>
-
   </aside>
 
 </main>
@@ -1084,15 +1047,72 @@ window.addEventListener('DOMContentLoaded', async () => {
   localStorage.setItem('esp_cam_ip', savedIp);
   connectEspCamera();
   
-  // Tự động chọn 123001058 (Nguyễn Khánh Hoà) sẵn để user test luôn
-  setTimeout(() => {
-    const sel = document.getElementById('studentSelect');
-    if (sel && sel.querySelector('option[value="123001058"]')) {
-      sel.value = '123001058';
-      onStudentSelectChange();
-    }
-  }, 1000);
+  // Lắng nghe BroadcastChannel để nhận diện và cập nhật thời gian thực
+  try {
+    const bc = new BroadcastChannel('lh_attendance_sync');
+    bc.onmessage = async (ev) => {
+      if (ev.data?.type === 'face_enrolled' || ev.data?.type === 'face_checkin') {
+        await syncFaceDataFromServer();
+        renderStudentRoster();
+      }
+    };
+  } catch(e) {}
 });
+
+let currentRosterFilter = '';
+let checkedInMssvs = new Set();
+
+function filterRoster(q) {
+  currentRosterFilter = (q || '').trim().toLowerCase();
+  renderStudentRoster();
+}
+
+function renderStudentRoster() {
+  const container = document.getElementById('rosterList');
+  if (!container) return;
+  const countBadge = document.getElementById('rosterCount');
+  if (countBadge) countBadge.textContent = studentsList.length;
+
+  const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+
+  let list = studentsList;
+  if (currentRosterFilter) {
+    list = list.filter(s => 
+      (s.name && s.name.toLowerCase().includes(currentRosterFilter)) || 
+      (s.mssv && s.mssv.toLowerCase().includes(currentRosterFilter)) ||
+      (s.class && s.class.toLowerCase().includes(currentRosterFilter))
+    );
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:30px 0;">Không tìm thấy sinh viên nào</div>';
+    return;
+  }
+
+  container.innerHTML = list.map(st => {
+    const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
+    const isDone = checkedInMssvs.has(st.mssv);
+    const label = `${st.mssv} - ${st.name}`;
+    const faceCount = (db[label] && db[label].length) || 0;
+
+    return `
+      <div class="roster-item ${isDone ? 'checked-in' : ''}">
+        <img class="roster-avatar" src="${avatarUrl}" onerror="this.src='images/logo.png'">
+        <div class="roster-info">
+          <div class="roster-top-row">
+            <span class="roster-name">${escapeHtml(st.name)}</span>
+            <span class="roster-status-badge ${isDone ? 'ok' : 'pending'}">${isDone ? '✓ Đã điểm danh' : 'Chưa điểm danh'}</span>
+          </div>
+          <div class="roster-bottom-row">
+            <span class="roster-mssv">MSSV: <b>${escapeHtml(st.mssv)}</b></span>
+            ${st.class ? `<span class="roster-class">${escapeHtml(st.class)}</span>` : ''}
+            ${faceCount > 0 ? `<span class="roster-face-tag">🧠 ${faceCount} mẫu</span>` : '<span class="roster-face-tag warn">Chưa có mẫu</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
 
 // Load mapping extracted from docx
 async function loadStudentsMapping() {
@@ -1130,58 +1150,9 @@ async function loadStudentsMapping() {
       });
     }
 
-    renderStudentSelect();
+    renderStudentRoster();
   } catch (e) {
     console.error('Lỗi load sinh viên:', e);
-  }
-}
-
-function renderStudentSelect() {
-  const sel = document.getElementById('studentSelect');
-  sel.innerHTML = '<option value="">-- Chọn sinh viên --</option>';
-  studentsList.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.mssv;
-    opt.textContent = `${s.name} (${s.mssv})`;
-    sel.appendChild(opt);
-  });
-}
-
-function onStudentSelectChange() {
-  const mssv = document.getElementById('studentSelect').value;
-  const card = document.getElementById('studentPreviewCard');
-  const btnAuto = document.getElementById('btnAutoEnrollPhoto');
-  const previewBox = document.getElementById('augmentedPreviewBox');
-
-  if (!mssv) {
-    if (card) card.style.display = 'none';
-    if (btnAuto) btnAuto.style.display = 'none';
-    if (previewBox) previewBox.style.display = 'none';
-    return;
-  }
-  const st = studentsList.find(s => s.mssv === mssv);
-  if (st) {
-    if (card) card.style.display = 'flex';
-    document.getElementById('previewName').textContent = st.name;
-    document.getElementById('previewMssv').textContent = `MSSV: ${st.mssv}`;
-    document.getElementById('previewClass').textContent = st.class ? `Lớp: ${st.class}` : '';
-    
-    const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
-    document.getElementById('previewAvatar').src = avatarUrl;
-    if (btnAuto) {
-      btnAuto.style.display = 'flex';
-      btnAuto.textContent = `⚡ Nạp khuôn mặt ${st.name} từ ảnh thẻ`;
-    }
-    resetSampleCollector();
-
-    // Tự động kiểm tra và hiển thị 5 ảnh góc nếu sinh viên đã được nạp
-    const thumbDb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
-    const label = `${st.mssv} - ${st.name}`;
-    if (thumbDb[label] && thumbDb[label].length > 0) {
-      renderAugmentedThumbs(thumbDb[label]);
-    } else if (previewBox) {
-      previewBox.style.display = 'none';
-    }
   }
 }
 
@@ -1220,6 +1191,18 @@ async function checkActiveSession() {
       pill.className = 'status-pill online';
       txt.textContent = `Phiên mở: ${active.session_name}`;
       btnQuick.style.display = 'none';
+
+      // Tải danh sách các bạn đã điểm danh trong phiên này
+      try {
+        const { data: attData } = await window.supabase
+          .from('attendance')
+          .select('mssv')
+          .eq('session_id', active.id);
+        if (attData && attData.length > 0) {
+          attData.forEach(a => checkedInMssvs.add(a.mssv));
+          renderStudentRoster();
+        }
+      } catch(e) {}
     } else {
       currentSession = null;
       pill.className = 'status-pill offline';
@@ -1305,6 +1288,7 @@ async function loadFaceModels() {
     hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera để điểm danh';
     updateFaceMatcher();
     startDetectionLoop();
+    setTimeout(autoAugmentMissingFaces, 2500);
   } catch (err) {
     console.error('Lỗi tải model:', err);
     hudStatus.textContent = '❌ Lỗi tải AI models. Kiểm tra mạng internet.';
@@ -1643,6 +1627,9 @@ async function triggerCheckin(label) {
   }
   lastCheckinTime[mssv] = now;
 
+  checkedInMssvs.add(mssv);
+  renderStudentRoster();
+
   // Hiển thị Popup & Âm thanh
   showMatchPopup(name, mssv);
   speakGreeting(name);
@@ -1794,17 +1781,21 @@ async function handleAdditionalPhotoFiles(files) {
 
 function renderHistory() {
   const container = document.getElementById('historyList');
+  const countEl = document.getElementById('recentCount');
+  if (countEl) countEl.textContent = recentCheckins.length;
+  if (!container) return;
+
   if (recentCheckins.length === 0) {
     container.innerHTML = '<div style="color:#64748b;font-size:13px;text-align:center;padding:40px 0;">Chưa có lượt điểm danh nào</div>';
     return;
   }
-  container.innerHTML = recentCheckins.slice(0, 15).map(item => `
+  container.innerHTML = recentCheckins.slice(0, 25).map(item => `
     <div class="history-item">
       <div class="history-item-left">
         <img class="history-avatar" src="${item.avatar}" onerror="this.src='images/logo.png'">
         <div>
           <div class="history-name">${escapeHtml(item.name)}</div>
-          <div class="history-mssv">${escapeHtml(item.mssv)}</div>
+          <div class="history-mssv">MSSV: <b style="color:#38bdf8;">${escapeHtml(item.mssv)}</b></div>
         </div>
       </div>
       <div class="history-time">${item.time}</div>
@@ -2172,28 +2163,9 @@ function loadEnrolledFromStorage() {
   const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
   labeledDescriptors = [];
 
-  const listEl = document.getElementById('enrolledList');
   const keys = Object.keys(db);
-  document.getElementById('dbTotal').textContent = keys.length;
-  document.getElementById('enrolledCount').textContent = keys.length;
-
-  if (keys.length === 0) {
-    listEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:8px 0;">Chưa có khuôn mặt nào được nạp</div>';
-  } else {
-    listEl.innerHTML = keys.map((label, idx) => {
-      const mssv = label.split(' - ')[0];
-      const avatarUrl = `images/faces/${mssv}.jpg`;
-      return `
-        <div class="db-item">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <img src="${avatarUrl}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;" onerror="this.src='images/logo.png'">
-            <span style="font-size:12px;font-weight:700;">${escapeHtml(label)} (${db[label].length} mẫu)</span>
-          </div>
-          <button type="button" class="btn-del" onclick="deleteEnrolledFaceByIndex(${idx})">Xóa</button>
-        </div>
-      `;
-    }).join('');
-  }
+  const enrolledEl = document.getElementById('enrolledCount');
+  if (enrolledEl) enrolledEl.textContent = keys.length;
 
   keys.forEach(label => {
     const descriptors = db[label].map(arr => new Float32Array(arr));
@@ -2203,27 +2175,54 @@ function loadEnrolledFromStorage() {
   updateFaceMatcher();
 }
 
-function deleteEnrolledFaceByIndex(idx) {
-  const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
-  const keys = Object.keys(db);
-  const label = keys[idx];
-  if (!label) return;
-  if (!confirm(`Xóa khuôn mặt "${label}"?`)) return;
-  delete db[label];
-  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
-  loadEnrolledFromStorage();
-}
+async function autoAugmentMissingFaces() {
+  try {
+    const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    const thumbDb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+    const sourceList = (localMapping && localMapping.length > 0) ? localMapping : studentsList;
+    const missing = sourceList.filter(s => s.mssv && !db[`${s.mssv} - ${s.name}`]);
+    if (missing.length === 0) return;
 
-function clearAllEnrolledFaces() {
-  if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu khuôn mặt cũ không?')) return;
-  localStorage.removeItem('face_descriptors_db');
-  loadEnrolledFromStorage();
-  alert('Đã xóa sạch dữ liệu cũ! Bây giờ hãy bấm "⚡ Nạp khuôn mặt từ ảnh thẻ" để nạp lại ảnh chuẩn.');
+    let count = 0;
+    for (const st of missing) {
+      const possibleUrls = [
+        st.avatar,
+        `images/faces/${st.mssv}.png`,
+        `images/faces/${st.mssv}.jpg`,
+        `images/faces/${st.mssv}.jpeg`
+      ].filter(Boolean);
+
+      for (const url of possibleUrls) {
+        try {
+          const img = await faceapi.fetchImage(url);
+          const det = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
+            .withFaceLandmarks(true)
+            .withFaceDescriptor();
+          if (det) {
+            const res = await extractAugmentedDescriptors(img, det);
+            const label = `${st.mssv} - ${st.name}`;
+            db[label] = res.descriptors;
+            thumbDb[label] = res.thumbnails;
+            count++;
+            break;
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (count > 0) {
+      localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+      localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
+      loadEnrolledFromStorage();
+      renderStudentRoster();
+    }
+  } catch(e) {
+    console.warn('autoAugmentMissingFaces:', e);
+  }
 }
 
 async function syncFaceDataFromServer(){
-  const listEl = document.getElementById('serverFaceList'); const statusEl = document.getElementById('serverFaceStatus');
-  listEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 0;">Đang tải...</div>';
   try {
     const { data, error } = await window.supabase.from('student_face_data').select('mssv, descriptors, thumbnails, updated_at');
     if (error) throw error;
@@ -2231,7 +2230,7 @@ async function syncFaceDataFromServer(){
     let localDb = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
     let localThumb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
     let merged = 0;
-    const html = rows.map(row => {
+    rows.forEach(row => {
       const mssv = row.mssv;
       const st = studentsList.find(s => s.mssv === mssv) || localMapping.find(s => s.mssv === mssv);
       const name = st ? st.name : mssv;
@@ -2244,29 +2243,13 @@ async function syncFaceDataFromServer(){
         localThumb[label] = thumbs.filter(t => t);
         merged++;
       }
-      const firstThumb = (thumbs[0] && thumbs[0].url) ? `<img src="${escapeHtml(thumbs[0].url)}" style="width:30px;height:30px;border-radius:4px;object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:4px;background:#1e293b;display:grid;place-items:center;font-size:10px;color:#94a3b8">?</div>';
-      return `
-        <div class="db-item" style="font-size:12px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            ${firstThumb}
-            <div style="min-width:0;flex:1">
-              <div style="font-weight:700;">${escapeHtml(label)}</div>
-              <div style="font-size:11px;color:#94a3b8;">${valid.length} vector · ${thumbs.length} ảnh · ${row.updated_at ? new Date(row.updated_at).toLocaleString('vi-VN') : ''}</div>
-            </div>
-            <button type="button" class="btn-del" onclick="deleteServerFaceData('${mssv.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="font-size:11px;">🗑️ Xóa dữ liệu này</button>
-          </div>
-        </div>
-      `;
-    }).join('') || '<div style="color:#94a3b8;font-size:12px;padding:8px 0;">Chưa có dữ liệu khuôn mặt nào trên Server.</div>';
-    listEl.innerHTML = html;
+    });
     localStorage.setItem('face_descriptors_db', JSON.stringify(localDb));
     localStorage.setItem('face_thumbnails_db', JSON.stringify(localThumb));
     loadEnrolledFromStorage();
-    statusEl.textContent = 'Đã đồng bộ ' + merged + ' sinh viên từ Server vào bộ nhớ AI.';
+    renderStudentRoster();
   } catch(e) {
     console.error('syncFaceDataFromServer:', e);
-    listEl.innerHTML = '<div style="color:#f87171;font-size:12px;padding:8px 0;">Lỗi tải từ Server: ' + escapeHtml(e.message) + '</div>';
-    statusEl.textContent = '';
   }
 }
 
@@ -2305,10 +2288,14 @@ function exportFaceDb() {
 
 // UI TABS
 function switchTab(tab) {
-  document.getElementById('tabBtnRecent').classList.toggle('active', tab === 'recent');
-  document.getElementById('tabBtnEnroll').classList.toggle('active', tab === 'enroll');
-  document.getElementById('tabRecent').classList.toggle('active', tab === 'recent');
-  document.getElementById('tabEnroll').classList.toggle('active', tab === 'enroll');
+  const btnRecent = document.getElementById('tabBtnRecent');
+  const btnRoster = document.getElementById('tabBtnRoster');
+  const paneRecent = document.getElementById('tabRecent');
+  const paneRoster = document.getElementById('tabRoster');
+  if (btnRecent) btnRecent.classList.toggle('active', tab === 'recent');
+  if (btnRoster) btnRoster.classList.toggle('active', tab === 'roster');
+  if (paneRecent) paneRecent.classList.toggle('active', tab === 'recent');
+  if (paneRoster) paneRoster.classList.toggle('active', tab === 'roster');
 }
 
 function toggleFullscreen() {
