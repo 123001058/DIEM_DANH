@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đồng bộ 29 Sinh Viên Lên Supabase Cloud</title>
+<link rel="stylesheet" href="css/theme.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=7"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<style>
+  body {
+    background: #0b0f19;
+    color: #f1f5f9;
+    font-family: system-ui, -apple-system, sans-serif;
+    padding: 30px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  h1 { font-size: 22px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+  .btn-start {
+    background: linear-gradient(135deg, #2563eb, #38bdf8);
+    border: none;
+    color: #fff;
+    padding: 12px 28px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+    transition: 0.2s;
+  }
+  .btn-start:hover { transform: translateY(-1px); filter: brightness(1.1); }
+  .btn-start:disabled { opacity: 0.5; cursor: not-allowed; }
+  .progress-bar-bg {
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    height: 12px;
+    overflow: hidden;
+    margin: 20px 0 10px 0;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #22c55e, #38bdf8);
+    transition: width 0.3s ease;
+  }
+  .log-box {
+    background: #050811;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 16px;
+    height: 380px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin-top: 16px;
+  }
+  .log-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .log-item.ok { color: #4ade80; }
+  .log-item.warn { color: #fbbf24; }
+  .log-item.err { color: #f87171; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>⚡ Tool Đồng Bộ Vĩnh Viễn 29 Mẫu Mặt Lên Supabase</h1>
+  <p style="color:#94a3b8;font-size:14px;line-height:1.5;">
+    Tool này tự động đọc 29 ảnh trong <code>images/faces/</code>, trích xuất 5 vector đặc trưng đa góc mặt bằng Face-API AI, 
+    và lưu trực tiếp vào bảng <b>student_face_data</b> trên Supabase qua RPC Security Definer.
+  </p>
+
+  <div style="display:flex;align-items:center;gap:16px;margin:20px 0;">
+    <button class="btn-start" id="btnStart" onclick="startSync()">🚀 Bắt đầu nạp 29 Sinh Viên Lên Cloud</button>
+    <span id="statusTxt" style="font-weight:600;color:#94a3b8;">Sẵn sàng...</span>
+  </div>
+
+  <div class="progress-bar-bg">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;">
+    <span id="progressTxt">0/29 sinh viên</span>
+    <span id="percentTxt">0%</span>
+  </div>
+
+  <div class="log-box" id="logBox"></div>
+</div>
+
+<script>
+const logBox = document.getElementById('logBox');
+const progressFill = document.getElementById('progressFill');
+const progressTxt = document.getElementById('progressTxt');
+const percentTxt = document.getElementById('percentTxt');
+const statusTxt = document.getElementById('statusTxt');
+const btnStart = document.getElementById('btnStart');
+
+function log(msg, type = 'info') {
+  const div = document.createElement('div');
+  div.className = `log-item ${type}`;
+  div.textContent = `${new Date().toLocaleTimeString('vi-VN')} — ${msg}`;
+  logBox.appendChild(div);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+// Hàm sinh 5 vector đa góc mặt
+async function extractAugmentedDescriptors(img, detection) {
+  const descriptors = [];
+  const thumbnails = [];
+  descriptors.push(Array.from(detection.descriptor));
+
+  const box = detection.detection.box;
+  const pad = box.width * 0.25;
+  const sx = Math.max(0, box.x - pad);
+  const sy = Math.max(0, box.y - pad);
+  const sw = Math.min(img.width - sx, box.width + pad * 2);
+  const sh = Math.min(img.height - sy, box.height + pad * 2);
+
+  const c0 = document.createElement('canvas');
+  c0.width = 120; c0.height = 120;
+  c0.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, 120, 120);
+  thumbnails.push(c0.toDataURL('image/jpeg', 0.8));
+
+  const transforms = [
+    { name: 'Nghiêng trái nhẹ', rotate: -6, scaleX: 1.0, scaleY: 1.0 },
+    { name: 'Nghiêng phải nhẹ', rotate: 6, scaleX: 1.0, scaleY: 1.0 },
+    { name: 'Góc 3/4', rotate: 0, scaleX: 0.92, scaleY: 1.0 },
+    { name: 'Ngẩng nhẹ', rotate: 0, scaleX: 1.0, scaleY: 0.94 }
+  ];
+
+  for (const tf of transforms) {
+    try {
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      const ctx = cv.getContext('2d');
+      ctx.translate(img.width / 2, img.height / 2);
+      ctx.rotate((tf.rotate * Math.PI) / 180);
+      ctx.scale(tf.scaleX, tf.scaleY);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const d = await faceapi
+        .detectSingleFace(cv, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (d) {
+        descriptors.push(Array.from(d.descriptor));
+        const cThumb = document.createElement('canvas');
+        cThumb.width = 120; cThumb.height = 120;
+        cThumb.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, 120, 120);
+        thumbnails.push(cThumb.toDataURL('image/jpeg', 0.75));
+      }
+    } catch(e) {}
+  }
+
+  return { descriptors, thumbnails };
+}
+
+async function startSync() {
+  btnStart.disabled = true;
+  statusTxt.textContent = '⏳ Đang tải AI models...';
+  log('Đang tải mô hình Face-API từ CDN...', 'info');
+
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    log('✓ Mô hình Face-API đã sẵn sàng!', 'ok');
+  } catch(e) {
+    log('❌ Lỗi tải AI models: ' + e.message, 'err');
+    btnStart.disabled = false;
+    return;
+  }
+
+  log('Đang tải danh sách sinh viên từ images/faces/students_mapping.json...', 'info');
+  let students = [];
+  try {
+    const res = await fetch('images/faces/students_mapping.json');
+    students = await res.json();
+    log(`✓ Tìm thấy ${students.length} sinh viên trong file mapping.`, 'ok');
+  } catch(e) {
+    log('❌ Không đọc được students_mapping.json: ' + e.message, 'err');
+    btnStart.disabled = false;
+    return;
+  }
+
+  let success = 0;
+  const total = students.length;
+
+  for (let i = 0; i < total; i++) {
+    const s = students[i];
+    const pct = Math.round(((i + 1) / total) * 100);
+    progressFill.style.width = pct + '%';
+    progressTxt.textContent = `${i + 1}/${total} sinh viên`;
+    percentTxt.textContent = pct + '%';
+    statusTxt.textContent = `Đang xử lý (${i + 1}/${total}): ${s.name}...`;
+
+    const possibleUrls = [
+      s.avatar,
+      `images/faces/${s.mssv}.png`,
+      `images/faces/${s.mssv}.jpg`,
+      `images/faces/${s.mssv}.jpeg`
+    ].filter(Boolean);
+
+    let loadedImg = null;
+    let det = null;
+
+    for (const u of possibleUrls) {
+      try {
+        const img = await faceapi.fetchImage(u);
+        det = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+          .withFaceLandmarks(true)
+          .withFaceDescriptor();
+        if (det) {
+          loadedImg = img;
+          break;
+        }
+      } catch(e) {}
+    }
+
+    if (det && loadedImg) {
+      const res = await extractAugmentedDescriptors(loadedImg, det);
+      
+      // Gọi RPC Security Definer lưu Supabase
+      try {
+        const { data, error } = await window.supabase.rpc('kiosk_upsert_face_data', {
+          p_mssv: s.mssv,
+          p_descriptors: res.descriptors,
+          p_thumbnails: res.thumbnails
+        });
+
+        if (error) {
+          log(`⚠️ ${s.name} (${s.mssv}): Lỗi lưu Supabase - ${error.message}`, 'warn');
+        } else {
+          success++;
+          log(`✓ ${s.name} (${s.mssv}): Đã lưu ${res.descriptors.length} vector lên Supabase!`, 'ok');
+        }
+      } catch(e) {
+        log(`❌ ${s.name} (${s.mssv}): Lỗi RPC: ${e.message}`, 'err');
+      }
+    } else {
+      log(`⚠️ ${s.name} (${s.mssv}): Không tìm thấy khuôn mặt trong ảnh!`, 'warn');
+    }
+  }
+
+  statusTxt.textContent = `🎉 Hoàn tất: ${success}/${total} bạn đã lưu lên Supabase!`;
+  log(`========================================`, 'info');
+  log(`🎉 ĐỒNG BỘ HOÀN TẤT: Đã nạp thành công ${success}/${total} sinh viên lên CSDL Cloud!`, 'ok');
+  btnStart.disabled = false;
+  btnStart.textContent = '✓ Đã đồng bộ xong';
+}
+</script>
+
+</body>
+</html>

@@ -619,6 +619,7 @@ body {
 
       <div class="camera-hud">
         <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
+        <button type="button" id="btnManualOverride" onclick="confirmManualCheckin()" style="display:none;background:linear-gradient(135deg, #d97706, #f59e0b);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 10px rgba(245,158,11,0.5);display:none;align-items:center;gap:6px;">✍️ Giảng viên xác nhận tay</button>
         <div class="hud-pill" id="hudCount">Đã nạp: <b id="enrolledCount">0</b> bạn</div>
       </div>
     </div>
@@ -881,107 +882,157 @@ function calculateHeadYaw(landmarks) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// HEAD-TURN CHALLENGE — chống ảnh 2D / màn hình điện thoại
-// Nguyên lý: ảnh 2D trên màn hình KHÔNG THỂ fake parallax 3D
-// khi quay đầu. calculateHeadYaw() theo dõi tỉ lệ dLeft/dRight
-// (nose tip vs jaw outline). Thẳng ≈ 1.0 | Trái < 0.68 | Phải > 1.45
+// ──────────────────────────────────────────────────────────────
+// STATE MACHINE: DUAL-FACTOR LIVENESS (MiniFASNet 0.85 + Active Head Yaw)
+// 1. Phát hiện & ổn định khuôn mặt (3 frame liên tiếp)
+// 2. MiniFASNet thụ động (ngưỡng 0.85) -> Lọc nhanh ảnh in / màn hình
+// 3. Phát lệnh ngẫu nhiên (Quay trái 15° / Quay phải 15°)
+// 4. Đo góc Head Yaw — Timeout cứng 4.0 giây
+// 5. Soft Retry tối đa 2 lần tại chỗ (đổi hướng ngược lại chống kẹt)
+// 6. Van an toàn: Nút xác nhận tay cho Giảng viên (kèm log manual_override)
+// 7. Điểm danh thành công (ghi nhận Supabase)
 // ──────────────────────────────────────────────────────────────
 async function evaluateLiveness(label, landmarks, box, rawBox) {
+  const btnManual = document.getElementById('btnManualOverride');
+
   if (!antiSpoofEnabled) {
-    return { isLive: true, prompt: '⚡ Siêu tốc (Điểm danh tức thì)', isStaticPhoto: false, isFailed: false };
-  }
-
-  // 1. ƯU TIÊN MÔ HÌNH AI MiniFASNet-V2: Phát hiện ảnh màn hình điện thoại & ảnh in
-  const targetBox = rawBox || box;
-  if (fasnetSession && targetBox) {
-    const fasnet = await runFasnet(targetBox);
-    if (fasnet) {
-      if (!livenessState[label]) {
-        livenessState[label] = {
-          liveHits: 0,
-          spoofHits: 0,
-          startTime: Date.now()
-        };
-      }
-      const st = livenessState[label];
-
-      if (fasnet.isLive) {
-        st.liveHits = (st.liveHits || 0) + 1;
-        st.spoofHits = 0;
-        const percent = Math.round(fasnet.liveScore * 100);
-        // Cần 2 frame liên tiếp xác nhận người thật (>60%) để tránh chập chờn
-        if (st.liveHits >= 2) {
-          return {
-            isLive: true,
-            prompt: `✅ Người thật (${percent}%)`,
-            isStaticPhoto: false,
-            liveScore: fasnet.liveScore
-          };
-        } else {
-          return {
-            isLive: false,
-            prompt: `🛡️ Đang phân tích bề mặt 3D (${percent}%)...`,
-            isStaticPhoto: false,
-            liveScore: fasnet.liveScore
-          };
-        }
-      } else {
-        st.liveHits = 0;
-        st.spoofHits = (st.spoofHits || 0) + 1;
-        const spoofPercent = Math.round((1 - fasnet.liveScore) * 100);
-        return {
-          isLive: false,
-          prompt: `🚫 Giả mạo: ${fasnet.attackType} (${spoofPercent}%)`,
-          isStaticPhoto: true,
-          liveScore: fasnet.liveScore
-        };
-      }
-    }
-  }
-
-  // 2. DỰ PHÒNG: Nếu AI Model chưa load kịp, dùng thuật toán 3D Head-turn Parallax
-  if (!landmarks) {
-    return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
+    if (btnManual) btnManual.style.display = 'none';
+    return { isLive: true, prompt: '⚡ Siêu tốc (Test only - Bỏ qua liveness)', isStaticPhoto: false };
   }
 
   const now = Date.now();
-  const yaw = calculateHeadYaw(landmarks); // dLeft / dRight
+  const yaw = calculateHeadYaw(landmarks);
+  const targetBox = rawBox || box;
 
-  if (!livenessState[label] || !livenessState[label].direction) {
-    const dir = Math.random() < 0.5 ? 'left' : 'right';
+  // Khởi tạo state machine cho sinh viên đang đứng trước camera
+  if (!livenessState[label]) {
     livenessState[label] = {
-      startTime:    now,
-      direction:    dir,
-      baselineYaw:  yaw,
-      passed:       false,
-      yawHistory:   [yaw],
-      phaseMsg:     dir === 'left' ? '👈 Hãy quay đầu sang TRÁI một chút...' : '👉 Hãy quay đầu sang PHẢI một chút...'
+      stage: 'STABILIZING', // 'STABILIZING' | 'FASNET' | 'CHALLENGE' | 'FALLBACK_MANUAL'
+      stableFrames: 0,
+      retryCount: 0,
+      challengeDir: Math.random() < 0.5 ? 'left' : 'right',
+      challengeStartTime: 0,
+      baselineYaw: yaw,
+      yawHistory: [yaw],
+      lastSpoofMsg: ''
     };
-    return { isLive: false, prompt: livenessState[label].phaseMsg, isStaticPhoto: false, isFailed: false };
   }
 
   const st = livenessState[label];
-  st.yawHistory.push(yaw);
-  if (st.yawHistory.length > 40) st.yawHistory.shift();
 
-  const minYaw = Math.min(...st.yawHistory);
-  const maxYaw = Math.max(...st.yawHistory);
-  const YAW_DELTA = 0.28;
-
-  let turned = false;
-  if (st.direction === 'left'  && (st.baselineYaw - minYaw) >= YAW_DELTA) turned = true;
-  if (st.direction === 'right' && (maxYaw - st.baselineYaw) >= YAW_DELTA) turned = true;
-
-  if (turned) {
-    return { isLive: true, prompt: '✅ Xác minh người thật thành công!', isStaticPhoto: false, isFailed: false };
+  // 1. ỔN ĐỊNH BBOX 3 FRAME (Chống rung giật khi vừa bước vào khung hình)
+  if (st.stage === 'STABILIZING') {
+    st.stableFrames++;
+    if (btnManual) btnManual.style.display = 'none';
+    if (st.stableFrames < 3) {
+      return { isLive: false, prompt: `🔍 Đang ổn định khuôn mặt (${st.stableFrames}/3)...`, isStaticPhoto: false };
+    }
+    // Đã ổn định 3 frame liên tiếp -> chuyển sang bước MiniFASNet
+    st.stage = 'FASNET';
   }
 
-  if (now - st.startTime > 10000) {
-    delete livenessState[label];
-    return { isLive: false, prompt: '⏱️ Hết giờ — Thử lại lần nữa...', isStaticPhoto: false, isFailed: false };
+  // 2. MINIFASNET THỤ ĐỘNG (Ngưỡng 0.85 — loại thẳng ảnh in / màn hình điện thoại)
+  if (st.stage === 'FASNET') {
+    if (btnManual) btnManual.style.display = 'none';
+    if (fasnetSession && targetBox) {
+      const fasnet = await runFasnet(targetBox);
+      if (fasnet) {
+        if (!fasnet.isLive) {
+          // Bị MiniFASNet chặn: Ảnh in hoặc màn hình điện thoại
+          st.isSpoof = true;
+          st.lastSpoofMsg = fasnet.attackType;
+          const spoofPct = Math.round((1 - fasnet.liveScore) * 100);
+          return {
+            isLive: false,
+            prompt: `🚫 Giả mạo: ${fasnet.attackType} (${spoofPct}%)`,
+            isStaticPhoto: true,
+            liveScore: fasnet.liveScore
+          };
+        }
+      }
+    }
+    // MiniFASNet PASS -> Bắt đầu phát lệnh ngẫu nhiên
+    st.stage = 'CHALLENGE';
+    st.challengeStartTime = now;
+    st.baselineYaw = yaw;
+    st.yawHistory = [yaw];
+    st.challengeDir = Math.random() < 0.5 ? 'left' : 'right';
   }
 
-  return { isLive: false, prompt: st.phaseMsg, isStaticPhoto: false, isFailed: false };
+  // 6. VAN AN TOÀN: XÁC NHẬN TAY (Hiện nút sau khi thử lại 2 lần thất bại)
+  if (st.stage === 'FALLBACK_MANUAL') {
+    if (btnManual) btnManual.style.display = 'inline-flex';
+    return {
+      isLive: false,
+      prompt: '⏱️ Không bắt được góc quay — Giảng viên có thể xác nhận tay',
+      isManualFallback: true,
+      isStaticPhoto: false
+    };
+  }
+
+  // 3 & 4 & 5. ACTIVE CHALLENGE: HEAD YAW + TIMEOUT 4.0s + SOFT RETRY 2 LẦN
+  if (st.stage === 'CHALLENGE') {
+    if (btnManual) btnManual.style.display = 'none';
+    st.yawHistory.push(yaw);
+    if (st.yawHistory.length > 30) st.yawHistory.shift();
+
+    const minYaw = Math.min(...st.yawHistory);
+    const maxYaw = Math.max(...st.yawHistory);
+    // Ngưỡng quay đầu 15° (delta yaw >= 0.22 so với baseline lúc nhận lệnh)
+    const YAW_DELTA = 0.22;
+
+    let turned = false;
+    if (st.challengeDir === 'left'  && (st.baselineYaw - minYaw) >= YAW_DELTA) turned = true;
+    if (st.challengeDir === 'right' && (maxYaw - st.baselineYaw) >= YAW_DELTA) turned = true;
+
+    // ĐẠT YÊU CẦU -> PASS DUAL-FACTOR LIVENESS!
+    if (turned) {
+      if (btnManual) btnManual.style.display = 'none';
+      return { isLive: true, prompt: '✅ Xác thực 2 lớp thành công (MiniFASNet + 3D Yaw)!', isStaticPhoto: false };
+    }
+
+    // TÍNH THỜI GIAN ĐẾM NGƯỢC TIMEOUT CỨNG 4.0 GIÂY
+    const elapsedSec = (now - st.challengeStartTime) / 1000;
+    const remainSec = Math.max(0, (4.0 - elapsedSec)).toFixed(1);
+
+    if (elapsedSec < 4.0) {
+      const dirText = st.challengeDir === 'left' ? '👈 Quay đầu sang TRÁI 15°' : '👉 Quay đầu sang PHẢI 15°';
+      const retryTag = st.retryCount > 0 ? ` (Lần ${st.retryCount + 1}/3)` : '';
+      return {
+        isLive: false,
+        prompt: `${dirText}${retryTag} — còn ${remainSec}s`,
+        isStaticPhoto: false
+      };
+    }
+
+    // HẾT 4 GIÂY: SOFT RETRY TẠI CHỖ (ĐƯỜNG NÉT ĐỨT QUAY LẠI BƯỚC 3)
+    st.retryCount++;
+    if (st.retryCount <= 2) {
+      // Đổi hướng quay ngược lại để người dùng không bị kẹt lặp lại cùng một lỗi
+      st.challengeDir = (st.challengeDir === 'left') ? 'right' : 'left';
+      st.challengeStartTime = now;
+      st.baselineYaw = yaw;
+      st.yawHistory = [yaw];
+      const dirText = st.challengeDir === 'left' ? '👈 Quay sang TRÁI 15°' : '👉 Quay sang PHẢI 15°';
+      return {
+        isLive: false,
+        prompt: `⚠️ Thử lại (${st.retryCount}/2): ${dirText}`,
+        isStaticPhoto: false
+      };
+    } else {
+      // ĐÃ FAIL 2 LẦN RETRY -> CHUYỂN SANG BƯỚC 6: XÁC NHẬN TAY
+      st.stage = 'FALLBACK_MANUAL';
+      if (btnManual) btnManual.style.display = 'inline-flex';
+      return {
+        isLive: false,
+        prompt: '⏱️ Không bắt được góc quay — Giảng viên có thể xác nhận tay bên cạnh',
+        isManualFallback: true,
+        isStaticPhoto: false
+      };
+    }
+  }
+
+  return { isLive: false, prompt: '🔍 Đang xử lý...', isStaticPhoto: false };
 }
 
 const webcamVideo = document.getElementById('webcamVideo');
@@ -1454,6 +1505,8 @@ async function startDetectionLoop() {
         if (resizedDetections.length === 0) {
           kioskLostFaceFrames++;
           hudStatus.textContent = antiSpoofEnabled ? '🛡️ Nghiêm ngặt: Nhìn thẳng vào camera để bắt đầu thử thách...' : '🟢 Đang quét tìm khuôn mặt...';
+          const btnManual = document.getElementById('btnManualOverride');
+          if (btnManual) btnManual.style.display = 'none';
           if (kioskLostFaceFrames >= 3) {
             Object.keys(livenessState).forEach(k => delete livenessState[k]);
             activeKioskLabel = null;
@@ -1462,6 +1515,8 @@ async function startDetectionLoop() {
         } else if (resizedDetections.length > 1) {
           kioskLostFaceFrames = 0;
           hudStatus.textContent = '⚠️ Phát hiện nhiều khuôn mặt! Vui lòng chỉ 1 người đứng trước camera.';
+          const btnManual = document.getElementById('btnManualOverride');
+          if (btnManual) btnManual.style.display = 'none';
           Object.keys(livenessState).forEach(k => delete livenessState[k]);
           activeKioskLabel = null;
           Object.keys(consecutiveHits).forEach(k => delete consecutiveHits[k]);
@@ -1557,9 +1612,12 @@ async function startDetectionLoop() {
             } else if (liveCheck && liveCheck.isStaticPhoto) {
               ctx.strokeStyle = '#ef4444'; // Đỏ cảnh báo ảnh tĩnh
               ctx.fillStyle = 'rgba(239, 68, 68, 0.95)';
-            } else {
-              ctx.strokeStyle = '#f59e0b'; // Màu cam cảnh báo: đang chờ cử động người thật
+            } else if (liveCheck && liveCheck.isManualFallback) {
+              ctx.strokeStyle = '#f59e0b'; // Cam cảnh báo: Cần giảng viên xác nhận
               ctx.fillStyle = 'rgba(245, 158, 11, 0.95)';
+            } else {
+              ctx.strokeStyle = '#38bdf8'; // Xanh cyan: Đang thực hiện thử thách Head Yaw
+              ctx.fillStyle = 'rgba(56, 189, 248, 0.95)';
             }
 
             ctx.strokeRect(drawX, box.y, box.width, box.height);
@@ -1572,6 +1630,8 @@ async function startDetectionLoop() {
                 text = `✓ ` + label + angleTag + confidence;
               } else if (liveCheck && liveCheck.isStaticPhoto) {
                 text = `🚫 Nghi vấn giả mạo (Chặn điểm danh)`;
+              } else if (liveCheck && liveCheck.isManualFallback) {
+                text = `⚠️ Cần Giảng viên xác nhận tay`;
               } else {
                 text = `🛡️ Đang xác minh người thật...`;
               }
@@ -1620,9 +1680,10 @@ async function startDetectionLoop() {
 // ==========================================
 // 5. ĐIỂM DANH & GỌI SUPABASE
 // ==========================================
-async function triggerCheckin(label) {
+async function triggerCheckin(label, options = {}) {
   const mssv = label.split(' - ')[0]?.trim();
   const name = label.split(' - ')[1]?.trim() || mssv;
+  const isManual = options.manualOverride === true;
 
   const now = Date.now();
   if (lastCheckinTime[mssv] && (now - lastCheckinTime[mssv] < 15000)) {
@@ -1652,9 +1713,11 @@ async function triggerCheckin(label) {
       : 15;
     const isLate = elapsedMin > lateThresholdMin;
     const lateMinRound = Math.round(elapsedMin);
-    const checkinNote = isLate
-      ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
-      : 'Camera ESP32 điểm danh AI';
+    
+    // Ghi chú rõ ràng: Phân biệt AI tự động xác thực 2 lớp hay Giảng viên xác nhận tay
+    let checkinNote = isManual
+      ? `Xác nhận thủ công (Giảng viên can thiệp)`
+      : (isLate ? `Điểm danh 2 lớp (Đi muộn +${lateMinRound}p)` : 'Điểm danh AI 2 lớp (MiniFASNet + 3D Yaw)');
 
     // 1. Sử dụng RPC kiosk_record_face_checkin (SECURITY DEFINER, cấp quyền anon và authenticated)
     const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('kiosk_record_face_checkin', {
@@ -1681,6 +1744,7 @@ async function triggerCheckin(label) {
         sessionId: currentSession.id,
         mssv: mssv,
         name: name,
+        manualOverride: isManual,
         time: new Date().toISOString()
       });
       bc.close();
@@ -1688,6 +1752,28 @@ async function triggerCheckin(label) {
   } catch (err) {
     console.error('Lỗi gửi điểm danh:', err);
   }
+}
+
+// Xử lý van an toàn: Giảng viên/Cán bộ lớp bấm xác nhận thủ công khi sinh viên không quay được mặt
+function confirmManualCheckin() {
+  if (!activeKioskLabel) {
+    alert('Không có sinh viên nào đang đứng trước camera!');
+    return;
+  }
+  const label = activeKioskLabel;
+  const name = label.split(' - ')[1] || label;
+  const mssv = label.split(' - ')[0] || '';
+
+  if (!confirm(`Xác nhận có mặt thủ công cho sinh viên:\n${name} (${mssv})?\n\n(Hệ thống sẽ lưu log "Xác nhận thủ công bởi Giảng viên" vào CSDL để minh bạch).`)) {
+    return;
+  }
+
+  triggerCheckin(label, { manualOverride: true });
+  delete livenessState[label];
+  activeKioskLabel = null;
+  const btn = document.getElementById('btnManualOverride');
+  if (btn) btn.style.display = 'none';
+  hudStatus.textContent = `✅ Giảng viên đã xác nhận có mặt cho: ${name}`;
 }
 
 function showMatchPopup(name, mssv) {
@@ -2018,16 +2104,28 @@ async function enrollFromDocumentPhoto() {
   thumbDb[label] = res.thumbnails;
   localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
 
+  // Đồng bộ ngay lên Supabase
+  try {
+    await window.supabase.rpc('kiosk_upsert_face_data', {
+      p_mssv: st.mssv,
+      p_descriptors: res.descriptors,
+      p_thumbnails: res.thumbnails
+    });
+    console.log(`[Supabase Enroll] Đã đồng bộ ${st.name} lên CSDL`);
+  } catch(e) {
+    console.warn('[Supabase Enroll] Lỗi lưu Supabase:', e);
+  }
+
   // Render 5 ảnh thumbnail trực quan lên màn hình ngay lập tức!
   renderAugmentedThumbs(res.thumbnails);
 
-  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!\nNhìn vào khung bên dưới để xem trực quan ${res.descriptors.length} ảnh góc mặt vừa sinh.`);
+  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv}) và lưu lên CSDL Supabase!\nNhìn vào khung bên dưới để xem trực quan ${res.descriptors.length} ảnh góc mặt vừa sinh.`);
   loadEnrolledFromStorage();
   hudStatus.textContent = `🟢 Đã nạp xong ${res.descriptors.length} góc cho ${st.name}. Bạn có thể đứng trước camera test ngay!`;
 }
 
 async function enrollAll30Students() {
-  if (!confirm('Bạn có muốn tự động quét và nạp khuôn mặt của cả 30 thành viên từ tài liệu vào hệ thống không? (Hệ thống sẽ tự sinh đa góc nghiêng cho từng người)')) return;
+  if (!confirm('Bạn có muốn tự động quét và nạp khuôn mặt của cả 30 thành viên từ tài liệu vào hệ thống và CSDL Supabase không?')) return;
 
   hudStatus.textContent = '⏳ Đang tự động nạp khuôn mặt cả đội...';
   let successCount = 0;
@@ -2042,7 +2140,7 @@ async function enrollAll30Students() {
     const st = sourceList[i];
     if (!st.mssv) continue;
 
-    hudStatus.textContent = `⏳ Đang nạp & sinh đa góc (${i + 1}/${total}): ${st.name}...`;
+    hudStatus.textContent = `⏳ Đang nạp & đồng bộ Supabase (${i + 1}/${total}): ${st.name}...`;
 
     const possibleUrls = [
       st.avatar,
@@ -2076,7 +2174,17 @@ async function enrollAll30Students() {
       successCount++;
       totalVectors += res.descriptors.length;
 
-      // Hiển thị preview 5 góc của bạn đầu tiên
+      // Đồng bộ vĩnh viễn lên Supabase
+      try {
+        await window.supabase.rpc('kiosk_upsert_face_data', {
+          p_mssv: st.mssv,
+          p_descriptors: res.descriptors,
+          p_thumbnails: res.thumbnails
+        });
+      } catch(e) {
+        console.warn(`Lỗi lưu Supabase cho ${st.mssv}:`, e);
+      }
+
       if (successCount === 1) {
         renderAugmentedThumbs(res.thumbnails);
       }
@@ -2088,8 +2196,8 @@ async function enrollAll30Students() {
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
   localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
   loadEnrolledFromStorage();
-  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên!\nTổng cộng đã sinh ra ${totalVectors} vector đặc trưng đa góc.`);
-  hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} bạn (${totalVectors} vector). Hệ thống sẵn sàng!`;
+  alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên lên CSDL Supabase!\nTổng cộng đã sinh ra ${totalVectors} vector đặc trưng đa góc.`);
+  hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} bạn lên Supabase (${totalVectors} vector). Toàn hệ thống sẵn sàng!`;
 }
 
 // Chụp trực tiếp từ camera
@@ -2143,7 +2251,18 @@ function saveEnrolledFace() {
   db[label] = tempSamples;
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
 
-  alert(`✓ Đã lưu khuôn mặt chụp cho ${st.name}!`);
+  // Lưu vĩnh viễn lên Supabase qua RPC
+  window.supabase.rpc('kiosk_upsert_face_data', {
+    p_mssv: st.mssv,
+    p_descriptors: tempSamples,
+    p_thumbnails: [st.avatar || `images/faces/${st.mssv}.png`]
+  }).then(res => {
+    console.log('[Face Kiosk] Đã lưu mẫu chụp lên Supabase cho', st.name, res);
+  }).catch(err => {
+    console.warn('[Face Kiosk] Lỗi lưu mẫu Supabase:', err);
+  });
+
+  alert(`✓ Đã lưu khuôn mặt chụp cho ${st.name} (Đã đồng bộ lên CSDL)!`);
   resetSampleCollector();
   loadEnrolledFromStorage();
   switchTab('recent');
@@ -2173,6 +2292,7 @@ async function autoAugmentMissingFaces() {
     const missing = sourceList.filter(s => s.mssv && !db[`${s.mssv} - ${s.name}`]);
     if (missing.length === 0) return;
 
+    hudStatus.textContent = `⏳ Đang nạp mẫu mặt tự động (${missing.length} sinh viên)...`;
     let count = 0;
     for (const st of missing) {
       const possibleUrls = [
@@ -2195,6 +2315,19 @@ async function autoAugmentMissingFaces() {
             db[label] = res.descriptors;
             thumbDb[label] = res.thumbnails;
             count++;
+
+            // Đồng bộ trực tiếp lên bảng student_face_data trên Supabase
+            try {
+              await window.supabase.rpc('kiosk_upsert_face_data', {
+                p_mssv: st.mssv,
+                p_descriptors: res.descriptors,
+                p_thumbnails: res.thumbnails
+              });
+              console.log(`[Sync Supabase] ✓ Đã lưu vector mặt vĩnh viễn cho ${st.name} (${st.mssv})`);
+            } catch(rpcErr) {
+              console.warn('[Sync Supabase] Lỗi RPC:', rpcErr);
+            }
+
             break;
           }
         } catch(e) {}
@@ -2206,6 +2339,7 @@ async function autoAugmentMissingFaces() {
       localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
       loadEnrolledFromStorage();
       renderStudentRoster();
+      hudStatus.textContent = `🟢 Đã nạp thành công ${count} sinh viên vào bộ nhớ & CSDL Supabase!`;
     }
   } catch(e) {
     console.warn('autoAugmentMissingFaces:', e);
