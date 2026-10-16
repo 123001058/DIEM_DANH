@@ -1,4 +1,4 @@
- -- =====================================================================
+-- =====================================================================
 -- Migration: 20261012180000_expand_anonymous_feedback_actions.sql
 -- Description: Mở rộng trạng thái phản hồi ẩn danh (new, processing, resolved, rejected)
 --              và bổ sung RPC xóa phản hồi cho admin.
