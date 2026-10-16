@@ -3022,3 +3022,10 @@ $function$;
 
 grant execute on function public.kiosk_record_face_checkin(text, text, text) to anon, authenticated, service_role;
 
+-- Table students
+alter table if exists public.students add column if not exists avatar text;
+alter table if exists public.students add column if not exists class text;
+alter table if exists public.students add column if not exists phone text;
+
+grant select on public.students to anon, authenticated;
+grant all on public.students to authenticated, service_role;

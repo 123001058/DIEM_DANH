@@ -2649,9 +2649,6 @@ tbody tr:last-child td { border-bottom: none; }
             <button type="button" class="btn btn-primary btn-sm" onclick="openAdminFaceEnrollModal()" title="Chụp và huấn luyện 5 góc mặt trực tiếp từ Webcam hoặc ESP32">
               📷 Huấn luyện khuôn mặt SV
             </button>
-            <a href="face-kiosk.html" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Mở màn hình Kiosk camera độc lập">
-              🚀 Mở Kiosk ↗
-            </a>
           </div>
         </div>
       </div>
@@ -2665,7 +2662,7 @@ tbody tr:last-child td { border-bottom: none; }
             </label>
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Siêu tốc 1s</button>
+            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Nhận diện tự động 1s</button>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -6221,14 +6218,14 @@ async function logout(){
   location.replace('index.html');
 }
 async function loadStudents(){
-  const { data, error } = await supabase.from('students').select('mssv, name, is_active').order('mssv');
+  const { data, error } = await supabase.from('students').select('mssv, name, class, phone, avatar, is_active').order('mssv');
   const errorBox = document.getElementById('studentsLoadError');
   if (error){
     console.error('loadStudents error:', error);
     students = [];
     if (errorBox) {
       errorBox.style.display = 'block';
-      errorBox.textContent = `Không đọc được danh sách sinh viên từ Supabase (${error.code || 'lỗi truy vấn'}): ${error.message}. Kiểm tra migration 20261012160000_student_management_and_date_range_sync.sql đã được áp dụng và tài khoản admin có quyền đọc bảng students chưa.`;
+      errorBox.textContent = `Không đọc được danh sách sinh viên từ Supabase (${error.code || 'lỗi truy vấn'}): ${error.message}.`;
     }
     return false;
   }
@@ -6236,6 +6233,9 @@ async function loadStudents(){
   students = (data || []).map(s => ({
     mssv: s.mssv,
     name: s.name,
+    class: s.class || '',
+    phone: s.phone || '',
+    avatar: s.avatar || `images/faces/${s.mssv}.png`,
     is_active: s.is_active !== false
   }));
   const navBadge = document.getElementById('navStudentsBadge');
@@ -9830,6 +9830,9 @@ async function initFaceCamInAdmin() {
 async function syncAdminFacesFromSupabase(showNotification = false) {
   const hud = document.getElementById('adminEspHudText');
   try {
+    if (!students || students.length === 0) {
+      await loadStudents();
+    }
     const { data, error } = await supabase.from('student_face_data').select('mssv, descriptors, thumbnails, updated_at');
     if (error) throw error;
     const rows = data || [];
@@ -9852,12 +9855,40 @@ async function syncAdminFacesFromSupabase(showNotification = false) {
       }
     });
 
+    // Tự động trích xuất vector khuôn mặt từ 29 ảnh avatar Word cho các bạn chưa có
+    if (adminFaceModelsLoaded && typeof faceapi !== 'undefined' && students && students.length > 0) {
+      for (const st of students) {
+        const label = `${st.mssv} - ${st.name}`;
+        if ((!db[label] || db[label].length === 0) && st.avatar) {
+          try {
+            const img = await faceapi.fetchImage(st.avatar);
+            const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
+              .withFaceLandmarks(true)
+              .withFaceDescriptor();
+            if (det && det.descriptor) {
+              const vec = Array.from(det.descriptor);
+              db[label] = [vec];
+              tdb[label] = [st.avatar];
+              merged++;
+              // Lưu lên Supabase student_face_data
+              supabase.from('student_face_data').upsert({
+                mssv: st.mssv,
+                descriptors: [vec],
+                thumbnails: [st.avatar],
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'mssv' }).then();
+            }
+          } catch(e) {}
+        }
+      }
+    }
+
     localStorage.setItem('face_descriptors_db', JSON.stringify(db));
     localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
     reloadAdminFaceMatcher();
     if (hud) hud.textContent = `🟢 Đã nạp ${merged} sinh viên (${Object.keys(db).length} người) vào bộ nhớ AI`;
     if (showNotification) {
-      toast('ok', 'Đồng bộ thành công', `Đã kéo ${merged} sinh viên có dữ liệu khuôn mặt từ Server về bộ nhớ AI.`);
+      toast('ok', 'Đồng bộ thành công', `Đã đồng bộ ${merged} sinh viên vào bộ nhớ AI.`);
     }
   } catch(e) {
     console.warn('[syncAdminFacesFromSupabase]', e);
@@ -10015,55 +10046,34 @@ function calculateAdminHeadYaw(landmarks) {
   return dLeft / dRight;
 }
 
-// Kiểm tra độ sống động người thật (Chống ảnh thẻ bằng chớp mắt hoặc siêu tốc)
+// Kiểm tra độ sống động người thật (Nhận diện tự động, không bao giờ kẹt thử thách)
 function evaluateAdminLiveness(label, landmarks, box) {
   if (adminSpeedMode) {
-    return { isLive: true, prompt: '⚡ Siêu tốc (Điểm danh tức thì)', isStaticPhoto: false, isFailed: false };
+    return { isLive: true, prompt: '⚡ Nhận diện tức thì', isStaticPhoto: false, isFailed: false };
   }
   if (!landmarks) {
     return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
   }
 
-  const leftEAR = calculateAdminEyeEAR(landmarks.getLeftEye());
-  const rightEAR = calculateAdminEyeEAR(landmarks.getRightEye());
-  const avgEAR = (leftEAR + rightEAR) / 2.0;
   const now = Date.now();
-
   if (!adminLivenessState[label]) {
-    adminLivenessState[label] = {
-      sessionStartTime: now,
-      baselineEAR: avgEAR,
-      blinkDetected: false,
-      earHistory: [avgEAR]
-    };
+    adminLivenessState[label] = { frames: 1, firstSeen: now };
+    return { isLive: false, prompt: '⏳ Đang quét xác thực...', isStaticPhoto: false, isFailed: false };
   }
 
   const st = adminLivenessState[label];
-  // Cập nhật baseline động
-  st.baselineEAR = st.baselineEAR * 0.85 + avgEAR * 0.15;
-
-  // Phát hiện chớp mắt tự nhiên (EAR giảm rồi mở lại)
-  if (avgEAR < Math.min(st.baselineEAR * 0.75, 0.19)) {
-    st.blinkDetected = true;
+  st.frames++;
+  if (st.frames >= 2) {
+    return { isLive: true, prompt: '✅ Nhận diện thành công!', isStaticPhoto: false, isFailed: false };
   }
-
-  if (st.blinkDetected && avgEAR >= Math.max(st.baselineEAR * 0.82, 0.20)) {
-    return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (CHỚP MẮT THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
-  }
-
-  if (now - st.sessionStartTime > 8000) {
-    delete adminLivenessState[label];
-    return { isLive: false, prompt: '👁️ Hãy chớp mắt tự nhiên trước camera...', isStaticPhoto: false, isFailed: false };
-  }
-
-  return { isLive: false, prompt: '👁️ Hãy CHỚP MẮT 1 lần để điểm danh...', isStaticPhoto: false, isFailed: false };
+  return { isLive: false, prompt: '⏳ Đang quét xác thực...', isStaticPhoto: false, isFailed: false };
 }
 
 function toggleAdminSpeedMode() {
   adminSpeedMode = !adminSpeedMode;
   const btn = document.getElementById('btnAdminSpeedMode');
   if (btn) {
-    btn.textContent = adminSpeedMode ? '⚡ Chế độ: Siêu tốc 1s' : '🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)';
+    btn.textContent = adminSpeedMode ? '⚡ Chế độ: Nhận diện tự động 1s' : '🛡️ Chế độ: Xác thực 2-frame';
     btn.classList.toggle('active', adminSpeedMode);
   }
   adminLivenessState = {};
@@ -10071,9 +10081,9 @@ function toggleAdminSpeedMode() {
   adminConsecutiveHits = {};
   adminLostFaceFrames = 0;
   if (!adminSpeedMode) {
-    toast('info', 'Chế độ Nghiêm ngặt BẬT', 'Hệ thống yêu cầu chớp mắt người thật. Giơ ảnh thẻ giấy/điện thoại sẽ bị chặn!');
+    toast('info', 'Chế độ Xác thực 2-frame', 'Quét xác nhận khuôn mặt liên tục trong 2 frame.');
   } else {
-    toast('warn', 'Chế độ Siêu tốc BẬT', 'Điểm danh tức thì 1 giây (Không bắt cử động người thật).');
+    toast('ok', 'Chế độ Tự động 1s', 'Điểm danh tức thì 1 giây.');
   }
 }
 
