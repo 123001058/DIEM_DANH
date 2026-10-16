@@ -660,6 +660,16 @@ body {
           </div>
           <div id="enrolledList" style="max-height:180px;overflow-y:auto;"></div>
         </div>
+
+        <!-- QUẢN LÝ DỮ LIỆU KHUÔN MẶT TRÊN SERVER (ADMIN XEM & XÓA TỪNG SINH VIÊN) -->
+        <div style="border-top:1px dashed rgba(255,255,255,0.1);margin-top:14px;padding-top:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <span class="form-label">☁️ Dữ liệu khuôn mặt trên Server (Supabase)</span>
+            <button type="button" class="btn-toggle" onclick="syncFaceDataFromServer()">🔄 Kéo dữ liệu từ Server</button>
+          </div>
+          <div id="serverFaceList" style="max-height:250px;overflow-y:auto;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;background:rgba(15,23,42,0.4);"></div>
+          <div id="serverFaceStatus" style="font-size:11px;color:#94a3b8;margin-top:6px;"></div>
+        </div>
       </div>
     </div>
 
@@ -871,7 +881,7 @@ function evaluateLiveness(label, landmarks, box) {
       st.baselineYaw = st.baselineYaw * 0.7 + yaw * 0.3;
       st.baselineMAR = st.baselineMAR * 0.7 + mar * 0.3;
 
-      if (st.straightFrames >= 6) {
+        if (st.straightFrames >= 4) {
         st.stage = 'ACTION_HOLD';
         st.stageStartTime = now;
         st.actionFrames = 0;
@@ -926,7 +936,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isReopened = (avgEAR >= st.baselineEAR * 0.85) && (avgEAR >= 0.22);
       if (isReopened) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (CHỚP MẮT THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -942,7 +952,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isTurnedLeft = (yaw <= 0.58);
       if (isTurnedLeft) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) {
+        if (st.actionFrames >= 2) {
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -963,7 +973,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
       if (isBackStraight) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -979,7 +989,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isTurnedRight = (yaw >= 1.45);
       if (isTurnedRight) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) {
+        if (st.actionFrames >= 2) {
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -1000,7 +1010,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
       if (isBackStraight) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -1016,7 +1026,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isSmiling = (mar >= st.baselineMAR * 1.55) && (mar >= 0.38);
       if (isSmiling) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) {
+        if (st.actionFrames >= 2) {
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -1037,7 +1047,7 @@ function evaluateLiveness(label, landmarks, box) {
       const isBackNeutral = (mar <= 0.28) && (avgEAR >= 0.22);
       if (isBackNeutral) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (MỈM CƯỜI THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -1063,6 +1073,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadStudentsMapping();
   loadEnrolledFromStorage();
   await loadFaceModels();
+  await syncFaceDataFromServer();
   await checkActiveSession();
   setInterval(checkActiveSession, 8000);
   
@@ -2208,6 +2219,74 @@ function clearAllEnrolledFaces() {
   localStorage.removeItem('face_descriptors_db');
   loadEnrolledFromStorage();
   alert('Đã xóa sạch dữ liệu cũ! Bây giờ hãy bấm "⚡ Nạp khuôn mặt từ ảnh thẻ" để nạp lại ảnh chuẩn.');
+}
+
+async function syncFaceDataFromServer(){
+  const listEl = document.getElementById('serverFaceList'); const statusEl = document.getElementById('serverFaceStatus');
+  listEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 0;">Đang tải...</div>';
+  try {
+    const { data, error } = await window.supabase.from('student_face_data').select('mssv, descriptors, thumbnails, updated_at');
+    if (error) throw error;
+    const rows = data || [];
+    let localDb = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    let localThumb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+    let merged = 0;
+    const html = rows.map(row => {
+      const mssv = row.mssv;
+      const st = studentsList.find(s => s.mssv === mssv) || localMapping.find(s => s.mssv === mssv);
+      const name = st ? st.name : mssv;
+      const label = mssv + ' - ' + name;
+      const descs = row.descriptors || [];
+      const thumbs = row.thumbnails || [];
+      const valid = descs.filter(d => d);
+      if (valid.length > 0) {
+        localDb[label] = valid;
+        localThumb[label] = thumbs.filter(t => t);
+        merged++;
+      }
+      const firstThumb = (thumbs[0] && thumbs[0].url) ? `<img src="${escapeHtml(thumbs[0].url)}" style="width:30px;height:30px;border-radius:4px;object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:4px;background:#1e293b;display:grid;place-items:center;font-size:10px;color:#94a3b8">?</div>';
+      return `
+        <div class="db-item" style="font-size:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${firstThumb}
+            <div style="min-width:0;flex:1">
+              <div style="font-weight:700;">${escapeHtml(label)}</div>
+              <div style="font-size:11px;color:#94a3b8;">${valid.length} vector · ${thumbnails.length} ảnh · ${row.updated_at ? new Date(row.updated_at).toLocaleString('vi-VN') : ''}</div>
+            </div>
+            <button type="button" class="btn-del" onclick="deleteServerFaceData('${mssv.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="font-size:11px;">🗑️ Xóa dữ liệu này</button>
+          </div>
+        </div>
+      `;
+    }).join('') || '<div style="color:#94a3b8;font-size:12px;padding:8px 0;">Chưa có dữ liệu khuôn mặt nào trên Server.</div>';
+    listEl.innerHTML = html;
+    localStorage.setItem('face_descriptors_db', JSON.stringify(localDb));
+    localStorage.setItem('face_thumbnails_db', JSON.stringify(localThumb));
+    loadEnrolledFromStorage();
+    statusEl.textContent = 'Đã đồng bộ ' + merged + ' sinh viên từ Server vào bộ nhớ AI.';
+  } catch(e) {
+    console.error('syncFaceDataFromServer:', e);
+    listEl.innerHTML = '<div style="color:#f87171;font-size:12px;padding:8px 0;">Lỗi tải từ Server: ' + escapeHtml(e.message) + '</div>';
+    statusEl.textContent = '';
+  }
+}
+
+async function deleteServerFaceData(mssv, name){
+  if (!confirm('Xóa toàn bộ dữ liệu khuôn mặt của ' + name + ' (' + mssv + ') trên Server? Hành động không thể hoàn tác.')) return;
+  try {
+    const { error } = await window.supabase.from('student_face_data').delete().eq('mssv', mssv);
+    if (error) throw error;
+    let localDb = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    let localThumb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+    const label = mssv + ' - ' + name;
+    delete localDb[label]; delete localThumb[label];
+    localStorage.setItem('face_descriptors_db', JSON.stringify(localDb));
+    localStorage.setItem('face_thumbnails_db', JSON.stringify(localThumb));
+    loadEnrolledFromStorage();
+    await syncFaceDataFromServer();
+    document.getElementById('serverFaceStatus').textContent = '✓ Đã xóa dữ liệu khuôn mặt của ' + name;
+  } catch(e) {
+    alert('Lỗi xóa: ' + e.message);
+  }
 }
 
 function updateFaceMatcher() {

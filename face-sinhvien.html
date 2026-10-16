@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LH-NaviX — Dữ liệu khuôn mặt của tôi</title>
+<meta name="theme-color" content="#f8fafc">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css">
+<style>
+  :root { --face-accent: #2563eb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+  .face-page { max-width: 720px; width: 100%; margin: 0 auto; padding: 14px 12px 60px; }
+  .face-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .face-header a.back { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 700; text-decoration: none; }
+  .face-header a.back:hover { background: var(--surface-2); }
+  .face-header h2 { font-size: 17px; font-weight: 800; margin: 0; flex: 1; }
+  .face-header p.sub { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+
+  .camera-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; margin-bottom: 14px; }
+  .camera-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); gap: 8px; flex-wrap: wrap; }
+  .camera-toolbar .label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .video-stage { position: relative; background: #000; aspect-ratio: 4 / 3; width: 100%; max-height: 52vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  #faceVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+  #overlayCanvas { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+  .hud-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 6; padding: 12px; }
+  .hud-pill { background: rgba(15,23,42,0.85); backdrop-filter: blur(8px); padding: 8px 14px; border-radius: 20px; color: #fff; font-weight: 800; font-size: 12.5px; border: 1px solid rgba(255,255,255,0.12); white-space: nowrap; }
+  .hud-hint { margin-top: 8px; font-size: 12px; color: #cbd5e1; text-align: center; }
+
+  .slots-title { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 10px; gap: 8px; flex-wrap: wrap; }
+  .slots-title b { font-size: 14.5px; font-weight: 800; }
+  .slots-progress { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .slots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .slot { border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
+  .slot.done { border-color: var(--ok); background: #f0fdf4; box-shadow: 0 0 0 1px var(--ok); }
+  .slot.warn { border-color: var(--warn); background: #fffbeb; }
+  .slot-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .slot-name { font-size: 12.5px; font-weight: 800; color: var(--text); }
+  .slot-chip { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .slot-chip.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
+  .slot-chip.pend { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+  .thumb-wrap { aspect-ratio: 1; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; position: relative; }
+  .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-empty { font-size: 11px; color: var(--muted); font-weight: 700; text-align: center; padding: 6px; }
+  .slot-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .slot-actions button { flex: 1 1 48%; min-width: 0; }
+  .slot-guide { font-size: 11.5px; color: var(--muted); min-height: 16px; }
+  .slot-guide.auto { color: var(--info); font-weight: 800; }
+
+  .actions-bar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .actions-bar .btn { flex: 1 1 220px; min-width: 0; }
+  .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 10px 12px; z-index: 100; display: flex; gap: 10px; justify-content: center; }
+  .sticky-bottom .btn { flex: 1 1 260px; }
+
+  .result { margin-top: 10px; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5; display: none; animation: rise 0.3s ease both; border: 1px solid; }
+  .result.show { display: block; }
+  .result.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-border); }
+  .result.err { background: var(--err-bg); color: var(--err); border-color: var(--err-border); }
+  .result.warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; padding: 8px 12px; background: var(--surface-2); border: 1px dashed var(--border-strong); border-radius: 8px; }
+  .note b { color: var(--text); }
+
+  @media (max-width: 480px) { .face-page { padding: 10px 8px 50px; } .sticky-bottom .btn { flex: 1 1 100%; } }
+</style>
+</head>
+<body>
+
+<div class="face-page">
+  <div class="face-header">
+    <a class="back" href="checkin.html">← Quay lại Điểm danh</a>
+    <div>
+      <h2>📸 Dữ liệu khuôn mặt của tôi</h2>
+      <p class="sub">Chụp 5 góc mặt để hệ thống nhận diện bạn nhanh và chính xác hơn trên camera điểm danh.</p>
+    </div>
+  </div>
+
+  <div class="result" id="resultBox"></div>
+
+  <div class="camera-card">
+    <div class="camera-toolbar">
+      <span class="label">🎥 Camera tự chụp</span>
+      <span class="label" id="camModeText">Tự động bắt góc</span>
+    </div>
+    <div class="video-stage">
+      <video id="faceVideo" autoplay muted playsinline></video>
+      <canvas id="overlayCanvas"></canvas>
+      <div class="hud-wrap">
+        <div class="hud-pill" id="hudStatus">🔍 Đang mở camera...</div>
+        <div class="hud-hint" id="hudHint">Đặt khuôn mặt vào khung hình để bắt đầu</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slots-title">
+    <b>📋 5 góc mặt của bạn</b>
+    <span class="slots-progress" id="slotsProgress">0 / 5 đã chụp</span>
+  </div>
+  <div class="slots-grid" id="slotsGrid"></div>
+
+  <div class="note">
+    <b>Cách chụp:</b> AI sẽ hướng dẫn từng góc. Khi góc mặt đạt chuẩn, hệ thống tự "tít" chụp (hoặc bạn tự bấm <b>"Chụp góc này"</b>). Sau khi đủ 5 góc, bấm <b>"Lưu dữ liệu"</b> để gửi lên hệ thống.
+  </div>
+
+  <div class="sticky-bottom">
+    <button class="btn btn-danger" id="btnDeleteAll" style="display:none;">🗑️ Xóa dữ liệu khuôn mặt</button>
+    <button class="btn btn-primary" id="btnSave">💾 Lưu dữ liệu khuôn mặt</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js?v=7"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script>
+(function(){
+  const supabase = window.supabase;
+  const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ========================= STATE =========================
+  let currentUser = null, currentProfile = null, myMssv = null, myName = null;
+  let isModelLoaded = false, isDetecting = false, videoStarted = false;
+  let latestDetection = null; // {detection:{box,descriptor}, landmarks, image}
+  let basePitch = null, baseMar = null;
+  let currentIndex = 0;
+  const STABLE_FRAMES = 12;
+
+  const SLOTS_DEF = [
+    { id: 'straight', label: 'Góc 1: Nhìn thẳng', guide: 'Hãy nhìn thẳng vào camera, mặt tự nhiên', target: (m) => m.yawOk && m.eyeOpen && m.mouthNeutral, hint: (m) => m.yawOk ? '' : (m.yaw < 0.88 ? '👈 Quay về giữa' : '👉 Quay về giữa') },
+    { id: 'left', label: 'Góc 2: Nghiêng trái ~15°', guide: 'Quay nhẹ đầu sang TRÁI của bạn', target: (m) => m.yaw <= 0.74, hint: (m) => 'Quay thêm sang trái...' },
+    { id: 'right', label: 'Góc 3: Nghiêng phải ~15°', guide: 'Quay nhẹ đầu sang PHẢI của bạn', target: (m) => m.yaw >= 1.26, hint: (m) => 'Quay thêm sang phải...' },
+    { id: 'tilt', label: 'Góc 4: Ngẩng / cúi ~10°', guide: 'Ngẩng hoặc cúi nhẹ đầu', target: (m) => basePitch != null && Math.abs(m.pitch - basePitch) > 0.07, hint: (m) => basePitch == null ? 'Chụp góc 1 trước' : 'Ngẩng/cúi thêm một chút...' },
+    { id: 'smile', label: 'Góc 5: Cười nhẹ', guide: 'Cười nhẹ, biểu cảm tự nhiên', target: (m) => baseMar != null && m.mar >= baseMar * 1.32, hint: (m) => baseMar == null ? 'Chụp góc 1 trước' : 'Cười nhẹ lên...' }
+  ];
+
+  let slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
+
+  // ========================= UI =========================
+  const $ = (id) => document.getElementById(id);
+  const video = $('faceVideo'); const canvas = $('overlayCanvas');
+  const hudStatus = $('hudStatus'); const hudHint = $('hudHint');
+  const slotsGrid = $('slotsGrid'); const progress = $('slotsProgress');
+  const btnSave = $('btnSave'); const btnDeleteAll = $('btnDeleteAll'); const resultBox = $('resultBox');
+
+  function showResult(type, html){ resultBox.className = 'result ' + type + ' show'; resultBox.innerHTML = html; }
+  function hideResult(){ resultBox.className = 'result'; }
+
+  function toastOk(msg){ showResult('ok', '<div style="font-weight:800">✓ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 2000); }
+  function toastErr(msg){ showResult('err', '<div style="font-weight:800">✕ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 3000); }
+
+  function renderSlots(){
+    let done = 0;
+    slotsGrid.innerHTML = slots.map((s, i) => {
+      if (s.done) done++;
+      const thumb = s.thumbnail ? `<img src="${s.thumbnail.url}" alt="">` : `<div class="thumb-empty">Chưa chụp</div>`;
+      return `
+        <div class="slot ${s.done ? 'done' : ''}">
+          <div class="slot-head">
+            <div class="slot-name">${escapeHtml(s.label)}</div>
+            <div class="slot-chip ${s.done ? 'ok' : 'pend'}">${s.done ? '✓ Đã chụp' : 'Chưa chụp'}</div>
+          </div>
+          <div class="thumb-wrap">${thumb}</div>
+          <div class="slot-actions">
+            <button type="button" class="btn" onclick="app.captureManual(${i})" ${s.done ? '' : ''}>📷 ${s.done ? 'Chụp lại' : 'Chụp góc này'}</button>
+            ${s.done ? `<button type="button" class="btn btn-danger btn-sm" onclick="app.deleteSlot(${i})" style="font-size:11px;padding:4px 6px;">🗑️ Xóa góc này</button>` : ''}
+          </div>
+          <div class="slot-guide ${s.done ? 'auto' : ''}">${s.done ? '✓ Đã lưu góc này' : s.guide}</div>
+        </div>
+      `;
+    }).join('');
+    progress.textContent = done + ' / 5 đã chụp';
+    btnSave.disabled = done < 5;
+    btnDeleteAll.style.display = done > 0 ? 'inline-block' : 'none';
+  }
+  window.app = { captureManual: null, deleteSlot: null };
+
+  // ========================= FACE METRICS (ported from face-kiosk) =========================
+  function eyeEAR(eye){
+    if (!eye || eye.length < 6) return 0.28;
+    const a = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
+    const b = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
+    const c = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
+    return c > 1 ? (a + b) / (2.0 * c) : 0.28;
+  }
+  function mouthMAR(mouth){
+    if (!mouth || mouth.length < 12) return 0.16;
+    const p0p6 = Math.hypot(mouth[0].x - mouth[6].x, mouth[0].y - mouth[6].y);
+    if (p0p6 < 1) return 0.16;
+    const a = Math.hypot(mouth[2].x - mouth[10].x, mouth[2].y - mouth[10].y);
+    const b = Math.hypot(mouth[3].x - mouth[9].x, mouth[3].y - mouth[9].y);
+    const c = Math.hypot(mouth[4].x - mouth[8].x, mouth[4].y - mouth[8].y);
+    return (a + b + c) / (2.0 * p0p6);
+  }
+  function headYaw(landmarks){
+    if (!landmarks) return 1.0;
+    const nose = landmarks.getNose();
+    const jaw = landmarks.getJawOutline();
+    if (!nose || !jaw || jaw.length < 17) return 1.0;
+    const tip = nose[3] || nose[0];
+    const dL = Math.hypot(tip.x - jaw[1].x, tip.y - jaw[1].y);
+    const dR = Math.hypot(tip.x - jaw[15].x, tip.y - jaw[15].y);
+    if (dR < 1) return 1.0;
+    return dL / dR;
+  }
+  function pitchM(landmarks){
+    const nose = landmarks.getNose();
+    const jaw = landmarks.getJawOutline();
+    const lEye = landmarks.getLeftEye();
+    const rEye = landmarks.getRightEye();
+    if (!nose || !jaw || jaw.length < 9 || !lEye || !rEye) return 0.45;
+    const tip = nose[3] || nose[nose.length - 1];
+    const eyeY = (lEye.reduce((s,p)=>s+p.y,0)/lEye.length + rEye.reduce((s,p)=>s+p.y,0)/rEye.length)/2;
+    const chin = jaw[8];
+    const span = Math.max(1, chin.y - eyeY);
+    return (tip.y - eyeY) / span;
+  }
+
+  // ========================= AUTH & DATA =========================
+  async function loadMyProfile(){
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session){ showResult('err', 'Bạn chưa đăng nhập. <a href="index.html">Đăng nhập tại đây</a>.'); return false; }
+    currentUser = session.session.user;
+    const { data: prof, error } = await supabase.from('profiles').select('full_name, mssv, username').eq('user_id', currentUser.id).maybeSingle();
+    if (error || !prof){ showResult('err', 'Không tải được hồ sơ. Vui lòng liên hệ Admin.'); return false; }
+    currentProfile = prof;
+    myMssv = prof.mssv || '';
+    myName = prof.full_name || prof.username || myMssv || '';
+    if (!myMssv){ showResult('err', 'Tài khoản chưa có MSSV. Vui lòng liên hệ Admin.'); return false; }
+    document.title = 'LH-NaviX — Khuôn mặt: ' + myMssv;
+    return true;
+  }
+
+  async function loadServerFaceData(){
+    const { data, error } = await supabase.from('student_face_data').select('descriptors, thumbnails, updated_at').eq('mssv', myMssv).maybeSingle();
+    if (error){ toastErr('Không tải được dữ liệu cũ: ' + error.message); return; }
+    if (!data) return;
+    const descs = data.descriptors || [];
+    const thumbs = data.thumbnails || [];
+    slots.forEach((s, i) => {
+      if (descs[i]) { s.descriptor = descs[i]; s.done = true; }
+      if (thumbs[i]) { s.thumbnail = thumbs[i]; s.done = true; }
+    });
+    if (slots.some(s => s.done)) { basePitch = 0.45; baseMar = 0.16; }
+    renderSlots();
+    if (slots.every(s => s.done)) {
+      hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
+      hudHint.textContent = '';
+    }
+    toastOk('Đã tải ' + slots.filter(s=>s.done).length + ' góc đã chụp trước đó.');
+  }
+
+  async function saveServer(){
+    const descriptors = slots.map(s => s.descriptor || null);
+    const thumbnails = slots.map(s => s.thumbnail || null);
+    const { error } = await supabase.from('student_face_data').upsert({
+      mssv: myMssv,
+      descriptors: descriptors,
+      thumbnails: thumbnails,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'mssv' });
+    if (error){ toastErr('Lưu lên hệ thống thất bại: ' + error.message); return false; }
+    // Đồng bộ sang localStorage của trang Camera (cùng trình duyệt) để AI nhận diện ngay
+    try {
+      const label = myMssv + ' - ' + myName;
+      let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+      let tdb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+      const valid = descriptors.filter(d => d);
+      if (valid.length > 0) {
+        db[label] = valid;
+        tdb[label] = thumbnails.filter(t => t);
+        localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+        localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
+      } else {
+        delete db[label]; delete tdb[label];
+        localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+        localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
+      }
+    } catch(e){ console.warn('localStorage sync:', e); }
+    return true;
+  }
+
+  async function deleteServer(){
+    const { error } = await supabase.from('student_face_data').delete().eq('mssv', myMssv);
+    if (error){ toastErr('Xóa thất bại: ' + error.message); return false; }
+    try {
+      const label = myMssv + ' - ' + myName;
+      let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+      let tdb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+      delete db[label]; delete tdb[label];
+      localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+      localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
+    } catch(e){}
+    return true;
+  }
+
+  // ========================= CAMERA CAPTURE =========================
+  function metricsOf(det){
+    const lm = det.landmarks;
+    const yaw = headYaw(lm);
+    const ear = (eyeEAR(lm.getLeftEye()) + eyeEAR(lm.getRightEye()))/2;
+    const mar = mouthMAR(lm.getMouth());
+    const pitch = pitchM(lm);
+    return { yaw, ear, mar, pitch,
+      yawOk: yaw >= 0.88 && yaw <= 1.12,
+      eyeOpen: ear >= 0.22,
+      mouthNeutral: mar <= 0.32 };
+  }
+
+  async function captureFromDetection(det, slotIndex){
+    if (!det) return null;
+    const { yaw, ear, mar, pitch } = metricsOf(det);
+    const box = det.detection.box;
+    // thumbnail: crop khuôn mặt với padding, về 100x100
+    const frame = latestDetection.image;
+    const w = frame.naturalWidth || frame.width || 640;
+    const h = frame.naturalHeight || frame.height || 480;
+    const pad = 0.35;
+    const cx = box.x + box.width/2, cy = box.y + box.height/2;
+    const size = Math.max(box.width, box.height) * (1 + pad);
+    const sx = Math.max(0, cx - size/2), sy = Math.max(0, cy - size/2);
+    const sw = Math.min(size, w - sx), sh = Math.min(size, h - sy);
+    const tCanvas = document.createElement('canvas');
+    tCanvas.width = 100; tCanvas.height = 100;
+    const tCtx = tCanvas.getContext('2d');
+    tCtx.fillStyle = '#ffffff'; tCtx.fillRect(0,0,100,100);
+    tCtx.drawImage(frame, sx, sy, sw, sh, 0, 0, 100, 100);
+    const thumbnail = { url: tCanvas.toDataURL('image/jpeg', 0.85), label: slots[slotIndex].label };
+    const descriptor = Array.from(det.descriptor);
+    // lưu baseline pitch/mar từ góc 1
+    if (slotIndex === 0){ basePitch = pitch; baseMar = mar; slots[0]._pitch = pitch; slots[0]._mar = mar; }
+    if (slotIndex === 3 && basePitch == null) basePitch = pitch;
+    if (slotIndex === 4 && baseMar == null) baseMar = mar;
+    return { descriptor, thumbnail, yaw, ear, mar, pitch };
+  }
+
+  function beep(){
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx(); const osc = ctx.createOscillator(); const g = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(900, ctx.currentTime);
+      g.gain.setValueAtTime(0.1, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(g).connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.12);
+    } catch(e){}
+  }
+
+  async function applyCapture(slotIndex, cap){
+    slots[slotIndex].done = true;
+    slots[slotIndex].descriptor = cap.descriptor;
+    slots[slotIndex].thumbnail = cap.thumbnail;
+    renderSlots();
+    beep();
+    // tự avance sang góc tiếp theo
+    if (slotIndex + 1 < 5) {
+      currentIndex = slotIndex + 1;
+      hudStatus.textContent = '⏭️ Sang góc tiếp theo: ' + slots[currentIndex].label;
+      setTimeout(()=>{ hudStatus.textContent = '🎯 ' + slots[currentIndex].guide; }, 700);
+    } else {
+      currentIndex = 5;
+      hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
+      hudHint.textContent = '';
+    }
+    await saveServer();
+  }
+
+  window.app.captureManual = async function(i){
+    hideResult();
+    const det = latestDetection;
+    if (!det) return toastErr('Chưa thấy khuôn mặt! Hãy đưa mặt vào camera.');
+    const cap = await captureFromDetection(det, i);
+    if (!cap) return toastErr('Chụp thất bại, vui lòng thử lại.');
+    await applyCapture(i, cap);
+    toastOk('Đã chụp ' + slots[i].label);
+  };
+  window.app.deleteSlot = async function(i){
+    if (!confirm('Xóa góc "' + slots[i].label + '"? Bạn có thể chụp lại sau.')) return;
+    slots[i] = { id: slots[i].id, label: slots[i].label, done: false, descriptor: null, thumbnail: null, guide: slots[i].guide };
+    if (currentIndex > i) currentIndex = i;
+    renderSlots();
+    hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
+    await saveServer();
+    toastOk('Đã xóa góc này.');
+  };
+
+  $('btnDeleteAll').onclick = async function(){
+    if (!slots.some(s => s.done)) return;
+    if (!confirm('BẠN CHẮC CHẮC MUỐN XÓA SẠCH TOÀN BỘ DỮ LIỆU KHUÔN MẶT?\nSau khi xóa, bạn sẽ phải chụp lại 5 góc từ đầu.')) return;
+    slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
+    currentIndex = 0; basePitch = null; baseMar = null;
+    renderSlots();
+    hudStatus.textContent = '🎯 ' + slots[0].guide; hudHint.textContent = '';
+    const ok = await deleteServer();
+    if (ok) toastOk('Đã xóa sạch dữ liệu khuôn mặt trên hệ thống.');
+  };
+
+  $('btnSave').onclick = async function(){
+    if (slots.some(s => !s.done)) return toastErr('Vui lòng chụp đủ 5 góc trước khi lưu.');
+    const ok = await saveServer();
+    if (ok) toastOk('Đã lưu 5 góc khuôn mặt lên hệ thống.');
+  };
+
+  // ========================= DETECTION LOOP =========================
+  const captureCanvas = document.createElement('canvas');
+  const capCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
+
+  async function startCamera(){
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
+      video.srcObject = stream;
+      videoStarted = true;
+      hudStatus.textContent = '🎯 ' + slots[0].guide;
+    } catch(e){
+      console.error(e);
+      hudStatus.textContent = '⚠️ Không mở được camera. Vui lòng cấp quyền truy cập camera.';
+    }
+  }
+
+  async function loop(){
+    try {
+      if (!isModelLoaded || !videoStarted || video.readyState < 2 || video.videoWidth === 0) {
+        setTimeout(() => requestAnimationFrame(loop), 100);
+        return;
+      }
+      const w = video.videoWidth, h = video.videoHeight;
+      if (captureCanvas.width !== w || captureCanvas.height !== h) { captureCanvas.width = w; captureCanvas.height = h; }
+      capCtx.drawImage(video, 0, 0, w, h);
+      latestDetection.image = video;
+
+      const detections = await faceapi.detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
+        .withFaceLandmarks(true).withFaceDescriptors();
+
+      const ctx = canvas.getContext('2d');
+      const dispW = canvas.parentElement.clientWidth || 640;
+      const dispH = canvas.parentElement.clientHeight || 480;
+      if (canvas.width !== dispW || canvas.height !== dispH) { canvas.width = dispW; canvas.height = dispH; }
+      ctx.clearRect(0, 0, dispW, dispH);
+
+      let m = null;
+      if (detections.length === 1) {
+        const box = detections[0].detection.box;
+        const drawX = dispW - box.x - box.width; // mirror
+        ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3; ctx.strokeRect(drawX, box.y, box.width, box.height);
+        m = metricsOf(detections[0]);
+        latestDetection = { detection: detections[0], landmarks: detections[0].landmarks };
+        //hud hint metric
+        if (currentIndex < 5) {
+          const slot = slots[currentIndex];
+          if (!slot.done && SLOTS_DEF[currentIndex].target(m)) {
+            if (!slot._stable) slot._stable = 0;
+            slot._stable++;
+            hudHint.textContent = SLOTS_DEF[currentIndex].hint(m) || 'Giữ yên... đang chụp tự động (' + slot._stable + '/' + STABLE_FRAMES + ')';
+            if (slot._stable >= STABLE_FRAMES) {
+              slot._stable = 0;
+              const cap = await captureFromDetection(detections[0], currentIndex);
+              if (cap) await applyCapture(currentIndex, cap);
+            }
+          } else {
+            slot._stable = 0;
+            hudHint.textContent = SLOTS_DEF[currentIndex].hint(m) || '';
+          }
+        }
+      } else {
+        if (currentIndex < 5 && !slots[currentIndex].done) hudHint.textContent = detections.length > 1 ? 'Chỉ 1 người trong khung hình' : 'Đưa mặt vào khung hình...';
+      }
+
+      if (currentIndex >= 5) { hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"'; hudHint.textContent = ''; }
+      else if (!slots[currentIndex].done) { hudStatus.textContent = '🎯 ' + slots[currentIndex].guide; }
+    } catch (err) {
+      console.warn('Lỗi vòng lặp chụp:', err);
+    } finally {
+      setTimeout(() => requestAnimationFrame(loop), 100);
+    }
+  }
+
+  // ========================= INIT =========================
+  window.addEventListener('DOMContentLoaded', async () => {
+    hudStatus.textContent = '⏳ Đang tải mô hình AI...';
+    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    try {
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      isModelLoaded = true;
+    } catch (err) {
+      console.error('Lỗi tải model:', err);
+      hudStatus.textContent = '❌ Lỗi tải AI models. Kiểm tra mạng internet.';
+      return;
+    }
+    const ok = await loadMyProfile();
+    if (!ok) return;
+    await loadServerFaceData();
+    renderSlots();
+    if (slots.every(s => s.done)) {
+      hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
+      hudHint.textContent = '';
+    }
+    await startCamera();
+    requestAnimationFrame(loop);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1262,7 +1262,7 @@ tbody tr:last-child td { border-bottom: none; }
 
 @media (max-width: 768px) {
   .app-wrapper {
-    padding: 10px 12px calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 10px 12px calc(68px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .topbar-compact {
     padding: 8px 12px;
@@ -1283,21 +1283,21 @@ tbody tr:last-child td { border-bottom: none; }
   .tasks-filter-bar .search-wrap { width: 100%; margin-left: 0 !important; }
   .tasks-filter-bar .search-wrap input { width: 100%; }
 
-  /* 1. BOTTOM NAVIGATION BAR (Thanh menu đáy ngón cái kiểu App) */
+  /* 1. BOTTOM NAVIGATION BAR (Thanh menu đáy ngón cái kiểu App - Chữ tinh gọn, không icon) */
   .mobile-bottom-nav {
     display: flex;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
-    background: rgba(255, 255, 255, 0.94);
+    height: 48px;
+    background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 -3px 16px rgba(0, 0, 0, 0.05);
     z-index: 1000;
-    padding: 0 4px;
+    padding: 0 6px;
     justify-content: space-around;
     align-items: center;
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -1305,57 +1305,44 @@ tbody tr:last-child td { border-bottom: none; }
 
   .mobile-nav-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
     flex: 1;
-    height: 100%;
+    height: 34px;
+    border-radius: 8px;
     background: transparent;
     border: none;
     outline: none;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12.5px;
     font-weight: 700;
     cursor: pointer;
     position: relative;
-    padding: 4px 0;
+    padding: 0 4px;
     transition: all 0.15s ease;
     touch-action: manipulation;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .mobile-nav-item .mobile-nav-icon {
-    font-size: 18px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 22px;
-    transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-
   .mobile-nav-item .mobile-nav-label {
     letter-spacing: -0.01em;
+    white-space: nowrap;
   }
 
-  .mobile-nav-item:active .mobile-nav-icon {
-    transform: scale(0.88);
+  .mobile-nav-item:active {
+    opacity: 0.75;
   }
 
   .mobile-nav-item.active {
     color: var(--primary);
-  }
-
-  .mobile-nav-item.active .mobile-nav-icon {
-    transform: scale(1.12);
+    background: rgba(37, 99, 235, 0.08);
   }
 
   .mobile-nav-badge {
     position: absolute;
-    top: 4px;
-    right: calc(50% - 18px);
+    top: 2px;
+    right: calc(50% - 24px);
     background: var(--err);
     color: #fff;
     font-size: 10px;
@@ -3403,24 +3390,19 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- BOTTOM NAVIGATION BAR (Hiển thị cố định đáy màn hình trên Mobile) -->
 <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Thanh điều hướng di động">
   <button type="button" class="mobile-nav-item active" data-view="overview" onclick="navTo('overview')">
-    <span class="mobile-nav-icon">⚡</span>
     <span class="mobile-nav-label">Tổng quan</span>
   </button>
   <button type="button" class="mobile-nav-item" data-view="attendance" onclick="navTo('attendance')">
-    <span class="mobile-nav-icon">📋</span>
     <span class="mobile-nav-label">Điểm danh</span>
   </button>
   <button type="button" class="mobile-nav-item" data-view="zalo" onclick="navTo('zalo')">
-    <span class="mobile-nav-icon">👥</span>
     <span class="mobile-nav-label">Lịch rảnh</span>
   </button>
   <button type="button" class="mobile-nav-item" data-view="leave" onclick="navTo('leave')">
-    <span class="mobile-nav-icon">📝</span>
     <span class="mobile-nav-label">Đơn nghỉ</span>
     <span class="mobile-nav-badge" id="mobileNavLeaveBadge" style="display:none">0</span>
   </button>
   <button type="button" class="mobile-nav-item" data-view="menu" onclick="toggleSidebar()">
-    <span class="mobile-nav-icon">⋯</span>
     <span class="mobile-nav-label">Menu</span>
   </button>
 </nav>
