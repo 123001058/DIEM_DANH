@@ -595,6 +595,17 @@ body {
         <!-- DRAWING CANVAS (BBOX & LABELS) -->
         <canvas id="overlayCanvas"></canvas>
 
+        <!-- MINIFASNET AI REALTIME INSPECTOR (Debug trực quan 80x80 & Score) -->
+        <div id="fasnetDebugBox" style="position:absolute;bottom:12px;right:12px;z-index:45;background:rgba(15,23,42,0.88);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.18);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:10px;font-family:monospace;font-size:11px;color:#f1f5f9;box-shadow:0 4px 16px rgba(0,0,0,0.6);">
+          <canvas id="fasnetDebugCanvas" width="80" height="80" style="width:60px;height:60px;border-radius:6px;border:2px solid #38bdf8;background:#000;display:block;"></canvas>
+          <div style="line-height:1.45;">
+            <div style="font-weight:700;color:#38bdf8;margin-bottom:2px;font-size:11.5px;">MiniFASNet 80×80</div>
+            <div>🟢 Live: <b id="dbgLiveVal" style="color:#22c55e;">--%</b></div>
+            <div>🔴 Replay: <b id="dbgReplayVal" style="color:#ef4444;">--%</b></div>
+            <div>🟡 Print: <b id="dbgPrintVal" style="color:#f59e0b;">--%</b></div>
+          </div>
+        </div>
+
         <!-- CARD CHÚC MỪNG LỚN (NỔI BẬT CHÍNH DIỆN) -->
         <div class="big-match-overlay" id="bigMatchOverlay">
           <img class="big-avatar" id="bigMatchAvatar" src="images/logo.png" alt="Avatar">
@@ -713,7 +724,9 @@ async function loadFasnetModel() {
 
 // Pre-process: crop khuôn mặt từ captureCanvas → Float32 tensor [1,3,80,80] NCHW BGR
 function buildFasnetTensor(box) {
-  const scale = 2.7; // Chuẩn MiniFASNet 2.7x context viền ngoài khuôn mặt
+  // Giảm scale từ 2.7x xuống 1.6x: Do TinyFaceDetector đã nới lỏng box sẵn,
+  // hệ số 1.6x giúp khuôn mặt chiếm ~75-80% khung hình 80x80, không bị pha loãng bởi nền tường/bàn ghế.
+  const scale = 1.6;
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const cropSize = Math.max(box.width, box.height) * scale;
@@ -732,6 +745,14 @@ function buildFasnetTensor(box) {
   } catch(e) {
     ctx.drawImage(captureCanvas, 0, 0, captureCanvas.width, captureCanvas.height, 0, 0, 80, 80);
   }
+
+  // Hiển thị trực tiếp crop 80x80 lên Debug Inspector để người dùng kiểm chứng bằng mắt
+  const dbgCanvas = document.getElementById('fasnetDebugCanvas');
+  if (dbgCanvas) {
+    const dbgCtx = dbgCanvas.getContext('2d');
+    dbgCtx.drawImage(tmp, 0, 0, 80, 80);
+  }
+
   const imgData = ctx.getImageData(0, 0, 80, 80).data;
 
   // Tensor NCHW: [1, 3, 80, 80] thứ tự BGR, chuẩn hóa [0.0, 1.0]
@@ -763,14 +784,31 @@ async function runFasnet(box) {
     const probs = exp.map(x => x / sum);
 
     // MiniFASNet-V2:
-    // class 0: print_attack (ảnh in giấy, thẻ)
+    // class 0: print_attack (ảnh in giấy, thẻ phẳng)
     // class 1: real / live (NGƯỜI THẬT)
-    // class 2: replay_attack (ảnh trên màn hình điện thoại / laptop)
+    // class 2: replay_attack (màn hình điện thoại / laptop)
     const printScore = probs[0];
     const liveScore = probs[1];
     const replayScore = probs[2];
     
-    const isLive = (liveScore > printScore && liveScore > replayScore && liveScore >= 0.60);
+    // Siết chặt điều kiện: LiveScore >= 0.85 VÀ tổng xác suất giả mạo (print + replay) <= 0.15
+    const isLive = (liveScore > printScore && liveScore > replayScore && liveScore >= 0.85 && (printScore + replayScore) <= 0.15);
+
+    // Cập nhật giá trị hiển thị thời gian thực lên Debug Inspector
+    const dbgLive = document.getElementById('dbgLiveVal');
+    const dbgReplay = document.getElementById('dbgReplayVal');
+    const dbgPrint = document.getElementById('dbgPrintVal');
+    const dbgCanvas = document.getElementById('fasnetDebugCanvas');
+
+    if (dbgLive) dbgLive.textContent = `${Math.round(liveScore * 100)}%`;
+    if (dbgReplay) dbgReplay.textContent = `${Math.round(replayScore * 100)}%`;
+    if (dbgPrint) dbgPrint.textContent = `${Math.round(printScore * 100)}%`;
+    if (dbgCanvas) {
+      dbgCanvas.style.borderColor = isLive ? '#22c55e' : (replayScore >= printScore ? '#ef4444' : '#f59e0b');
+    }
+
+    // Log chi tiết vào console để chẩn đoán
+    console.log(`[MiniFASNet 80x80] Live: ${(liveScore*100).toFixed(1)}% | Replay: ${(replayScore*100).toFixed(1)}% | Print: ${(printScore*100).toFixed(1)}% => ${isLive ? '✅ LIVE PASS' : '🚫 SPOOF BLOCKED'}`);
 
     return {
       isLive,
