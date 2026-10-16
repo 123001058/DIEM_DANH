@@ -511,7 +511,6 @@ body {
       <span id="sessionText">Đang tìm phiên...</span>
     </div>
     <button type="button" id="btnQuickOpen" onclick="quickOpenSession()" style="display:none;background:#22c55e;color:#052e16;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;">+ Mở phiên ngay</button>
-    <a href="admin.html" style="color:#94a3b8;text-decoration:none;font-size:12px;font-weight:700;padding:6px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;">← Về Admin</a>
   </div>
 </header>
 
@@ -587,15 +586,11 @@ body {
     <div class="tab-pane" id="tabEnroll">
       <div class="enroll-box">
 
-        <!-- CẤU HÌNH CAMERA -->
+        <!-- CẤU HÌNH CAMERA ESP32 -->
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
-          <label class="form-label">Nguồn Camera:</label>
-          <div style="display:flex;gap:6px;margin-bottom:8px;">
-            <button type="button" class="btn-toggle active" id="btnModeWebcam" onclick="switchCameraMode('webcam')" style="flex:1;">💻 Webcam</button>
-            <button type="button" class="btn-toggle" id="btnModeEsp" onclick="switchCameraMode('esp')" style="flex:1;">📡 ESP32-S3 Cam</button>
-          </div>
-          <div id="espConfigGroup" style="display:none;gap:6px;">
-            <input type="text" class="input-ip" id="espIpInput" placeholder="IP ESP32" value="192.168.2.168" style="flex:1;">
+          <label class="form-label">📡 Nguồn Camera ESP32-CAM (Stream MJPEG):</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="input-ip" id="espIpInput" placeholder="Ví dụ: 192.168.1.104" value="192.168.1.104" style="flex:1;">
             <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
           </div>
         </div>
@@ -686,7 +681,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-let cameraMode = 'webcam';
+let cameraMode = 'esp';
 let isModelLoaded = false;
 let isDetecting = false;
 let currentSession = null;
@@ -872,7 +867,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadFaceModels();
   await checkActiveSession();
   setInterval(checkActiveSession, 8000);
-  await startWebcam();
+  
+  const savedIp = localStorage.getItem('esp_cam_ip') || '192.168.1.104';
+  const ipInput = document.getElementById('espIpInput');
+  if (ipInput) ipInput.value = savedIp;
+  connectEspCamera();
   
   // Tự động chọn 123001058 (Nguyễn Khánh Hoà) sẵn để user test luôn
   setTimeout(() => {
@@ -1166,20 +1165,14 @@ function connectEspCamera() {
     alert('Vui lòng nhập địa chỉ IP của ESP32!');
     return;
   }
+  localStorage.setItem('esp_cam_ip', ip);
 
-  // 1. Chuyển triệt để cameraMode sang 'esp'
   cameraMode = 'esp';
-  stopWebcam();
   if (webcamVideo) {
     webcamVideo.style.display = 'none';
   }
 
-  // 2. Cập nhật trạng thái nút bấm
-  document.getElementById('btnModeWebcam').classList.remove('active');
-  document.getElementById('btnModeEsp').classList.add('active');
-  document.getElementById('espConfigGroup').style.display = 'flex';
-
-  // 3. Bật luồng stream ESP32
+  // Bật luồng stream ESP32
   if (espImg) {
     espImg.style.display = 'block';
     espImg.style.transform = espMirrored ? 'scaleX(-1)' : 'none';
@@ -1419,16 +1412,18 @@ async function triggerCheckin(label) {
   }
 
   try {
-    // 1. Thử RPC
-    const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('kiosk_face_checkin', {
+    // 1. Thử RPC admin_set_status (hợp lệ cho Admin và cập nhật audit log)
+    const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('admin_set_status', {
+      p_session_id: String(currentSession.id),
       p_mssv: mssv,
-      p_session_id: String(currentSession.id)
+      p_status: 'có mặt',
+      p_reason: 'Camera ESP32 điểm danh AI'
     });
 
     if (!rpcErr && rpcRes?.ok) {
-      console.log('Điểm danh RPC thành công:', rpcRes);
+      console.log('Điểm danh admin_set_status thành công:', rpcRes);
     } else {
-      // 2. Ghi trực tiếp bảng attendance
+      // 2. Ghi trực tiếp bảng attendance nếu chưa có session admin
       await window.supabase.from('attendance').upsert({
         session_id: currentSession.id,
         mssv: mssv,
@@ -1438,6 +1433,19 @@ async function triggerCheckin(label) {
         note: 'Camera Face AI'
       }, { onConflict: 'session_id,mssv' });
     }
+
+    // 3. Bắn tín hiệu sang trang Admin đang mở (nếu có) để đổi màu ngay tức thì
+    try {
+      const bc = new BroadcastChannel('lh_attendance_sync');
+      bc.postMessage({
+        type: 'face_checkin',
+        sessionId: currentSession.id,
+        mssv: mssv,
+        name: name,
+        time: new Date().toISOString()
+      });
+      bc.close();
+    } catch(e) {}
   } catch (err) {
     console.error('Lỗi gửi điểm danh:', err);
   }
