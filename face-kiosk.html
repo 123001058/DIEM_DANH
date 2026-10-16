@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LH-NaviX — Kiosk Điểm Danh Khuôn Mặt AI</title>
+<title>LH-NaviX — Camera Điểm Danh Khuôn Mặt AI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -267,52 +267,103 @@ body {
   flex-direction: column;
 }
 
-/* MATCH POPUP CARD */
-.match-card {
-  padding: 16px;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.08));
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  border-radius: 14px;
+/* BIG CELEBRATION POPUP CHÍNH DIỆN */
+.big-match-overlay {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.92);
+  width: 90%;
+  max-width: 460px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid #22c55e;
+  border-radius: 20px;
+  padding: 18px 22px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 6px 20px var(--success-glow);
-  animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  gap: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85), 0 0 35px rgba(34, 197, 94, 0.45);
+  backdrop-filter: blur(16px);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-@keyframes pop-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
+.big-match-overlay.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  pointer-events: auto;
 }
-.match-avatar-img {
-  width: 58px;
-  height: 58px;
-  border-radius: 14px;
+.big-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
   object-fit: cover;
-  border: 2px solid #22c55e;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border: 3px solid #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
   flex-shrink: 0;
+  background: #1e293b;
 }
-.match-info b {
-  font-size: 16px;
+.big-name {
+  font-size: 19px;
+  font-weight: 800;
   color: #fff;
-  display: block;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
-.match-info span {
-  font-size: 12px;
-  color: #86efac;
-  display: block;
-  margin-top: 2px;
+.big-detail {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin-top: 3px;
 }
-.match-badge {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
+.big-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: #22c55e;
   color: #052e16;
   font-size: 11px;
   font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+/* HIỆU ỨNG TIA QUÉT LASER & KHUNG NGẮM */
+.scan-laser-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #38bdf8, #60a5fa, transparent);
+  box-shadow: 0 0 14px #38bdf8, 0 0 22px #60a5fa;
+  animation: scanLaserAnim 2.8s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 12;
+}
+@keyframes scanLaserAnim {
+  0% { top: 6%; opacity: 0.3; }
+  50% { opacity: 0.95; }
+  100% { top: 92%; opacity: 0.3; }
+}
+.target-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 260px;
+  height: 320px;
+  border: 2px dashed rgba(56, 189, 248, 0.35);
+  border-radius: 28px;
+  pointer-events: none;
+  z-index: 8;
+  transition: all 0.25s ease;
+}
+.target-reticle.matched {
+  border-color: #22c55e;
+  border-style: solid;
+  box-shadow: 0 0 25px rgba(34, 197, 94, 0.4);
 }
 
 .history-list {
@@ -449,8 +500,8 @@ body {
   <div class="kiosk-brand">
     <div class="kiosk-logo-badge">📷</div>
     <div>
-      <div class="kiosk-title">LH-NaviX · Kiosk Khuôn Mặt AI</div>
-      <div class="kiosk-subtitle">Nhận diện khuôn mặt & Tự động điểm danh</div>
+      <div class="kiosk-title">LH-NaviX · Camera Điểm Danh Khuôn Mặt AI</div>
+      <div class="kiosk-subtitle">Nhận diện khuôn mặt tự động & Điểm danh tức thì</div>
     </div>
   </div>
 
@@ -467,68 +518,64 @@ body {
 <!-- MAIN CONTENT -->
 <main class="kiosk-grid">
 
-  <!-- LEFT: CAMERA STAGE -->
+  <!-- LEFT: CAMERA STAGE (DÀNH CHO SINH VIÊN QUÉT) -->
   <section class="camera-card">
     <div class="camera-toolbar">
       <div class="toolbar-group">
-        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Camera:</span>
-        <button type="button" class="btn-toggle active" id="btnModeWebcam" onclick="switchCameraMode('webcam')">💻 Webcam máy tính</button>
-        <button type="button" class="btn-toggle" id="btnModeEsp" onclick="switchCameraMode('esp')">📡 ESP32-S3 Cam</button>
-      </div>
-
-      <div class="toolbar-group" id="espConfigGroup" style="display:none;">
-        <input type="text" class="input-ip" id="espIpInput" placeholder="IP ESP32" value="192.168.2.168">
-        <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
-        <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật ảnh nếu bị ngược">🔄 Xoay/Lật</button>
+        <span style="font-size:12px;font-weight:700;color:#94a3b8;">Chế độ:</span>
+        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Chuyển đổi tốc độ quét và kiểm tra người thật">⚡ Điểm danh: Siêu tốc 1s</button>
       </div>
 
       <div class="toolbar-group">
-        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Chống gian lận bằng ảnh thẻ / màn hình điện thoại">🛡️ Chống ảnh thẻ: BẬT</button>
-        <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật gương camera nếu bị ngược chiều">🔄 Lật camera</button>
+        <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
       </div>
     </div>
 
     <div class="video-container" id="videoBox">
       <div class="video-stage" id="videoStage">
+        <!-- TIA QUÉT LASER & KHUNG NGẮM CÔNG NGHỆ -->
+        <div class="scan-laser-line"></div>
+        <div class="target-reticle" id="targetReticle"></div>
+
         <!-- WEBCAM VIDEO -->
         <video id="webcamVideo" autoplay muted playsinline></video>
         <!-- ESP32 NATIVE STREAM (MƯỢT 30-60 FPS) -->
         <img id="espStreamImg" crossorigin="anonymous" alt="ESP32 Stream">
         <!-- DRAWING CANVAS (BBOX & LABELS) -->
         <canvas id="overlayCanvas"></canvas>
-      </div>
 
-      <div class="camera-hud">
-        <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
-        <div class="hud-pill" id="hudCount">Đã học: <b id="enrolledCount">0</b> bạn</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- RIGHT: SIDEBAR (RECENT & ENROLL) -->
-  <aside class="side-card">
-    <nav class="side-tabs">
-      <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh</button>
-      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">➕ Đăng ký khuôn mặt</button>
-    </nav>
-
-    <!-- TAB 1: RECENT CHECK-INS -->
-    <div class="tab-pane active" id="tabRecent">
-      <div id="latestMatchCard" style="display:none;">
-        <div class="match-card">
-          <img class="match-avatar-img" id="matchAvatar" src="images/logo.png" alt="Avatar">
-          <div class="match-info">
-            <b id="matchName">—</b>
-            <span id="matchDetail">—</span>
-            <div class="match-badge">✓ Đã điểm danh thành công</div>
+        <!-- CARD CHÚC MỪNG LỚN (NỔI BẬT CHÍNH DIỆN) -->
+        <div class="big-match-overlay" id="bigMatchOverlay">
+          <img class="big-avatar" id="bigMatchAvatar" src="images/logo.png" alt="Avatar">
+          <div style="min-width:0;flex:1;">
+            <div class="big-name" id="bigMatchName">—</div>
+            <div class="big-detail" id="bigMatchDetail">—</div>
+            <div class="big-badge">✓ ĐÃ ĐIỂM DANH THÀNH CÔNG</div>
           </div>
         </div>
       </div>
 
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;">Lịch sử nhận diện gần nhất:</span>
+      <div class="camera-hud">
+        <div class="hud-pill" id="hudStatus">⏳ Đang khởi động mô hình AI...</div>
+        <div class="hud-pill" id="hudCount">Đã nạp: <b id="enrolledCount">0</b> bạn</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: SIDEBAR (PHÂN TÁCH 2 VAI TRÒ SINH VIÊN & ADMIN) -->
+  <aside class="side-card">
+    <nav class="side-tabs">
+      <button type="button" class="side-tab-btn active" id="tabBtnRecent" onclick="switchTab('recent')">🟢 Vừa điểm danh</button>
+      <button type="button" class="side-tab-btn" id="tabBtnEnroll" onclick="switchTab('enroll')">⚙️ Quản lý & Nạp mẫu</button>
+    </nav>
+
+    <!-- TAB 1: RECENT CHECK-INS (DÀNH CHO SINH VIÊN - SIÊU SẠCH) -->
+    <div class="tab-pane active" id="tabRecent">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;">Danh sách vừa điểm danh:</span>
         <button type="button" class="btn-del" id="btnClearHistory" onclick="clearAttendanceHistory()" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
-          🗑️ Xóa lịch sử
+          🗑️ Xóa danh sách
         </button>
       </div>
       <div class="history-list" id="historyList">
@@ -536,9 +583,23 @@ body {
       </div>
     </div>
 
-    <!-- TAB 2: ENROLL FACES -->
+    <!-- TAB 2: ENROLL FACES (DÀNH CHO ADMIN CẤU HÌNH & NẠP MẪU) -->
     <div class="tab-pane" id="tabEnroll">
       <div class="enroll-box">
+
+        <!-- CẤU HÌNH CAMERA -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+          <label class="form-label">Nguồn Camera:</label>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button type="button" class="btn-toggle active" id="btnModeWebcam" onclick="switchCameraMode('webcam')" style="flex:1;">💻 Webcam</button>
+            <button type="button" class="btn-toggle" id="btnModeEsp" onclick="switchCameraMode('esp')" style="flex:1;">📡 ESP32-S3 Cam</button>
+          </div>
+          <div id="espConfigGroup" style="display:none;gap:6px;">
+            <input type="text" class="input-ip" id="espIpInput" placeholder="IP ESP32" value="192.168.2.168" style="flex:1;">
+            <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
+          </div>
+        </div>
+
         <div>
           <label class="form-label">Chọn sinh viên từ danh sách đội:</label>
           <select class="form-select" id="studentSelect" onchange="onStudentSelectChange()">
@@ -564,14 +625,24 @@ body {
           <div id="augmentedThumbsStrip" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;"></div>
         </div>
 
-        <!-- AUTO ENROLL BUTTON FROM PHOTO -->
-        <button type="button" class="btn-action btn-success" id="btnAutoEnrollPhoto" onclick="enrollFromDocumentPhoto()" style="display:none;">
-          ⚡ Nạp khuôn mặt từ ảnh thẻ có sẵn
-        </button>
+        <!-- NẠP ẢNH TỪ FILE HOẶC ẢNH THẺ -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <!-- NẠP ẢNH THẺ CÓ SẴN (SINH 5 GÓC) -->
+          <button type="button" class="btn-action btn-success" id="btnAutoEnrollPhoto" onclick="enrollFromDocumentPhoto()" style="display:none;">
+            ⚡ Nạp từ ảnh thẻ có sẵn (Tự sinh 5 góc)
+          </button>
 
-        <button type="button" class="btn-action" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);" onclick="enrollAll30Students()">
-          📦 Tự động nạp khuôn mặt cả 30 bạn từ tài liệu
-        </button>
+          <!-- TẢI THÊM NHIỀU ẢNH TỪ MÁY TÍNH KHI SINH VIÊN GỬI THÊM -->
+          <input type="file" id="additionalPhotoInput" multiple accept="image/*" style="display:none;" onchange="handleAdditionalPhotoFiles(this.files)">
+          <button type="button" class="btn-action" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);" onclick="triggerUploadMorePhotos()">
+            📁 Tải thêm ảnh từ máy tính (Nhiều ảnh)
+          </button>
+
+          <!-- NẠP CẢ 30 BẠN -->
+          <button type="button" class="btn-action" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);" onclick="enrollAll30Students()">
+            📦 Tự động nạp cả 30 bạn từ tài liệu
+          </button>
+        </div>
 
         <div style="border-top:1px dashed rgba(255,255,255,0.1);padding-top:10px;">
           <label class="form-label">Hoặc chụp trực tiếp từ camera:</label>
@@ -951,7 +1022,7 @@ async function checkActiveSession() {
 }
 
 async function quickOpenSession() {
-  const name = prompt('Nhập tên phiên điểm danh nhanh:', 'Phiên Kiosk Face ' + new Date().toLocaleTimeString('vi-VN'));
+  const name = prompt('Nhập tên phiên điểm danh nhanh:', 'Phiên Camera Face ' + new Date().toLocaleTimeString('vi-VN'));
   if (!name) return;
 
   try {
@@ -974,7 +1045,7 @@ async function quickOpenSession() {
       is_open: true,
       started_at: new Date().toISOString(),
       duration_min: 90,
-      qr_token: 'kiosk_face_' + Date.now()
+      qr_token: 'face_cam_' + Date.now()
     }).select().single();
 
     if (!insErr && insData) {
@@ -991,10 +1062,10 @@ async function quickOpenSession() {
     if (openAdmin) {
       window.open('admin.html', '_blank');
     } else {
-      // Kích hoạt phiên Kiosk tạm thời cục bộ để bạn test nhận diện thoải mái
+      // Kích hoạt phiên Camera tạm thời cục bộ để bạn test nhận diện thoải mái
       currentSession = {
-        id: 'kiosk_local_' + Date.now(),
-        session_name: name + ' (Kiosk Offline)'
+        id: 'cam_local_' + Date.now(),
+        session_name: name + ' (Camera Offline)'
       };
       const pill = document.getElementById('sessionPill');
       const txt = document.getElementById('sessionText');
@@ -1002,7 +1073,7 @@ async function quickOpenSession() {
       pill.className = 'status-pill online';
       txt.textContent = `Phiên test: ${name}`;
       btnQuick.style.display = 'none';
-      alert('✓ Đã kích hoạt phiên Kiosk thử nghiệm! Giờ bạn có thể đứng trước camera điểm danh.');
+      alert('✓ Đã kích hoạt phiên Camera thử nghiệm! Giờ bạn có thể đứng trước camera điểm danh.');
     }
   } catch(e) {
     console.error('quickOpenSession error:', e);
@@ -1364,7 +1435,7 @@ async function triggerCheckin(label) {
         full_name: name,
         status: 'có mặt',
         category: 'Khuôn mặt',
-        note: 'Kiosk Face AI'
+        note: 'Camera Face AI'
       }, { onConflict: 'session_id,mssv' });
     }
   } catch (err) {
@@ -1373,21 +1444,82 @@ async function triggerCheckin(label) {
 }
 
 function showMatchPopup(name, mssv) {
-  const card = document.getElementById('latestMatchCard');
-  document.getElementById('matchName').textContent = name;
-  document.getElementById('matchDetail').textContent = `MSSV: ${mssv} · ${new Date().toLocaleTimeString('vi-VN')}`;
-  
+  const overlay = document.getElementById('bigMatchOverlay');
+  const reticle = document.getElementById('targetReticle');
   const st = studentsList.find(s => s.mssv === mssv);
-  document.getElementById('matchAvatar').src = st?.avatar || `images/faces/${mssv}.jpg`;
+  const avatarUrl = st?.avatar || `images/faces/${mssv}.jpg`;
 
-  card.style.display = 'block';
+  const nameEl = document.getElementById('bigMatchName');
+  const detailEl = document.getElementById('bigMatchDetail');
+  const avatarEl = document.getElementById('bigMatchAvatar');
+
+  if (nameEl) nameEl.textContent = name;
+  if (detailEl) detailEl.textContent = `MSSV: ${mssv} · ${new Date().toLocaleTimeString('vi-VN')}`;
+  if (avatarEl) avatarEl.src = avatarUrl;
+
+  if (overlay) overlay.classList.add('show');
+  if (reticle) reticle.classList.add('matched');
+
+  // Tự động tắt card sau 2.2 giây để đón bạn tiếp theo
+  clearTimeout(window._matchPopupTimer);
+  window._matchPopupTimer = setTimeout(() => {
+    if (overlay) overlay.classList.remove('show');
+    if (reticle) reticle.classList.remove('matched');
+  }, 2200);
 
   recentCheckins.unshift({
     name, mssv,
-    avatar: st?.avatar || `images/faces/${mssv}.jpg`,
+    avatar: avatarUrl,
     time: new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
   });
   renderHistory();
+}
+
+// XỬ LÝ TẢI THÊM ẢNH TỪ MÁY TÍNH KHI SINH VIÊN GỬI THÊM ẢNH
+function triggerUploadMorePhotos() {
+  const mssv = document.getElementById('studentSelect').value;
+  if (!mssv) return alert('Vui lòng chọn sinh viên từ danh sách trước khi tải ảnh!');
+  const input = document.getElementById('additionalPhotoInput');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+async function handleAdditionalPhotoFiles(files) {
+  if (!files || files.length === 0) return;
+  const mssv = document.getElementById('studentSelect').value;
+  const st = studentsList.find(s => s.mssv === mssv);
+  if (!st) return;
+
+  hudStatus.textContent = `⏳ Đang đọc ${files.length} ảnh bổ sung cho ${st.name}...`;
+
+  let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  const label = `${st.mssv} - ${st.name}`;
+  if (!db[label]) db[label] = [];
+
+  let successCount = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    try {
+      const img = await faceapi.bufferToImage(file);
+      const det = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.2 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+      if (det) {
+        db[label].push(Array.from(det.descriptor));
+        successCount++;
+      }
+    } catch(err) {
+      console.warn('Lỗi xử lý file upload:', err);
+    }
+  }
+
+  localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+  loadEnrolledFromStorage();
+  alert(`✓ Đã nạp thành công thêm ${successCount}/${files.length} ảnh cho ${st.name}!\nHiện sinh viên này có ${db[label].length} vector mẫu nhận diện.`);
+  hudStatus.textContent = `🟢 Đã bổ sung ${successCount} ảnh cho ${st.name}. Sẵn sàng điểm danh!`;
 }
 
 function renderHistory() {

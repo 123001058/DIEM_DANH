@@ -2180,6 +2180,13 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-label">Điểm danh & Lịch sử</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
     </button>
+    <button class="sidebar-nav-item" id="nav-kiosk" onclick="navTo('kiosk')">
+      <span class="nav-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </span>
+      <span class="nav-label">Camera Điểm danh AI</span>
+      <span class="nav-badge" id="navKioskBadge" style="background:#0284c7;color:#fff">AI</span>
+    </button>
     <button class="sidebar-nav-item" id="nav-students" onclick="navTo('students')">
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -2593,6 +2600,35 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
           </div></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================
+         VIEW: CAMERA ĐIỂM DANH KHUÔN MẶT AI
+         ========================================================== -->
+    <section class="app-view" id="view-kiosk">
+      <div class="card" style="padding:14px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:38px;height:38px;border-radius:10px;background:#eff6ff;color:#2563eb;display:grid;place-items:center;font-size:18px;">📷</div>
+          <div>
+            <h2 style="font-size:15.5px;font-weight:800;margin:0;">Camera Điểm danh Khuôn mặt AI</h2>
+            <p style="font-size:11.5px;color:var(--muted);margin:2px 0 0;">
+              Nhận diện tự động qua Webcam / Camera ESP32-S3 với thuật toán quét thông minh và 5 góc mặt.
+            </p>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <a href="face-kiosk.html" target="_blank" class="btn btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;" title="Mở trang Camera độc lập trên tab mới">
+            <span>⛶</span> Mở toàn màn hình ↗
+          </a>
+          <button type="button" class="btn btn-secondary" onclick="reloadKioskIframe()" style="padding:7px 12px;border-radius:8px;font-size:12px;" title="Tải lại camera">
+            🔄 Làm mới
+          </button>
+        </div>
+      </div>
+
+      <div style="background:#0f172a;border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);height:calc(100vh - 190px);min-height:620px;">
+        <iframe src="face-kiosk.html" id="kioskIframe" style="width:100%;height:100%;border:none;display:block;" allow="camera; microphone"></iframe>
       </div>
     </section>
 
@@ -3713,6 +3749,7 @@ let currentView = 'overview';
 const viewTitlesMap = {
   overview: 'Tổng quan hệ thống',
   attendance: 'Điểm danh & Lịch sử',
+  kiosk: 'Kiosk Điểm danh Khuôn mặt AI',
   students: 'Quản lý nhóm & Sinh viên',
   tasks: 'Nhiệm vụ xưởng & Đội Robocon',
   leave: 'Quản lý đơn xin nghỉ',
@@ -3721,6 +3758,13 @@ const viewTitlesMap = {
   'password-reset': 'Reset mật khẩu',
   zalo: 'Lịch rảnh / bận'
 };
+
+function reloadKioskIframe() {
+  const iframe = document.getElementById('kioskIframe');
+  if (iframe) {
+    iframe.src = 'face-kiosk.html?t=' + Date.now();
+  }
+}
 
 /* Ngăn trượt (accordion): bấm tiêu đề để mở/đóng, onOpen = hàm nạp dữ liệu khi vừa mở */
 function toggleAcc(head, onOpen) {
