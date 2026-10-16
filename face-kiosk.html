@@ -1502,7 +1502,7 @@ async function startDetectionLoop() {
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            const maxDistance = antiSpoofEnabled ? 0.38 : 0.46;
+            const maxDistance = antiSpoofEnabled ? 0.42 : 0.46;
             if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
               label = bestMatch.label;
               isMatch = true;
@@ -2251,7 +2251,7 @@ async function syncFaceDataFromServer(){
             ${firstThumb}
             <div style="min-width:0;flex:1">
               <div style="font-weight:700;">${escapeHtml(label)}</div>
-              <div style="font-size:11px;color:#94a3b8;">${valid.length} vector · ${thumbnails.length} ảnh · ${row.updated_at ? new Date(row.updated_at).toLocaleString('vi-VN') : ''}</div>
+              <div style="font-size:11px;color:#94a3b8;">${valid.length} vector · ${thumbs.length} ảnh · ${row.updated_at ? new Date(row.updated_at).toLocaleString('vi-VN') : ''}</div>
             </div>
             <button type="button" class="btn-del" onclick="deleteServerFaceData('${mssv.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="font-size:11px;">🗑️ Xóa dữ liệu này</button>
           </div>

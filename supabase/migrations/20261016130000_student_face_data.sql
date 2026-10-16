@@ -3,12 +3,15 @@
 -- Mỗi sinh viên: mssv, mảng 5 vector descriptors, 5 ảnh thumbnail nhỏ.
 -- =====================================================================
 create table if not exists public.student_face_data (
-  mssv text not null,
+  mssv text not null references public.students(mssv) on delete cascade,
   descriptors jsonb not null default '[]'::jsonb,
   thumbnails jsonb not null default '[]'::jsonb,
   updated_at timestamp with time zone default now() not null,
   constraint student_face_data_pkey primary key (mssv)
 );
+
+-- Cấp quyền thao tác bảng cho role authenticated
+grant select, insert, update, delete on table public.student_face_data to authenticated;
 
 alter table public.student_face_data enable row level security;
 
@@ -43,9 +46,5 @@ create policy "student_face_data_delete" on public.student_face_data
     or mssv = (select p.mssv from public.profiles p where p.user_id = auth.uid())
   );
 
--- Index tra cứu nhanh theo mssv
-drop index if exists idx_student_face_data_mssv;
-create index idx_student_face_data_mssv on public.student_face_data (mssv);
-
--- Comment tài liệu cục bộ
+-- Comment tài liệu
 comment on table public.student_face_data is 'Lưu dữ liệu khuôn mặt 5 góc của sinh viên: descriptors (5 vector 128D), thumbnails (5 ảnh 100x100), dùng cho nhận diện ESP32/Camera và sinh viên xóa làm lại từ đầu.';

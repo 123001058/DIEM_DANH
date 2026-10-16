@@ -71,7 +71,7 @@
 
 <div class="face-page">
   <div class="face-header">
-    <a class="back" href="checkin.html">← Quay lại Điểm danh</a>
+    <a class="back" href="checkin.html" onclick="if(window.app&&window.app.stopCamera)window.app.stopCamera()">← Quay lại Điểm danh</a>
     <div>
       <h2>📸 Dữ liệu khuôn mặt của tôi</h2>
       <p class="sub">Chụp 5 góc mặt để hệ thống nhận diện bạn nhanh và chính xác hơn trên camera điểm danh.</p>
@@ -243,10 +243,14 @@
       if (thumbs[i]) { s.thumbnail = thumbs[i]; s.done = true; }
     });
     if (slots.some(s => s.done)) { basePitch = 0.45; baseMar = 0.16; }
+    const firstUndone = slots.findIndex(s => !s.done);
+    currentIndex = (firstUndone !== -1) ? firstUndone : 5;
     renderSlots();
-    if (slots.every(s => s.done)) {
+    if (currentIndex >= 5) {
       hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
       hudHint.textContent = '';
+    } else {
+      hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
     }
     toastOk('Đã tải ' + slots.filter(s=>s.done).length + ' góc đã chụp trước đó.');
   }
@@ -312,10 +316,10 @@
     if (!det) return null;
     const { yaw, ear, mar, pitch } = metricsOf(det);
     const box = det.detection.box;
-    // thumbnail: crop khuôn mặt với padding, về 100x100
-    const frame = latestDetection.image;
-    const w = frame.naturalWidth || frame.width || 640;
-    const h = frame.naturalHeight || frame.height || 480;
+    // thumbnail: crop khuôn mặt với padding từ captureCanvas, về 100x100
+    const frame = captureCanvas;
+    const w = captureCanvas.width || 640;
+    const h = captureCanvas.height || 480;
     const pad = 0.35;
     const cx = box.x + box.width/2, cy = box.y + box.height/2;
     const size = Math.max(box.width, box.height) * (1 + pad);
@@ -404,17 +408,30 @@
   const captureCanvas = document.createElement('canvas');
   const capCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
 
+  let currentMediaStream = null;
+
   async function startCamera(){
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
+      currentMediaStream = stream;
       video.srcObject = stream;
       videoStarted = true;
-      hudStatus.textContent = '🎯 ' + slots[0].guide;
+      if (currentIndex < 5) hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
     } catch(e){
       console.error(e);
       hudStatus.textContent = '⚠️ Không mở được camera. Vui lòng cấp quyền truy cập camera.';
     }
   }
+
+  function stopCamera(){
+    if (currentMediaStream) {
+      currentMediaStream.getTracks().forEach(t => t.stop());
+      currentMediaStream = null;
+    }
+    videoStarted = false;
+  }
+  window.addEventListener('beforeunload', stopCamera);
+  window.app.stopCamera = stopCamera;
 
   async function loop(){
     try {
@@ -425,7 +442,6 @@
       const w = video.videoWidth, h = video.videoHeight;
       if (captureCanvas.width !== w || captureCanvas.height !== h) { captureCanvas.width = w; captureCanvas.height = h; }
       capCtx.drawImage(video, 0, 0, w, h);
-      latestDetection.image = video;
 
       const detections = await faceapi.detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
         .withFaceLandmarks(true).withFaceDescriptors();
@@ -438,11 +454,16 @@
 
       let m = null;
       if (detections.length === 1) {
-        const box = detections[0].detection.box;
+        const resized = faceapi.resizeResults(detections, { width: dispW, height: dispH });
+        const box = resized[0].detection.box;
         const drawX = dispW - box.x - box.width; // mirror
         ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3; ctx.strokeRect(drawX, box.y, box.width, box.height);
         m = metricsOf(detections[0]);
-        latestDetection = { detection: detections[0], landmarks: detections[0].landmarks };
+        latestDetection = { 
+          detection: detections[0], 
+          landmarks: detections[0].landmarks,
+          image: captureCanvas
+        };
         //hud hint metric
         if (currentIndex < 5) {
           const slot = slots[currentIndex];
@@ -461,6 +482,7 @@
           }
         }
       } else {
+        latestDetection = null;
         if (currentIndex < 5 && !slots[currentIndex].done) hudHint.textContent = detections.length > 1 ? 'Chỉ 1 người trong khung hình' : 'Đưa mặt vào khung hình...';
       }
 

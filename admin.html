@@ -2643,8 +2643,11 @@ tbody tr:last-child td { border-bottom: none; }
             <button type="button" class="btn btn-secondary btn-sm" id="btnAdminFaceFullscreen" onclick="toggleAdminFaceFullscreen()" title="Bật/Tắt chế độ toàn màn hình">
               <span>⛶</span> Toàn màn hình
             </button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="syncAdminFacesFromSupabase(true)" title="Kéo 5 góc mặt thật do sinh viên tự chụp từ Server về">
+              ☁️ Kéo dữ liệu Server
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="openAdminFaceSyncModal()" title="Đồng bộ dữ liệu khuôn mặt và sinh 5 góc từ ảnh thẻ">
-              🔄 Đồng bộ dữ liệu mặt
+              🔄 Nạp từ ảnh thẻ
             </button>
           </div>
         </div>
@@ -9569,10 +9572,52 @@ async function initFaceCamInAdmin() {
     adminFaceModelsLoaded = true;
 
     reloadAdminFaceMatcher();
+    syncAdminFacesFromSupabase();
     if (hud) hud.textContent = '🟢 AI sẵn sàng — Nhấn "Bắt đầu quét"';
   } catch(e) {
     console.error('Lỗi load face-api trong admin:', e);
     if (hud) hud.textContent = '❌ Lỗi tải AI. Vui lòng kiểm tra mạng.';
+  }
+}
+
+// Tự động kéo dữ liệu 5 vector khuôn mặt từ bảng student_face_data trên Supabase
+async function syncAdminFacesFromSupabase(showNotification = false) {
+  const hud = document.getElementById('adminEspHudText');
+  try {
+    const { data, error } = await supabase.from('student_face_data').select('mssv, descriptors, thumbnails, updated_at');
+    if (error) throw error;
+    const rows = data || [];
+    let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    let tdb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+    let merged = 0;
+
+    rows.forEach(row => {
+      const mssv = row.mssv;
+      const st = (students || []).find(s => s.mssv === mssv);
+      const name = st ? st.name : mssv;
+      const label = `${mssv} - ${name}`;
+      const valid = (row.descriptors || []).filter(d => d);
+      if (valid.length > 0) {
+        db[label] = valid;
+        if (row.thumbnails && row.thumbnails.length > 0) {
+          tdb[label] = row.thumbnails.filter(t => t);
+        }
+        merged++;
+      }
+    });
+
+    localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+    localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
+    reloadAdminFaceMatcher();
+    if (hud) hud.textContent = `🟢 Đã nạp ${merged} sinh viên (${Object.keys(db).length} người) vào bộ nhớ AI`;
+    if (showNotification) {
+      toast('ok', 'Đồng bộ thành công', `Đã kéo ${merged} sinh viên có dữ liệu khuôn mặt từ Server về bộ nhớ AI.`);
+    }
+  } catch(e) {
+    console.warn('[syncAdminFacesFromSupabase]', e);
+    if (showNotification) {
+      toast('err', 'Lỗi đồng bộ Server', e.message);
+    }
   }
 }
 
@@ -9844,7 +9889,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       st.baselineYaw = st.baselineYaw * 0.7 + yaw * 0.3;
       st.baselineMAR = st.baselineMAR * 0.7 + mar * 0.3;
 
-      if (st.straightFrames >= 6) { // Ít nhất 6 frame (~300ms) liên tục
+      if (st.straightFrames >= 4) { // 4 frame ổn định liên tục
         st.stage = 'ACTION_HOLD';
         st.stageStartTime = now;
         st.actionFrames = 0;
@@ -9901,7 +9946,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isReopened = (avgEAR >= st.baselineEAR * 0.85) && (avgEAR >= 0.22);
       if (isReopened) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) { // Mở mắt ổn định 3 frame liên tục
+        if (st.returnFrames >= 2) { // Mở mắt ổn định 2 frame liên tục
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (CHỚP MẮT THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -9917,7 +9962,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isTurnedLeft = (yaw <= 0.58);
       if (isTurnedLeft) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) { // Giữ tư thế quay trái 3 frame liên tục
+        if (st.actionFrames >= 2) { // Giữ tư thế quay trái 2 frame liên tục
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -9938,7 +9983,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
       if (isBackStraight) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -9954,7 +9999,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isTurnedRight = (yaw >= 1.45);
       if (isTurnedRight) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) { // Giữ tư thế quay phải 3 frame liên tục
+        if (st.actionFrames >= 2) { // Giữ tư thế quay phải 2 frame liên tục
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -9975,7 +10020,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
       if (isBackStraight) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -9991,7 +10036,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isSmiling = (mar >= st.baselineMAR * 1.55) && (mar >= 0.38);
       if (isSmiling) {
         st.actionFrames++;
-        if (st.actionFrames >= 3) {
+        if (st.actionFrames >= 2) {
           st.stage = 'RETURNING';
           st.stageStartTime = now;
           st.returnFrames = 0;
@@ -10012,7 +10057,7 @@ function evaluateAdminLiveness(label, landmarks, box) {
       const isBackNeutral = (mar <= 0.28) && (avgEAR >= 0.22);
       if (isBackNeutral) {
         st.returnFrames++;
-        if (st.returnFrames >= 3) {
+        if (st.returnFrames >= 2) {
           return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (MỈM CƯỜI THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
         }
       } else {
@@ -10142,8 +10187,8 @@ async function startAdminFaceLoop() {
 
           if (adminFaceMatcher) {
             const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-            // Ngưỡng nghiêm ngặt: 0.38 khi bật nghiêm ngặt (chống nhầm mặt khác), 0.46 khi siêu tốc
-            const maxDistance = adminSpeedMode ? 0.46 : 0.38;
+            // Ngưỡng khoảng cách: 0.42 khi bật nghiêm ngặt (chống nhầm mặt), 0.46 khi siêu tốc
+            const maxDistance = adminSpeedMode ? 0.46 : 0.42;
 
             if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
               isMatched = true;
