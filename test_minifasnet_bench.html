@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MiniFASNet Benchmark Test</title>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+</head>
+<body style="background:#111;color:#fff;font-family:monospace;padding:20px;">
+<h2>MiniFASNet Model Benchmark</h2>
+<div id="results">Running tests...</div>
+
+<script>
+async function run() {
+  const el = document.getElementById('results');
+  ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+  
+  // 1. Load ONNX model
+  let session;
+  try {
+    session = await ort.InferenceSession.create('models/anti-spoofing/minifasnet_v2.onnx', { executionProviders: ['wasm'] });
+    el.innerHTML += '<p>Model loaded: SUCCESS</p>';
+  } catch(e) {
+    el.innerHTML += '<p style="color:red">Model load error: ' + e.message + '</p>';
+    return;
+  }
+
+  // 2. Load face-api tiny detector
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+
+  // 3. Test images
+  const testImages = ['images/faces/123001058.png', 'images/faces/123000651.png'];
+  
+  for (const imgUrl of testImages) {
+    el.innerHTML += '<h3>Testing: ' + imgUrl + '</h3>';
+    const img = await faceapi.fetchImage(imgUrl);
+    const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.2 }));
+    if (!det) {
+      el.innerHTML += '<p style="color:yellow">No face detected by TinyFaceDetector</p>';
+      continue;
+    }
+    const box = det.box;
+    el.innerHTML += '<p>Detected box: x=' + Math.round(box.x) + ' y=' + Math.round(box.y) + ' w=' + Math.round(box.width) + ' h=' + Math.round(box.height) + '</p>';
+
+    // Test scales: 1.6 vs 2.7
+    for (const scale of [1.6, 2.7]) {
+      // Test color formats: BGR vs RGB
+      for (const format of ['BGR', 'RGB']) {
+        const srcW = img.width;
+        const srcH = img.height;
+        const scaleW = box.width * scale;
+        const scaleH = box.height * scale;
+        const cx = box.x + box.width / 2.0;
+        const cy = box.y + box.height / 2.0;
+
+        let left = Math.max(0, Math.round(cx - scaleW / 2.0));
+        let top = Math.max(0, Math.round(cy - scaleH / 2.0));
+        let right = Math.min(srcW, Math.round(cx + scaleW / 2.0));
+        let bottom = Math.min(srcH, Math.round(cy + scaleH / 2.0));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 80;
+        canvas.height = 80;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, left, top, right - left, bottom - top, 0, 0, 80, 80);
+
+        const imgData = ctx.getImageData(0, 0, 80, 80).data;
+        const f32 = new Float32Array(3 * 80 * 80);
+        const plane = 80 * 80;
+
+        for (let i = 0; i < plane; i++) {
+          const r = imgData[i * 4 + 0] / 255.0;
+          const g = imgData[i * 4 + 1] / 255.0;
+          const b = imgData[i * 4 + 2] / 255.0;
+          if (format === 'BGR') {
+            f32[i]             = b;
+            f32[plane + i]     = g;
+            f32[2 * plane + i] = r;
+          } else {
+            f32[i]             = r;
+            f32[plane + i]     = g;
+            f32[2 * plane + i] = b;
+          }
+        }
+
+        const tensor = new ort.Tensor('float32', f32, [1, 3, 80, 80]);
+        const res = await session.run({ [session.inputNames[0]]: tensor });
+        const raw = res[session.outputNames[0]].data;
+
+        // Softmax
+        const maxV = Math.max(raw[0], raw[1], raw[2]);
+        const exp = [Math.exp(raw[0] - maxV), Math.exp(raw[1] - maxV), Math.exp(raw[2] - maxV)];
+        const sum = exp[0] + exp[1] + exp[2];
+        const probs = exp.map(x => x / sum);
+
+        const row = `Scale: ${scale}x | Format: ${format} | Raw Logits: [${raw[0].toFixed(3)}, ${raw[1].toFixed(3)}, ${raw[2].toFixed(3)}] | Softmax: [p0(Print): ${(probs[0]*100).toFixed(1)}%, p1(Live): ${(probs[1]*100).toFixed(1)}%, p2(Replay): ${(probs[2]*100).toFixed(1)}%]`;
+        const color = probs[1] > 0.7 ? '#4ade80' : '#f87171';
+        el.innerHTML += `<div style="padding:4px;color:${color}">${row}</div>`;
+        console.log(row);
+        resultsText += row + '\n';
+      }
+    }
+  }
+  el.innerHTML += '<h2 id="done">BENCHMARK COMPLETE</h2>';
+  try {
+    await fetch('http://127.0.0.1:8077/save_bench', { method: 'POST', body: resultsText });
+  } catch(e) {}
+}
+let resultsText = '';
+run();
+</script>
+</body>
+</html>
