@@ -10118,15 +10118,30 @@ async function startAdminFaceLoop() {
           canvas.height = h;
         }
 
-        // Chụp frame từ ảnh MJPEG sang canvas ngầm để tránh CORS/MJPEG buffer issue
-        adminCaptureCanvas.width = img.naturalWidth || 640;
-        adminCaptureCanvas.height = img.naturalHeight || 480;
-        adminCaptureCtx.drawImage(img, 0, 0);
+        // Chụp frame từ ảnh MJPEG sang canvas ngầm để AI đọc điểm ảnh ổn định tuyệt đối
+        const frameW = img.videoWidth || img.naturalWidth || img.clientWidth || 640;
+        const frameH = img.videoHeight || img.naturalHeight || img.clientHeight || 480;
+        if (adminCaptureCanvas.width !== frameW || adminCaptureCanvas.height !== frameH) {
+          adminCaptureCanvas.width = frameW;
+          adminCaptureCanvas.height = frameH;
+        }
+        adminCaptureCtx.drawImage(img, 0, 0, frameW, frameH);
 
-        const detections = await faceapi
-          .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.28 }))
-          .withFaceLandmarks(true)
-          .withFaceDescriptors();
+        // Ngưỡng 0.20 giúp bắt nhạy khuôn mặt ngay cả khi ngược sáng, đeo kính hoặc camera hơi tối
+        let detections = [];
+        try {
+          detections = await faceapi
+            .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+            .withFaceLandmarks(true)
+            .withFaceDescriptors();
+        } catch(detErr) {
+          try {
+            detections = await faceapi
+              .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+              .withFaceLandmarks(true)
+              .withFaceDescriptors();
+          } catch(e) {}
+        }
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -10204,31 +10219,27 @@ async function startAdminFaceLoop() {
               }
             }
 
-            // Vẽ khung cho từng khuôn mặt
+            // Vẽ khung cho từng khuôn mặt (Chuẩn tọa độ khi lật gương, chữ không bị lộn ngược)
             const box = det.detection.box;
-            ctx.save();
-            if (adminEspMirrored) {
-              ctx.translate(canvas.width, 0);
-              ctx.scale(-1, 1);
-            }
+            const drawX = adminEspMirrored ? (w - box.x - box.width) : box.x;
+            const labelY = box.y > 24 ? box.y - 24 : box.y;
+
             ctx.strokeStyle = boxColor;
             ctx.lineWidth = 2.5;
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
+            ctx.strokeRect(drawX, box.y, box.width, box.height);
 
-            // Vẽ nhãn
+            // Vẽ nhãn phía trên
             ctx.fillStyle = boxColor;
+            ctx.font = 'bold 11.5px system-ui, sans-serif';
             const textWidth = ctx.measureText(labelText).width;
-            ctx.fillRect(box.x, box.y - 22, textWidth + 14, 22);
+            ctx.fillRect(drawX, labelY, textWidth + 14, 22);
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 11px system-ui';
-            ctx.fillText(labelText, box.x + 6, box.y - 7);
-
-            ctx.restore();
+            ctx.fillText(labelText, drawX + 6, labelY + 15);
           }
         }
       }
     } catch(err) {
-      // Bỏ qua lỗi 1 frame dropped
+      console.warn('[Admin Face Loop Error]:', err);
     }
 
     requestAnimationFrame(step);

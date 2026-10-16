@@ -1490,9 +1490,9 @@ async function startDetectionLoop() {
         }
         captureCtx.drawImage(inputMedia, 0, 0, frameW, frameH);
 
-        // Nhận diện TinyFaceDetector - Ngưỡng 0.32 giúp bắt mặt liên tục ngay cả khi nhắm mắt hoặc nghiêng nhẹ
+        // Nhận diện TinyFaceDetector - Ngưỡng 0.22 giúp bắt mặt nhạy liên tục ngay cả khi camera mờ hoặc ngược sáng
         const detections = await faceapi
-          .detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.32 }))
+          .detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 }))
           .withFaceLandmarks(true)
           .withFaceDescriptors();
 
