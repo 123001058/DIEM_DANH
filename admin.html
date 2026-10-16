@@ -2186,8 +2186,15 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
       </span>
-      <span class="nav-label">Điểm danh & Lịch sử</span>
+      <span class="nav-label">Điểm danh (Phiên & QR)</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
+    </button>
+    <button class="sidebar-nav-item" id="nav-history" onclick="navTo('history')">
+      <span class="nav-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="9"></circle></svg>
+      </span>
+      <span class="nav-label">Danh sách phiên điểm danh</span>
+      <span class="nav-badge" style="background:#e0f2fe;color:#0369a1;font-weight:700">Lịch sử</span>
     </button>
     <button class="sidebar-nav-item" id="nav-face-cam" onclick="navTo('face-cam')">
       <span class="nav-icon">
@@ -2569,46 +2576,69 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <!-- Ngăn trượt: Lịch sử & Báo cáo các phiên điểm danh -->
-      <div class="acc-stack">
-        <div class="acc" id="accHistory">
-          <button type="button" class="acc-head" aria-expanded="false" onclick="toggleAcc(this, openHistoryAndReport)">
-            <span class="acc-title">🕒 Lịch sử & Báo cáo các phiên điểm danh</span>
-            <span class="acc-sub">Thống kê theo khoảng ngày, xem lại, sửa đổi hoặc xóa từng phiên</span>
-            <span class="acc-chev" aria-hidden="true">▾</span>
-          </button>
-          <div class="acc-body"><div class="acc-inner">
-            <!-- Thanh công cụ: Lọc khoảng ngày & Tác vụ -->
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <label style="font-size:11.5px;font-weight:700">Từ ngày
-                  <input id="reportFromDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
-                </label>
-                <label style="font-size:11.5px;font-weight:700">Đến ngày
-                  <input id="reportToDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
-                </label>
-                <button class="btn btn-primary btn-sm" onclick="loadAttendanceReport()" style="padding:8px 14px;font-size:12.5px">🔍 Lọc báo cáo</button>
-                <button class="btn btn-secondary btn-sm" onclick="exportAttendanceReportExcel()" style="padding:8px 14px;font-size:12.5px" title="Xuất dữ liệu theo khoảng ngày ra file Excel">📥 Xuất Excel</button>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-icon" onclick="loadAttendanceReport()" title="Làm mới">↻</button>
-                <button class="btn btn-secondary btn-sm" style="color:var(--err);border-color:rgba(239,68,68,0.3)" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
-              </div>
-            </div>
-
-            <!-- Dải thẻ KPI tổng quan theo khoảng ngày -->
-            <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px"></div>
-
-            <!-- Tiêu đề danh sách phiên & số lượng -->
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-              <div style="font-size:13px;font-weight:700">📋 Danh sách các phiên điểm danh</div>
-              <span id="attendanceReportCount" style="font-size:12px;color:var(--muted)"></span>
-            </div>
-
-            <!-- Danh sách phiên điểm danh duy nhất -->
-            <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
-          </div></div>
+      <!-- Thẻ chuyển nhanh sang Danh sách phiên điểm danh -->
+      <div class="card" style="padding:14px 18px;margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--surface);border:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--info-bg);color:var(--info);display:grid;place-items:center;font-size:18px">🕒</div>
+          <div>
+            <div style="font-size:13.5px;font-weight:700;color:var(--text)">Danh sách & Lịch sử các phiên điểm danh</div>
+            <div style="font-size:12px;color:var(--muted)">Xem lại, chỉnh sửa hoặc xuất Excel các phiên điểm danh theo khoảng ngày.</div>
+          </div>
         </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="navTo('history')" style="font-weight:700;padding:8px 16px;">
+          Mở danh sách phiên điểm danh →
+        </button>
+      </div>
+    </section>
+
+    <!-- ==========================================================
+         VIEW: DANH SÁCH & LỊCH SỬ CÁC PHIÊN ĐIỂM DANH (HISTORY)
+         ========================================================== -->
+    <section class="app-view" id="view-history">
+      <div class="card" style="padding:20px 24px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div>
+            <h2 style="font-size:16px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
+              <span>🕒</span> Lịch sử & Báo cáo các phiên điểm danh
+            </h2>
+            <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0">Thống kê theo khoảng ngày, xem lại, sửa đổi hoặc xóa từng phiên</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="navTo('attendance')" style="display:inline-flex;align-items:center;gap:6px;font-weight:600">
+              <span>⚡</span> Phiên hiện tại & QR →
+            </button>
+          </div>
+        </div>
+
+        <!-- Thanh công cụ: Lọc khoảng ngày & Tác vụ -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <label style="font-size:11.5px;font-weight:700">Từ ngày
+              <input id="reportFromDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
+            </label>
+            <label style="font-size:11.5px;font-weight:700">Đến ngày
+              <input id="reportToDate" type="date" style="display:block;padding:7px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text)">
+            </label>
+            <button class="btn btn-primary btn-sm" onclick="loadAttendanceReport()" style="padding:8px 14px;font-size:12.5px">🔍 Lọc báo cáo</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportAttendanceReportExcel()" style="padding:8px 14px;font-size:12.5px" title="Xuất dữ liệu theo khoảng ngày ra file Excel">📥 Xuất Excel</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-icon" onclick="loadAttendanceReport()" title="Làm mới">↻</button>
+            <button class="btn btn-secondary btn-sm" style="color:var(--err);border-color:rgba(239,68,68,0.3)" onclick="confirmDeleteHistory()">🗑 Xóa toàn bộ lịch sử</button>
+          </div>
+        </div>
+
+        <!-- Dải thẻ KPI tổng quan theo khoảng ngày -->
+        <div id="attendanceReportSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px"></div>
+
+        <!-- Tiêu đề danh sách phiên & số lượng -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:13.5px;font-weight:700">📋 Danh sách các phiên điểm danh</div>
+          <span id="attendanceReportCount" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+
+        <!-- Danh sách phiên điểm danh duy nhất -->
+        <div class="history-list-wrap detail-list" id="historyFullList"><div class="schedule-loading">Đang tải lịch sử...</div></div>
       </div>
     </section>
 
@@ -3752,9 +3782,19 @@ tbody tr:last-child td { border-bottom: none; }
       </select>
     </div>
 
+    <div class="form-field" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <label for="reasonTimeInput" style="font-size:11.5px;font-weight:700;color:var(--muted)">THỜI GIAN ĐIỂM DANH:</label>
+        <label style="font-size:11.5px;font-weight:600;color:var(--info);cursor:pointer;display:flex;align-items:center;gap:4px">
+          <input type="checkbox" id="reasonUseRealTime" checked onchange="toggleReasonTimeInput(this.checked)"> Theo giờ thực hiện tại
+        </label>
+      </div>
+      <input type="datetime-local" id="reasonTimeInput" disabled style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit;background:var(--surface);color:var(--text)">
+    </div>
+
     <div class="form-field" style="margin-bottom:14px">
       <label for="reasonInput" style="display:block;font-size:11.5px;font-weight:700;margin-bottom:5px;color:var(--muted)">LÝ DO THAY ĐỔI (LƯU VÀO AUDIT LOG):</label>
-      <input type="text" id="reasonInput" placeholder="Nhập lý do điều chỉnh trạng thái..." style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
+      <input type="text" id="reasonInput" placeholder="Nhập lý do điều chỉnh trạng thái..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;outline:none;font-family:inherit">
     </div>
 
     <div class="modal-actions" style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
@@ -3826,7 +3866,8 @@ let currentView = 'overview';
 
 const viewTitlesMap = {
   overview: 'Tổng quan hệ thống',
-  attendance: 'Điểm danh & Lịch sử',
+  attendance: 'Phiên điểm danh hiện tại & QR',
+  history: 'Danh sách các phiên điểm danh',
   'face-cam': 'Camera Điểm danh ESP32',
   students: 'Quản lý nhóm & Sinh viên',
   tasks: 'Nhiệm vụ xưởng & Đội Robocon',
@@ -3878,6 +3919,9 @@ function navTo(viewName) {
   closeSidebar();
 
   if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
+  else if (viewName === 'history') {
+    if (typeof openHistoryAndReport === 'function') openHistoryAndReport();
+  }
   else if (viewName === 'face-cam') {
     if (typeof initFaceCamInAdmin === 'function') initFaceCamInAdmin();
     const stStatus = document.getElementById('faceCamSessionStatus');
@@ -6554,6 +6598,17 @@ async function completeResetRequest() {
   fetchResetRequests();
 }
 
+function toggleReasonTimeInput(useRealTime) {
+  const timeInput = document.getElementById('reasonTimeInput');
+  if (timeInput) {
+    timeInput.disabled = useRealTime;
+    if (useRealTime) {
+      const now = new Date();
+      timeInput.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+  }
+}
+
 function promptChangeStatus(mssv, newStatus, selectEl, sessionId = null, currentOldStatus = null, customStudentName = null){
   const sid = sessionId || currentSession?.id;
   if (!sid) {
@@ -6573,10 +6628,20 @@ function promptChangeStatus(mssv, newStatus, selectEl, sessionId = null, current
   const infoEl = document.getElementById('reasonStudentInfo');
   const selEl = document.getElementById('reasonModalSelect');
   const input = document.getElementById('reasonInput');
+  const timeInput = document.getElementById('reasonTimeInput');
+  const useRealTimeCb = document.getElementById('reasonUseRealTime');
 
   if (infoEl) infoEl.innerHTML = '<b>' + escapeHtml(studentName) + '</b> (MSSV: ' + escapeHtml(mssv) + ')';
   if (selEl && newStatus) selEl.value = newStatus;
   if (input) input.value = '';
+
+  if (useRealTimeCb) useRealTimeCb.checked = true;
+  if (timeInput) {
+    const now = new Date();
+    timeInput.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    timeInput.disabled = true;
+  }
+
   if (modal) modal.classList.add('show');
   if (input) setTimeout(() => input.focus(), 100);
 }
@@ -6600,8 +6665,19 @@ async function executeStatusChange(){
   const newStatus = document.getElementById('reasonModalSelect')?.value || _pendingStatusChange.newStatus;
   const reason = (document.getElementById('reasonInput')?.value || '').trim();
 
-  // Bỏ qua nếu chọn lại đúng trạng thái cũ và không có lý do mới
-  if (oldStatus && oldStatus.trim() === (newStatus || '').trim() && !reason) {
+  const now = new Date();
+  const useRealTime = document.getElementById('reasonUseRealTime')?.checked ?? true;
+  let targetTime = now;
+  if (!useRealTime) {
+    const customVal = document.getElementById('reasonTimeInput')?.value;
+    if (customVal) {
+      const parsed = new Date(customVal);
+      if (!isNaN(parsed.getTime())) targetTime = parsed;
+    }
+  }
+
+  // Bỏ qua nếu chọn lại đúng trạng thái cũ và không có lý do mới và dùng giờ cũ
+  if (oldStatus && oldStatus.trim() === (newStatus || '').trim() && !reason && useRealTime) {
     toast('info', 'Không có thay đổi', studentName + ' đã ở trạng thái "' + newStatus + '".');
     const modal = document.getElementById('reasonModal');
     if (modal) modal.classList.remove('show');
@@ -6632,7 +6708,23 @@ async function executeStatusChange(){
     saveErrorMsg = eRpc.message;
   }
 
-  // Attendance writes must go through the admin RPC so row security and history capture stay intact.
+  // 2. Luôn cập nhật created_at theo thời gian thực (hoặc giờ tùy chỉnh) cho cả phiên hiện tại lẫn phiên cũ
+  try {
+    const updatePayload = {
+      status: newStatus,
+      category: 'Admin',
+      note: reason || 'Tích chọn thủ công',
+      created_at: targetTime.toISOString()
+    };
+    const { error: upErr } = await supabase.from('attendance')
+      .update(updatePayload)
+      .eq('session_id', sid)
+      .eq('mssv', mssv);
+    if (!upErr) savedOk = true;
+  } catch(errUp) {
+    console.warn('Lỗi update attendance timestamp:', errUp);
+  }
+
   if (!savedOk) {
     toast('err', 'Cập nhật thất bại', saveErrorMsg || 'Không thể lưu thay đổi.');
     if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
@@ -6647,24 +6739,12 @@ async function executeStatusChange(){
   const isCurrentActive = currentSession?.id && String(sid) === String(currentSession.id);
   if (isCurrentActive) {
     if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
-    const now = new Date();
     attendanceMap[mssv].status = newStatus;
-    attendanceMap[mssv].time = fmtClock(now);
-    attendanceMap[mssv].editedAt = now.toISOString();
+    attendanceMap[mssv].time = fmtClock(targetTime);
+    attendanceMap[mssv].created_at = targetTime.toISOString();
+    attendanceMap[mssv].editedAt = targetTime.toISOString();
     attendanceMap[mssv].category = 'Admin';
     attendanceMap[mssv].note = reason || 'Tích chọn thủ công';
-
-    // Cập nhật created_at của attendance để đồng bộ thời gian thực
-    try {
-      await supabase.from('attendance').update({
-        created_at: now.toISOString(),
-        category: 'Admin',
-        status: newStatus,
-        note: reason || 'Tích chọn thủ công'
-      }).eq('session_id', sid).eq('mssv', mssv);
-    } catch(err) {
-      console.warn('Lỗi update attendance timestamp:', err);
-    }
 
     renderAll();
     await loadAttendance();
@@ -8688,7 +8768,7 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
                     <option value="vắng không phép" ${rawStatus === 'vắng không phép' ? 'selected' : ''}>Vắng không phép</option>
                   </select>
                 </td>
-                <td style="padding:8px 10px;white-space:nowrap">${a?.created_at ? vietnamDateTime(a.created_at) : '—'}</td>
+                <td style="padding:8px 10px;white-space:nowrap">${(rawStatus === 'có mặt' || rawStatus === 'đi muộn' || rawStatus === 'vắng có phép') && a?.created_at ? vietnamDateTime(a.created_at) : '<span style="color:var(--muted)">—</span>'}</td>
                 <td style="padding:8px 10px">${noteHtml}</td>
                 <td style="padding:8px 10px;text-align:center">
                   <button class="btn btn-secondary" style="padding:3px 7px;font-size:11px;border-radius:4px" 
@@ -8817,7 +8897,7 @@ window.exportPastSessionExcel = async function(sid, button) {
         String(student.mssv || ''),
         String(student.name || row?.full_name || student.mssv || ''),
         st,
-        row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
+        (st === 'có mặt' || st === 'đi muộn' || st === 'vắng có phép') && row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
         row?.category || '—',
         row?.note || '—'
       ];
