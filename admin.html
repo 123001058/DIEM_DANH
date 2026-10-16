@@ -2576,7 +2576,7 @@ tbody tr:last-child td { border-bottom: none; }
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <label style="font-size:12px;font-weight:700;">📡 IP ESP32:
-                  <input type="text" id="adminEspIpInput" value="192.168.1.104" placeholder="VD: 192.168.1.104" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:150px;margin-left:4px;">
+                  <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:150px;margin-left:4px;">
                 </label>
                 <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
@@ -6055,8 +6055,15 @@ async function loadAttendance(){
 
   attendanceMap = {};
   (data || []).forEach(r => {
-    // Keep the original time the row was recorded; edits are shown in the audit history.
-    attendanceMap[r.mssv] = { status: r.status, time: fmtClock(new Date(r.created_at)), editedAt: latestAuditMap[r.mssv] || null, category: r.category || '', note: r.note || '' };
+    // Hiển thị thời gian điểm danh thực tế (ưu tiên thời điểm đổi trạng thái gần nhất trong audit log)
+    const effectiveTime = latestAuditMap[r.mssv] || r.created_at;
+    attendanceMap[r.mssv] = {
+      status: r.status,
+      time: effectiveTime ? fmtClock(new Date(effectiveTime)) : '—',
+      editedAt: latestAuditMap[r.mssv] || null,
+      category: r.category || '',
+      note: r.note || ''
+    };
   });
 
   // Tự động đồng bộ các đơn xin nghỉ phép ĐÃ DUYỆT (approved) của ngày hôm nay vào phiên
@@ -6552,9 +6559,17 @@ async function executeStatusChange(){
   const isCurrentActive = currentSession?.id && String(sid) === String(currentSession.id);
   if (isCurrentActive) {
     if (!attendanceMap[mssv]) attendanceMap[mssv] = {};
+    const now = new Date();
     attendanceMap[mssv].status = newStatus;
-    attendanceMap[mssv].editedAt = new Date().toISOString();
+    attendanceMap[mssv].time = fmtClock(now);
+    attendanceMap[mssv].editedAt = now.toISOString();
     if (reason) attendanceMap[mssv].note = reason;
+
+    // Cập nhật created_at của attendance để đồng bộ thời gian thực
+    supabase.from('attendance').update({
+      created_at: now.toISOString()
+    }).eq('session_id', sid).eq('mssv', mssv).then();
+
     renderAll();
     loadAttendance().then(() => renderAll());
   }
@@ -9160,11 +9175,30 @@ function openFaceCamAccordion() {
   }
 }
 
+function formatEspStreamUrl(raw) {
+  let s = (raw || '').trim();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//i, '');
+  s = s.replace(/\/.*$/, '');
+  let host = s;
+  let port = '81';
+  if (s.includes(':')) {
+    const parts = s.split(':');
+    host = parts[0];
+    port = parts[1] || '81';
+  }
+  return `http://${host}:${port}/stream`;
+}
+
 // 2. Khởi tạo Camera & Face-API trong Admin
 async function initFaceCamInAdmin() {
   const ipInput = document.getElementById('adminEspIpInput');
-  const savedIp = localStorage.getItem('esp_cam_ip') || '192.168.1.104';
-  if (ipInput && !ipInput.value) ipInput.value = savedIp;
+  let savedIp = localStorage.getItem('esp_cam_ip');
+  if (!savedIp || savedIp === '192.168.1.104') {
+    savedIp = '192.168.2.168';
+  }
+  if (ipInput) ipInput.value = savedIp;
+  localStorage.setItem('esp_cam_ip', savedIp);
 
   if (adminFaceModelsLoaded) {
     reloadAdminFaceMatcher();
@@ -9182,7 +9216,7 @@ async function initFaceCamInAdmin() {
     adminFaceModelsLoaded = true;
 
     reloadAdminFaceMatcher();
-    if (hud) hud.textContent = '🟢 AI sẵn sàng — Nhập IP và bấm "Bắt đầu quét"';
+    if (hud) hud.textContent = '🟢 AI sẵn sàng — Nhấn "Bắt đầu quét"';
   } catch(e) {
     console.error('Lỗi load face-api trong admin:', e);
     if (hud) hud.textContent = '❌ Lỗi tải AI. Vui lòng kiểm tra mạng.';
@@ -9236,13 +9270,14 @@ function toggleAdminEspStream() {
     return;
   }
 
-  const ip = ipInput ? ipInput.value.trim() : '';
-  if (!ip) {
+  const rawIp = ipInput ? ipInput.value.trim() : '';
+  if (!rawIp) {
     toast('warn', 'Thiếu IP', 'Vui lòng nhập địa chỉ IP của ESP32!');
     return;
   }
 
-  localStorage.setItem('esp_cam_ip', ip);
+  const streamUrl = formatEspStreamUrl(rawIp);
+  localStorage.setItem('esp_cam_ip', rawIp);
   adminEspStreamRunning = true;
 
   if (placeholder) placeholder.style.display = 'none';
@@ -9250,13 +9285,19 @@ function toggleAdminEspStream() {
   if (img) {
     img.style.display = 'block';
     img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
-    img.src = `http://${ip}:81/stream`;
+    img.onload = () => {
+      if (hud) hud.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+    };
+    img.onerror = () => {
+      if (hud) hud.innerHTML = `❌ Không tải được luồng từ <b>${streamUrl}</b>. <br>Kiểm tra: 1) ESP32 đã cắm nguồn & sáng đèn chưa? 2) Laptop và ESP32 có cùng Wi-Fi không? 3) <a href="${streamUrl}" target="_blank" style="color:#38bdf8;text-decoration:underline;">Mở thử tab mới ↗</a>`;
+    };
+    img.src = streamUrl;
   }
   if (btn) {
     btn.textContent = '⏹ Dừng camera';
     btn.className = 'btn btn-danger btn-sm';
   }
-  if (hud) hud.textContent = `📡 Đang kết nối ESP32: ${ip}...`;
+  if (hud) hud.textContent = `📡 Đang kết nối ESP32: ${streamUrl}...`;
 
   if (!isAdminEspDetecting) {
     startAdminFaceLoop();
@@ -9391,11 +9432,11 @@ async function handleAdminFaceCheckin(label) {
   const name = label.split(' - ')[1]?.trim() || mssv;
   if (!mssv) return;
 
-  const now = Date.now();
-  if (adminLastCheckinTime[mssv] && (now - adminLastCheckinTime[mssv] < 15000)) {
+  const nowMs = Date.now();
+  if (adminLastCheckinTime[mssv] && (nowMs - adminLastCheckinTime[mssv] < 15000)) {
     return; // Đã quét trong vòng 15 giây, bỏ qua để tránh spam
   }
-  adminLastCheckinTime[mssv] = now;
+  adminLastCheckinTime[mssv] = nowMs;
 
   // 1. Hiển thị Popup chúc mừng & âm thanh
   showAdminMatchPopup(name, mssv);
@@ -9411,6 +9452,10 @@ async function handleAdminFaceCheckin(label) {
   }
 
   // 4. LƯU VÀO SUPABASE
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const timeFormatted = fmtClock(now);
+
   try {
     const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_set_status', {
       p_session_id: String(currentSession.id),
@@ -9419,29 +9464,29 @@ async function handleAdminFaceCheckin(label) {
       p_reason: 'Camera ESP32 điểm danh AI'
     });
 
-    if (rpcErr || !rpcData?.ok) {
-      await supabase.from('attendance').upsert({
-        session_id: currentSession.id,
-        mssv: mssv,
-        full_name: name,
-        status: 'có mặt',
-        category: 'Khuôn mặt',
-        note: 'Camera ESP32'
-      }, { onConflict: 'session_id,mssv' });
-    }
+    // Cập nhật created_at của bảng attendance về đúng thời gian thực vừa quét
+    await supabase.from('attendance').update({
+      created_at: nowIso,
+      status: 'có mặt',
+      category: 'Khuôn mặt',
+      note: 'Camera ESP32 điểm danh AI'
+    }).eq('session_id', currentSession.id).eq('mssv', mssv);
   } catch(e) {
     console.error('Lỗi lưu điểm danh:', e);
   }
 
   // 5. ĐỒNG BỘ TRẠNG THÁI GIAO DIỆN ADMIN NGAY LẬP TỨC (KHÔNG CẦN CHỜ WEBSOCKET)
+  const prev = attendanceMap[mssv] || {};
   attendanceMap[mssv] = {
+    ...prev,
     status: 'có mặt',
-    time: fmtClock(new Date()),
-    category: 'Khuôn mặt',
-    note: 'Camera ESP32'
+    time: timeFormatted,
+    editedAt: nowIso,
+    category: prev.category || 'Khuôn mặt',
+    note: prev.note || 'Camera ESP32 điểm danh AI'
   };
   renderAll(); // Cập nhật bảng điểm danh & KPI thành màu xanh ngay lập tức!
-  toast('ok', 'Điểm danh thành công', `${name} (${mssv}) → Có mặt`);
+  toast('ok', 'Điểm danh thành công', `${name} (${mssv}) → Có mặt (${timeFormatted})`);
 }
 
 // Hiển thị Card chúc mừng lớn
@@ -9542,15 +9587,19 @@ try {
     if (event.data && event.data.type === 'face_checkin') {
       const { mssv, name } = event.data;
       if (mssv) {
+        const now = new Date();
+        const prev = attendanceMap[mssv] || {};
         attendanceMap[mssv] = {
+          ...prev,
           status: 'có mặt',
-          time: fmtClock(new Date()),
+          time: fmtClock(now),
+          editedAt: now.toISOString(),
           category: 'Khuôn mặt',
-          note: 'Camera Face AI'
+          note: 'Camera ESP32 điểm danh AI'
         };
         renderAll();
         addAdminRecentScan(name, mssv);
-        toast('ok', 'SV vừa điểm danh (Camera)', `${name} (${mssv}) → Có mặt`);
+        toast('ok', 'SV vừa điểm danh (Camera)', `${name} (${mssv}) → Có mặt (${fmtClock(now)})`);
       }
     }
   };

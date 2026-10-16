@@ -590,7 +590,7 @@ body {
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
           <label class="form-label">📡 Nguồn Camera ESP32-CAM (Stream MJPEG):</label>
           <div style="display:flex;gap:6px;">
-            <input type="text" class="input-ip" id="espIpInput" placeholder="Ví dụ: 192.168.1.104" value="192.168.1.104" style="flex:1;">
+            <input type="text" class="input-ip" id="espIpInput" placeholder="Ví dụ: 192.168.2.168" value="192.168.2.168" style="flex:1;">
             <button type="button" class="btn-toggle active" onclick="connectEspCamera()">Kết nối</button>
           </div>
         </div>
@@ -868,9 +868,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   await checkActiveSession();
   setInterval(checkActiveSession, 8000);
   
-  const savedIp = localStorage.getItem('esp_cam_ip') || '192.168.1.104';
+  let savedIp = localStorage.getItem('esp_cam_ip');
+  if (!savedIp || savedIp === '192.168.1.104') savedIp = '192.168.2.168';
   const ipInput = document.getElementById('espIpInput');
   if (ipInput) ipInput.value = savedIp;
+  localStorage.setItem('esp_cam_ip', savedIp);
   connectEspCamera();
   
   // Tự động chọn 123001058 (Nguyễn Khánh Hoà) sẵn để user test luôn
@@ -1159,13 +1161,29 @@ function toggleEspFlip() {
   hudStatus.textContent = espMirrored ? '🔄 Chế độ ESP32: Lật gương (Soi gương)' : '🔄 Chế độ ESP32: Bình thường';
 }
 
+function formatEspStreamUrl(raw) {
+  let s = (raw || '').trim();
+  if (!s) return '';
+  s = s.replace(/^https?:\/\//i, '');
+  s = s.replace(/\/.*$/, '');
+  let host = s;
+  let port = '81';
+  if (s.includes(':')) {
+    const parts = s.split(':');
+    host = parts[0];
+    port = parts[1] || '81';
+  }
+  return `http://${host}:${port}/stream`;
+}
+
 function connectEspCamera() {
-  const ip = document.getElementById('espIpInput').value.trim();
-  if (!ip) {
+  const rawIp = document.getElementById('espIpInput').value.trim();
+  if (!rawIp) {
     alert('Vui lòng nhập địa chỉ IP của ESP32!');
     return;
   }
-  localStorage.setItem('esp_cam_ip', ip);
+  const streamUrl = formatEspStreamUrl(rawIp);
+  localStorage.setItem('esp_cam_ip', rawIp);
 
   cameraMode = 'esp';
   if (webcamVideo) {
@@ -1176,10 +1194,16 @@ function connectEspCamera() {
   if (espImg) {
     espImg.style.display = 'block';
     espImg.style.transform = espMirrored ? 'scaleX(-1)' : 'none';
-    espImg.src = `http://${ip}:81/stream`;
+    espImg.onload = () => {
+      hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+    };
+    espImg.onerror = () => {
+      hudStatus.innerHTML = `❌ Không tải được luồng từ <b>${streamUrl}</b>. <br>Kiểm tra: 1) ESP32 đã cắm nguồn chưa? 2) Laptop và ESP32 có cùng Wi-Fi không? 3) <a href="${streamUrl}" target="_blank" style="color:#38bdf8;text-decoration:underline;">Thử mở tab mới ↗</a>`;
+    };
+    espImg.src = streamUrl;
   }
 
-  hudStatus.textContent = `📡 Đang xem luồng Stream mượt từ ESP32: ${ip}`;
+  hudStatus.textContent = `📡 Đang kết nối ESP32: ${streamUrl}...`;
 }
 
 // ==========================================
@@ -1420,17 +1444,24 @@ async function triggerCheckin(label) {
       p_reason: 'Camera ESP32 điểm danh AI'
     });
 
-    if (!rpcErr && rpcRes?.ok) {
-      console.log('Điểm danh admin_set_status thành công:', rpcRes);
-    } else {
-      // 2. Ghi trực tiếp bảng attendance nếu chưa có session admin
+    // Cập nhật created_at của bảng attendance về đúng thời gian thực vừa quét
+    await window.supabase.from('attendance').update({
+      created_at: new Date().toISOString(),
+      status: 'có mặt',
+      category: 'Khuôn mặt',
+      note: 'Camera ESP32 điểm danh AI'
+    }).eq('session_id', currentSession.id).eq('mssv', mssv);
+
+    if (rpcErr || !rpcRes?.ok) {
+      // Dự phòng ghi trực tiếp bảng attendance nếu chưa có session admin
       await window.supabase.from('attendance').upsert({
         session_id: currentSession.id,
         mssv: mssv,
         full_name: name,
         status: 'có mặt',
         category: 'Khuôn mặt',
-        note: 'Camera Face AI'
+        note: 'Camera ESP32 điểm danh AI',
+        created_at: new Date().toISOString()
       }, { onConflict: 'session_id,mssv' });
     }
 
