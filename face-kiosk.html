@@ -995,12 +995,16 @@ async function evaluateLiveness(label, landmarks, box, rawBox) {
     const elapsedSec = (now - st.challengeStartTime) / 1000;
     const remainSec = Math.max(0, (4.0 - elapsedSec)).toFixed(1);
 
+    // Tính delta yaw thực tế tức thời so với baseline
+    const curDeltaYaw = (st.challengeDir === 'left') ? (st.baselineYaw - yaw) : (yaw - st.baselineYaw);
+    console.log(`[Head Yaw Benchmark] Dir: ${st.challengeDir} | Baseline: ${st.baselineYaw.toFixed(3)} | CurYaw: ${yaw.toFixed(3)} | Delta: ${curDeltaYaw.toFixed(3)} / ${YAW_DELTA}`);
+
     if (elapsedSec < 4.0) {
       const dirText = st.challengeDir === 'left' ? '👈 Quay đầu sang TRÁI 15°' : '👉 Quay đầu sang PHẢI 15°';
       const retryTag = st.retryCount > 0 ? ` (Lần ${st.retryCount + 1}/3)` : '';
       return {
         isLive: false,
-        prompt: `${dirText}${retryTag} — còn ${remainSec}s`,
+        prompt: `${dirText}${retryTag} [ΔYaw: ${curDeltaYaw.toFixed(2)}/0.22] — còn ${remainSec}s`,
         isStaticPhoto: false
       };
     }
