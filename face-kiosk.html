@@ -13,6 +13,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=6"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<!-- ONNX Runtime Web: chạy MiniFASNet-V2 anti-spoofing model -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
 
 <style>
 :root {
@@ -574,7 +576,7 @@ body {
       </div>
 
       <div class="toolbar-group">
-        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật: Yêu cầu quay đầu xác minh người thật">🛡️ Nghiêm ngặt (Chống ảnh)</button>
+        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật: AI MiniFASNet-V2 chống ảnh & màn hình điện thoại">🛡️ MiniFASNet AI (Chống ảnh)</button>
         <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật gương camera nếu bị ngược chiều">🔄 Lật</button>
         <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
       </div>
@@ -676,14 +678,120 @@ const livenessState = {}; // label -> session object
 let activeKioskLabel = null;
 let kioskLostFaceFrames = 0;
 
+// ──────────────────────────────────────────────────────────────
+// MiniFASNet-V2: ONNX Anti-Spoofing Model
+// Model: 1.74MB, input [1,3,80,80] NCHW BGR/255
+// Output: 3-class softmax [live, print_attack, replay_attack]
+// ──────────────────────────────────────────────────────────────
+let fasnetSession = null;
+let fasnetLoading = false;
+
+async function loadFasnetModel() {
+  if (fasnetSession || fasnetLoading) return;
+  fasnetLoading = true;
+  try {
+    if (typeof ort === 'undefined') {
+      console.warn('[AntiSpoof] ONNX runtime (ort) chưa được load từ CDN');
+      return;
+    }
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+    try {
+      fasnetSession = await ort.InferenceSession.create('models/anti-spoofing/minifasnet_v2.onnx', { executionProviders: ['wasm'] });
+      console.log('[AntiSpoof] MiniFASNet-V2 loaded thành công từ local models/');
+    } catch(errLocal) {
+      console.warn('[AntiSpoof] Không nạp được local ONNX, đang thử HuggingFace CDN...', errLocal.message);
+      fasnetSession = await ort.InferenceSession.create('https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx', { executionProviders: ['wasm'] });
+      console.log('[AntiSpoof] MiniFASNet-V2 loaded thành công từ HuggingFace CDN');
+    }
+  } catch(e) {
+    console.warn('[AntiSpoof] Không tải được ONNX model, fallback sang thử thách quay đầu 3D:', e.message);
+    fasnetSession = null;
+  } finally {
+    fasnetLoading = false;
+  }
+}
+
+// Pre-process: crop khuôn mặt từ captureCanvas → Float32 tensor [1,3,80,80] NCHW BGR
+function buildFasnetTensor(box) {
+  const scale = 2.7; // Chuẩn MiniFASNet 2.7x context viền ngoài khuôn mặt
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const cropSize = Math.max(box.width, box.height) * scale;
+  const sx = cx - cropSize / 2;
+  const sy = cy - cropSize / 2;
+
+  const tmp = document.createElement('canvas');
+  tmp.width = 80;
+  tmp.height = 80;
+  const ctx = tmp.getContext('2d');
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 80, 80);
+
+  try {
+    ctx.drawImage(captureCanvas, sx, sy, cropSize, cropSize, 0, 0, 80, 80);
+  } catch(e) {
+    ctx.drawImage(captureCanvas, 0, 0, captureCanvas.width, captureCanvas.height, 0, 0, 80, 80);
+  }
+  const imgData = ctx.getImageData(0, 0, 80, 80).data;
+
+  // Tensor NCHW: [1, 3, 80, 80] thứ tự BGR, chuẩn hóa [0.0, 1.0]
+  const f32 = new Float32Array(3 * 80 * 80);
+  const plane = 80 * 80;
+  for (let i = 0; i < plane; i++) {
+    const r = imgData[i * 4 + 0] / 255.0;
+    const g = imgData[i * 4 + 1] / 255.0;
+    const b = imgData[i * 4 + 2] / 255.0;
+    f32[i]             = b; // B
+    f32[plane + i]     = g; // G
+    f32[2 * plane + i] = r; // R
+  }
+  return new ort.Tensor('float32', f32, [1, 3, 80, 80]);
+}
+
+async function runFasnet(box) {
+  if (!fasnetSession || !box) return null;
+  try {
+    const tensor = buildFasnetTensor(box);
+    const feeds = { [fasnetSession.inputNames[0]]: tensor };
+    const results = await fasnetSession.run(feeds);
+    const raw = results[fasnetSession.outputNames[0]].data; // 3 logits
+    
+    // Softmax ổn định số học
+    const maxVal = Math.max(raw[0], raw[1], raw[2]);
+    const exp = [Math.exp(raw[0] - maxVal), Math.exp(raw[1] - maxVal), Math.exp(raw[2] - maxVal)];
+    const sum = exp[0] + exp[1] + exp[2];
+    const probs = exp.map(x => x / sum);
+
+    // MiniFASNet-V2:
+    // class 0: print_attack (ảnh in giấy, thẻ)
+    // class 1: real / live (NGƯỜI THẬT)
+    // class 2: replay_attack (ảnh trên màn hình điện thoại / laptop)
+    const printScore = probs[0];
+    const liveScore = probs[1];
+    const replayScore = probs[2];
+    
+    const isLive = (liveScore > printScore && liveScore > replayScore && liveScore >= 0.60);
+
+    return {
+      isLive,
+      liveScore,
+      printScore,
+      replayScore,
+      attackType: replayScore >= printScore ? 'Màn hình điện thoại' : 'Ảnh in / Ảnh thẻ'
+    };
+  } catch(e) {
+    console.warn('[AntiSpoof] ONNX inference error:', e.message);
+    return null;
+  }
+}
+
 function toggleAntiSpoof() {
   antiSpoofEnabled = !antiSpoofEnabled;
   const btn = document.getElementById('btnAntiSpoof');
   if (btn) {
-    // active = đang bật nghiêm ngặt (không phải siêu tốc)
     btn.classList.toggle('active', antiSpoofEnabled);
-    btn.textContent = antiSpoofEnabled ? '🛡️ Nghiêm ngặt (Chống ảnh)' : '⚡ Siêu tốc (Test only)';
-    btn.title = antiSpoofEnabled ? 'Đang bật: Yêu cầu quay đầu xác minh người thật' : 'Siêu tốc: Không kiểm tra — CHỈ DÙNG ĐỂ TEST!';
+    btn.textContent = antiSpoofEnabled ? '🛡️ MiniFASNet AI (Chống ảnh)' : '⚡ Siêu tốc (Test only)';
+    btn.title = antiSpoofEnabled ? 'Đang bật: AI MiniFASNet-V2 chống ảnh & màn hình điện thoại' : 'Siêu tốc: Không kiểm tra — CHỈ DÙNG ĐỂ TEST!';
   }
   Object.keys(livenessState).forEach(k => delete livenessState[k]);
   activeKioskLabel = null;
@@ -740,10 +848,60 @@ function calculateHeadYaw(landmarks) {
 // khi quay đầu. calculateHeadYaw() theo dõi tỉ lệ dLeft/dRight
 // (nose tip vs jaw outline). Thẳng ≈ 1.0 | Trái < 0.68 | Phải > 1.45
 // ──────────────────────────────────────────────────────────────
-function evaluateLiveness(label, landmarks, box) {
+async function evaluateLiveness(label, landmarks, box, rawBox) {
   if (!antiSpoofEnabled) {
     return { isLive: true, prompt: '⚡ Siêu tốc (Điểm danh tức thì)', isStaticPhoto: false, isFailed: false };
   }
+
+  // 1. ƯU TIÊN MÔ HÌNH AI MiniFASNet-V2: Phát hiện ảnh màn hình điện thoại & ảnh in
+  const targetBox = rawBox || box;
+  if (fasnetSession && targetBox) {
+    const fasnet = await runFasnet(targetBox);
+    if (fasnet) {
+      if (!livenessState[label]) {
+        livenessState[label] = {
+          liveHits: 0,
+          spoofHits: 0,
+          startTime: Date.now()
+        };
+      }
+      const st = livenessState[label];
+
+      if (fasnet.isLive) {
+        st.liveHits = (st.liveHits || 0) + 1;
+        st.spoofHits = 0;
+        const percent = Math.round(fasnet.liveScore * 100);
+        // Cần 2 frame liên tiếp xác nhận người thật (>60%) để tránh chập chờn
+        if (st.liveHits >= 2) {
+          return {
+            isLive: true,
+            prompt: `✅ Người thật (${percent}%)`,
+            isStaticPhoto: false,
+            liveScore: fasnet.liveScore
+          };
+        } else {
+          return {
+            isLive: false,
+            prompt: `🛡️ Đang phân tích bề mặt 3D (${percent}%)...`,
+            isStaticPhoto: false,
+            liveScore: fasnet.liveScore
+          };
+        }
+      } else {
+        st.liveHits = 0;
+        st.spoofHits = (st.spoofHits || 0) + 1;
+        const spoofPercent = Math.round((1 - fasnet.liveScore) * 100);
+        return {
+          isLive: false,
+          prompt: `🚫 Giả mạo: ${fasnet.attackType} (${spoofPercent}%)`,
+          isStaticPhoto: true,
+          liveScore: fasnet.liveScore
+        };
+      }
+    }
+  }
+
+  // 2. DỰ PHÒNG: Nếu AI Model chưa load kịp, dùng thuật toán 3D Head-turn Parallax
   if (!landmarks) {
     return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
   }
@@ -751,13 +909,12 @@ function evaluateLiveness(label, landmarks, box) {
   const now = Date.now();
   const yaw = calculateHeadYaw(landmarks); // dLeft / dRight
 
-  if (!livenessState[label]) {
-    // Chọn ngẫu nhiên thử thách: quay trái hay phải
+  if (!livenessState[label] || !livenessState[label].direction) {
     const dir = Math.random() < 0.5 ? 'left' : 'right';
     livenessState[label] = {
       startTime:    now,
-      direction:    dir,        // 'left' | 'right'
-      baselineYaw:  yaw,        // yaw khi vừa phát hiện mặt
+      direction:    dir,
+      baselineYaw:  yaw,
       passed:       false,
       yawHistory:   [yaw],
       phaseMsg:     dir === 'left' ? '👈 Hãy quay đầu sang TRÁI một chút...' : '👉 Hãy quay đầu sang PHẢI một chút...'
@@ -766,37 +923,26 @@ function evaluateLiveness(label, landmarks, box) {
   }
 
   const st = livenessState[label];
-
-  // Tích lũy yaw history (tối đa 40 frame ≈ 4s)
   st.yawHistory.push(yaw);
   if (st.yawHistory.length > 40) st.yawHistory.shift();
 
-  // Tìm giá trị yaw cực trị trong history
   const minYaw = Math.min(...st.yawHistory);
   const maxYaw = Math.max(...st.yawHistory);
-
-  // Kiểm tra xem đầu có thực sự quay đủ không
-  // - Quay trái: yaw phải giảm xuống dưới 0.70 (so với baseline ~1.0)
-  // - Quay phải: yaw phải tăng lên trên 1.40
-  // Dùng delta so với baseline để tránh case mặt nghiêng sẵn
-  const YAW_DELTA = 0.28; // phải thay đổi ít nhất 28% so với baseline
+  const YAW_DELTA = 0.28;
 
   let turned = false;
   if (st.direction === 'left'  && (st.baselineYaw - minYaw) >= YAW_DELTA) turned = true;
   if (st.direction === 'right' && (maxYaw - st.baselineYaw) >= YAW_DELTA) turned = true;
 
   if (turned) {
-    // Đã xác minh người thật: có parallax 3D thật sự
     return { isLive: true, prompt: '✅ Xác minh người thật thành công!', isStaticPhoto: false, isFailed: false };
   }
 
-  // Hết 10 giây → reset (đổi hướng mới để tránh đoán)
   if (now - st.startTime > 10000) {
     delete livenessState[label];
     return { isLive: false, prompt: '⏱️ Hết giờ — Thử lại lần nữa...', isStaticPhoto: false, isFailed: false };
   }
 
-  // Hiển thị tiến độ (yaw hiện tại so với mục tiêu)
   return { isLive: false, prompt: st.phaseMsg, isStaticPhoto: false, isFailed: false };
 }
 
@@ -1085,12 +1231,15 @@ async function quickOpenSession() {
 // 2. LOAD FACE-API MODELS
 // ==========================================
 async function loadFaceModels() {
-  hudStatus.textContent = '⏳ Đang tải mô hình AI...';
+  hudStatus.textContent = '⏳ Đang tải mô hình AI & Anti-Spoofing...';
   const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
   try {
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      loadFasnetModel()
+    ]);
     isModelLoaded = true;
     hudStatus.textContent = '🟢 AI sẵn sàng — Nhìn vào camera để điểm danh';
     updateFaceMatcher();
@@ -1289,11 +1438,12 @@ async function startDetectionLoop() {
           let label = 'Người lạ / Chưa học';
           let isMatch = false;
           let isLive = false; // Mặc định luôn là FALSE!
+          let liveCheck = null;
           let confidence = '';
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            const maxDistance = 0.44; // Ngưỡng chặt: giảm nhận nhầm mặt người khác
+            const maxDistance = 0.42; // Ngưỡng chặt: giảm tối đa nhận nhầm người khác
             if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
               label = bestMatch.label;
               isMatch = true;
@@ -1323,8 +1473,9 @@ async function startDetectionLoop() {
                 angleTag = angleNames[minIdx] ? ` · ${angleNames[minIdx]}` : '';
               }
 
-              // Chống ảnh thẻ / màn hình điện thoại bằng State Machine động
-              const liveCheck = evaluateLiveness(label, detection.landmarks, box);
+              // Chống ảnh thẻ / màn hình điện thoại bằng AI MiniFASNet-V2 chuyên dụng
+              const rawBox = (detections[0] && detections[0].detection) ? detections[0].detection.box : box;
+              liveCheck = await evaluateLiveness(label, detection.landmarks, box, rawBox);
               isLive = liveCheck.isLive;
 
               if (isLive) {
@@ -1382,9 +1533,9 @@ async function startDetectionLoop() {
               if (isLive) {
                 text = `✓ ` + label + angleTag + confidence;
               } else if (liveCheck && liveCheck.isStaticPhoto) {
-                text = `🚫 Nghi vấn ảnh tĩnh (Chặn điểm danh)`;
+                text = `🚫 Nghi vấn giả mạo (Chặn điểm danh)`;
               } else {
-                text = `👁️ Chờ chớp mắt người thật...`;
+                text = `🛡️ Đang xác minh người thật...`;
               }
             }
 
@@ -1397,7 +1548,7 @@ async function startDetectionLoop() {
 
             // Nếu là khuôn mặt khớp nhưng chưa xác thực người thật: Hiện hướng dẫn trực quan
             if (isMatch && !isLive && antiSpoofEnabled) {
-              const prompt = liveCheck?.prompt || 'Vui lòng chớp mắt để điểm danh';
+              const prompt = liveCheck?.prompt || 'Đang quét bề mặt 3D...';
               
               const subY = box.y + box.height + 6;
               const barWidth = Math.max(box.width, 280);
