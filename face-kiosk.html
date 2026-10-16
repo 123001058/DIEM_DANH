@@ -555,6 +555,15 @@ body {
           </div>
         </div>
 
+        <!-- KHUNG HIỂN THỊ TRỰC QUAN 5 GÓC MẶT AI ĐÃ SINH -->
+        <div id="augmentedPreviewBox" style="display:none;background:rgba(15,23,42,0.6);border:1px solid rgba(56,189,248,0.25);border-radius:10px;padding:10px;">
+          <div style="font-size:11px;font-weight:800;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+            <span>📸 Bộ 5 góc AI sinh từ ảnh thẻ:</span>
+            <span id="augmentedCountBadge" style="background:#0284c7;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:800;">5 góc</span>
+          </div>
+          <div id="augmentedThumbsStrip" style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;"></div>
+        </div>
+
         <!-- AUTO ENROLL BUTTON FROM PHOTO -->
         <button type="button" class="btn-action btn-success" id="btnAutoEnrollPhoto" onclick="enrollFromDocumentPhoto()" style="display:none;">
           ⚡ Nạp khuôn mặt từ ảnh thẻ có sẵn
@@ -861,23 +870,37 @@ function onStudentSelectChange() {
   const mssv = document.getElementById('studentSelect').value;
   const card = document.getElementById('studentPreviewCard');
   const btnAuto = document.getElementById('btnAutoEnrollPhoto');
+  const previewBox = document.getElementById('augmentedPreviewBox');
+
   if (!mssv) {
-    card.style.display = 'none';
-    btnAuto.style.display = 'none';
+    if (card) card.style.display = 'none';
+    if (btnAuto) btnAuto.style.display = 'none';
+    if (previewBox) previewBox.style.display = 'none';
     return;
   }
   const st = studentsList.find(s => s.mssv === mssv);
   if (st) {
-    card.style.display = 'flex';
+    if (card) card.style.display = 'flex';
     document.getElementById('previewName').textContent = st.name;
     document.getElementById('previewMssv').textContent = `MSSV: ${st.mssv}`;
     document.getElementById('previewClass').textContent = st.class ? `Lớp: ${st.class}` : '';
     
     const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
     document.getElementById('previewAvatar').src = avatarUrl;
-    btnAuto.style.display = 'flex';
-    btnAuto.textContent = `⚡ Nạp khuôn mặt ${st.name} từ ảnh thẻ`;
+    if (btnAuto) {
+      btnAuto.style.display = 'flex';
+      btnAuto.textContent = `⚡ Nạp khuôn mặt ${st.name} từ ảnh thẻ`;
+    }
     resetSampleCollector();
+
+    // Tự động kiểm tra và hiển thị 5 ảnh góc nếu sinh viên đã được nạp
+    const thumbDb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+    const label = `${st.mssv} - ${st.name}`;
+    if (thumbDb[label] && thumbDb[label].length > 0) {
+      renderAugmentedThumbs(thumbDb[label]);
+    } else if (previewBox) {
+      previewBox.style.display = 'none';
+    }
   }
 }
 
@@ -1172,6 +1195,23 @@ async function startDetectionLoop() {
                 confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
                 detectedLabelsInThisFrame.add(label);
 
+                // Xác định góc AI nào trong 5 góc đang khớp thời gian thực
+                let angleTag = '';
+                const studentDescObj = labeledDescriptors.find(d => d.label === label);
+                if (studentDescObj && studentDescObj.descriptors.length > 1) {
+                  let minD = 999;
+                  let minIdx = 0;
+                  studentDescObj.descriptors.forEach((d, idx) => {
+                    const dist = faceapi.euclideanDistance(detection.descriptor, d);
+                    if (dist < minD) {
+                      minD = dist;
+                      minIdx = idx;
+                    }
+                  });
+                  const angleNames = ['Góc thẳng 0°', 'Lật gương', 'Nghiêng T -9°', 'Nghiêng P +9°', 'Cận cảnh'];
+                  angleTag = angleNames[minIdx] ? ` · ${angleNames[minIdx]}` : '';
+                }
+
                 // Chống ảnh thẻ / màn hình điện thoại bằng kiểm tra chớp mắt người thật (truyền cả box)
                 const liveCheck = evaluateLiveness(label, detection.landmarks, box);
                 isLive = liveCheck.isLive;
@@ -1187,7 +1227,7 @@ async function startDetectionLoop() {
                   }
                 } else {
                   consecutiveHits[label] = 0;
-                  hudStatus.textContent = `👁️ ${label.split(' - ')[1] || label}: ${liveCheck.prompt}`;
+                  hudStatus.textContent = `👁️ ${(label.split(' - ')[1] || label)}${angleTag}: ${liveCheck.prompt}`;
                 }
               }
             }
@@ -1212,9 +1252,9 @@ async function startDetectionLoop() {
             let text = label;
             if (isMatch) {
               if (isLive) {
-                text = `✓ ` + label + confidence;
+                text = `✓ ` + label + angleTag + confidence;
               } else {
-                text = `🔄 ` + (label.split(' - ')[1] || label);
+                text = `🔄 ` + (label.split(' - ')[1] || label) + angleTag;
               }
             }
 
@@ -1441,33 +1481,50 @@ function playChime() {
 // ==========================================
 async function extractAugmentedDescriptors(loadedImg, baseDetection) {
   const descriptors = [Array.from(baseDetection.descriptor)];
+  const thumbnails = [];
   const w = loadedImg.width || loadedImg.naturalWidth || 320;
   const h = loadedImg.height || loadedImg.naturalHeight || 320;
 
+  // 1. Ảnh gốc chính diện
+  const baseCanvas = document.createElement('canvas');
+  baseCanvas.width = 100;
+  baseCanvas.height = 100;
+  const bCtx = baseCanvas.getContext('2d');
+  bCtx.drawImage(loadedImg, 0, 0, 100, 100);
+  thumbnails.push({ label: 'Thẳng 0°', url: baseCanvas.toDataURL('image/jpeg', 0.8) });
+
   const transforms = [
-    // 1. Lật gương đối xứng hai bên má
-    (ctx) => {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(loadedImg, 0, 0, w, h);
+    {
+      name: 'Lật gương',
+      apply: (ctx) => {
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(loadedImg, 0, 0, w, h);
+      }
     },
-    // 2. Nghiêng đầu sang trái -9 độ
-    (ctx) => {
-      ctx.translate(w / 2, h / 2);
-      ctx.rotate(-9 * Math.PI / 180);
-      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    {
+      name: 'Nghiêng T',
+      apply: (ctx) => {
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(-9 * Math.PI / 180);
+        ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+      }
     },
-    // 3. Nghiêng đầu sang phải +9 độ
-    (ctx) => {
-      ctx.translate(w / 2, h / 2);
-      ctx.rotate(9 * Math.PI / 180);
-      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    {
+      name: 'Nghiêng P',
+      apply: (ctx) => {
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(9 * Math.PI / 180);
+        ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+      }
     },
-    // 4. Lại gần camera (Zoom 1.12x)
-    (ctx) => {
-      ctx.translate(w / 2, h / 2);
-      ctx.scale(1.12, 1.12);
-      ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+    {
+      name: 'Cận cảnh',
+      apply: (ctx) => {
+        ctx.translate(w / 2, h / 2);
+        ctx.scale(1.12, 1.12);
+        ctx.drawImage(loadedImg, -w / 2, -h / 2, w, h);
+      }
     }
   ];
 
@@ -1476,11 +1533,11 @@ async function extractAugmentedDescriptors(loadedImg, baseDetection) {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  for (const tf of transforms) {
+  for (const item of transforms) {
     try {
       ctx.save();
       ctx.clearRect(0, 0, w, h);
-      tf(ctx);
+      item.apply(ctx);
       ctx.restore();
 
       const det = await faceapi
@@ -1490,11 +1547,38 @@ async function extractAugmentedDescriptors(loadedImg, baseDetection) {
 
       if (det) {
         descriptors.push(Array.from(det.descriptor));
+        // Tạo thumbnail nhỏ 100x100 lưu giao diện
+        const tCanvas = document.createElement('canvas');
+        tCanvas.width = 100;
+        tCanvas.height = 100;
+        tCanvas.getContext('2d').drawImage(canvas, 0, 0, 100, 100);
+        thumbnails.push({ label: item.name, url: tCanvas.toDataURL('image/jpeg', 0.8) });
       }
     } catch(e) {}
   }
 
-  return descriptors;
+  return { descriptors, thumbnails };
+}
+
+function renderAugmentedThumbs(thumbs) {
+  const box = document.getElementById('augmentedPreviewBox');
+  const strip = document.getElementById('augmentedThumbsStrip');
+  const badge = document.getElementById('augmentedCountBadge');
+  if (!box || !strip) return;
+
+  if (!thumbs || thumbs.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+
+  badge.textContent = `${thumbs.length} góc`;
+  strip.innerHTML = thumbs.map(t => `
+    <div style="text-align:center;background:#0f172a;border:1px solid rgba(56,189,248,0.3);border-radius:6px;padding:3px;overflow:hidden;">
+      <img src="${t.url}" style="width:100%;height:46px;object-fit:cover;border-radius:4px;display:block;">
+      <div style="font-size:9px;color:#38bdf8;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.label}</div>
+    </div>
+  `).join('');
+  box.style.display = 'block';
 }
 
 // ==========================================
@@ -1539,18 +1623,24 @@ async function enrollFromDocumentPhoto() {
     return;
   }
 
-  // Tự động sinh bộ vector đa góc mặt
-  const descriptors = await extractAugmentedDescriptors(loadedImg, detection);
-
+  // Tự động sinh bộ vector đa góc mặt và ảnh thumbnail trực quan
+  const res = await extractAugmentedDescriptors(loadedImg, detection);
   const label = `${st.mssv} - ${st.name}`;
+  
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
-  db[label] = descriptors;
+  db[label] = res.descriptors;
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
 
-  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!\nĐã tự động tạo ${descriptors.length} góc đặc trưng (thẳng, nghiêng trái, nghiêng phải, lật gương, zoom).`);
+  let thumbDb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+  thumbDb[label] = res.thumbnails;
+  localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
+
+  // Render 5 ảnh thumbnail trực quan lên màn hình ngay lập tức!
+  renderAugmentedThumbs(res.thumbnails);
+
+  alert(`✓ Đã nạp thành công khuôn mặt của ${st.name} (${st.mssv})!\nNhìn vào khung bên dưới để xem trực quan ${res.descriptors.length} ảnh góc mặt vừa sinh.`);
   loadEnrolledFromStorage();
-  switchTab('recent');
-  hudStatus.textContent = `🟢 Đã nạp xong ${descriptors.length} góc cho ${st.name}. Bạn có thể đứng trước camera test ngay!`;
+  hudStatus.textContent = `🟢 Đã nạp xong ${res.descriptors.length} góc cho ${st.name}. Bạn có thể đứng trước camera test ngay!`;
 }
 
 async function enrollAll30Students() {
@@ -1560,6 +1650,7 @@ async function enrollAll30Students() {
   let successCount = 0;
   let totalVectors = 0;
   let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+  let thumbDb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
 
   const sourceList = (localMapping && localMapping.length > 0) ? localMapping : studentsList;
   const total = sourceList.length;
@@ -1595,17 +1686,24 @@ async function enrollAll30Students() {
     }
 
     if (detection && loadedImg) {
-      const descriptors = await extractAugmentedDescriptors(loadedImg, detection);
+      const res = await extractAugmentedDescriptors(loadedImg, detection);
       const label = `${st.mssv} - ${st.name}`;
-      db[label] = descriptors;
+      db[label] = res.descriptors;
+      thumbDb[label] = res.thumbnails;
       successCount++;
-      totalVectors += descriptors.length;
+      totalVectors += res.descriptors.length;
+
+      // Hiển thị preview 5 góc của bạn đầu tiên
+      if (successCount === 1) {
+        renderAugmentedThumbs(res.thumbnails);
+      }
     } else {
       console.warn(`Chưa nhận diện được mặt từ ảnh của ${st.name} (${st.mssv})`);
     }
   }
 
   localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+  localStorage.setItem('face_thumbnails_db', JSON.stringify(thumbDb));
   loadEnrolledFromStorage();
   alert(`✓ Đã nạp thành công khuôn mặt của ${successCount}/${total} sinh viên!\nTổng cộng đã sinh ra ${totalVectors} vector đặc trưng đa góc.`);
   hudStatus.textContent = `🟢 Đã nạp xong ${successCount}/${total} bạn (${totalVectors} vector). Hệ thống sẵn sàng!`;
