@@ -10144,140 +10144,87 @@ async function startAdminFaceLoop() {
 
         if (resizedDetections.length === 0) {
           adminLostFaceFrames++;
-          if (hud) hud.textContent = adminSpeedMode ? '🟢 Đang quét tìm khuôn mặt...' : '🛡️ Nghiêm ngặt: Nhìn thẳng vào camera để bắt đầu thử thách...';
+          if (hud) hud.textContent = adminSpeedMode ? '🟢 Đang quét tìm khuôn mặt...' : '🛡️ Đang quét tìm khuôn mặt...';
           if (adminLostFaceFrames >= 6) {
             adminLivenessState = {};
             adminActiveSessionLabel = null;
             adminConsecutiveHits = {};
           }
-        } else if (resizedDetections.length > 1) {
+        } else {
           adminLostFaceFrames = 0;
-          if (hud) hud.textContent = '⚠️ Phát hiện nhiều khuôn mặt! Vui lòng chỉ 1 người đứng trước camera.';
-          adminLivenessState = {};
-          adminActiveSessionLabel = null;
-          adminConsecutiveHits = {};
-          for (const det of resizedDetections) {
+          
+          // Sắp xếp các khuôn mặt theo diện tích bbox giảm dần (mặt to/gần camera nhất đứng trước)
+          const sortedDetections = [...resizedDetections].sort((a, b) => {
+            const areaA = a.detection.box.width * a.detection.box.height;
+            const areaB = b.detection.box.width * b.detection.box.height;
+            return areaB - areaA;
+          });
+
+          if (sortedDetections.length > 1 && hud) {
+            hud.textContent = `👥 Phát hiện ${sortedDetections.length} khuôn mặt — Đang quét từng người...`;
+          }
+
+          // Xử lý từng khuôn mặt
+          for (let i = 0; i < sortedDetections.length; i++) {
+            const det = sortedDetections[i];
+            let labelText = 'Chưa nhận diện';
+            let boxColor = '#38bdf8';
+            let isMatched = false;
+            let isLive = false;
+            let livenessPrompt = '';
+
+            if (adminFaceMatcher) {
+              const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
+              const maxDistance = adminSpeedMode ? 0.52 : 0.44;
+
+              if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
+                isMatched = true;
+                const confidence = Math.round((1 - bestMatch.distance) * 100);
+
+                // Điểm danh cho sinh viên nếu khớp
+                const liveCheck = evaluateAdminLiveness(bestMatch.label, det.landmarks, det.detection.box);
+                isLive = liveCheck.isLive;
+                livenessPrompt = liveCheck.prompt;
+
+                if (isLive) {
+                  boxColor = '#22c55e'; // Xanh lá
+                  labelText = `✓ ${bestMatch.label} (${confidence}%)`;
+                  handleAdminFaceCheckin(bestMatch.label);
+                  if (hud) hud.textContent = `✅ Nhận diện thành công: ${bestMatch.label}`;
+                } else {
+                  boxColor = '#f59e0b'; // Cam
+                  labelText = `⏳ ${bestMatch.label}: ${livenessPrompt}`;
+                }
+              } else if (bestMatch.label !== 'unknown') {
+                labelText = 'Khớp yếu / Nghi ngờ';
+                boxColor = '#f59e0b';
+              } else {
+                labelText = 'Người lạ / Chưa học';
+                boxColor = '#94a3b8';
+              }
+            }
+
+            // Vẽ khung cho từng khuôn mặt
             const box = det.detection.box;
             ctx.save();
             if (adminEspMirrored) {
               ctx.translate(canvas.width, 0);
               ctx.scale(-1, 1);
             }
-            ctx.strokeStyle = '#ef4444';
+            ctx.strokeStyle = boxColor;
             ctx.lineWidth = 2.5;
             ctx.strokeRect(box.x, box.y, box.width, box.height);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillRect(box.x, box.y - 22, 130, 22);
+
+            // Vẽ nhãn
+            ctx.fillStyle = boxColor;
+            const textWidth = ctx.measureText(labelText).width;
+            ctx.fillRect(box.x, box.y - 22, textWidth + 14, 22);
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 11px system-ui';
-            ctx.fillText('Nhiều khuôn mặt', box.x + 6, box.y - 7);
+            ctx.fillText(labelText, box.x + 6, box.y - 7);
+
             ctx.restore();
           }
-        } else {
-          adminLostFaceFrames = 0;
-          const det = resizedDetections[0];
-          let labelText = 'Chưa nhận diện';
-          let boxColor = '#ef4444';
-          let isMatched = false;
-          let isLive = false;
-          let livenessPrompt = '';
-
-          if (adminFaceMatcher) {
-            const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-            // Ngưỡng khoảng cách: 0.52 khi siêu tốc, 0.50 khi bật nghiêm ngặt
-            const maxDistance = adminSpeedMode ? 0.52 : 0.50;
-
-            if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
-              isMatched = true;
-              const confidence = Math.round((1 - bestMatch.distance) * 100);
-
-              // Đổi người trước camera -> Hủy ngay phiên của người trước
-              if (adminActiveSessionLabel && adminActiveSessionLabel !== bestMatch.label) {
-                delete adminLivenessState[adminActiveSessionLabel];
-              }
-              adminActiveSessionLabel = bestMatch.label;
-
-              // Kiểm tra sống động người thật (chớp mắt hoặc siêu tốc)
-              const liveCheck = evaluateAdminLiveness(bestMatch.label, det.landmarks, det.detection.box);
-              isLive = liveCheck.isLive;
-              livenessPrompt = liveCheck.prompt;
-
-              if (isLive) {
-                boxColor = '#22c55e'; // Xanh lá: Đã qua xác thực người thật
-                labelText = `✓ ${bestMatch.label} (${confidence}%)`;
-                handleAdminFaceCheckin(bestMatch.label);
-                delete adminLivenessState[bestMatch.label];
-                adminActiveSessionLabel = null;
-                adminConsecutiveHits[bestMatch.label] = 0;
-                if (hud) hud.textContent = `✅ Nhận diện thành công: ${bestMatch.label}`;
-              } else {
-                adminConsecutiveHits[bestMatch.label] = 0;
-                if (liveCheck.isFailed) {
-                  boxColor = '#ef4444';
-                  labelText = `❌ Xác minh thất bại`;
-                } else {
-                  boxColor = '#f59e0b';
-                  labelText = `⏳ ${livenessPrompt}`;
-                }
-                if (hud) hud.textContent = livenessPrompt;
-              }
-            } else if (bestMatch.label !== 'unknown') {
-              labelText = 'Đang nhận diện...';
-              boxColor = '#38bdf8';
-              adminLostFaceFrames++;
-              if (adminLostFaceFrames >= 8) {
-                adminLivenessState = {};
-                adminActiveSessionLabel = null;
-              }
-              if (hud) hud.textContent = '🔍 Đang so khớp với mẫu khuôn mặt...';
-            } else {
-              labelText = `Người lạ (Unknown)`;
-              boxColor = '#94a3b8';
-              adminLostFaceFrames++;
-              if (adminLostFaceFrames >= 8) {
-                adminLivenessState = {};
-                adminActiveSessionLabel = null;
-              }
-              if (hud) hud.textContent = '⚠️ Không nhận diện được khuôn mặt trong danh sách';
-            }
-          }
-
-          // Vẽ khung
-          const box = det.detection.box;
-          ctx.save();
-          if (adminEspMirrored) {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.strokeStyle = boxColor;
-          ctx.lineWidth = 2.5;
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-          // Vẽ nhãn
-          ctx.fillStyle = boxColor;
-          const textWidth = ctx.measureText(labelText).width;
-          ctx.fillRect(box.x, box.y - 22, textWidth + 14, 22);
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 11px system-ui';
-          ctx.fillText(labelText, box.x + 6, box.y - 7);
-
-          // Vẽ thanh chỉ dẫn người thật dưới khung nếu chưa pass liveness
-          if (isMatched && !isLive && !adminSpeedMode) {
-            const subY = box.y + box.height + 6;
-            const barWidth = Math.max(box.width, 320);
-            const isFailed = (boxColor === '#ef4444');
-            ctx.fillStyle = isFailed ? 'rgba(239, 68, 68, 0.95)' : 'rgba(15, 23, 42, 0.92)';
-            ctx.fillRect(box.x, subY, barWidth, 24);
-            ctx.strokeStyle = isFailed ? '#ef4444' : 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(box.x, subY, barWidth, 24);
-
-            ctx.font = 'bold 11px system-ui';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(livenessPrompt, box.x + 8, subY + 16);
-          }
-
-          ctx.restore();
         }
       }
     } catch(err) {

@@ -1512,94 +1512,92 @@ async function startDetectionLoop() {
             activeKioskLabel = null;
             Object.keys(consecutiveHits).forEach(k => delete consecutiveHits[k]);
           }
-        } else if (resizedDetections.length > 1) {
-          kioskLostFaceFrames = 0;
-          hudStatus.textContent = '⚠️ Phát hiện nhiều khuôn mặt! Vui lòng chỉ 1 người đứng trước camera.';
-          const btnManual = document.getElementById('btnManualOverride');
-          if (btnManual) btnManual.style.display = 'none';
-          Object.keys(livenessState).forEach(k => delete livenessState[k]);
-          activeKioskLabel = null;
-          Object.keys(consecutiveHits).forEach(k => delete consecutiveHits[k]);
         } else {
           kioskLostFaceFrames = 0;
-          const detection = resizedDetections[0];
-          let { box } = detection.detection;
           
-          const isMirrored = (cameraMode === 'webcam') || (cameraMode === 'esp' && espMirrored);
-          const drawX = isMirrored ? (displaySize.width - box.x - box.width) : box.x;
+          // Sắp xếp các khuôn mặt theo diện tích giảm dần: Khuôn mặt to / gần camera nhất được ưu tiên
+          const sortedDetections = [...resizedDetections].sort((a, b) => {
+            const areaA = a.detection.box.width * a.detection.box.height;
+            const areaB = b.detection.box.width * b.detection.box.height;
+            return areaB - areaA;
+          });
 
-          let label = 'Người lạ / Chưa học';
-          let isMatch = false;
-          let isLive = false; // Mặc định luôn là FALSE!
-          let liveCheck = null;
-          let confidence = '';
+          if (sortedDetections.length > 1) {
+            hudStatus.textContent = `👥 Phát hiện ${sortedDetections.length} khuôn mặt — Đang kiểm tra từng đối tượng...`;
+          }
 
-          if (faceMatcher) {
-            const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            const maxDistance = 0.42; // Ngưỡng chặt: giảm tối đa nhận nhầm người khác
-            if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
-              label = bestMatch.label;
-              isMatch = true;
-              kioskLostFaceFrames = 0;
-              confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
-              detectedLabelsInThisFrame.add(label);
+          // Duyệt qua từng khuôn mặt phát hiện được trong khung hình
+          for (let detIdx = 0; detIdx < sortedDetections.length; detIdx++) {
+            const detection = sortedDetections[detIdx];
+            let { box } = detection.detection;
+            
+            const isMirrored = (cameraMode === 'webcam') || (cameraMode === 'esp' && espMirrored);
+            const drawX = isMirrored ? (displaySize.width - box.x - box.width) : box.x;
 
-              // Đổi người trước camera -> Hủy ngay phiên của người trước
-              if (activeKioskLabel && activeKioskLabel !== label) {
-                delete livenessState[activeKioskLabel];
-              }
-              activeKioskLabel = label;
+            let label = 'Người lạ / Chưa học';
+            let isMatch = false;
+            let isLive = false;
+            let liveCheck = null;
+            let confidence = '';
 
-              let angleTag = '';
-              const studentDescObj = labeledDescriptors.find(d => d.label === label);
-              if (studentDescObj && studentDescObj.descriptors.length > 1) {
-                let minD = 999;
-                let minIdx = 0;
-                studentDescObj.descriptors.forEach((d, idx) => {
-                  const dist = faceapi.euclideanDistance(detection.descriptor, d);
-                  if (dist < minD) {
-                    minD = dist;
-                    minIdx = idx;
+            if (faceMatcher) {
+              const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+              const maxDistance = 0.42;
+              if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
+                label = bestMatch.label;
+                isMatch = true;
+                confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
+                detectedLabelsInThisFrame.add(label);
+
+                // Nếu là khuôn mặt chính (to nhất), gán activeKioskLabel để phục vụ state machine
+                if (detIdx === 0) {
+                  if (activeKioskLabel && activeKioskLabel !== label) {
+                    delete livenessState[activeKioskLabel];
                   }
-                });
-                const angleNames = ['Góc 1: Thẳng 0°', 'Góc 2: Trái 15°', 'Góc 3: Phải 15°', 'Góc 4: Ngẩng/Cúi', 'Góc 5: Cười'];
-                angleTag = angleNames[minIdx] ? ` · ${angleNames[minIdx]}` : '';
-              }
+                  activeKioskLabel = label;
+                }
 
-              // Chống ảnh thẻ / màn hình điện thoại bằng AI MiniFASNet-V2 chuyên dụng
-              const rawBox = (detections[0] && detections[0].detection) ? detections[0].detection.box : box;
-              liveCheck = await evaluateLiveness(label, detection.landmarks, box, rawBox);
-              isLive = liveCheck.isLive;
+                let angleTag = '';
+                const studentDescObj = labeledDescriptors.find(d => d.label === label);
+                if (studentDescObj && studentDescObj.descriptors.length > 1) {
+                  let minD = 999;
+                  let minIdx = 0;
+                  studentDescObj.descriptors.forEach((d, idx) => {
+                    const dist = faceapi.euclideanDistance(detection.descriptor, d);
+                    if (dist < minD) {
+                      minD = dist;
+                      minIdx = idx;
+                    }
+                  });
+                  const angleNames = ['Góc 1: Thẳng 0°', 'Góc 2: Trái 15°', 'Góc 3: Phải 15°', 'Góc 4: Ngẩng/Cúi', 'Góc 5: Cười'];
+                  angleTag = angleNames[minIdx] ? ` · ${angleNames[minIdx]}` : '';
+                }
 
-              if (isLive) {
-                triggerCheckin(label);
-                // XÓA NGAY LẬP TỨC: Không lưu lại trạng thái PASS cũ
-                delete livenessState[label];
-                activeKioskLabel = null;
-                consecutiveHits[label] = 0;
-                hudStatus.textContent = `✅ Xác minh người thật thành công: ${label}`;
+                // Chống ảnh thẻ / màn hình điện thoại bằng AI MiniFASNet-V2
+                const rawBox = (detections[detIdx] && detections[detIdx].detection) ? detections[detIdx].detection.box : box;
+                liveCheck = await evaluateLiveness(label, detection.landmarks, box, rawBox);
+                isLive = liveCheck.isLive;
+
+                if (isLive) {
+                  triggerCheckin(label);
+                  delete livenessState[label];
+                  if (activeKioskLabel === label) activeKioskLabel = null;
+                  consecutiveHits[label] = 0;
+                  hudStatus.textContent = `✅ Xác minh người thật thành công: ${label}`;
+                } else {
+                  consecutiveHits[label] = 0;
+                  if (detIdx === 0) {
+                    hudStatus.textContent = `👁️ ${(label.split(' - ')[1] || label)}${angleTag}: ${liveCheck.prompt}`;
+                  }
+                }
+              } else if (bestMatch.label !== 'unknown') {
+                label = 'Chưa khớp khuôn mặt';
+                isMatch = false;
               } else {
-                consecutiveHits[label] = 0;
-                hudStatus.textContent = `👁️ ${(label.split(' - ')[1] || label)}${angleTag}: ${liveCheck.prompt}`;
-              }
-            } else if (bestMatch.label !== 'unknown') {
-              label = 'Chưa khớp khuôn mặt';
-              isMatch = false;
-              kioskLostFaceFrames++;
-              if (kioskLostFaceFrames >= 6) {
-                Object.keys(livenessState).forEach(k => delete livenessState[k]);
-                activeKioskLabel = null;
-              }
-            } else {
-              label = 'Người lạ / Chưa học';
-              isMatch = false;
-              kioskLostFaceFrames++;
-              if (kioskLostFaceFrames >= 6) {
-                Object.keys(livenessState).forEach(k => delete livenessState[k]);
-                activeKioskLabel = null;
+                label = 'Người lạ / Chưa học';
+                isMatch = false;
               }
             }
-          }
 
             // Vẽ khung nhận diện
             ctx.lineWidth = 3;
@@ -1610,7 +1608,7 @@ async function startDetectionLoop() {
               ctx.strokeStyle = '#22c55e';
               ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
             } else if (liveCheck && liveCheck.isStaticPhoto) {
-              ctx.strokeStyle = '#ef4444'; // Đỏ cảnh báo ảnh tĩnh
+              ctx.strokeStyle = '#ef4444'; // Đỏ cảnh báo ảnh tĩnh / điện thoại
               ctx.fillStyle = 'rgba(239, 68, 68, 0.95)';
             } else if (liveCheck && liveCheck.isManualFallback) {
               ctx.strokeStyle = '#f59e0b'; // Cam cảnh báo: Cần giảng viên xác nhận
@@ -1627,9 +1625,9 @@ async function startDetectionLoop() {
             let text = label;
             if (isMatch) {
               if (isLive) {
-                text = `✓ ` + label + angleTag + confidence;
+                text = `✓ ` + label + confidence;
               } else if (liveCheck && liveCheck.isStaticPhoto) {
-                text = `🚫 Nghi vấn giả mạo (Chặn điểm danh)`;
+                text = `🚫 Giả mạo: Điện thoại/Ảnh in`;
               } else if (liveCheck && liveCheck.isManualFallback) {
                 text = `⚠️ Cần Giảng viên xác nhận tay`;
               } else {
@@ -1649,7 +1647,7 @@ async function startDetectionLoop() {
               const prompt = liveCheck?.prompt || 'Đang quét bề mặt 3D...';
               
               const subY = box.y + box.height + 6;
-              const barWidth = Math.max(box.width, 280);
+              const barWidth = Math.max(box.width, 260);
               
               const isStatic = liveCheck && liveCheck.isStaticPhoto;
               ctx.fillStyle = isStatic ? 'rgba(239, 68, 68, 0.95)' : 'rgba(15, 23, 42, 0.92)';
@@ -1665,6 +1663,7 @@ async function startDetectionLoop() {
               ctx.fillText(prompt, drawX + 8, subY + 16);
             }
           }
+        }
         }
     } catch (err) {
       console.warn('Lỗi trong vòng lặp nhận diện AI:', err);
