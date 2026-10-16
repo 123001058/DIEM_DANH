@@ -2435,6 +2435,7 @@ tbody tr:last-child td { border-bottom: none; }
             </div>
             <div class="countdown-chip" id="countdownChip">⏱ <span id="countdownText">--:--</span></div>
           </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-secondary" id="btnToggleFaceCam" onclick="navTo('face-cam')" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;" title="Mở tính năng Camera Quét mặt ESP32">
               <span>📷</span> Quét mặt ESP32 →
             </button>
@@ -2645,7 +2646,7 @@ tbody tr:last-child td { border-bottom: none; }
             </label>
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Siêu tốc 1s</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)</button>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -2925,7 +2926,7 @@ tbody tr:last-child td { border-bottom: none; }
             <p style="font-size:12px;color:var(--muted);margin:5px 0 0">Xem lịch rảnh/bận, duyệt đơn 1-chạm và lưu ghi chú. Có lịch trùng chỉ là cảnh báo.</p>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="toggleAdminSelfLeaveForm()" id="btnToggleSelfLeave">＋ Tự nộp đơn</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAdminSelfLeaveForm()" id="btnToggleSelfLeave">＋ Tạo đơn</button>
             <button class="btn btn-secondary btn-sm" onclick="loadLeaveManagement()">↻ Làm mới</button>
           </div>
         </div>
@@ -2934,10 +2935,14 @@ tbody tr:last-child td { border-bottom: none; }
         <div class="card" id="adminSelfLeaveCard" style="display:none;padding:16px;margin-bottom:16px;border-left:4px solid #3b82f6;background:var(--surface-2)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="font-size:14px;font-weight:800;margin:0;display:flex;align-items:center;gap:6px">
-              <span>✍️</span> Nộp đơn xin nghỉ cho tài khoản của tôi
+              <span>✍️</span> Tạo đơn xin nghỉ cho sinh viên
             </h3>
             <button class="btn btn-icon" onclick="toggleAdminSelfLeaveForm(false)" title="Đóng">✕</button>
           </div>
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:10px">Sinh viên (gõ tên hoặc MSSV)
+            <input id="adminLeaveStudent" list="adminLeaveStudentList" autocomplete="off" placeholder="VD: 123001058" oninput="checkAdminLeaveConflict()" style="display:block;width:100%;padding:8px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-family:inherit">
+            <datalist id="adminLeaveStudentList"></datalist>
+          </label>
           <div class="leave-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
             <label style="font-size:12px;font-weight:600">Ngày nghỉ
               <input id="adminLeaveDate" type="date" onchange="checkAdminLeaveConflict()" style="display:block;width:100%;padding:8px 10px;margin-top:4px;border:1px solid var(--border);border-radius:7px;font-family:inherit">
@@ -2958,7 +2963,10 @@ tbody tr:last-child td { border-bottom: none; }
           <label style="display:block;font-size:12px;font-weight:600;margin:8px 0">Ảnh minh chứng (nếu có)
             <input id="adminLeaveEvidence" type="file" accept="image/jpeg,image/png,image/webp" style="display:block;margin-top:5px;font-size:12px">
           </label>
-          <button class="btn btn-primary btn-sm" onclick="submitAdminLeaveRequest()" style="margin-top:6px">Gửi đơn xin nghỉ</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin:8px 0">
+            <input type="checkbox" id="adminLeaveApproveNow" checked> Duyệt luôn (tự áp vào điểm danh)
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="submitAdminLeaveRequest()" style="margin-top:6px">Tạo đơn xin nghỉ</button>
         </div>
 
         <!-- Dải thẻ KPI Trạng thái đơn -->
@@ -3902,7 +3910,24 @@ function toggleAdminSelfLeaveForm(forceState) {
   const isCurrentlyOpen = (card.style.display !== 'none');
   const shouldOpen = (forceState !== undefined) ? forceState : !isCurrentlyOpen;
   card.style.display = shouldOpen ? 'block' : 'none';
-  if (btn) btn.textContent = shouldOpen ? '✕ Đóng form nộp' : '＋ Tự nộp đơn';
+  if (btn) btn.textContent = shouldOpen ? '✕ Đóng form' : '＋ Tạo đơn';
+  if (shouldOpen) fillAdminLeaveStudents();
+}
+
+function fillAdminLeaveStudents() {
+  const dl = document.getElementById('adminLeaveStudentList');
+  const input = document.getElementById('adminLeaveStudent');
+  if (dl) dl.innerHTML = (students || []).map(s => `<option value="${escapeHtml(s.mssv)} - ${escapeHtml(s.name)}"></option>`).join('');
+  if (input && !input.value && adminLeaveProfile?.mssv) input.value = adminLeaveProfile.mssv;
+}
+
+// Lấy MSSV hợp lệ từ ô chọn sinh viên (chấp nhận "mssv - tên" hoặc gõ thẳng mssv/tên)
+function getAdminLeaveMssv() {
+  const v = (document.getElementById('adminLeaveStudent')?.value || '').trim();
+  if (!v) return null;
+  const key = v.split(' - ')[0].trim();
+  const hit = (students || []).find(s => s.mssv === key) || (students || []).find(s => s.name.toLowerCase() === v.toLowerCase());
+  return hit ? hit.mssv : null;
 }
 
 function setLeaveStatusFilter(status) {
@@ -3949,21 +3974,25 @@ function leaveRowPeriod(r){if(r.leave_period)return r.leave_period;const hour=ne
 
 async function checkAdminLeaveConflict(){
   const out=document.getElementById('adminLeaveConflict');if(!out)return;
-  const bounds=adminLeaveBounds(document.getElementById('adminLeaveDate')?.value,document.getElementById('adminLeavePeriod')?.value);if(!bounds||!adminLeaveProfile?.mssv){out.textContent='';return;}const {start,end}=bounds;
-  const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time').eq('mssv',adminLeaveProfile.mssv).limit(300);
+  const bounds=adminLeaveBounds(document.getElementById('adminLeaveDate')?.value,document.getElementById('adminLeavePeriod')?.value);const targetMssv=getAdminLeaveMssv();if(!bounds||!targetMssv){out.textContent='';return;}const {start,end}=bounds;
+  const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time').eq('mssv',targetMssv).limit(300);
   if(error){out.textContent='Chưa kiểm tra được lịch học.';return;}if(!data?.length){out.textContent='⚪ Chưa có dữ liệu lịch học; vẫn có thể gửi đơn.';return;}
   const conflicts=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);out.textContent=conflicts.length?`⚠️ Trùng lịch học: ${conflicts.map(s=>s.subject_name).join(', ')}. Vẫn có thể gửi đơn.`:'Không thấy lịch học trùng thời gian.';
 }
 
 async function submitAdminLeaveRequest(){
   const leaveDate=document.getElementById('adminLeaveDate').value,leavePeriod=document.getElementById('adminLeavePeriod').value,reason=document.getElementById('adminLeaveReason').value.trim(),file=document.getElementById('adminLeaveEvidence').files?.[0];
-  if(!adminLeaveProfile?.mssv)return toast('err','Thiếu MSSV','Tài khoản chưa liên kết MSSV.');if(!leaveDate||!reason)return toast('warn','Thiếu thông tin','Chọn ngày nghỉ và nhập lý do.');
+  const targetMssv=getAdminLeaveMssv();if(!targetMssv)return toast('err','Thiếu sinh viên','Chọn sinh viên có trong danh sách (gõ tên hoặc MSSV).');if(!leaveDate||!reason)return toast('warn','Thiếu thông tin','Chọn ngày nghỉ và nhập lý do.');
+  const approveNow=document.getElementById('adminLeaveApproveNow')?.checked;
   try{
     let evidence_path=null;if(file){if(file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Ảnh phải là JPG, PNG hoặc WebP và nhỏ hơn 5 MB.');const ext=file.type==='image/jpeg'?'jpg':file.type.split('/')[1];evidence_path=`${adminLeaveUser.id}/${crypto.randomUUID()}.${ext}`;const {error}=await supabase.storage.from('leave-evidence').upload(evidence_path,file,{contentType:file.type});if(error)throw error;}
-    const {error}=await supabase.from('leave_requests').insert({session_id:null,leave_date:leaveDate,leave_period:leavePeriod,mssv:adminLeaveProfile.mssv,leave_type:'full_session',starts_at:null,ends_at:null,reason,evidence_path});if(error)throw error;
-    document.getElementById('adminLeaveDate').value='';document.getElementById('adminLeaveReason').value='';document.getElementById('adminLeaveEvidence').value='';
+    const {data:created,error}=await supabase.from('leave_requests').insert({session_id:null,leave_date:leaveDate,leave_period:leavePeriod,mssv:targetMssv,leave_type:'full_session',starts_at:null,ends_at:null,reason,evidence_path}).select('id').single();if(error)throw error;
+    // Insert xong mới đổi sang approved để trigger áp đơn vào điểm danh chạy (trigger chỉ bắt UPDATE)
+    if(approveNow){const {error:apErr}=await supabase.from('leave_requests').update({status:'approved',updated_at:new Date().toISOString()}).eq('id',created.id);if(apErr)throw apErr;await syncApprovedLeavesToSession(false);}
+    document.getElementById('adminLeaveDate').value='';document.getElementById('adminLeaveReason').value='';document.getElementById('adminLeaveEvidence').value='';document.getElementById('adminLeaveStudent').value='';
     toggleAdminSelfLeaveForm(false);
-    await loadLeaveManagement();toast('ok','Đã gửi đơn','Đơn xin nghỉ của bạn đã được gửi.');
+    const stName=(students||[]).find(s=>s.mssv===targetMssv)?.name||targetMssv;
+    await loadLeaveManagement();toast('ok',approveNow?'Đã tạo & duyệt đơn':'Đã tạo đơn',`Đơn xin nghỉ của ${stName} (${targetMssv}) ${approveNow?'đã được duyệt':'đang chờ duyệt'}.`);
   }catch(e){toast('err','Không gửi được đơn',e.message||'Lỗi không xác định.');}
 }
 
@@ -9224,7 +9253,7 @@ let adminFaceMatcher = null;
 let isAdminEspDetecting = false;
 let adminEspStreamRunning = false;
 let adminEspMirrored = false;
-let adminSpeedMode = true; // Siêu tốc 1s mặc định
+let adminSpeedMode = false; // Nghiêm ngặt chống ảnh thẻ mặc định
 let adminRecentScans = [];
 let adminLastCheckinTime = {};
 let adminFpsCounter = 0;
@@ -9379,12 +9408,139 @@ function toggleAdminEspFlip() {
   }
 }
 
+let adminLivenessState = {}; // label -> { state, centerFrames, turnedDirection, actionTimestamp, isLivePassed, lastSeen }
+
+function calculateAdminEyeEAR(eye) {
+  if (!eye || eye.length < 6) return 0.3;
+  const p1_p5 = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
+  const p2_p4 = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
+  const p0_p3 = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
+  return p0_p3 > 1 ? (p1_p5 + p2_p4) / (2.0 * p0_p3) : 0.3;
+}
+
+function calculateAdminHeadYaw(landmarks) {
+  if (!landmarks) return 1.0;
+  const nose = landmarks.getNose();
+  const jaw = landmarks.getJawOutline();
+  if (!nose || !jaw || jaw.length < 17) return 1.0;
+  const noseTip = nose[3] || nose[0];
+  const leftCheek = jaw[1];
+  const rightCheek = jaw[15];
+  const dLeft = Math.hypot(noseTip.x - leftCheek.x, noseTip.y - leftCheek.y);
+  const dRight = Math.hypot(noseTip.x - rightCheek.x, noseTip.y - rightCheek.y);
+  if (dRight < 1) return 1.0;
+  return dLeft / dRight;
+}
+
+function evaluateAdminLiveness(label, landmarks) {
+  if (adminSpeedMode) {
+    return { isLive: true, prompt: '⚡ Siêu tốc 1s' };
+  }
+  if (!landmarks) {
+    return { isLive: false, prompt: 'Đang tìm khuôn mặt...' };
+  }
+
+  const yaw = calculateAdminHeadYaw(landmarks);
+  const leftEAR = calculateAdminEyeEAR(landmarks.getLeftEye());
+  const rightEAR = calculateAdminEyeEAR(landmarks.getRightEye());
+  const avgEAR = (leftEAR + rightEAR) / 2.0;
+  const now = Date.now();
+
+  if (!adminLivenessState[label]) {
+    adminLivenessState[label] = {
+      state: 'WAIT_CENTER',
+      centerFrames: 0,
+      turnedDirection: '',
+      actionTimestamp: 0,
+      isLivePassed: false,
+      lastSeen: now
+    };
+  }
+
+  const st = adminLivenessState[label];
+  st.lastSeen = now;
+
+  if (st.isLivePassed || st.state === 'PASSED') {
+    return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
+  }
+
+  // Bước 1: Nhìn thẳng
+  if (st.state === 'WAIT_CENTER') {
+    if (yaw >= 0.70 && yaw <= 1.40) {
+      st.centerFrames++;
+      if (st.centerFrames >= 1) {
+        st.state = 'WAIT_ACTION';
+      }
+    } else {
+      st.centerFrames = 0;
+    }
+    return { isLive: false, prompt: '🔄 Nhìn thẳng vào camera...' };
+  }
+
+  // Bước 2: Cử động quay đầu hoặc chớp mắt
+  if (st.state === 'WAIT_ACTION') {
+    if (yaw < 0.68) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'TRÁI';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đã quay trái! Nhìn thẳng lại...' };
+    }
+    if (yaw > 1.45) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'PHẢI';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đã quay phải! Nhìn thẳng lại...' };
+    }
+    if (avgEAR < 0.225) {
+      st.state = 'WAIT_RETURN';
+      st.turnedDirection = 'CHỚP MẮT';
+      st.actionTimestamp = now;
+      return { isLive: false, prompt: '✅ Đang nhắm mắt! Mở mắt ra...' };
+    }
+    return { isLive: false, prompt: '🔄 Quay đầu hoặc chớp mắt để điểm danh' };
+  }
+
+  // Bước 3: Trở về chính diện
+  if (st.state === 'WAIT_RETURN') {
+    const elapsed = now - st.actionTimestamp;
+    if (elapsed > 5000) {
+      st.state = 'WAIT_CENTER';
+      st.centerFrames = 0;
+      return { isLive: false, prompt: '⚠️ Quá giờ, vui lòng làm lại' };
+    }
+    if (st.turnedDirection === 'TRÁI' || st.turnedDirection === 'PHẢI') {
+      if (yaw >= 0.70 && yaw <= 1.40 && elapsed >= 80) {
+        st.state = 'PASSED';
+        st.isLivePassed = true;
+        return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT 3D!' };
+      }
+      return { isLive: false, prompt: '↩️ Quay mặt về chính diện...' };
+    }
+    if (st.turnedDirection === 'CHỚP MẮT') {
+      if (avgEAR >= 0.235 && elapsed >= 60) {
+        st.state = 'PASSED';
+        st.isLivePassed = true;
+        return { isLive: true, prompt: '✅ ĐÃ XÁC THỰC NGƯỜI THẬT!' };
+      }
+      return { isLive: false, prompt: '👁️ Mở mắt ra để hoàn tất...' };
+    }
+  }
+
+  return { isLive: false, prompt: '🔄 Vui lòng quay đầu hoặc chớp mắt' };
+}
+
 function toggleAdminSpeedMode() {
   adminSpeedMode = !adminSpeedMode;
   const btn = document.getElementById('btnAdminSpeedMode');
   if (btn) {
-    btn.textContent = adminSpeedMode ? '⚡ Chế độ: Siêu tốc 1s' : '🛡️ Chế độ: Nghiêm ngặt';
+    btn.textContent = adminSpeedMode ? '⚡ Chế độ: Siêu tốc 1s' : '🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)';
     btn.classList.toggle('active', adminSpeedMode);
+  }
+  adminLivenessState = {};
+  if (!adminSpeedMode) {
+    toast('info', 'Chế độ Nghiêm ngặt BẬT', 'Hệ thống yêu cầu quay đầu hoặc chớp mắt người thật. Giơ ảnh thẻ giấy/điện thoại sẽ bị chặn!');
+  } else {
+    toast('warn', 'Chế độ Siêu tốc BẬT', 'Điểm danh tức thì 1 giây (Không bắt quay đầu người thật).');
   }
 }
 
@@ -9444,21 +9600,42 @@ async function startAdminFaceLoop() {
         }
 
         if (resizedDetections.length === 0) {
-          if (hud) hud.textContent = '🟢 Đang quét tìm khuôn mặt...';
+          if (hud) hud.textContent = adminSpeedMode ? '🟢 Đang quét tìm khuôn mặt...' : '🛡️ Nghiêm ngặt: Nhìn thẳng & quay đầu nhẹ để điểm danh...';
         } else {
           for (const det of resizedDetections) {
             let labelText = 'Chưa nhận diện';
             let boxColor = '#ef4444';
+            let isMatched = false;
+            let isLive = true;
+            let livenessPrompt = '';
 
             if (adminFaceMatcher) {
               const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-              if (bestMatch.label !== 'unknown' && bestMatch.distance <= 0.48) {
+              // Ngưỡng nghiêm ngặt: 0.42 khi bật nghiêm ngặt (chống nhầm mặt khác), 0.48 khi siêu tốc
+              const maxDistance = adminSpeedMode ? 0.48 : 0.42;
+
+              if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
+                isMatched = true;
                 const confidence = Math.round((1 - bestMatch.distance) * 100);
                 labelText = `${bestMatch.label} (${confidence}%)`;
-                boxColor = '#22c55e';
 
-                // GỌI ĐIỂM DANH TỨC THÌ
-                handleAdminFaceCheckin(bestMatch.label);
+                // Kiểm tra sống động người thật (chống ảnh thẻ/điện thoại)
+                const liveCheck = evaluateAdminLiveness(bestMatch.label, det.landmarks);
+                isLive = liveCheck.isLive;
+                livenessPrompt = liveCheck.prompt;
+
+                if (isLive) {
+                  boxColor = '#22c55e'; // Xanh lá: Đã qua xác thực người thật
+                  handleAdminFaceCheckin(bestMatch.label);
+                  delete adminLivenessState[bestMatch.label];
+                } else {
+                  boxColor = '#f59e0b'; // Vàng cam: Đúng mặt nhưng đang chờ cử động thật
+                  labelText = `🔄 ${bestMatch.label.split(' - ')[1] || bestMatch.label}`;
+                  if (hud) hud.textContent = `👁️ ${livenessPrompt}`;
+                }
+              } else if (bestMatch.label !== 'unknown') {
+                labelText = `Không khớp (${Math.round((1 - bestMatch.distance) * 100)}%)`;
+                boxColor = '#ef4444';
               }
             }
 
@@ -9475,10 +9652,28 @@ async function startAdminFaceLoop() {
 
             // Vẽ nhãn
             ctx.fillStyle = boxColor;
-            ctx.fillRect(box.x, box.y - 22, ctx.measureText(labelText).width + 14, 22);
+            const textWidth = ctx.measureText(labelText).width;
+            ctx.fillRect(box.x, box.y - 22, textWidth + 14, 22);
             ctx.fillStyle = '#052e16';
             ctx.font = 'bold 11px system-ui';
             ctx.fillText(labelText, box.x + 6, box.y - 7);
+
+            // Vẽ thanh chỉ dẫn người thật dưới khung nếu chưa pass liveness
+            if (isMatched && !isLive && !adminSpeedMode) {
+              const subY = box.y + box.height + 6;
+              const barWidth = Math.max(box.width, 240);
+              const isHalfway = (adminLivenessState[labelText]?.state === 'WAIT_RETURN');
+              ctx.fillStyle = isHalfway ? 'rgba(34, 197, 94, 0.95)' : 'rgba(15, 23, 42, 0.92)';
+              ctx.fillRect(box.x, subY, barWidth, 22);
+              ctx.strokeStyle = isHalfway ? '#22c55e' : 'rgba(255, 255, 255, 0.2)';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(box.x, subY, barWidth, 22);
+
+              ctx.font = 'bold 10.5px system-ui';
+              ctx.fillStyle = isHalfway ? '#052e16' : '#ffffff';
+              ctx.fillText(livenessPrompt, box.x + 6, subY + 15);
+            }
+
             ctx.restore();
           }
         }

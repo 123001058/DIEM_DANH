@@ -537,6 +537,12 @@ create policy "leave_requests_submit" on public.leave_requests
    FROM profiles p
   WHERE (p.user_id = auth.uid())))));
 
+drop policy if exists "leave_requests_admin_submit" on public.leave_requests;
+create policy "leave_requests_admin_submit" on public.leave_requests
+  for insert
+  to authenticated
+  with check (is_admin() AND requested_by = auth.uid());
+
 drop policy if exists "leave_requests_update" on public.leave_requests;
 create policy "leave_requests_update" on public.leave_requests
   for update

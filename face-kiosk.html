@@ -522,7 +522,7 @@ body {
     <div class="camera-toolbar">
       <div class="toolbar-group">
         <span style="font-size:12px;font-weight:700;color:#94a3b8;">Chế độ:</span>
-        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Chuyển đổi tốc độ quét và kiểm tra người thật">⚡ Điểm danh: Siêu tốc 1s</button>
+        <button type="button" class="btn-toggle" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật kiểm tra người thật 3D (Yêu cầu quay đầu/chớp mắt)">🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)</button>
       </div>
 
       <div class="toolbar-group">
@@ -701,8 +701,9 @@ function toggleAntiSpoof() {
   antiSpoofEnabled = !antiSpoofEnabled;
   const btn = document.getElementById('btnAntiSpoof');
   if (btn) {
-    btn.classList.toggle('active', antiSpoofEnabled);
-    btn.textContent = antiSpoofEnabled ? '🛡️ Chống ảnh thẻ: BẬT' : '⚠️ Chống ảnh thẻ: TẮT';
+    btn.classList.toggle('active', !antiSpoofEnabled);
+    btn.textContent = antiSpoofEnabled ? '🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)' : '⚡ Chế độ: Siêu tốc 1s';
+    btn.title = antiSpoofEnabled ? 'Đang bật kiểm tra người thật 3D (Yêu cầu quay đầu/chớp mắt)' : 'Chế độ siêu tốc 1s (Không kiểm tra cử động người thật)';
   }
 }
 
@@ -1276,8 +1277,9 @@ async function startDetectionLoop() {
 
             if (faceMatcher) {
               const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-              // Khoảng cách nhận diện <= 0.48 (Độ giống > 55%)
-              if (bestMatch.label !== 'unknown' && bestMatch.distance <= 0.48) {
+              // Ngưỡng nghiêm ngặt: 0.42 khi bật chống ảnh thẻ (chống nhận diện nhầm người khác), 0.48 khi siêu tốc
+              const maxDistance = antiSpoofEnabled ? 0.42 : 0.48;
+              if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
                 label = bestMatch.label;
                 isMatch = true;
                 confidence = ` (${Math.round((1 - bestMatch.distance) * 100)}%)`;
