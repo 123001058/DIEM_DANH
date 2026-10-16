@@ -476,6 +476,10 @@ body {
   background: #22c55e;
   color: #052e16;
 }
+.roster-status-badge.excused {
+  background: #6366f1;
+  color: #ffffff;
+}
 .roster-status-badge.pending {
   background: rgba(255, 255, 255, 0.06);
   color: #94a3b8;
@@ -1061,6 +1065,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 let currentRosterFilter = '';
 let checkedInMssvs = new Set();
+let excusedMssvs = new Set();
 
 function filterRoster(q) {
   currentRosterFilter = (q || '').trim().toLowerCase();
@@ -1092,16 +1097,19 @@ function renderStudentRoster() {
   container.innerHTML = list.map(st => {
     const avatarUrl = st.avatar || `images/faces/${st.mssv}.jpg`;
     const isDone = checkedInMssvs.has(st.mssv);
+    const isExcused = !isDone && excusedMssvs.has(st.mssv);
     const label = `${st.mssv} - ${st.name}`;
     const faceCount = (db[label] && db[label].length) || 0;
+    const badgeText = isDone ? '✓ Đã điểm danh' : (isExcused ? '📝 Nghỉ phép' : 'Chưa điểm danh');
+    const badgeClass = isDone ? 'ok' : (isExcused ? 'excused' : 'pending');
 
     return `
-      <div class="roster-item ${isDone ? 'checked-in' : ''}">
+      <div class="roster-item ${isDone ? 'checked-in' : (isExcused ? 'excused-leave' : '')}">
         <img class="roster-avatar" src="${avatarUrl}" onerror="this.src='images/logo.png'">
         <div class="roster-info">
           <div class="roster-top-row">
             <span class="roster-name">${escapeHtml(st.name)}</span>
-            <span class="roster-status-badge ${isDone ? 'ok' : 'pending'}">${isDone ? '✓ Đã điểm danh' : 'Chưa điểm danh'}</span>
+            <span class="roster-status-badge ${badgeClass}">${badgeText}</span>
           </div>
           <div class="roster-bottom-row">
             <span class="roster-mssv">MSSV: <b>${escapeHtml(st.mssv)}</b></span>
@@ -1194,12 +1202,20 @@ async function checkActiveSession() {
 
       // Tải danh sách các bạn đã điểm danh trong phiên này
       try {
+        checkedInMssvs.clear();
+        excusedMssvs.clear();
         const { data: attData } = await window.supabase
           .from('attendance')
-          .select('mssv')
+          .select('mssv, status')
           .eq('session_id', active.id);
         if (attData && attData.length > 0) {
-          attData.forEach(a => checkedInMssvs.add(a.mssv));
+          attData.forEach(a => {
+            if (a.status === 'có mặt' || a.status === 'đi muộn') {
+              checkedInMssvs.add(a.mssv);
+            } else if (a.status === 'vắng có phép') {
+              excusedMssvs.add(a.mssv);
+            }
+          });
           renderStudentRoster();
         }
       } catch(e) {}

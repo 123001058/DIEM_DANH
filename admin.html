@@ -6222,6 +6222,52 @@ async function loadAttendance(){
   }
 }
 
+function leaveCoversSession(leaveDate, leavePeriod, sessionStartedAt, sessionDurationMin, sessionName = '') {
+  if (!leaveDate || !sessionStartedAt) return false;
+  if (!leavePeriod || leavePeriod === 'full_day') return true;
+
+  const startDt = new Date(sessionStartedAt);
+  if (isNaN(startDt.getTime())) return false;
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(startDt);
+
+  const getPart = t => parts.find(p => p.type === t)?.value || '';
+  const sessionDay = `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+  if (sessionDay !== leaveDate) return false;
+
+  const nameLower = (sessionName || '').toLowerCase();
+  const hasSang = nameLower.includes('sáng') || nameLower.includes('sang') || nameLower.includes('ca 1');
+  const hasChieu = nameLower.includes('chiều') || nameLower.includes('chieu') || nameLower.includes('ca 2');
+  const hasToi = nameLower.includes('tối') || nameLower.includes('toi') || nameLower.includes('ca 3');
+
+  if (leavePeriod === 'morning' && hasSang && !hasChieu && !hasToi) return true;
+  if (leavePeriod === 'afternoon' && hasChieu && !hasSang && !hasToi) return true;
+  if (leavePeriod === 'evening' && hasToi && !hasSang && !hasChieu) return true;
+
+  const [y, m, d] = leaveDate.split('-').map(Number);
+  const periodHours = {
+    morning: [0, 12],
+    afternoon: [12, 17],
+    evening: [17, 24]
+  }[leavePeriod];
+
+  if (!periodHours) return true;
+
+  const periodStart = Date.UTC(y, m - 1, d, periodHours[0] - 7, 0, 0, 0);
+  const periodEnd = Date.UTC(y, m - 1, d, periodHours[1] - 7, 0, 0, 0);
+
+  const durMs = (sessionDurationMin || 240) * 60 * 1000;
+  const sessionStartMs = startDt.getTime();
+  const sessionEndMs = sessionStartMs + durMs;
+
+  return sessionStartMs < periodEnd && sessionEndMs > periodStart;
+}
+
 async function syncApprovedLeavesToSession(isManual = false) {
   if (!currentSession || !currentSession.id) {
     if (isManual) toast('warn', 'Chưa có phiên', 'Không có phiên điểm danh nào đang mở.');
@@ -6230,7 +6276,7 @@ async function syncApprovedLeavesToSession(isManual = false) {
   try {
     const sessionDate = currentSession.started_at ? new Date(currentSession.started_at).toLocaleDateString('sv-SE') : new Date().toLocaleDateString('sv-SE');
     const { data: approvedLeaves, error } = await supabase.from('leave_requests')
-      .select('mssv, leave_date, reason')
+      .select('mssv, leave_date, leave_period, reason')
       .eq('status', 'approved')
       .eq('leave_date', sessionDate);
 
@@ -6240,14 +6286,52 @@ async function syncApprovedLeavesToSession(isManual = false) {
       return;
     }
 
-    const needSync = approvedLeaves.filter(lv => {
+    // 1. Phân loại đơn: bao phủ phiên này vs không bao phủ
+    const coveringLeaves = approvedLeaves.filter(lv =>
+      leaveCoversSession(lv.leave_date, lv.leave_period, currentSession.started_at, currentSession.duration_min, currentSession.session_name)
+    );
+    const nonCoveringLeaves = approvedLeaves.filter(lv =>
+      !leaveCoversSession(lv.leave_date, lv.leave_period, currentSession.started_at, currentSession.duration_min, currentSession.session_name)
+    );
+
+    let changed = false;
+
+    // 2. DỌN DẸP LỖI CŨ: Nếu sinh viên chỉ xin nghỉ ca khác (vd xin nghỉ sáng nhưng phiên đang mở là chiều/tối)
+    // mà trước đó lỡ bị đồng bộ thành "vắng có phép" (do lỗi cũ tính cả ngày), thì huỷ bỏ trạng thái để họ điểm danh bình thường
+    const wrongMssvs = nonCoveringLeaves
+      .map(l => l.mssv)
+      .filter(mssv => !coveringLeaves.some(c => c.mssv === mssv))
+      .filter(mssv => {
+        const cur = attendanceMap[mssv];
+        if (!cur || cur.status !== 'vắng có phép') return false;
+        if (cur.category === 'Học trường' || (cur.note || '').includes('Lịch học')) return false;
+        return cur.category === 'Xin nghỉ' || (cur.note || '').includes('Nghỉ phép') || cur.time === 'Đã duyệt' || !cur.category;
+      });
+
+    if (wrongMssvs.length > 0) {
+      const { error: delErr } = await supabase.from('attendance')
+        .delete()
+        .eq('session_id', currentSession.id)
+        .in('mssv', wrongMssvs)
+        .eq('status', 'vắng có phép');
+      if (!delErr) {
+        wrongMssvs.forEach(m => {
+          delete attendanceMap[m];
+        });
+        changed = true;
+      }
+    }
+
+    // 3. ĐỒNG BỘ: Chỉ đánh dấu "vắng có phép" cho sinh viên có đơn bao phủ đúng ca này
+    const needSync = coveringLeaves.filter(lv => {
       const cur = attendanceMap[lv.mssv];
       return !cur || (cur.status !== 'có mặt' && cur.status !== 'đi muộn' && cur.status !== 'vắng có phép');
     });
 
     if (needSync.length > 0) {
       for (const lv of needSync) {
-        const reasonText = lv.reason ? `Nghỉ phép: ${lv.reason}` : 'Nghỉ phép (đã duyệt)';
+        const pLabel = adminLeavePeriodNames[lv.leave_period] || 'Cả ngày';
+        const reasonText = lv.reason ? `Nghỉ phép (${pLabel}): ${lv.reason}` : `Nghỉ phép (${pLabel})`;
         const { error: rpcErr } = await supabase.rpc('admin_set_status', {
           p_session_id: String(currentSession.id),
           p_mssv: lv.mssv,
@@ -6259,17 +6343,25 @@ async function syncApprovedLeavesToSession(isManual = false) {
             status: 'vắng có phép',
             time: 'Đã duyệt',
             editedAt: null,
-            category: '',
+            category: 'Xin nghỉ',
             note: reasonText
           };
+          changed = true;
         }
       }
+    }
 
+    if (changed) {
       updateStats();
       renderTable();
-      if (isManual) toast('ok', 'Đã đồng bộ đơn nghỉ', `Đã cập nhật ${needSync.length} sinh viên có đơn nghỉ phép.`);
-    } else if (isManual) {
-      toast('ok', 'Hoàn tất', 'Tất cả sinh viên có đơn nghỉ đã được ghi nhận.');
+    }
+
+    if (isManual) {
+      const count = coveringLeaves.length;
+      const cleanCount = wrongMssvs.length;
+      let msg = `Đã đồng bộ ${count} sinh viên có đơn nghỉ phép phù hợp ca này.`;
+      if (cleanCount > 0) msg += ` Đã hoàn tác ${cleanCount} sinh viên chỉ nghỉ ca khác.`;
+      toast('ok', 'Đồng bộ đơn nghỉ', msg);
     }
   } catch(e) {
     console.error('Lỗi đồng bộ đơn nghỉ:', e);
@@ -6417,28 +6509,57 @@ function getStudentScheduleCellHtml(mssv) {
   if (!info) {
     return '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
   }
-  if (info.leaveText) {
-    return `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe" title="${escapeHtml(info.leaveText)}">📝 Nghỉ phép</div>`;
+
+  // Phân tích đơn xin nghỉ phép của sinh viên
+  const leaves = info.leaves || [];
+  let activeLeaveBadge = '';
+  let inactiveLeaveBadge = '';
+
+  if (leaves.length > 0) {
+    const sDate = currentSession?.started_at ? new Date(currentSession.started_at).toLocaleDateString('sv-SE') : new Date().toLocaleDateString('sv-SE');
+    const sStart = currentSession?.started_at || new Date().toISOString();
+    const sDur = currentSession?.duration_min || 240;
+    const sName = currentSession?.session_name || '';
+
+    const covering = leaves.find(l => leaveCoversSession(sDate, l.period, sStart, sDur, sName));
+    if (covering) {
+      const pShort = covering.period === 'morning' ? 'Nghỉ sáng' : (covering.period === 'afternoon' ? 'Nghỉ chiều' : (covering.period === 'evening' ? 'Nghỉ tối' : 'Nghỉ cả ngày'));
+      activeLeaveBadge = `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe" title="${escapeHtml(covering.fullText || info.leaveText)}">📝 ${escapeHtml(pShort)}</div>`;
+    } else {
+      // Đơn nghỉ thuộc buổi khác (vd: xin nghỉ sáng nhưng phiên hiện tại là chiều/tối)
+      const otherLeave = leaves[0];
+      const pShort = otherLeave.period === 'morning' ? 'Nghỉ sáng' : (otherLeave.period === 'afternoon' ? 'Nghỉ chiều' : (otherLeave.period === 'evening' ? 'Nghỉ tối' : 'Nghỉ phép'));
+      inactiveLeaveBadge = `<div style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1" title="${escapeHtml(otherLeave.fullText || info.leaveText)}">📝 ${escapeHtml(pShort)} (ca khác)</div>`;
+    }
   }
+
+  // Nếu có đơn nghỉ bao phủ đúng ca/phiên này, ưu tiên hiển thị badge đơn nghỉ
+  if (activeLeaveBadge) {
+    return activeLeaveBadge;
+  }
+
+  // Nếu không có đơn hoặc đơn thuộc ca khác, hiển thị lịch học trường kèm huy hiệu phụ (nếu có)
+  let schedContent = '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
   if (info.status === 'in_class') {
     const cur = info.currentClass;
     const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Đang trong giờ học';
     const subText = cur ? `<div style="font-size:10.5px;color:#dc2626;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.room)})</div>` : '';
-    return `<div><span class="sched-status-tag tag-busy-now" style="font-size:10px" title="${escapeHtml(title)}">🔴 Đang học</span>${subText}</div>`;
-  }
-  if (info.status === 'upcoming_class') {
+    schedContent = `<div><span class="sched-status-tag tag-busy-now" style="font-size:10px" title="${escapeHtml(title)}">🔴 Đang học</span>${subText}</div>`;
+  } else if (info.status === 'upcoming_class') {
     const cur = info.upcomingClass || (info.classes && info.classes[0]);
     const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Có ca học sắp tới';
     const subText = cur ? `<div style="font-size:10.5px;color:#d97706;font-weight:500;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.timeRange)})</div>` : '';
-    return `<div><span class="sched-status-tag tag-busy-future" style="font-size:10px" title="${escapeHtml(title)}">⏳ Sắp học</span>${subText}</div>`;
+    schedContent = `<div><span class="sched-status-tag tag-busy-future" style="font-size:10px" title="${escapeHtml(title)}">⏳ Sắp học</span>${subText}</div>`;
+  } else if (info.status === 'finished_classes') {
+    schedContent = `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Đã kết thúc các ca học hôm nay">🟢 Đã học xong (Rảnh)</span>`;
+  } else if (info.status === 'free_all_day') {
+    schedContent = `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Không có lịch học trường hôm nay">🟢 Rảnh cả ngày</span>`;
   }
-  if (info.status === 'finished_classes') {
-    return `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Đã kết thúc các ca học hôm nay">🟢 Đã học xong (Rảnh)</span>`;
+
+  if (inactiveLeaveBadge) {
+    return `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">${inactiveLeaveBadge}${schedContent}</div>`;
   }
-  if (info.status === 'free_all_day') {
-    return `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Không có lịch học trường hôm nay">🟢 Rảnh cả ngày</span>`;
-  }
-  return '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
+  return schedContent;
 }
 
 function renderAttendanceMethodBadge(a) {
@@ -7516,10 +7637,17 @@ async function loadTodaySchoolSchedule(){
     const {data:approvedLeaveRows}=await supabase.from('leave_requests')
       .select('mssv,leave_date,leave_period,reason')
       .eq('status','approved');
-    const todayLeaveByStudent={};
-    (approvedLeaveRows||[]).forEach(r=>{
-      const dayKey=new Date(startStr).toLocaleDateString('sv-SE');
-      if(r.leave_date===dayKey){(todayLeaveByStudent[r.mssv] ||= []).push(`${adminLeavePeriodNames[r.leave_period]||'Cả ngày'}${r.reason?': '+r.reason:''}`);}
+    const todayLeaveByStudent = {};
+    (approvedLeaveRows || []).forEach(r => {
+      const dayKey = new Date(startStr).toLocaleDateString('sv-SE');
+      if (r.leave_date === dayKey) {
+        (todayLeaveByStudent[r.mssv] ||= []).push({
+          period: r.leave_period,
+          periodLabel: adminLeavePeriodNames[r.leave_period] || 'Cả ngày',
+          reason: r.reason || '',
+          fullText: `${adminLeavePeriodNames[r.leave_period] || 'Cả ngày'}${r.reason ? ': ' + r.reason : ''}`
+        });
+      }
     });
     const {data:knownSchedules}=await supabase.from('student_schedules').select('mssv');
     const studentsWithCalendar=new Set((knownSchedules||[]).map(r=>r.mssv));
@@ -7552,13 +7680,14 @@ async function loadTodaySchoolSchedule(){
       const sName = s.name || studentMap[sMssv] || sMssv;
       const sScheds = scheduleByStudent[sMssv] || [];
       const leaves = todayLeaveByStudent[sMssv] || [];
-      const leaveText = leaves.length ? leaves.join('; ') : '';
+      const leaveText = leaves.map(l => l.fullText).join('; ');
 
       if (!studentsWithCalendar.has(sMssv)) {
         unknownList.push({mssv:sMssv,name:sName});
         window._todayStudentScheduleMap[sMssv] = {
           status: 'unknown',
           statusText: '⚪ Chưa có dữ liệu',
+          leaves: leaves,
           leaveText: leaveText,
           classes: []
         };
@@ -7573,6 +7702,7 @@ async function loadTodaySchoolSchedule(){
         window._todayStudentScheduleMap[sMssv] = {
           status: 'free_all_day',
           statusText: '🟢 Rảnh cả ngày',
+          leaves: leaves,
           leaveText: leaveText,
           classes: []
         };
@@ -7633,6 +7763,7 @@ async function loadTodaySchoolSchedule(){
             statusText: '🔴 Đang học',
             currentClass: currentClass,
             upcomingClass: upcomingClass,
+            leaves: leaves,
             leaveText: leaveText,
             classes: classDetails
           };
@@ -7650,6 +7781,7 @@ async function loadTodaySchoolSchedule(){
             statusText: '⏳ Sắp học',
             currentClass: null,
             upcomingClass: upcomingClass,
+            leaves: leaves,
             leaveText: leaveText,
             classes: classDetails
           };
@@ -7667,6 +7799,7 @@ async function loadTodaySchoolSchedule(){
             statusText: '🟢 Đã xong ca học (Rảnh)',
             currentClass: null,
             upcomingClass: null,
+            leaves: leaves,
             leaveText: leaveText,
             classes: classDetails
           };
