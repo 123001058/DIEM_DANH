@@ -2665,7 +2665,7 @@ tbody tr:last-child td { border-bottom: none; }
             </label>
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)</button>
+            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Siêu tốc 1s</button>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -9758,7 +9758,7 @@ let adminFaceMatcher = null;
 let isAdminEspDetecting = false;
 let adminEspStreamRunning = false;
 let adminEspMirrored = false;
-let adminSpeedMode = false; // Nghiêm ngặt chống ảnh thẻ mặc định
+let adminSpeedMode = true; // Siêu tốc 1s mặc định để nhận diện tức thì
 let adminRecentScans = [];
 let adminLastCheckinTime = {};
 let adminConsecutiveHits = {};
@@ -9879,7 +9879,7 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.48);
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.52);
     const hud = document.getElementById('adminEspHudText');
     if (hud) hud.textContent = `🟢 Đã nạp ${labeled.length} sinh viên vào bộ nhớ AI`;
   } else {
@@ -10015,305 +10015,48 @@ function calculateAdminHeadYaw(landmarks) {
   return dLeft / dRight;
 }
 
-// Kiểm tra độ sống động người thật bằng State Machine (Active Challenge Transition)
-// Bắt buộc chuỗi hành động chuyển đổi theo thời gian:
-// 1. Nhìn thẳng hiệu chuẩn -> 2. Thực hiện thử thách ngẫu nhiên -> 3. Quay lại trạng thái chuẩn
+// Kiểm tra độ sống động người thật (Chống ảnh thẻ bằng chớp mắt hoặc siêu tốc)
 function evaluateAdminLiveness(label, landmarks, box) {
   if (adminSpeedMode) {
-    return { isLive: true, prompt: '⚡ Siêu tốc (Không chống ảnh)', isStaticPhoto: false, isFailed: false };
+    return { isLive: true, prompt: '⚡ Siêu tốc (Điểm danh tức thì)', isStaticPhoto: false, isFailed: false };
   }
   if (!landmarks) {
     return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
   }
-  if (!box || box.width < 50) {
-    return { isLive: false, prompt: '🔍 Hãy đứng gần camera hơn...', isStaticPhoto: false, isFailed: false };
-  }
 
-  const yaw = calculateAdminHeadYaw(landmarks);
   const leftEAR = calculateAdminEyeEAR(landmarks.getLeftEye());
   const rightEAR = calculateAdminEyeEAR(landmarks.getRightEye());
   const avgEAR = (leftEAR + rightEAR) / 2.0;
-  const mar = calculateAdminMAR(landmarks.getMouth());
   const now = Date.now();
 
-  const boxCenterX = box.x + box.width / 2;
-  const boxCenterY = box.y + box.height / 2;
-
-  // 1. KHỞI TẠO HOẶC LẤY PHIÊN THỬ THÁCH
   if (!adminLivenessState[label]) {
-    const challenges = ['blink', 'turn_left', 'turn_right', 'smile'];
-    const selectedChallenge = challenges[Math.floor(Math.random() * challenges.length)];
-
     adminLivenessState[label] = {
-      challenge: selectedChallenge,
-      stage: 'CALIBRATING', // CALIBRATING -> ACTION_HOLD -> RETURNING -> PASSED
       sessionStartTime: now,
-      stageStartTime: now,
-      lastSeenTime: now,
-
       baselineEAR: avgEAR,
-      baselineYaw: yaw,
-      baselineMAR: mar,
-
-      straightFrames: 0,
-      actionFrames: 0,
-      returnFrames: 0,
-
-      lastBoxX: boxCenterX,
-      lastBoxY: boxCenterY,
-      lastBoxW: box.width,
-
-      earHistory: [avgEAR],
-      yawHistory: [yaw],
-
-      isFailed: false,
-      failReason: ''
+      blinkDetected: false,
+      earHistory: [avgEAR]
     };
   }
 
   const st = adminLivenessState[label];
-  st.lastSeenTime = now;
+  // Cập nhật baseline động
+  st.baselineEAR = st.baselineEAR * 0.85 + avgEAR * 0.15;
 
-  // 2. NẾU ĐÃ THẤT BẠI: Duy trì cảnh báo 2s rồi tự xóa phiên
-  if (st.isFailed) {
-    if (now - st.stageStartTime > 2000) {
-      delete adminLivenessState[label];
-      if (adminActiveSessionLabel === label) adminActiveSessionLabel = null;
-    }
-    return { isLive: false, prompt: `❌ ${st.failReason || 'Xác minh thất bại! Vui lòng thử lại'}`, isStaticPhoto: true, isFailed: true };
+  // Phát hiện chớp mắt tự nhiên (EAR giảm rồi mở lại)
+  if (avgEAR < Math.min(st.baselineEAR * 0.75, 0.19)) {
+    st.blinkDetected = true;
   }
 
-  // 3. TIMEOUT TOÀN PHIÊN (Tối đa 7.0 giây)
-  if (now - st.sessionStartTime > 7000) {
-    st.isFailed = true;
-    st.stageStartTime = now;
-    st.failReason = 'Hết thời gian xác minh! Vui lòng thử lại';
-    return { isLive: false, prompt: '❌ ' + st.failReason, isStaticPhoto: true, isFailed: true };
+  if (st.blinkDetected && avgEAR >= Math.max(st.baselineEAR * 0.82, 0.20)) {
+    return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (CHỚP MẮT THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
   }
 
-  // 4. KIỂM TRA RUNG LẮC / DI CHUYỂN ĐỘT NGỘT (Lắc ảnh thẻ, rung điện thoại)
-  if (st.lastBoxX) {
-    const shift = Math.hypot(boxCenterX - st.lastBoxX, boxCenterY - st.lastBoxY);
-    const sizeDiff = Math.abs(box.width - st.lastBoxW) / st.lastBoxW;
-    st.lastBoxX = boxCenterX;
-    st.lastBoxY = boxCenterY;
-    st.lastBoxW = box.width;
-
-    if (shift > box.width * 0.22 || sizeDiff > 0.25) {
-      // Di chuyển quá nhanh hoặc đổi góc chụp đột ngột -> reset về bước hiệu chuẩn
-      st.stage = 'CALIBRATING';
-      st.straightFrames = 0;
-      st.actionFrames = 0;
-      st.returnFrames = 0;
-      st.stageStartTime = now;
-      return { isLive: false, prompt: '⚠️ Hãy giữ yên khuôn mặt trước camera...', isStaticPhoto: false, isFailed: false };
-    }
-  } else {
-    st.lastBoxX = boxCenterX;
-    st.lastBoxY = boxCenterY;
-    st.lastBoxW = box.width;
+  if (now - st.sessionStartTime > 8000) {
+    delete adminLivenessState[label];
+    return { isLive: false, prompt: '👁️ Hãy chớp mắt tự nhiên trước camera...', isStaticPhoto: false, isFailed: false };
   }
 
-  // Lưu lịch sử biến thiên sinh lý
-  st.earHistory.push(avgEAR);
-  if (st.earHistory.length > 15) st.earHistory.shift();
-  st.yawHistory.push(yaw);
-  if (st.yawHistory.length > 15) st.yawHistory.shift();
-
-  // 5. TIẾN TRÌNH STATE MACHINE
-
-  // GIAI ĐOẠN 1: BẮT BUỘC NHÌN THẲNG & NÉT MẶT TỰ NHIÊN (CẦN 6 FRAME LIÊN TỤC ỔN ĐỊNH)
-  if (st.stage === 'CALIBRATING') {
-    const isLookingStraight = (yaw >= 0.85 && yaw <= 1.18);
-    const isEyeOpen = (avgEAR >= 0.22);
-    const isMouthNeutral = (mar <= 0.30); // Chặn ảnh thẻ đang cười lớn hoặc há miệng
-
-    if (isLookingStraight && isEyeOpen && isMouthNeutral) {
-      st.straightFrames++;
-      // Cập nhật baseline động từ người thật
-      st.baselineEAR = st.baselineEAR * 0.7 + avgEAR * 0.3;
-      st.baselineYaw = st.baselineYaw * 0.7 + yaw * 0.3;
-      st.baselineMAR = st.baselineMAR * 0.7 + mar * 0.3;
-
-      if (st.straightFrames >= 4) { // 4 frame ổn định liên tục
-        st.stage = 'ACTION_HOLD';
-        st.stageStartTime = now;
-        st.actionFrames = 0;
-        st.returnFrames = 0;
-      }
-    } else {
-      st.straightFrames = 0;
-    }
-
-    let guideText = '👀 Nhìn thẳng vào camera...';
-    if (!isLookingStraight) {
-      guideText = (yaw < 0.85) ? '👉 Hãy quay mặt về chính giữa camera' : '👈 Hãy quay mặt về chính giữa camera';
-    } else if (!isEyeOpen) {
-      guideText = '👀 Hãy mở to mắt nhìn thẳng vào camera';
-    } else if (!isMouthNeutral) {
-      guideText = '😐 Hãy giữ nét mặt tự nhiên (không cười lớn)';
-    }
-    return { isLive: false, prompt: guideText, isStaticPhoto: false, isFailed: false };
-  }
-
-  // GIAI ĐOẠN 2 & 3: THỰC HIỆN THỬ THÁCH ĐỘNG & QUAY VỀ TRẠNG THÁI CHUẨN
-  // Kiểm tra timeout từng giai đoạn (quá 4.5s không làm hành động -> fail)
-  if (st.stage === 'ACTION_HOLD' && (now - st.stageStartTime > 4500)) {
-    st.isFailed = true;
-    st.stageStartTime = now;
-    st.failReason = 'Chưa hoàn thành động tác yêu cầu';
-    return { isLive: false, prompt: '❌ Thao tác quá chậm, vui lòng thử lại', isStaticPhoto: true, isFailed: true };
-  }
-
-  // --- THỬ THÁCH 1: CHỚP MẮT ---
-  if (st.challenge === 'blink') {
-    if (st.stage === 'ACTION_HOLD') {
-      const isClosed = (avgEAR <= st.baselineEAR * 0.65) && (avgEAR <= 0.16) && (leftEAR <= 0.17) && (rightEAR <= 0.17);
-      if (isClosed) {
-        st.actionFrames++;
-        if (st.actionFrames >= 2) { // Phải giữ nhắm ít nhất 2 frame liên tục để loại nhiễu cảm biến 1-frame
-          st.stage = 'RETURNING';
-          st.stageStartTime = now;
-          st.returnFrames = 0;
-        }
-      } else {
-        st.actionFrames = 0;
-      }
-      return { isLive: false, prompt: '👁️ Hãy CHỚP MẮT 1 lần để điểm danh...', isStaticPhoto: false, isFailed: false };
-    }
-
-    if (st.stage === 'RETURNING') {
-      if (now - st.stageStartTime > 2500) {
-        st.isFailed = true;
-        st.stageStartTime = now;
-        st.failReason = 'Mắt chưa mở to trở lại';
-        return { isLive: false, prompt: '❌ Vui lòng thử lại', isStaticPhoto: true, isFailed: true };
-      }
-      const isReopened = (avgEAR >= st.baselineEAR * 0.85) && (avgEAR >= 0.22);
-      if (isReopened) {
-        st.returnFrames++;
-        if (st.returnFrames >= 2) { // Mở mắt ổn định 2 frame liên tục
-          return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (CHỚP MẮT THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
-        }
-      } else {
-        st.returnFrames = 0;
-      }
-      return { isLive: false, prompt: '👁️ Hãy mở to mắt nhìn thẳng vào camera...', isStaticPhoto: false, isFailed: false };
-    }
-  }
-
-  // --- THỬ THÁCH 2: QUAY ĐẦU SANG TRÁI ---
-  if (st.challenge === 'turn_left') {
-    if (st.stage === 'ACTION_HOLD') {
-      const isTurnedLeft = (yaw <= 0.58);
-      if (isTurnedLeft) {
-        st.actionFrames++;
-        if (st.actionFrames >= 2) { // Giữ tư thế quay trái 2 frame liên tục
-          st.stage = 'RETURNING';
-          st.stageStartTime = now;
-          st.returnFrames = 0;
-        }
-      } else {
-        st.actionFrames = 0;
-      }
-      return { isLive: false, prompt: '↩️ Hãy quay nhẹ đầu sang TRÁI...', isStaticPhoto: false, isFailed: false };
-    }
-
-    if (st.stage === 'RETURNING') {
-      if (now - st.stageStartTime > 2500) {
-        st.isFailed = true;
-        st.stageStartTime = now;
-        st.failReason = 'Chưa quay lại nhìn thẳng';
-        return { isLive: false, prompt: '❌ Vui lòng thử lại', isStaticPhoto: true, isFailed: true };
-      }
-      const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
-      if (isBackStraight) {
-        st.returnFrames++;
-        if (st.returnFrames >= 2) {
-          return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
-        }
-      } else {
-        st.returnFrames = 0;
-      }
-      return { isLive: false, prompt: '👀 Giờ hãy quay lại nhìn thẳng vào camera...', isStaticPhoto: false, isFailed: false };
-    }
-  }
-
-  // --- THỬ THÁCH 3: QUAY ĐẦU SANG PHẢI ---
-  if (st.challenge === 'turn_right') {
-    if (st.stage === 'ACTION_HOLD') {
-      const isTurnedRight = (yaw >= 1.45);
-      if (isTurnedRight) {
-        st.actionFrames++;
-        if (st.actionFrames >= 2) { // Giữ tư thế quay phải 2 frame liên tục
-          st.stage = 'RETURNING';
-          st.stageStartTime = now;
-          st.returnFrames = 0;
-        }
-      } else {
-        st.actionFrames = 0;
-      }
-      return { isLive: false, prompt: '↪️ Hãy quay nhẹ đầu sang PHẢI...', isStaticPhoto: false, isFailed: false };
-    }
-
-    if (st.stage === 'RETURNING') {
-      if (now - st.stageStartTime > 2500) {
-        st.isFailed = true;
-        st.stageStartTime = now;
-        st.failReason = 'Chưa quay lại nhìn thẳng';
-        return { isLive: false, prompt: '❌ Vui lòng thử lại', isStaticPhoto: true, isFailed: true };
-      }
-      const isBackStraight = (yaw >= 0.85 && yaw <= 1.18) && (avgEAR >= 0.22);
-      if (isBackStraight) {
-        st.returnFrames++;
-        if (st.returnFrames >= 2) {
-          return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (QUAY ĐẦU THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
-        }
-      } else {
-        st.returnFrames = 0;
-      }
-      return { isLive: false, prompt: '👀 Giờ hãy quay lại nhìn thẳng vào camera...', isStaticPhoto: false, isFailed: false };
-    }
-  }
-
-  // --- THỬ THÁCH 4: MỈM CƯỜI ---
-  if (st.challenge === 'smile') {
-    if (st.stage === 'ACTION_HOLD') {
-      const isSmiling = (mar >= st.baselineMAR * 1.55) && (mar >= 0.38);
-      if (isSmiling) {
-        st.actionFrames++;
-        if (st.actionFrames >= 2) {
-          st.stage = 'RETURNING';
-          st.stageStartTime = now;
-          st.returnFrames = 0;
-        }
-      } else {
-        st.actionFrames = 0;
-      }
-      return { isLive: false, prompt: '😊 Hãy MỈM CƯỜI 1 lần để điểm danh...', isStaticPhoto: false, isFailed: false };
-    }
-
-    if (st.stage === 'RETURNING') {
-      if (now - st.stageStartTime > 2500) {
-        st.isFailed = true;
-        st.stageStartTime = now;
-        st.failReason = 'Chưa khép miệng tự nhiên';
-        return { isLive: false, prompt: '❌ Vui lòng thử lại', isStaticPhoto: true, isFailed: true };
-      }
-      const isBackNeutral = (mar <= 0.28) && (avgEAR >= 0.22);
-      if (isBackNeutral) {
-        st.returnFrames++;
-        if (st.returnFrames >= 2) {
-          return { isLive: true, prompt: '✅ ĐÃ XÁC MINH NGƯỜI THẬT (MỈM CƯỜI THÀNH CÔNG)!', isStaticPhoto: false, isFailed: false };
-        }
-      } else {
-        st.returnFrames = 0;
-      }
-      return { isLive: false, prompt: '😐 Khép miệng nhìn thẳng vào camera...', isStaticPhoto: false, isFailed: false };
-    }
-  }
-
-  return { isLive: false, prompt: '👀 Nhìn thẳng vào camera...', isStaticPhoto: false, isFailed: false };
+  return { isLive: false, prompt: '👁️ Hãy CHỚP MẮT 1 lần để điểm danh...', isStaticPhoto: false, isFailed: false };
 }
 
 function toggleAdminSpeedMode() {
@@ -10328,7 +10071,7 @@ function toggleAdminSpeedMode() {
   adminConsecutiveHits = {};
   adminLostFaceFrames = 0;
   if (!adminSpeedMode) {
-    toast('info', 'Chế độ Nghiêm ngặt BẬT', 'Hệ thống yêu cầu chớp mắt hoặc quay đầu người thật. Giơ ảnh thẻ giấy/điện thoại sẽ bị chặn!');
+    toast('info', 'Chế độ Nghiêm ngặt BẬT', 'Hệ thống yêu cầu chớp mắt người thật. Giơ ảnh thẻ giấy/điện thoại sẽ bị chặn!');
   } else {
     toast('warn', 'Chế độ Siêu tốc BẬT', 'Điểm danh tức thì 1 giây (Không bắt cử động người thật).');
   }
@@ -10371,7 +10114,7 @@ async function startAdminFaceLoop() {
         adminCaptureCtx.drawImage(img, 0, 0);
 
         const detections = await faceapi
-          .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.32 }))
+          .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.28 }))
           .withFaceLandmarks(true)
           .withFaceDescriptors();
 
@@ -10392,8 +10135,7 @@ async function startAdminFaceLoop() {
         if (resizedDetections.length === 0) {
           adminLostFaceFrames++;
           if (hud) hud.textContent = adminSpeedMode ? '🟢 Đang quét tìm khuôn mặt...' : '🛡️ Nghiêm ngặt: Nhìn thẳng vào camera để bắt đầu thử thách...';
-          // Mất mặt 3 frame liên tục (~150-200ms) -> Hủy và reset toàn bộ phiên
-          if (adminLostFaceFrames >= 3) {
+          if (adminLostFaceFrames >= 6) {
             adminLivenessState = {};
             adminActiveSessionLabel = null;
             adminConsecutiveHits = {};
@@ -10401,7 +10143,6 @@ async function startAdminFaceLoop() {
         } else if (resizedDetections.length > 1) {
           adminLostFaceFrames = 0;
           if (hud) hud.textContent = '⚠️ Phát hiện nhiều khuôn mặt! Vui lòng chỉ 1 người đứng trước camera.';
-          // Phát hiện > 1 khuôn mặt: lập tức hủy và reset toàn bộ phiên xác minh
           adminLivenessState = {};
           adminActiveSessionLabel = null;
           adminConsecutiveHits = {};
@@ -10428,13 +10169,13 @@ async function startAdminFaceLoop() {
           let labelText = 'Chưa nhận diện';
           let boxColor = '#ef4444';
           let isMatched = false;
-          let isLive = false; // Mặc định luôn là FALSE!
+          let isLive = false;
           let livenessPrompt = '';
 
           if (adminFaceMatcher) {
             const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-            // Ngưỡng khoảng cách: 0.42 khi bật nghiêm ngặt (chống nhầm mặt), 0.46 khi siêu tốc
-            const maxDistance = adminSpeedMode ? 0.46 : 0.42;
+            // Ngưỡng khoảng cách: 0.52 khi siêu tốc, 0.50 khi bật nghiêm ngặt
+            const maxDistance = adminSpeedMode ? 0.52 : 0.50;
 
             if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
               isMatched = true;
@@ -10446,7 +10187,7 @@ async function startAdminFaceLoop() {
               }
               adminActiveSessionLabel = bestMatch.label;
 
-              // Kiểm tra sống động người thật (chống ảnh thẻ/điện thoại qua State Machine)
+              // Kiểm tra sống động người thật (chớp mắt hoặc siêu tốc)
               const liveCheck = evaluateAdminLiveness(bestMatch.label, det.landmarks, det.detection.box);
               isLive = liveCheck.isLive;
               livenessPrompt = liveCheck.prompt;
@@ -10455,33 +10196,38 @@ async function startAdminFaceLoop() {
                 boxColor = '#22c55e'; // Xanh lá: Đã qua xác thực người thật
                 labelText = `✓ ${bestMatch.label} (${confidence}%)`;
                 handleAdminFaceCheckin(bestMatch.label);
-                // XÓA NGAY LẬP TỨC: Không lưu lại trạng thái PASS cũ
                 delete adminLivenessState[bestMatch.label];
                 adminActiveSessionLabel = null;
                 adminConsecutiveHits[bestMatch.label] = 0;
-                if (hud) hud.textContent = `✅ Xác minh người thật thành công: ${bestMatch.label}`;
+                if (hud) hud.textContent = `✅ Nhận diện thành công: ${bestMatch.label}`;
               } else {
                 adminConsecutiveHits[bestMatch.label] = 0;
                 if (liveCheck.isFailed) {
-                  boxColor = '#ef4444'; // Đỏ: Thất bại
+                  boxColor = '#ef4444';
                   labelText = `❌ Xác minh thất bại`;
                 } else {
-                  boxColor = '#f59e0b'; // Vàng cam: Đang trong quá trình thử thách
+                  boxColor = '#f59e0b';
                   labelText = `⏳ ${livenessPrompt}`;
                 }
                 if (hud) hud.textContent = livenessPrompt;
               }
             } else if (bestMatch.label !== 'unknown') {
-              labelText = `Chưa khớp khuôn mặt`;
+              labelText = 'Đang nhận diện...';
               boxColor = '#38bdf8';
-              adminLivenessState = {};
-              adminActiveSessionLabel = null;
-              if (hud) hud.textContent = '🔍 Khuôn mặt chưa khớp dữ liệu thành viên sinh viên';
+              adminLostFaceFrames++;
+              if (adminLostFaceFrames >= 8) {
+                adminLivenessState = {};
+                adminActiveSessionLabel = null;
+              }
+              if (hud) hud.textContent = '🔍 Đang so khớp với mẫu khuôn mặt...';
             } else {
               labelText = `Người lạ (Unknown)`;
               boxColor = '#94a3b8';
-              adminLivenessState = {};
-              adminActiveSessionLabel = null;
+              adminLostFaceFrames++;
+              if (adminLostFaceFrames >= 8) {
+                adminLivenessState = {};
+                adminActiveSessionLabel = null;
+              }
               if (hud) hud.textContent = '⚠️ Không nhận diện được khuôn mặt trong danh sách';
             }
           }
@@ -10534,7 +10280,7 @@ async function startAdminFaceLoop() {
   requestAnimationFrame(step);
 }
 
-// Xử lý kiểm thử nhận diện khuôn mặt sinh viên (ĐÃ TẮT TỰ ĐỘNG GHI ĐIỂM DANH THEO YÊU CẦU)
+// Xử lý điểm danh khi phát hiện khuôn mặt sinh viên
 async function handleAdminFaceCheckin(label) {
   const mssv = label.split(' - ')[0]?.trim();
   const name = label.split(' - ')[1]?.trim() || mssv;
@@ -10550,11 +10296,72 @@ async function handleAdminFaceCheckin(label) {
   showAdminMatchPopup(name, mssv);
   playAdminBeep();
 
-  // 2. Thêm vào danh sách vừa quét (chỉ hiển thị test trên card camera)
+  // 2. Thêm vào danh sách vừa quét
   addAdminRecentScan(name, mssv);
 
-  // Thông báo nhận diện thành công ở góc màn hình, KHÔNG ghi đè phiên điểm danh
-  toast('info', 'Nhận diện khuôn mặt', `${name} (${mssv}) · Khớp nhận diện (Chế độ xem trước/kiểm thử)`);
+  // 3. Kiểm tra xem có phiên nào đang mở không
+  if (!currentSession || !currentSession.id) {
+    toast('warn', 'Chưa có phiên mở', `Nhận diện: ${name} (${mssv}) thành công! (Vui lòng bấm 'Bắt đầu phiên' ở tab Điểm danh để lưu điểm danh)`);
+    return;
+  }
+
+  // 4. LƯU VÀO SUPABASE & CẬP NHẬT TRẠNG THÁI
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const timeFormatted = fmtClock(now);
+
+  const sessionStartMs = currentSession.started_at ? new Date(currentSession.started_at).getTime() : nowMs;
+  const elapsedMin = (nowMs - sessionStartMs) / 60000;
+  const lateThresholdMin = (currentSession.warn_before_min && currentSession.warn_before_min > 5)
+    ? currentSession.warn_before_min
+    : 15;
+  const isLate = elapsedMin > lateThresholdMin;
+  const targetStatus = isLate ? 'đi muộn' : 'có mặt';
+  const lateMinRound = Math.round(elapsedMin);
+  const checkinNote = isLate
+    ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
+    : 'Camera ESP32 điểm danh AI';
+
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('kiosk_record_face_checkin', {
+      p_session_id: String(currentSession.id),
+      p_mssv: mssv,
+      p_note: checkinNote
+    });
+
+    if (rpcErr) {
+      await supabase.rpc('admin_set_status', {
+        p_session_id: String(currentSession.id),
+        p_mssv: mssv,
+        p_status: targetStatus,
+        p_reason: checkinNote
+      });
+    }
+
+    // Cập nhật created_at của bảng attendance
+    await supabase.from('attendance').update({
+      created_at: nowIso,
+      status: targetStatus,
+      category: 'Khuôn mặt',
+      note: checkinNote
+    }).eq('session_id', currentSession.id).eq('mssv', mssv);
+  } catch(e) {
+    console.error('Lỗi lưu điểm danh:', e);
+  }
+
+  // 5. Cập nhật bảng điểm danh & KPI giao diện Admin ngay lập tức
+  const prev = attendanceMap[mssv] || {};
+  attendanceMap[mssv] = {
+    ...prev,
+    status: targetStatus,
+    time: timeFormatted,
+    editedAt: nowIso,
+    category: prev.category || 'Khuôn mặt',
+    note: checkinNote
+  };
+  renderAll();
+  const statusLabel = isLate ? 'Đi muộn' : 'Có mặt';
+  toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${statusLabel} (${timeFormatted})`);
 }
 
 // Hiển thị Card chúc mừng lớn
