@@ -574,7 +574,7 @@ body {
       </div>
 
       <div class="toolbar-group">
-        <button type="button" class="btn-toggle" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật kiểm tra người thật 3D (Yêu cầu quay đầu/chớp mắt)">🛡️ Nghiêm ngặt</button>
+        <button type="button" class="btn-toggle active" id="btnAntiSpoof" onclick="toggleAntiSpoof()" title="Đang bật: Yêu cầu quay đầu xác minh người thật">🛡️ Nghiêm ngặt (Chống ảnh)</button>
         <button type="button" class="btn-toggle" onclick="toggleEspFlip()" title="Lật gương camera nếu bị ngược chiều">🔄 Lật</button>
         <button type="button" class="btn-toggle" onclick="toggleFullscreen()">⛶ Toàn màn hình</button>
       </div>
@@ -671,7 +671,7 @@ let lastCheckinTime = {};
 let consecutiveHits = {};
 let tempSamples = [];
 
-let antiSpoofEnabled = false;
+let antiSpoofEnabled = true;  // BẬT MẶC ĐỊNH — chỉ tắt khi test
 const livenessState = {}; // label -> session object
 let activeKioskLabel = null;
 let kioskLostFaceFrames = 0;
@@ -680,9 +680,10 @@ function toggleAntiSpoof() {
   antiSpoofEnabled = !antiSpoofEnabled;
   const btn = document.getElementById('btnAntiSpoof');
   if (btn) {
-    btn.classList.toggle('active', !antiSpoofEnabled);
-    btn.textContent = antiSpoofEnabled ? '🛡️ Chế độ: Nghiêm ngặt (Chống ảnh thẻ)' : '⚡ Chế độ: Siêu tốc 1s';
-    btn.title = antiSpoofEnabled ? 'Đang bật kiểm tra người thật (Yêu cầu chớp mắt)' : 'Chế độ siêu tốc 1s (Không kiểm tra cử động người thật)';
+    // active = đang bật nghiêm ngặt (không phải siêu tốc)
+    btn.classList.toggle('active', antiSpoofEnabled);
+    btn.textContent = antiSpoofEnabled ? '🛡️ Nghiêm ngặt (Chống ảnh)' : '⚡ Siêu tốc (Test only)';
+    btn.title = antiSpoofEnabled ? 'Đang bật: Yêu cầu quay đầu xác minh người thật' : 'Siêu tốc: Không kiểm tra — CHỈ DÙNG ĐỂ TEST!';
   }
   Object.keys(livenessState).forEach(k => delete livenessState[k]);
   activeKioskLabel = null;
@@ -1292,7 +1293,7 @@ async function startDetectionLoop() {
 
           if (faceMatcher) {
             const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-            const maxDistance = antiSpoofEnabled ? 0.50 : 0.52;
+            const maxDistance = 0.44; // Ngưỡng chặt: giảm nhận nhầm mặt người khác
             if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
               label = bestMatch.label;
               isMatch = true;
@@ -2074,7 +2075,7 @@ async function deleteServerFaceData(mssv, name){
 
 function updateFaceMatcher() {
   // Khoảng cách 0.48: Tối ưu cho camera ESP32 OV2640, nhận diện nhạy mà không nhận nhầm người khác
-  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.52) : null;
+  faceMatcher = (labeledDescriptors.length > 0) ? new faceapi.FaceMatcher(labeledDescriptors, 0.44) : null;
 }
 
 function exportFaceDb() {
