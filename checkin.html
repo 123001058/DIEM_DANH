@@ -1120,11 +1120,16 @@ async function doCheckin(){
         '<div class="stat-item c-present"><b>' + sum.present + '</b><span>Đã ĐD</span></div>' +
         '<div class="stat-item c-absent"><b>' + sum.absent + '</b><span>Vắng</span></div>' +
         '<div class="stat-item c-unmarked"><b>' + sum.unmarked + '</b><span>Chưa quét</span></div></div>' : '';
-      showResult('success',
-        '<div class="result-title">✓ Điểm danh thành công</div>' +
+      const isLate = data?.status === 'đi muộn';
+      const resType = isLate ? 'warning' : 'success';
+      const resTitle = isLate ? '🟡 Ghi nhận: Đi muộn' : '✓ Điểm danh thành công';
+      showResult(resType,
+        '<div class="result-title">' + resTitle + '</div>' +
         '<div class="result-info"><b>' + escapeHtml(data.name || '') + '</b> · MSSV: <b>' + escapeHtml(data.mssv || '') + '</b><br>' +
         new Date().toLocaleString('vi-VN') + '<br>' +
-        'Phiên: ' + escapeHtml(currentSession.session_name) + ' · ' + escapeHtml(category) + '</div>' + statsHTML);
+        'Phiên: ' + escapeHtml(currentSession.session_name) + ' · ' + escapeHtml(category) + 
+        (isLate ? '<br><b style="color:#b45309">⚠️ Bạn đã quét sau thời gian quy định nên hệ thống tính Đi muộn.</b>' : '') +
+        '</div>' + statsHTML);
       document.getElementById('note').value = '';
       localStorage.setItem('saved_category', category);
     }

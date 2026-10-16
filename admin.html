@@ -2189,6 +2189,13 @@ tbody tr:last-child td { border-bottom: none; }
       <span class="nav-label">Điểm danh & Lịch sử</span>
       <span class="nav-badge" id="navAttendanceBadge">Phiên</span>
     </button>
+    <button class="sidebar-nav-item" id="nav-face-cam" onclick="navTo('face-cam')">
+      <span class="nav-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </span>
+      <span class="nav-label">Camera Điểm danh ESP32</span>
+      <span class="nav-badge" style="background:#ede9fe;color:#6d28d9;font-weight:800">AI</span>
+    </button>
     <button class="sidebar-nav-item" id="nav-students" onclick="navTo('students')">
       <span class="nav-icon">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -2428,9 +2435,8 @@ tbody tr:last-child td { border-bottom: none; }
             </div>
             <div class="countdown-chip" id="countdownChip">⏱ <span id="countdownText">--:--</span></div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary" id="btnToggleFaceCam" onclick="openFaceCamAccordion()" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;background:#2563eb;color:#fff;" title="Mở ngăn camera quét mặt ESP32">
-              <span>📷</span> Quét mặt ESP32
+            <button class="btn btn-secondary" id="btnToggleFaceCam" onclick="navTo('face-cam')" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;" title="Mở tính năng Camera Quét mặt ESP32">
+              <span>📷</span> Quét mặt ESP32 →
             </button>
             <button class="btn" id="btnBackToActive" onclick="backFromPastSession()" style="display:none;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-weight:600">← Quay lại</button>
             <button class="btn btn-primary" id="btnReopenSession" onclick="confirmReopenSession()" style="display:none;background:var(--info);border:none;color:#fff;font-weight:700">🔄 Mở lại phiên</button>
@@ -2562,86 +2568,8 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <!-- Ngăn trượt: Camera Điểm danh Khuôn mặt ESP32 & Lịch sử -->
+      <!-- Ngăn trượt: Lịch sử & Báo cáo các phiên điểm danh -->
       <div class="acc-stack">
-        <!-- NGĂN TRƯỢT 1: CAMERA ĐIỂM DANH KHUÔN MẶT ESP32 -->
-        <div class="acc" id="accFaceCam">
-          <button type="button" class="acc-head" id="accHeadFaceCam" aria-expanded="false" onclick="toggleAcc(this, initFaceCamInAdmin)">
-            <span class="acc-title">📷 Camera Điểm danh Khuôn mặt (ESP32)</span>
-            <span class="acc-sub">Quét khuôn mặt tự động qua ESP32-CAM và đồng bộ có mặt ngay tức thì vào phiên</span>
-            <span class="acc-chev" aria-hidden="true">▾</span>
-          </button>
-          <div class="acc-body"><div class="acc-inner">
-            <!-- Toolbar ESP32 -->
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <label style="font-size:12px;font-weight:700;">📡 IP ESP32:
-                  <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:150px;margin-left:4px;">
-                </label>
-                <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Siêu tốc 1s</button>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <a href="face-kiosk.html" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Mở trang quét camera độc lập trên tab mới">
-                  <span>⛶</span> Màn hình phụ ↗
-                </a>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="syncStudentFacesToAdminDb()" title="Đồng bộ và tự sinh 5 góc khuôn mặt từ ảnh thẻ sinh viên">
-                  🔄 Đồng bộ dữ liệu mặt
-                </button>
-              </div>
-            </div>
-
-            <!-- Khung quét chính: Trái = Camera ESP32, Phải = Lịch sử quét gần nhất -->
-            <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:14px;" class="admin-face-grid">
-              <!-- Cột Camera -->
-              <div style="position:relative;background:#090d16;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:360px;display:flex;align-items:center;justify-content:center;">
-                <!-- Luồng ảnh MJPEG từ ESP32 -->
-                <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
-                <!-- Canvas vẽ khung nhận diện -->
-                <canvas id="adminEspCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
-                
-                <!-- Laser quét -->
-                <div id="adminScanLaser" style="display:none;position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#22c55e,#38bdf8,transparent);box-shadow:0 0 12px #38bdf8;animation:laserSweepAdmin 2.2s ease-in-out infinite;pointer-events:none;"></div>
-                
-                <!-- Placeholder khi chưa kết nối -->
-                <div id="adminEspPlaceholder" style="text-align:center;padding:30px;color:var(--muted);">
-                  <div style="font-size:36px;margin-bottom:8px;">📷</div>
-                  <div style="font-size:14px;font-weight:700;color:var(--text);">Camera ESP32 chưa kết nối</div>
-                  <div style="font-size:12px;margin-top:4px;">Nhập IP ESP32 và bấm <b>Bắt đầu quét</b> để điểm danh tự động.</div>
-                </div>
-
-                <!-- Overlay chúc mừng khi khớp sinh viên -->
-                <div id="adminMatchOverlay" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);border:2px solid #22c55e;padding:16px 20px;border-radius:16px;box-shadow:0 12px 36px rgba(0,0,0,0.7);align-items:center;gap:14px;z-index:10;animation:popInAdmin 0.25s ease-out;">
-                  <img id="adminMatchAvatar" src="images/logo.png" style="width:64px;height:64px;border-radius:12px;border:3px solid #22c55e;object-fit:cover;">
-                  <div>
-                    <div id="adminMatchName" style="font-size:16px;font-weight:800;color:#fff;">—</div>
-                    <div id="adminMatchDetail" style="font-size:12px;color:#94a3b8;margin-top:2px;">—</div>
-                    <div style="margin-top:6px;display:inline-flex;padding:3px 9px;background:#22c55e;color:#052e16;font-size:11px;font-weight:800;border-radius:6px;">✓ ĐÃ ĐIỂM DANH THÀNH CÔNG</div>
-                  </div>
-                </div>
-
-                <!-- HUD status góc dưới -->
-                <div id="adminEspHud" style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(0,0,0,0.65);padding:5px 10px;border-radius:6px;font-size:11px;color:#e2e8f0;backdrop-filter:blur(4px);display:flex;justify-content:space-between;">
-                  <span id="adminEspHudText">Sẵn sàng kết nối...</span>
-                  <span id="adminEspFpsText">0 FPS</span>
-                </div>
-              </div>
-
-              <!-- Cột Lịch sử quét mặt gần nhất -->
-              <div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:hidden;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                  <div style="font-size:13px;font-weight:700;">📋 Vừa quét khuôn mặt (<span id="adminScanCount">0</span>)</div>
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:4px 8px;font-size:11px;">🗑️ Xóa</button>
-                </div>
-                <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:360px;display:flex;flex-direction:column;gap:6px;">
-                  <div id="adminRecentEmpty" style="text-align:center;padding:30px 10px;color:var(--muted);font-size:12px;font-style:italic;">Chưa có sinh viên nào quét qua camera ESP32.</div>
-                </div>
-              </div>
-            </div>
-          </div></div>
-        </div>
-
         <div class="acc" id="accHistory">
           <button type="button" class="acc-head" aria-expanded="false" onclick="toggleAcc(this, openHistoryAndReport)">
             <span class="acc-title">🕒 Lịch sử & Báo cáo các phiên điểm danh</span>
@@ -2683,6 +2611,96 @@ tbody tr:last-child td { border-bottom: none; }
       </div>
     </section>
 
+    <!-- ==========================================================
+         VIEW: CAMERA ĐIỂM DANH ESP32 (FACE-CAM)
+         ========================================================== -->
+    <section class="app-view" id="view-face-cam">
+      <div class="card" style="padding:18px 20px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:17px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📷</span> Camera Điểm danh Khuôn mặt (ESP32-CAM)
+            </h2>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 0;">
+              Nhận diện khuôn mặt tự động qua camera ESP32 và đồng bộ kết quả điểm danh vào phiên trực tiếp.
+            </p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <a href="face-kiosk.html" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Mở trang quét camera độc lập trên tab mới">
+              <span>⛶</span> Mở Kiosk toàn màn hình ↗
+            </a>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="syncStudentFacesToAdminDb()" title="Đồng bộ dữ liệu khuôn mặt từ ảnh thẻ">
+              🔄 Đồng bộ dữ liệu mặt
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:18px 20px;">
+        <!-- Toolbar ESP32 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <label style="font-size:12px;font-weight:700;">📡 IP ESP32:
+              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:150px;margin-left:4px;">
+            </label>
+            <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Siêu tốc 1s</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);font-weight:600;">
+            Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
+          </div>
+        </div>
+
+        <!-- Khung quét chính: Trái = Camera ESP32, Phải = Lịch sử quét gần nhất -->
+        <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:14px;" class="admin-face-grid">
+          <!-- Cột Camera -->
+          <div style="position:relative;background:#090d16;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:380px;display:flex;align-items:center;justify-content:center;">
+            <!-- Luồng ảnh MJPEG từ ESP32 -->
+            <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
+            <!-- Canvas vẽ khung nhận diện -->
+            <canvas id="adminEspCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+            
+            <!-- Laser quét -->
+            <div id="adminScanLaser" style="display:none;position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#22c55e,#38bdf8,transparent);box-shadow:0 0 12px #38bdf8;animation:laserSweepAdmin 2.2s ease-in-out infinite;pointer-events:none;"></div>
+            
+            <!-- Placeholder khi chưa kết nối -->
+            <div id="adminEspPlaceholder" style="text-align:center;padding:40px 20px;color:var(--muted);">
+              <div style="font-size:42px;margin-bottom:10px;">📷</div>
+              <div style="font-size:15px;font-weight:700;color:var(--text);">Camera ESP32 chưa kết nối</div>
+              <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Nhập đúng địa chỉ IP của ESP32 (VD: <code>192.168.2.168</code>) và bấm <b>Bắt đầu quét</b> để camera nhận diện khuôn mặt tự động.</div>
+            </div>
+
+            <!-- Overlay chúc mừng khi khớp sinh viên -->
+            <div id="adminMatchOverlay" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);border:2px solid #22c55e;padding:16px 20px;border-radius:16px;box-shadow:0 12px 36px rgba(0,0,0,0.7);align-items:center;gap:14px;z-index:10;animation:popInAdmin 0.25s ease-out;">
+              <img id="adminMatchAvatar" src="images/logo.png" style="width:64px;height:64px;border-radius:12px;border:3px solid #22c55e;object-fit:cover;">
+              <div>
+                <div id="adminMatchName" style="font-size:16px;font-weight:800;color:#fff;">—</div>
+                <div id="adminMatchDetail" style="font-size:12px;color:#94a3b8;margin-top:2px;">—</div>
+                <div style="margin-top:6px;display:inline-flex;padding:3px 9px;background:#22c55e;color:#052e16;font-size:11px;font-weight:800;border-radius:6px;">✓ ĐÃ ĐIỂM DANH THÀNH CÔNG</div>
+              </div>
+            </div>
+
+            <!-- HUD status góc dưới -->
+            <div id="adminEspHud" style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(0,0,0,0.65);padding:6px 12px;border-radius:6px;font-size:11.5px;color:#e2e8f0;backdrop-filter:blur(4px);display:flex;justify-content:space-between;align-items:center;">
+              <span id="adminEspHudText">Sẵn sàng kết nối...</span>
+              <span id="adminEspFpsText">0 FPS</span>
+            </div>
+          </div>
+
+          <!-- Cột Lịch sử quét mặt gần nhất -->
+          <div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <div style="font-size:13.5px;font-weight:700;">📋 Vừa quét qua Camera ESP32 (<span id="adminScanCount">0</span>)</div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:4px 8px;font-size:11px;">🗑️ Xóa</button>
+            </div>
+            <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:380px;display:flex;flex-direction:column;gap:8px;">
+              <div id="adminRecentEmpty" style="text-align:center;padding:40px 10px;color:var(--muted);font-size:12px;font-style:italic;">Chưa có sinh viên nào quét qua camera ESP32.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- ==========================================================
          VIEW: QUẢN LÝ SINH VIÊN (STUDENTS)
@@ -3801,6 +3819,7 @@ let currentView = 'overview';
 const viewTitlesMap = {
   overview: 'Tổng quan hệ thống',
   attendance: 'Điểm danh & Lịch sử',
+  'face-cam': 'Camera Điểm danh ESP32',
   students: 'Quản lý nhóm & Sinh viên',
   tasks: 'Nhiệm vụ xưởng & Đội Robocon',
   leave: 'Quản lý đơn xin nghỉ',
@@ -3851,6 +3870,14 @@ function navTo(viewName) {
   closeSidebar();
 
   if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
+  else if (viewName === 'face-cam') {
+    if (typeof initFaceCamInAdmin === 'function') initFaceCamInAdmin();
+    const stStatus = document.getElementById('faceCamSessionStatus');
+    if (stStatus) {
+      stStatus.textContent = currentSession?.id ? `Đang mở: "${currentSession.session_name}"` : '⚠️ Chưa có phiên mở';
+      stStatus.style.color = currentSession?.id ? 'var(--ok)' : 'var(--err)';
+    }
+  }
   else if (viewName === 'students' && typeof loadStudentsManagement === 'function') loadStudentsManagement();
   else if (viewName === 'schedules') initMeTimetableFrame();
   else if (viewName === 'password-reset') loadPasswordResetView();
@@ -6249,6 +6276,37 @@ function updateStats(){
   const fUnm = document.querySelector('.filter[data-status="unmarked"]');
   if (fUnm) fUnm.style.display = 'none';
 }
+
+function renderAttendanceMethodBadge(a) {
+  if (!a) return '';
+  const rawStatus = a.status || 'unmarked';
+  const cat = (a.category || '').trim();
+  const note = (a.note || '').trim();
+  let methodBadge = '';
+  let cleanNote = note;
+
+  if (cat === 'Khuôn mặt' || note.includes('ESP32') || note.includes('Camera')) {
+    methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe">📷 Camera ESP32</span>';
+    if (cleanNote === 'Camera ESP32 điểm danh AI') cleanNote = '';
+  } else if (cat === 'Admin' || cat === 'Admin Batch' || note.includes('Admin') || note.includes('Tích chọn') || note.includes('Thủ công')) {
+    methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#fef3c7;color:#b45309;border:1px solid #fde68a">✍️ Tích chọn</span>';
+    if (cleanNote === 'Tích chọn' || cleanNote === 'Tích chọn thủ công' || cleanNote === 'Admin tích chọn' || cleanNote === 'Cập nhật hàng loạt') cleanNote = '';
+  } else if (rawStatus === 'có mặt' || rawStatus === 'đi muộn') {
+    const catLabel = cat && cat !== 'Đi học' ? ` (${escapeHtml(cat)})` : '';
+    methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">📱 Quét QR' + catLabel + '</span>';
+  } else if (rawStatus === 'vắng có phép') {
+    if (note.includes('Lịch học') || cat === 'Học trường') {
+      methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd">🏫 Học trường</span>';
+    } else {
+      methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe">📝 Đơn nghỉ</span>';
+    }
+  }
+
+  if (cleanNote === 'Không có dữ liệu tham gia') cleanNote = '';
+  const extraNoteHtml = cleanNote ? '<span style="font-size:11px;color:var(--muted);font-weight:500">· ' + escapeHtml(cleanNote) + '</span>' : '';
+  return methodBadge ? '<div style="margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">' + methodBadge + extraNoteHtml + '</div>' : (extraNoteHtml ? '<div style="margin-top:2px">' + extraNoteHtml + '</div>' : '');
+}
+
 function renderTable(){
   const activeStudents = students.filter(s => s.is_active !== false);
   const list = activeStudents.filter(s => {
@@ -6274,9 +6332,10 @@ function renderTable(){
       const resetRequestLabel = resetRequest ? '<div style="margin-top:4px;font-size:10.5px;font-weight:700;color:#b45309">🔔 Có yêu cầu reset</div>' : '';
       const rawStatus = a?.status || 'unmarked';
       const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
-      const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500;display:flex;align-items:center;gap:4px">📚 ' + escapeHtml(a.note) + '</div>' : '';
+      const methodRow = renderAttendanceMethodBadge(a);
+
       return '<tr>' +
-        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + noteHtml + resetRequestLabel + '</div></div></td>' +
+        '<td><div class="student-cell"><div class="avt">' + s.name.trim().slice(-1) + '</div><div><div class="td-name">' + escapeHtml(s.name) + '</div>' + methodRow + resetRequestLabel + '</div></div></td>' +
         '<td class="td-mono">' + escapeHtml(s.mssv) + resetRequestLabel + '</td>' +
         '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + s.mssv + '\', this.value, this)">' +
           (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
@@ -6563,15 +6622,24 @@ async function executeStatusChange(){
     attendanceMap[mssv].status = newStatus;
     attendanceMap[mssv].time = fmtClock(now);
     attendanceMap[mssv].editedAt = now.toISOString();
-    if (reason) attendanceMap[mssv].note = reason;
+    attendanceMap[mssv].category = 'Admin';
+    attendanceMap[mssv].note = reason || 'Tích chọn thủ công';
 
     // Cập nhật created_at của attendance để đồng bộ thời gian thực
-    supabase.from('attendance').update({
-      created_at: now.toISOString()
-    }).eq('session_id', sid).eq('mssv', mssv).then();
+    try {
+      await supabase.from('attendance').update({
+        created_at: now.toISOString(),
+        category: 'Admin',
+        status: newStatus,
+        note: reason || 'Tích chọn thủ công'
+      }).eq('session_id', sid).eq('mssv', mssv);
+    } catch(err) {
+      console.warn('Lỗi update attendance timestamp:', err);
+    }
 
     renderAll();
-    loadAttendance().then(() => renderAll());
+    await loadAttendance();
+    renderAll();
   }
 
   // Cập nhật lại danh sách lịch sử hôm nay (để update các số liệu KPI/thẻ phiên)
@@ -8932,12 +9000,11 @@ function openGroupDetail(teamId){
   const rows = memberMssvs.map(mssv => {
     const a = attendanceMap[mssv];
     const rawStatus = a?.status || 'unmarked';
-    const selClass = rawStatus === 'có mặt' ? 'st-ok' : (rawStatus === 'đi muộn' ? 'st-late' : (rawStatus === 'vắng có phép' ? 'st-warn' : (rawStatus === 'unmarked' ? 'st-none' : 'st-no')));
-    const noteHtml = a?.note ? '<div style="font-size:11px;color:#2563eb;margin-top:2px;font-weight:500">📚 ' + escapeHtml(a.note) + '</div>' : '';
+    const methodRow = renderAttendanceMethodBadge(a);
     const timeHtml = a?.time || '—';
     
     return '<tr>' +
-      '<td><div class="student-cell"><div class="avt">' + (names[mssv]?.trim().slice(-1) || '?') + '</div><div><div class="td-name">' + escapeHtml(names[mssv] || mssv) + '</div>' + noteHtml + '</div></div></td>' +
+      '<td><div class="student-cell"><div class="avt">' + (names[mssv]?.trim().slice(-1) || '?') + '</div><div><div class="td-name">' + escapeHtml(names[mssv] || mssv) + '</div>' + methodRow + '</div></div></td>' +
       '<td class="td-mono">' + escapeHtml(mssv) + '</td>' +
       '<td><select class="status-select ' + selClass + '" onchange="promptChangeStatus(\'' + mssv + '\', this.value, this)">' +
         (rawStatus==='unmarked' ? '<option value="" selected disabled>— Chọn —</option>' : '') +
@@ -9451,25 +9518,37 @@ async function handleAdminFaceCheckin(label) {
     return;
   }
 
-  // 4. LƯU VÀO SUPABASE
+  // 4. LƯU VÀO SUPABASE & TÍNH TOÁN ĐI MUỘN
   const now = new Date();
   const nowIso = now.toISOString();
   const timeFormatted = fmtClock(now);
+
+  const sessionStartMs = currentSession.started_at ? new Date(currentSession.started_at).getTime() : nowMs;
+  const elapsedMin = (nowMs - sessionStartMs) / 60000;
+  const lateThresholdMin = (currentSession.warn_before_min && currentSession.warn_before_min > 5)
+    ? currentSession.warn_before_min
+    : 15;
+  const isLate = elapsedMin > lateThresholdMin;
+  const targetStatus = isLate ? 'đi muộn' : 'có mặt';
+  const lateMinRound = Math.round(elapsedMin);
+  const checkinNote = isLate
+    ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
+    : 'Camera ESP32 điểm danh AI';
 
   try {
     const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_set_status', {
       p_session_id: String(currentSession.id),
       p_mssv: mssv,
-      p_status: 'có mặt',
-      p_reason: 'Camera ESP32 điểm danh AI'
+      p_status: targetStatus,
+      p_reason: checkinNote
     });
 
     // Cập nhật created_at của bảng attendance về đúng thời gian thực vừa quét
     await supabase.from('attendance').update({
       created_at: nowIso,
-      status: 'có mặt',
+      status: targetStatus,
       category: 'Khuôn mặt',
-      note: 'Camera ESP32 điểm danh AI'
+      note: checkinNote
     }).eq('session_id', currentSession.id).eq('mssv', mssv);
   } catch(e) {
     console.error('Lỗi lưu điểm danh:', e);
@@ -9479,14 +9558,15 @@ async function handleAdminFaceCheckin(label) {
   const prev = attendanceMap[mssv] || {};
   attendanceMap[mssv] = {
     ...prev,
-    status: 'có mặt',
+    status: targetStatus,
     time: timeFormatted,
     editedAt: nowIso,
     category: prev.category || 'Khuôn mặt',
-    note: prev.note || 'Camera ESP32 điểm danh AI'
+    note: checkinNote
   };
-  renderAll(); // Cập nhật bảng điểm danh & KPI thành màu xanh ngay lập tức!
-  toast('ok', 'Điểm danh thành công', `${name} (${mssv}) → Có mặt (${timeFormatted})`);
+  renderAll(); // Cập nhật bảng điểm danh & KPI thành màu xanh / vàng ngay lập tức!
+  const statusLabel = isLate ? 'Đi muộn' : 'Có mặt';
+  toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${statusLabel} (${timeFormatted})`);
 }
 
 // Hiển thị Card chúc mừng lớn

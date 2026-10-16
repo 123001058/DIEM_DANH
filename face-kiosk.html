@@ -1436,20 +1436,32 @@ async function triggerCheckin(label) {
   }
 
   try {
+    const sessionStartMs = currentSession.started_at ? new Date(currentSession.started_at).getTime() : now;
+    const elapsedMin = (now - sessionStartMs) / 60000;
+    const lateThresholdMin = (currentSession.warn_before_min && currentSession.warn_before_min > 5)
+      ? currentSession.warn_before_min
+      : 15;
+    const isLate = elapsedMin > lateThresholdMin;
+    const targetStatus = isLate ? 'đi muộn' : 'có mặt';
+    const lateMinRound = Math.round(elapsedMin);
+    const checkinNote = isLate
+      ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
+      : 'Camera ESP32 điểm danh AI';
+
     // 1. Thử RPC admin_set_status (hợp lệ cho Admin và cập nhật audit log)
     const { data: rpcRes, error: rpcErr } = await window.supabase.rpc('admin_set_status', {
       p_session_id: String(currentSession.id),
       p_mssv: mssv,
-      p_status: 'có mặt',
-      p_reason: 'Camera ESP32 điểm danh AI'
+      p_status: targetStatus,
+      p_reason: checkinNote
     });
 
     // Cập nhật created_at của bảng attendance về đúng thời gian thực vừa quét
     await window.supabase.from('attendance').update({
       created_at: new Date().toISOString(),
-      status: 'có mặt',
+      status: targetStatus,
       category: 'Khuôn mặt',
-      note: 'Camera ESP32 điểm danh AI'
+      note: checkinNote
     }).eq('session_id', currentSession.id).eq('mssv', mssv);
 
     if (rpcErr || !rpcRes?.ok) {
@@ -1458,9 +1470,9 @@ async function triggerCheckin(label) {
         session_id: currentSession.id,
         mssv: mssv,
         full_name: name,
-        status: 'có mặt',
+        status: targetStatus,
         category: 'Khuôn mặt',
-        note: 'Camera ESP32 điểm danh AI',
+        note: checkinNote,
         created_at: new Date().toISOString()
       }, { onConflict: 'session_id,mssv' });
     }

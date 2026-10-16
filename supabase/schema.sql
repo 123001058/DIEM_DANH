@@ -1440,10 +1440,16 @@ begin
   end if;
   v_name := coalesce(nullif(btrim(v_name), ''), btrim(p_mssv));
 
-  insert into public.attendance (session_id, mssv, full_name, status, category, note)
-  values (v_sid, btrim(p_mssv), v_name, p_status, 'Admin', coalesce(p_reason, ''))
+  if coalesce(p_reason, '') ilike '%ESP32%' then
+    v_category := 'Khuôn mặt';
+  end if;
+
+  insert into public.attendance (session_id, mssv, full_name, status, category, note, created_at)
+  values (v_sid, btrim(p_mssv), v_name, p_status, v_category, coalesce(p_reason, ''), now())
   on conflict (session_id, mssv) do update set
     status = excluded.status,
+    category = excluded.category,
+    created_at = now(),
     note = case
       when nullif(btrim(coalesce(p_reason, '')), '') is not null then p_reason
       else public.attendance.note
@@ -2246,7 +2252,11 @@ CREATE OR REPLACE FUNCTION public.submit_attendance(p_session_id text, p_token t
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
-declare v_uid uuid:=auth.uid(); s record; v_mssv text; v_name text; v_status text; v_cat text:=left(btrim(coalesce(p_category,'')),60); v_note text:=left(btrim(coalesce(p_note,'')),200); v_dev text:=btrim(coalesce(p_device_id,'')); v_sub text; v_room text;
+declare
+  v_uid uuid:=auth.uid(); s record; v_mssv text; v_name text; v_status text;
+  v_cat text:=left(btrim(coalesce(p_category,'')),60); v_note text:=left(btrim(coalesce(p_note,'')),200);
+  v_dev text:=btrim(coalesce(p_device_id,'')); v_sub text; v_room text;
+  v_late_min int := 15; v_final_status text := 'có mặt'; v_elapsed_min int := 0;
 begin
  if v_uid is null then return jsonb_build_object('ok',false,'code','NO_AUTH','message','Vui lòng đăng nhập trước khi điểm danh.'); end if;
  select btrim(mssv) into v_mssv from public.profiles where user_id=v_uid;
@@ -2260,16 +2270,34 @@ begin
  if not found then return jsonb_build_object('ok',false,'code','NOT_IN_CLASS','message','MSSV không có trong danh sách lớp.'); end if;
  select subject_name,room_name into v_sub,v_room from public.student_schedules where mssv=v_mssv and now()>=start_time and now()<=end_time order by start_time limit 1;
  if v_sub is not null and v_note='' then v_note:='Trùng lịch: '||v_sub||coalesce(' ('||v_room||')',''); end if;
+
+ -- Ngưỡng tính đi muộn: ưu tiên warn_before_min của phiên nếu > 5 phút, còn lại mặc định 15 phút
+ if s.warn_before_min is not null and s.warn_before_min > 5 then
+   v_late_min := s.warn_before_min;
+ else
+   v_late_min := 15;
+ end if;
+
+ if now() > (s.started_at + (v_late_min * interval '1 minute')) then
+   v_final_status := 'đi muộn';
+   v_elapsed_min := round(extract(epoch from (now() - s.started_at)) / 60);
+   if v_note = '' then
+     v_note := 'Quét trễ (+' || v_elapsed_min::text || ' phút)';
+   end if;
+ else
+   v_final_status := 'có mặt';
+ end if;
+
  select status into v_status from public.attendance where session_id=s.id and mssv=v_mssv;
  if found then
-   if v_status='có mặt' then return jsonb_build_object('ok',false,'code','ALREADY','message','Bạn đã điểm danh phiên này rồi.'); end if;
-   update public.attendance set status='có mặt',category=v_cat,note=v_note,device_id=v_dev,created_at=now() where session_id=s.id and mssv=v_mssv;
-   return jsonb_build_object('ok',true,'code','OK','name',v_name,'mssv',v_mssv);
+   if v_status in ('có mặt', 'đi muộn') then return jsonb_build_object('ok',false,'code','ALREADY','message','Bạn đã điểm danh phiên này rồi.'); end if;
+   update public.attendance set status=v_final_status,category=v_cat,note=v_note,device_id=v_dev,created_at=now() where session_id=s.id and mssv=v_mssv;
+   return jsonb_build_object('ok',true,'code','OK','name',v_name,'mssv',v_mssv,'status',v_final_status);
  end if;
  if exists(select 1 from public.attendance where session_id=s.id and device_id=v_dev and mssv<>v_mssv) then
    return jsonb_build_object('ok',false,'code','DEVICE_USED','message','Thiết bị này đã điểm danh cho sinh viên khác.'); end if;
- insert into public.attendance(session_id,mssv,full_name,status,category,note,device_id) values(s.id,v_mssv,v_name,'có mặt',v_cat,v_note,v_dev);
- return jsonb_build_object('ok',true,'code','OK','name',v_name,'mssv',v_mssv,'session_id',s.id);
+ insert into public.attendance(session_id,mssv,full_name,status,category,note,device_id) values(s.id,v_mssv,v_name,v_final_status,v_cat,v_note,v_dev);
+ return jsonb_build_object('ok',true,'code','OK','name',v_name,'mssv',v_mssv,'session_id',s.id,'status',v_final_status);
 exception when unique_violation then return jsonb_build_object('ok',false,'code','ALREADY','message','Bạn đã điểm danh phiên này rồi.');
 end $function$;
 
@@ -2286,6 +2314,10 @@ declare
   v_mssv text;
   v_name text;
   v_existing_status text;
+  v_late_min int := 15;
+  v_final_status text := 'có mặt';
+  v_elapsed_min int := 0;
+  v_note text := left(btrim(coalesce(p_note, '')), 200);
 begin
   if v_uid is null then
     return jsonb_build_object(
@@ -2335,6 +2367,22 @@ begin
     );
   end if;
 
+  if s.warn_before_min is not null and s.warn_before_min > 5 then
+    v_late_min := s.warn_before_min;
+  else
+    v_late_min := 15;
+  end if;
+
+  if now() > (s.started_at + (v_late_min * interval '1 minute')) then
+    v_final_status := 'đi muộn';
+    v_elapsed_min := round(extract(epoch from (now() - s.started_at)) / 60);
+    if v_note = '' then
+      v_note := 'Quét trễ (+' || v_elapsed_min::text || ' phút)';
+    end if;
+  else
+    v_final_status := 'có mặt';
+  end if;
+
   select status into v_existing_status
   from public.attendance
   where session_id = s.id and mssv = v_mssv;
@@ -2342,14 +2390,14 @@ begin
   if found then
     if v_existing_status in ('vắng có phép', 'vắng không phép') then
       update public.attendance
-      set status = 'có mặt',
+      set status = v_final_status,
           category = left(btrim(coalesce(p_category, 'Đi học')), 60),
-          note = left(btrim(coalesce(p_note, '')), 200),
+          note = v_note,
           device_id = p_device_id,
           created_at = now()
       where session_id = s.id and mssv = v_mssv;
 
-      return jsonb_build_object('ok', true, 'code', 'OK', 'name', v_name, 'mssv', v_mssv);
+      return jsonb_build_object('ok', true, 'code', 'OK', 'name', v_name, 'mssv', v_mssv, 'status', v_final_status);
     else
       return jsonb_build_object('ok', false, 'code', 'ALREADY', 'message', 'Bạn đã điểm danh phiên này rồi.');
     end if;
@@ -2371,13 +2419,13 @@ begin
     s.id,
     v_mssv,
     v_name,
-    'có mặt',
+    v_final_status,
     left(btrim(coalesce(p_category, 'Đi học')), 60),
-    left(btrim(coalesce(p_note, '')), 200),
+    v_note,
     p_device_id
   );
 
-  return jsonb_build_object('ok', true, 'code', 'OK', 'name', v_name, 'mssv', v_mssv);
+  return jsonb_build_object('ok', true, 'code', 'OK', 'name', v_name, 'mssv', v_mssv, 'session_id', s.id, 'status', v_final_status);
 exception
   when unique_violation then
     return jsonb_build_object('ok', false, 'code', 'ALREADY', 'message', 'MSSV hoặc thiết bị này đã điểm danh phiên này rồi.');
