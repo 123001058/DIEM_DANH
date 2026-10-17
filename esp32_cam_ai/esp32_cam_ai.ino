@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include "esp_camera.h"
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include "board_config.h"
 
 // ===========================
-// CẤU HÌNH WIFI
+// CẤU HÌNH WIFI ĐA MẠNG
 // ===========================
-const char* ssid = "Robocon Sinh Vien";
-const char* password = "tamsotam";
+WiFiMulti wifiMulti;
 
 void startCameraServer();
 
@@ -76,17 +76,20 @@ void setup() {
     s->set_wpc(s, 1);                    // Khử điểm ảnh trắng chết (White Pixel Correction)
   }
 
-  // Kết nối WiFi
-  WiFi.begin(ssid, password);
+  // Cấu hình danh sách Wi-Fi tự động nhận diện
+  wifiMulti.addAP("Ny Lem Coffee", "travabanh");      // Wi-Fi quán cafe hiện tại
+  wifiMulti.addAP("Robocon Sinh Vien", "tamsotam");   // Wi-Fi xưởng / phòng thi
+
   WiFi.setSleep(false); // Chống ngắt quãng WiFi
 
-  Serial.print("Dang ket noi WiFi: ");
-  Serial.println(ssid);
-  while (WiFi.status() != WL_CONNECTED) {
+  Serial.println("Dang quet va ket noi Wi-Fi (Ny Lem Coffee / Robocon Sinh Vien)...");
+  while (wifiMulti.run() != WL_CONNECTED) {
     delay(400);
     Serial.print(".");
   }
   Serial.println("\n✓ WiFi da ket noi thanh cong!");
+  Serial.print("📡 Mang dang ket noi: ");
+  Serial.println(WiFi.SSID());
 
   // Bật Web server stream
   startCameraServer();
