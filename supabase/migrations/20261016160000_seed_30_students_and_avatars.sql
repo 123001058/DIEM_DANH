@@ -22,7 +22,7 @@ VALUES
   ('123000651', 'Cao Thanh Nghĩa', '23OT112', '0889258633', 'images/faces/123000651.png', true),
   ('123000722', 'Bùi Trần Thanh Sang', '23OT112', '0988039416', 'images/faces/123000722.png', true),
   ('123000432', 'Trần Thành Long', '23TD111', '0799698594', 'images/faces/123000432.png', true),
-  ('12300555', 'Nguyễn Lê Vũ Duy', '23TD111', '0888189218', 'images/faces/12300555.png', true),
+  ('123000555', 'Nguyễn Lê Vũ Duy', '23TD111', '0888189218', 'images/faces/123000555.png', true),
   ('123000185', 'Lê Văn Minh', '23TD111', '0988878095', 'images/faces/123000185.png', true),
   ('123001188', 'Phạm Anh Tuấn', '23TD111', '0334869213', 'images/faces/123001188.png', true),
   ('123000375', 'Phạm Đinh Tài Lộc', '23TD111', '0784728289', 'images/faces/123000375.png', true),
