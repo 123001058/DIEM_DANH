@@ -135,9 +135,72 @@ static esp_err_t flash_handler(httpd_req_t *req) {
   return httpd_resp_send(req, "{\"ok\":true}", strlen("{\"ok\":true}"));
 }
 
+static esp_err_t test_pin_handler(httpd_req_t *req) {
+  char query[64] = {0};
+  int targetPin = -1;
+
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    // 1. Quét tự động lần lượt các chân ứng viên: 38, 47, 3, 21, 1, 48, 2
+    if (strstr(query, "scan=1") != NULL) {
+      const int candidatePins[] = {38, 47, 3, 21, 1, 48, 2};
+      for (int i = 0; i < 7; i++) {
+        int p = candidatePins[i];
+        Serial.printf(">> [SCAN] Dang thu chan GPIO %d...\n", p);
+        pinMode(p, OUTPUT);
+        // Thử cả nhịp Active HIGH và Active LOW
+        for (int k = 0; k < 3; k++) {
+          digitalWrite(p, HIGH);
+          vTaskDelay(pdMS_TO_TICKS(150));
+          digitalWrite(p, LOW);
+          vTaskDelay(pdMS_TO_TICKS(150));
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+      }
+      httpd_resp_set_type(req, "application/json");
+      httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+      return httpd_resp_send(req, "{\"ok\":true,\"message\":\"Da quet xong cac chan 38, 47, 3, 21, 1, 48, 2. Xem Serial Monitor va quan sat den!\"}", strlen("{\"ok\":true,\"message\":\"Da quet xong cac chan 38, 47, 3, 21, 1, 48, 2. Xem Serial Monitor va quan sat den!\"}"));
+    }
+
+    // 2. Thử 1 chân cụ thể
+    char pinStr[16] = {0};
+    if (httpd_query_key_value(query, "pin", pinStr, sizeof(pinStr)) == ESP_OK) {
+      targetPin = atoi(pinStr);
+    }
+  }
+
+  // Bảo vệ an toàn: Không chạm vào chân Camera (4..13, 15..18) và USB (19, 20)
+  if (targetPin >= 0 && targetPin <= 48) {
+    if (targetPin != 4 && targetPin != 5 && targetPin != 6 && targetPin != 7 &&
+        targetPin != 8 && targetPin != 9 && targetPin != 10 && targetPin != 11 &&
+        targetPin != 12 && targetPin != 13 && targetPin != 15 && targetPin != 16 &&
+        targetPin != 17 && targetPin != 18 && targetPin != 19 && targetPin != 20 &&
+        targetPin != 35 && targetPin != 36 && targetPin != 37) {
+
+      Serial.printf(">> [TEST] Dang thu kich chan GPIO %d (chớp 3 lan)\n", targetPin);
+      pinMode(targetPin, OUTPUT);
+      for (int i = 0; i < 3; i++) {
+        digitalWrite(targetPin, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        digitalWrite(targetPin, LOW);
+        vTaskDelay(pdMS_TO_TICKS(200));
+      }
+
+      char res[96];
+      snprintf(res, sizeof(res), "{\"ok\":true,\"tested_pin\":%d,\"message\":\"Da chớp chân GPIO %d 3 lần\"}", targetPin, targetPin);
+      httpd_resp_set_type(req, "application/json");
+      httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+      return httpd_resp_send(req, res, strlen(res));
+    }
+  }
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  return httpd_resp_send(req, "{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}", strlen("{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}"));
+}
+
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.max_uri_handlers = 8;
+  config.max_uri_handlers = 10;
   config.server_port = 80;
 
   httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler, .user_ctx = NULL };
@@ -145,12 +208,14 @@ void startCameraServer() {
   httpd_uri_t stream_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler, .user_ctx = NULL };
   httpd_uri_t beep_uri = { .uri = "/beep", .method = HTTP_GET, .handler = beep_handler, .user_ctx = NULL };
   httpd_uri_t flash_uri = { .uri = "/flash", .method = HTTP_GET, .handler = flash_handler, .user_ctx = NULL };
+  httpd_uri_t test_pin_uri = { .uri = "/test_pin", .method = HTTP_GET, .handler = test_pin_handler, .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
     httpd_register_uri_handler(camera_httpd, &beep_uri);
     httpd_register_uri_handler(camera_httpd, &flash_uri);
+    httpd_register_uri_handler(camera_httpd, &test_pin_uri);
   }
 
   config.server_port = 81;
@@ -159,5 +224,6 @@ void startCameraServer() {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
     httpd_register_uri_handler(stream_httpd, &beep_uri);
     httpd_register_uri_handler(stream_httpd, &flash_uri);
+    httpd_register_uri_handler(stream_httpd, &test_pin_uri);
   }
 }
