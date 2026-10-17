@@ -218,7 +218,13 @@ body.student-menu-open { overflow: hidden; }
   font-weight: 800;
   text-transform: uppercase;
   box-shadow: 0 2px 6px -1px rgba(37, 99, 235, 0.35);
+  text-decoration: none;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
 }
+.avatar:hover { transform: translateY(-1px); box-shadow: 0 4px 10px -1px rgba(37, 99, 235, 0.45); }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .user-info {
   min-width: 0;
   flex: 1;
@@ -757,7 +763,7 @@ body.student-menu-open { overflow: hidden; }
     <button type="button" id="snav-rules" onclick="switchStudentView('rules')"><span aria-hidden="true">📜</span> Nội quy xưởng</button>
     <button type="button" id="snav-feedback" onclick="switchStudentView('feedback')"><span aria-hidden="true">💬</span> Gửi phản hồi ẩn danh</button>
     <a href="face-kiosk.html" id="snav-face"><span aria-hidden="true">👤</span> Kiosk Khuôn mặt AI</a>
-    <a href="face-sinhvien.html" id="snav-face-data"><span aria-hidden="true">📸</span> Dữ liệu khuôn mặt của tôi</a>
+    <a href="face-sinhvien.html" id="snav-face-data"><span aria-hidden="true">📸</span> Khuôn mặt &amp; Ảnh đại diện</a>
     <a href="lichhoc.html" id="snav-timetable"><span aria-hidden="true">📅</span> Thời khóa biểu ME</a>
   </nav>
 </aside>
@@ -775,7 +781,7 @@ body.student-menu-open { overflow: hidden; }
     </header>
 
     <section class="user-box">
-      <div class="avatar" id="userAvatar">?</div>
+      <div class="avatar" id="userAvatar" role="button" tabindex="0" title="Bấm để đổi ảnh đại diện" onclick="location.href='face-sinhvien.html'">?</div>
       <div class="user-info">
         <div class="user-name" id="userName">Đang tải...</div>
         <div class="user-id" id="userId">—</div>
@@ -1033,11 +1039,25 @@ async function loadProfile(){
   currentProfile = prof || {};
   const name = currentProfile.full_name || currentUser.email;
   const mssv = currentProfile.mssv || '';
-  document.getElementById('userAvatar').textContent = (name || '?').trim().slice(-1).toUpperCase();
+  const avatarEl = document.getElementById('userAvatar');
+  const initial = (name || '?').trim().slice(-1).toUpperCase();
+  avatarEl.textContent = initial;
   document.getElementById('userName').textContent = name;
   document.getElementById('userId').textContent = 'MSSV: ' + (mssv || '—');
   document.getElementById('mssv').value = mssv;
   if (!mssv){ showResult('error', 'Tài khoản chưa liên kết MSSV. Vui lòng liên hệ Admin.'); return false; }
+  // Tải ảnh đại diện (nếu sinh viên đã đổi)
+  try {
+    const { data: stu } = await supabase.from('students').select('avatar').eq('mssv', mssv).maybeSingle();
+    if (stu?.avatar){
+      const img = document.createElement('img');
+      img.src = stu.avatar;
+      img.alt = 'Ảnh đại diện';
+      img.onerror = () => { avatarEl.innerHTML = ''; avatarEl.textContent = initial; };
+      avatarEl.innerHTML = '';
+      avatarEl.appendChild(img);
+    }
+  } catch(e){ /* giữ chữ cái đầu */ }
   return true;
 }
 async function loadSession(){

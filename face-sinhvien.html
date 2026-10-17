@@ -13,12 +13,20 @@
   :root { --face-accent: #2563eb; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
-  .face-page { max-width: 720px; width: 100%; margin: 0 auto; padding: 14px 12px 140px; }
+  .face-page { max-width: 760px; width: 100%; margin: 0 auto; padding: 14px 12px 150px; }
   .face-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .face-header a.back { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 700; text-decoration: none; }
   .face-header a.back:hover { background: var(--surface-2); }
   .face-header h2 { font-size: 17px; font-weight: 800; margin: 0; flex: 1; }
   .face-header p.sub { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+
+  /* Avatar card */
+  .avatar-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 14px; flex-wrap: wrap; }
+  .avatar-preview { width: 76px; height: 76px; border-radius: 18px; object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-strong); display: grid; place-items: center; font-size: 26px; font-weight: 800; color: var(--primary); flex: none; overflow: hidden; }
+  .avatar-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .avatar-meta { flex: 1; min-width: 160px; }
+  .avatar-meta b { font-size: 15px; font-weight: 800; }
+  .avatar-meta .sub2 { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
   .camera-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; margin-bottom: 14px; }
   .camera-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); gap: 8px; flex-wrap: wrap; }
@@ -30,13 +38,12 @@
   .hud-pill { background: rgba(15,23,42,0.85); backdrop-filter: blur(8px); padding: 8px 14px; border-radius: 20px; color: #fff; font-weight: 800; font-size: 12.5px; border: 1px solid rgba(255,255,255,0.12); white-space: nowrap; }
   .hud-hint { margin-top: 8px; font-size: 12.5px; color: #cbd5e1; text-align: center; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
 
-  .slots-title { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 10px; gap: 8px; flex-wrap: wrap; }
+  .slots-title { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 10px; gap: 8px; flex-wrap: wrap; }
   .slots-title b { font-size: 14.5px; font-weight: 800; }
   .slots-progress { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
-  .slots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .slots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
   .slot { border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
   .slot.done { border-color: var(--ok); background: #f0fdf4; box-shadow: 0 0 0 1px var(--ok); }
-  .slot.warn { border-color: var(--warn); background: #fffbeb; }
   .slot-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
   .slot-name { font-size: 12.5px; font-weight: 800; color: var(--text); }
   .slot-chip { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
@@ -46,7 +53,8 @@
   .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .thumb-empty { font-size: 11px; color: var(--muted); font-weight: 700; text-align: center; padding: 6px; }
   .slot-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .slot-actions button { flex: 1 1 48%; min-width: 0; }
+  .slot-actions button { flex: 1 1 46%; min-width: 0; }
+  .slot-actions .btn { font-size: 11.5px; padding: 6px 8px; }
   .slot-guide { font-size: 11.5px; color: var(--muted); min-height: 16px; }
   .slot-guide.auto { color: var(--info); font-weight: 800; }
 
@@ -63,8 +71,9 @@
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
   .note { font-size: 12px; color: var(--muted); margin-top: 8px; padding: 8px 12px; background: var(--surface-2); border: 1px dashed var(--border-strong); border-radius: 8px; }
   .note b { color: var(--text); }
+  .hidden-input { display: none; }
 
-  @media (max-width: 480px) { .face-page { padding: 10px 8px 140px; } .sticky-bottom .btn { flex: 1 1 100%; } }
+  @media (max-width: 480px) { .face-page { padding: 10px 8px 150px; } .sticky-bottom .btn { flex: 1 1 100%; } }
 </style>
 </head>
 <body>
@@ -73,13 +82,28 @@
   <div class="face-header">
     <a class="back" href="checkin.html" onclick="if(window.app&&window.app.stopCamera)window.app.stopCamera()">← Quay lại Điểm danh</a>
     <div>
-      <h2>📸 Dữ liệu khuôn mặt của tôi</h2>
-      <p class="sub">Chụp 5 góc mặt để hệ thống nhận diện bạn nhanh và chính xác hơn trên camera điểm danh.</p>
+      <h2>📸 Khuôn mặt & Ảnh đại diện</h2>
+      <p class="sub">Cập nhật ảnh đại diện và nạp mẫu khuôn mặt để camera AI (ESP32-S3-CAM) nhận diện bạn nhanh, chính xác.</p>
     </div>
   </div>
 
   <div class="result" id="resultBox"></div>
 
+  <!-- ===================== AVATAR ===================== -->
+  <div class="avatar-card">
+    <div class="avatar-preview" id="avatarPreview">?</div>
+    <div class="avatar-meta">
+      <b id="avatarName">Đang tải...</b>
+      <div class="sub2" id="avatarMssv">MSSV: —</div>
+      <div class="sub2" id="avatarHint">Ảnh vuông, rõ mặt. Nên dùng ảnh chân dung chụp gần.</div>
+    </div>
+    <div>
+      <button type="button" class="btn btn-primary" id="btnChangeAvatar" onclick="document.getElementById('avatarFileInput').click()">📷 Đổi ảnh đại diện</button>
+      <input type="file" id="avatarFileInput" class="hidden-input" accept="image/*">
+    </div>
+  </div>
+
+  <!-- ===================== CAMERA ===================== -->
   <div class="camera-card">
     <div class="camera-toolbar">
       <span class="label">🎥 Camera tự chụp</span>
@@ -93,8 +117,7 @@
         <div class="hud-hint" id="hudHint">Đặt khuôn mặt vào khung hình để bắt đầu</div>
       </div>
     </div>
-    <!-- NÚT CHỤP THỦ CÔNG TỨC THÌ (CHO MỌI TRƯỜNG HỢP) -->
-    <div style="padding: 10px 14px; background: var(--surface-2); display: flex; gap: 8px; justify-content: center; align-items: center; border-top: 1px solid var(--border);">
+    <div style="padding: 10px 14px; background: var(--surface-2); display: flex; gap: 8px; justify-content: center; align-items: center; border-top: 1px solid var(--border); flex-wrap: wrap;">
       <button type="button" class="btn btn-primary" id="btnSnapCurrent" onclick="app.snapCurrent()" style="flex:1;max-width:420px;padding:12px 18px;font-size:14px;font-weight:800;border-radius:10px;box-shadow:0 4px 12px rgba(37,99,235,0.35);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;">
         📸 BẤM CHỤP GÓC NÀY NGAY (Phím Cách)
       </button>
@@ -103,12 +126,22 @@
 
   <div class="slots-title">
     <b>📋 5 góc mặt của bạn</b>
-    <span class="slots-progress" id="slotsProgress">0 / 5 đã chụp</span>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="slots-progress" id="slotsProgress">0 / 5 đã chụp</span>
+      <button type="button" class="btn btn-secondary" id="btnBulkUpload" onclick="document.getElementById('bulkFileInput').click()" style="font-size:12px;padding:6px 12px;">📁 Tải nhiều ảnh từ thiết bị</button>
+    </div>
   </div>
   <div class="slots-grid" id="slotsGrid"></div>
 
+  <!-- Hidden inputs cho upload ảnh theo từng góc & hàng loạt -->
+  <input type="file" id="slotFileInput" class="hidden-input" accept="image/*">
+  <input type="file" id="bulkFileInput" class="hidden-input" accept="image/*" multiple>
+
   <div class="note">
-    <b>Cách chụp:</b> Khi khuôn mặt đúng hướng, hệ thống tự động đếm và chụp. Bạn cũng có thể bấm nút to <b>"📸 BẤM CHỤP GÓC NÀY NGAY"</b> (hoặc ấn <b>phím Cách / Space</b> trên bàn phím) để chụp tức thì mà không cần đợi. Sau khi đủ 5 góc, bấm <b>"Lưu dữ liệu khuôn mặt"</b>.
+    <b>Cách nạp dữ liệu khuôn mặt:</b><br>
+    • <b>Chụp trực tiếp:</b> Khi mặt đúng hướng, hệ thống tự đếm và chụp; hoặc bấm nút to <b>"📸 BẤM CHỤP GÓC NÀY NGAY"</b> / phím <b>Cách (Space)</b> để chụp tức thì.<br>
+    • <b>Tải ảnh có sẵn:</b> Bấm <b>"📁 Tải ảnh"</b> trên từng góc để chọn ảnh từ máy, hoặc <b>"📁 Tải nhiều ảnh từ thiết bị"</b> để nạp một loạt ảnh vào các góc còn trống. Ảnh phải <b>rõ 1 khuôn mặt</b>.<br>
+    Dữ liệu được lưu tự động, bấm <b>"Lưu dữ liệu khuôn mặt"</b> khi đã đủ.
   </div>
 
   <div class="sticky-bottom">
@@ -118,7 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js?v=7"></script>
+<script src="js/config.js?v=8"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 <script>
 (function(){
@@ -126,49 +159,26 @@
   const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // ========================= STATE =========================
-  let currentUser = null, currentProfile = null, myMssv = null, myName = null;
-  let isModelLoaded = false, isDetecting = false, videoStarted = false;
-  let latestDetection = null; // {detection:{box,descriptor}, landmarks, image}
+  let currentUser = null, currentProfile = null, myMssv = null, myName = null, myAvatarUrl = null;
+  let isModelLoaded = false, videoStarted = false;
+  let latestDetection = null;
   let basePitch = null, baseMar = null;
   let currentIndex = 0;
   const STABLE_FRAMES = 4;
 
   const SLOTS_DEF = [
-    { 
-      id: 'straight', 
-      label: 'Góc 1: Nhìn thẳng', 
-      guide: 'Nhìn thẳng vào camera, mặt tự nhiên', 
-      target: (m) => m.yawOk, 
-      hint: (m) => m.yaw < 0.80 ? '👉 Quay mặt nhẹ sang phải' : (m.yaw > 1.20 ? '👈 Quay mặt nhẹ sang trái' : 'Nhìn thẳng vào giữa camera') 
-    },
-    { 
-      id: 'left', 
-      label: 'Góc 2: Nghiêng trái ~15°', 
-      guide: 'Quay nhẹ đầu sang TRÁI của bạn', 
-      target: (m) => m.yaw <= 0.84, 
-      hint: (m) => 'Quay thêm nhẹ sang TRÁI...' 
-    },
-    { 
-      id: 'right', 
-      label: 'Góc 3: Nghiêng phải ~15°', 
-      guide: 'Quay nhẹ đầu sang PHẢI của bạn', 
-      target: (m) => m.yaw >= 1.16, 
-      hint: (m) => 'Quay thêm nhẹ sang PHẢI...' 
-    },
-    { 
-      id: 'tilt', 
-      label: 'Góc 4: Ngẩng / cúi ~10°', 
-      guide: 'Ngẩng hoặc cúi nhẹ đầu', 
-      target: (m) => (basePitch != null && Math.abs(m.pitch - basePitch) > 0.035) || m.pitch > 0.49 || m.pitch < 0.38, 
-      hint: (m) => 'Ngẩng hoặc cúi nhẹ đầu...' 
-    },
-    { 
-      id: 'smile', 
-      label: 'Góc 5: Cười nhẹ', 
-      guide: 'Cười nhẹ, biểu cảm tự nhiên', 
-      target: (m) => (baseMar != null && m.mar >= baseMar * 1.15) || m.mar > 0.20, 
-      hint: (m) => 'Mỉm cười nhẹ...' 
-    }
+    { id: 'straight', label: 'Góc 1: Nhìn thẳng', guide: 'Nhìn thẳng vào camera, mặt tự nhiên',
+      target: (m) => m.yawOk,
+      hint: (m) => m.yaw < 0.80 ? '👉 Quay mặt nhẹ sang phải' : (m.yaw > 1.20 ? '👈 Quay mặt nhẹ sang trái' : 'Nhìn thẳng vào giữa camera') },
+    { id: 'left', label: 'Góc 2: Nghiêng trái ~15°', guide: 'Quay nhẹ đầu sang TRÁI của bạn',
+      target: (m) => m.yaw <= 0.84, hint: () => 'Quay thêm nhẹ sang TRÁI...' },
+    { id: 'right', label: 'Góc 3: Nghiêng phải ~15°', guide: 'Quay nhẹ đầu sang PHẢI của bạn',
+      target: (m) => m.yaw >= 1.16, hint: () => 'Quay thêm nhẹ sang PHẢI...' },
+    { id: 'tilt', label: 'Góc 4: Ngẩng / cúi ~10°', guide: 'Ngẩng hoặc cúi nhẹ đầu',
+      target: (m) => (basePitch != null && Math.abs(m.pitch - basePitch) > 0.035) || m.pitch > 0.49 || m.pitch < 0.38,
+      hint: () => 'Ngẩng hoặc cúi nhẹ đầu...' },
+    { id: 'smile', label: 'Góc 5: Cười nhẹ', guide: 'Cười nhẹ, biểu cảm tự nhiên',
+      target: (m) => (baseMar != null && m.mar >= baseMar * 1.15) || m.mar > 0.20, hint: () => 'Mỉm cười nhẹ...' }
   ];
 
   let slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
@@ -179,40 +189,51 @@
   const hudStatus = $('hudStatus'); const hudHint = $('hudHint');
   const slotsGrid = $('slotsGrid'); const progress = $('slotsProgress');
   const btnSave = $('btnSave'); const btnDeleteAll = $('btnDeleteAll'); const resultBox = $('resultBox');
+  const avatarPreview = $('avatarPreview');
 
   function showResult(type, html){ resultBox.className = 'result ' + type + ' show'; resultBox.innerHTML = html; }
   function hideResult(){ resultBox.className = 'result'; }
+  function toastOk(msg){ showResult('ok', '<div style="font-weight:800">✓ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 2600); }
+  function toastErr(msg){ showResult('err', '<div style="font-weight:800">✕ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 4000); }
+  function toastWarn(msg){ showResult('warn', '<div style="font-weight:800">⚠ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 3600); }
 
-  function toastOk(msg){ showResult('ok', '<div style="font-weight:800">✓ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 2000); }
-  function toastErr(msg){ showResult('err', '<div style="font-weight:800">✕ ' + escapeHtml(msg) + '</div>'); setTimeout(hideResult, 3000); }
+  function renderAvatar(url){
+    myAvatarUrl = url || null;
+    if (myAvatarUrl) {
+      avatarPreview.innerHTML = '<img src="' + escapeHtml(myAvatarUrl) + '" alt="avatar" onerror="this.parentNode.textContent=\'?\';">';
+    } else {
+      avatarPreview.textContent = (myName || '?').trim().slice(-1).toUpperCase();
+    }
+  }
 
   function renderSlots(){
     let done = 0;
     slotsGrid.innerHTML = slots.map((s, i) => {
       if (s.done) done++;
-      const thumb = s.thumbnail ? `<img src="${s.thumbnail.url}" alt="">` : `<div class="thumb-empty">Chưa chụp</div>`;
+      const thumb = s.thumbnail ? `<img src="${s.thumbnail.url}" alt="">` : `<div class="thumb-empty">Chưa có ảnh</div>`;
       return `
         <div class="slot ${s.done ? 'done' : ''}">
           <div class="slot-head">
             <div class="slot-name">${escapeHtml(s.label)}</div>
-            <div class="slot-chip ${s.done ? 'ok' : 'pend'}">${s.done ? '✓ Đã chụp' : 'Chưa chụp'}</div>
+            <div class="slot-chip ${s.done ? 'ok' : 'pend'}">${s.done ? '✓ Đã có' : 'Chưa có'}</div>
           </div>
           <div class="thumb-wrap">${thumb}</div>
           <div class="slot-actions">
-            <button type="button" class="btn" onclick="app.captureManual(${i})" ${s.done ? '' : ''}>📷 ${s.done ? 'Chụp lại' : 'Chụp góc này'}</button>
-            ${s.done ? `<button type="button" class="btn btn-danger btn-sm" onclick="app.deleteSlot(${i})" style="font-size:11px;padding:4px 6px;">🗑️ Xóa góc này</button>` : ''}
+            <button type="button" class="btn" onclick="app.captureManual(${i})" title="Chụp bằng camera">📷 ${s.done ? 'Chụp lại' : 'Chụp'}</button>
+            <button type="button" class="btn btn-secondary" onclick="app.pickFile(${i})" title="Chọn ảnh từ thiết bị">📁 Tải ảnh</button>
           </div>
+          ${s.done ? `<button type="button" class="btn btn-danger" onclick="app.deleteSlot(${i})" style="font-size:11px;padding:5px 8px;">🗑️ Xóa góc này</button>` : ''}
           <div class="slot-guide ${s.done ? 'auto' : ''}">${s.done ? '✓ Đã lưu góc này' : s.guide}</div>
         </div>
       `;
     }).join('');
-    progress.textContent = done + ' / 5 đã chụp';
+    progress.textContent = done + ' / 5 đã có';
     btnSave.disabled = done < 5;
     btnDeleteAll.style.display = done > 0 ? 'inline-block' : 'none';
   }
-  window.app = { captureManual: null, deleteSlot: null };
+  window.app = { captureManual: null, deleteSlot: null, pickFile: null, snapCurrent: null };
 
-  // ========================= FACE METRICS (ported from face-kiosk) =========================
+  // ========================= FACE METRICS =========================
   function eyeEAR(eye){
     if (!eye || eye.length < 6) return 0.28;
     const a = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
@@ -252,6 +273,14 @@
     const span = Math.max(1, chin.y - eyeY);
     return (tip.y - eyeY) / span;
   }
+  function metricsOf(det){
+    const lm = det.landmarks;
+    const yaw = headYaw(lm);
+    const ear = (eyeEAR(lm.getLeftEye()) + eyeEAR(lm.getRightEye()))/2;
+    const mar = mouthMAR(lm.getMouth());
+    const pitch = pitchM(lm);
+    return { yaw, ear, mar, pitch, yawOk: yaw >= 0.80 && yaw <= 1.20, eyeOpen: ear >= 0.14, mouthNeutral: mar <= 0.40 };
+  }
 
   // ========================= AUTH & DATA =========================
   async function loadMyProfile(){
@@ -264,7 +293,14 @@
     myMssv = prof.mssv || '';
     myName = prof.full_name || prof.username || myMssv || '';
     if (!myMssv){ showResult('err', 'Tài khoản chưa có MSSV. Vui lòng liên hệ Admin.'); return false; }
+
+    $('avatarName').textContent = myName;
+    $('avatarMssv').textContent = 'MSSV: ' + myMssv;
     document.title = 'LH-NaviX — Khuôn mặt: ' + myMssv;
+
+    // Lấy avatar hiện tại
+    const { data: stu } = await supabase.from('students').select('avatar').eq('mssv', myMssv).maybeSingle();
+    renderAvatar(stu?.avatar || null);
     return true;
   }
 
@@ -279,8 +315,8 @@
       if (thumbs[i]) { s.thumbnail = thumbs[i]; s.done = true; }
     });
     if (slots.some(s => s.done)) { basePitch = 0.45; baseMar = 0.16; }
-    const firstUndone = slots.findIndex(s => !s.done);
-    currentIndex = (firstUndone !== -1) ? firstUndone : 5;
+    currentIndex = slots.findIndex(s => !s.done);
+    if (currentIndex === -1) currentIndex = 5;
     renderSlots();
     if (currentIndex >= 5) {
       hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
@@ -288,7 +324,7 @@
     } else {
       hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
     }
-    toastOk('Đã tải ' + slots.filter(s=>s.done).length + ' góc đã chụp trước đó.');
+    toastOk('Đã tải ' + slots.filter(s=>s.done).length + ' góc đã có trước đó.');
   }
 
   async function saveServer(){
@@ -310,13 +346,11 @@
       if (valid.length > 0) {
         db[label] = valid;
         tdb[label] = thumbnails.filter(t => t);
-        localStorage.setItem('face_descriptors_db', JSON.stringify(db));
-        localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
       } else {
         delete db[label]; delete tdb[label];
-        localStorage.setItem('face_descriptors_db', JSON.stringify(db));
-        localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
       }
+      localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+      localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
     } catch(e){ console.warn('localStorage sync:', e); }
     return true;
   }
@@ -335,29 +369,71 @@
     return true;
   }
 
-  // ========================= CAMERA CAPTURE =========================
-  function metricsOf(det){
-    const lm = det.landmarks;
-    const yaw = headYaw(lm);
-    const ear = (eyeEAR(lm.getLeftEye()) + eyeEAR(lm.getRightEye()))/2;
-    const mar = mouthMAR(lm.getMouth());
-    const pitch = pitchM(lm);
-    return { 
-      yaw, ear, mar, pitch,
-      yawOk: yaw >= 0.80 && yaw <= 1.20,
-      eyeOpen: ear >= 0.14,
-      mouthNeutral: mar <= 0.40 
-    };
+  // ========================= AVATAR UPLOAD =========================
+  function loadImageFromFile(file){
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => resolve({ img, url });
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Không đọc được tệp ảnh (định dạng không được hỗ trợ).')); };
+      img.src = url;
+    });
   }
 
-  async function captureFromDetection(det, slotIndex){
+  async function makeSquareAvatarBlob(file, size){
+    size = size || 512;
+    const { img, url } = await loadImageFromFile(file);
+    try {
+      const side = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+      const sx = ((img.naturalWidth || img.width) - side) / 2;
+      const sy = ((img.naturalHeight || img.height) - side) / 2;
+      const c = document.createElement('canvas'); c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.88));
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  async function uploadAvatar(file){
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) return toastErr('Vui lòng chọn tệp ảnh (JPG/PNG/WebP).');
+    if (file.size > 8 * 1024 * 1024) return toastErr('Ảnh quá lớn (tối đa 8MB).');
+    const btn = $('btnChangeAvatar');
+    if (btn){ btn.disabled = true; btn.textContent = '⏳ Đang tải...'; }
+    try {
+      const blob = await makeSquareAvatarBlob(file, 512);
+      if (!blob) throw new Error('Không tạo được ảnh.');
+      const path = myMssv + '/avatar.jpg';
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      const finalUrl = pub.publicUrl + '?t=' + Date.now();
+      const { data: res, error: rpcErr } = await supabase.rpc('student_set_my_avatar', { p_avatar: finalUrl });
+      if (rpcErr || res?.ok === false) throw new Error(rpcErr?.message || res?.message || 'Không lưu được ảnh đại diện.');
+      renderAvatar(finalUrl);
+      toastOk('Đã cập nhật ảnh đại diện!');
+    } catch(e){
+      toastErr('Đổi ảnh đại diện thất bại: ' + (e.message || e));
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '📷 Đổi ảnh đại diện'; }
+      const inp = $('avatarFileInput'); if (inp) inp.value = '';
+    }
+  }
+  $('avatarFileInput').addEventListener('change', (e) => uploadAvatar(e.target.files && e.target.files[0]));
+
+  // ========================= CAMERA / IMAGE CAPTURE =========================
+  const captureCanvas = document.createElement('canvas');
+  const capCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
+  let currentMediaStream = null;
+  let pendingSlotIndex = -1;
+
+  async function captureFromDetection(det, slotIndex, sourceCanvas){
     if (!det) return null;
     const { yaw, ear, mar, pitch } = metricsOf(det);
     const box = det.detection.box;
-    // thumbnail: crop khuôn mặt với padding từ captureCanvas, về 100x100
-    const frame = captureCanvas;
-    const w = captureCanvas.width || 640;
-    const h = captureCanvas.height || 480;
+    const frame = sourceCanvas || captureCanvas;
+    const w = frame.width || 640, h = frame.height || 480;
     const pad = 0.35;
     const cx = box.x + box.width/2, cy = box.y + box.height/2;
     const size = Math.max(box.width, box.height) * (1 + pad);
@@ -370,8 +446,7 @@
     tCtx.drawImage(frame, sx, sy, sw, sh, 0, 0, 100, 100);
     const thumbnail = { url: tCanvas.toDataURL('image/jpeg', 0.85), label: slots[slotIndex].label };
     const descriptor = Array.from(det.descriptor);
-    // lưu baseline pitch/mar từ góc 1
-    if (slotIndex === 0){ basePitch = pitch; baseMar = mar; slots[0]._pitch = pitch; slots[0]._mar = mar; }
+    if (slotIndex === 0){ basePitch = pitch; baseMar = mar; }
     if (slotIndex === 3 && basePitch == null) basePitch = pitch;
     if (slotIndex === 4 && baseMar == null) baseMar = mar;
     return { descriptor, thumbnail, yaw, ear, mar, pitch };
@@ -387,39 +462,43 @@
     } catch(e){}
   }
 
-  async function applyCapture(slotIndex, cap){
+  function advanceToNextUndone(fromIndex){
+    for (let i = 0; i < 5; i++){
+      const idx = (fromIndex + i) % 5;
+      if (!slots[idx].done){ currentIndex = idx; return true; }
+    }
+    currentIndex = 5; return false;
+  }
+
+  async function applyCapture(slotIndex, cap, silent){
     slots[slotIndex].done = true;
     slots[slotIndex].descriptor = cap.descriptor;
     slots[slotIndex].thumbnail = cap.thumbnail;
     renderSlots();
     beep();
-    // tự avance sang góc tiếp theo
-    if (slotIndex + 1 < 5) {
-      currentIndex = slotIndex + 1;
-      hudStatus.textContent = '⏭️ Sang góc tiếp theo: ' + slots[currentIndex].label;
-      setTimeout(()=>{ hudStatus.textContent = '🎯 ' + slots[currentIndex].guide; }, 700);
+    if (advanceToNextUndone(slotIndex + 1)){
+      hudStatus.textContent = '⏭️ Góc tiếp theo: ' + slots[currentIndex].label;
+      setTimeout(()=>{ if (currentIndex < 5) hudStatus.textContent = '🎯 ' + slots[currentIndex].guide; }, 700);
     } else {
-      currentIndex = 5;
       hudStatus.textContent = '✅ Đủ 5 góc — bấm "Lưu dữ liệu khuôn mặt"';
       hudHint.textContent = '';
     }
     await saveServer();
+    if (!silent) toastOk('Đã lưu ' + slots[slotIndex].label);
   }
 
   window.app.captureManual = async function(i){
     hideResult();
-    const det = latestDetection;
-    if (!det) return toastErr('Chưa thấy khuôn mặt! Hãy đưa mặt vào camera.');
-    const cap = await captureFromDetection(det, i);
+    if (!latestDetection) return toastErr('Chưa thấy khuôn mặt! Hãy đưa mặt vào camera.');
+    const cap = await captureFromDetection(latestDetection.detection, i, captureCanvas);
     if (!cap) return toastErr('Chụp thất bại, vui lòng thử lại.');
     await applyCapture(i, cap);
-    toastOk('Đã chụp ' + slots[i].label);
   };
 
   window.app.snapCurrent = async function(){
     hideResult();
     let targetIdx = currentIndex;
-    if (targetIdx >= 5) {
+    if (targetIdx >= 5){
       targetIdx = slots.findIndex(s => !s.done);
       if (targetIdx === -1) targetIdx = 0;
     }
@@ -435,18 +514,95 @@
   });
 
   window.app.deleteSlot = async function(i){
-    if (!confirm('Xóa góc "' + slots[i].label + '"? Bạn có thể chụp lại sau.')) return;
+    if (!confirm('Xóa góc "' + slots[i].label + '"? Bạn có thể nạp lại sau.')) return;
     slots[i] = { id: slots[i].id, label: slots[i].label, done: false, descriptor: null, thumbnail: null, guide: slots[i].guide };
-    if (currentIndex > i) currentIndex = i;
+    advanceToNextUndone(i);
     renderSlots();
-    hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
+    if (currentIndex < 5) hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
     await saveServer();
     toastOk('Đã xóa góc này.');
   };
 
+  // ====== Upload ảnh từ thiết bị ======
+  window.app.pickFile = function(i){
+    hideResult();
+    pendingSlotIndex = i;
+    const inp = $('slotFileInput');
+    inp.value = '';
+    inp.click();
+  };
+
+  async function detectOnSource(source){
+    const tries = [
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.30 }),
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.20 }),
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 })
+    ];
+    for (const opt of tries){
+      const det = await faceapi.detectSingleFace(source, opt).withFaceLandmarks(true).withFaceDescriptor();
+      if (det) return det;
+    }
+    return null;
+  }
+
+  async function processFileToCap(file, slotIndex){
+    const { img, url } = await loadImageFromFile(file);
+    try {
+      const det = await detectOnSource(img);
+      if (!det) return null;
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth || img.width;
+      c.height = img.naturalHeight || img.height;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return await captureFromDetection(det, slotIndex, c);
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  $('slotFileInput').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    const idx = pendingSlotIndex;
+    pendingSlotIndex = -1;
+    e.target.value = '';
+    if (!file || idx < 0) return;
+    showResult('warn', '<div style="font-weight:800">⏳ Đang xử lý ảnh và trích xuất khuôn mặt...</div>');
+    try {
+      const cap = await processFileToCap(file, idx);
+      if (!cap) return toastErr('Không tìm thấy khuôn mặt rõ trong ảnh. Hãy chọn ảnh chân dung rõ nét, chỉ 1 người.');
+      await applyCapture(idx, cap, true);
+      toastOk('Đã nạp ảnh vào ' + slots[idx].label);
+    } catch(err){
+      toastErr('Lỗi xử lý ảnh: ' + (err.message || err));
+    }
+  });
+
+  $('bulkFileInput').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    const btn = $('btnBulkUpload');
+    if (btn){ btn.disabled = true; btn.textContent = '⏳ Đang xử lý ' + files.length + ' ảnh...'; }
+    let ok = 0, fail = 0;
+    try {
+      for (const file of files){
+        const idx = slots.findIndex(s => !s.done);
+        if (idx === -1){ break; } // đã đủ 5 góc
+        try {
+          const cap = await processFileToCap(file, idx);
+          if (cap){ await applyCapture(idx, cap, true); ok++; }
+          else fail++;
+        } catch(_){ fail++; }
+      }
+      if (ok > 0 && !slots.some(s => !s.done)) toastOk('Đã nạp đủ 5 góc (' + ok + ' ảnh hợp lệ). Bấm "Lưu dữ liệu khuôn mặt".');
+      else if (ok > 0) toastWarn('Đã nạp ' + ok + ' ảnh. Còn ' + slots.filter(s=>!s.done).length + ' góc trống' + (fail? ', ' + fail + ' ảnh bỏ qua (không rõ mặt)':'') + '.');
+      else toastErr('Không nhận diện được khuôn mặt trong các ảnh đã chọn.');
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '📁 Tải nhiều ảnh từ thiết bị'; }
+    }
+  });
+
   $('btnDeleteAll').onclick = async function(){
     if (!slots.some(s => s.done)) return;
-    if (!confirm('BẠN CHẮC CHẮC MUỐN XÓA SẠCH TOÀN BỘ DỮ LIỆU KHUÔN MẶT?\nSau khi xóa, bạn sẽ phải chụp lại 5 góc từ đầu.')) return;
+    if (!confirm('BẠN CHẮC CHẮC MUỐN XÓA SẠCH TOÀN BỘ DỮ LIỆU KHUÔN MẶT?\nSau khi xóa, bạn sẽ phải nạp lại 5 góc từ đầu.')) return;
     slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
     currentIndex = 0; basePitch = null; baseMar = null;
     renderSlots();
@@ -456,17 +612,12 @@
   };
 
   $('btnSave').onclick = async function(){
-    if (slots.some(s => !s.done)) return toastErr('Vui lòng chụp đủ 5 góc trước khi lưu.');
+    if (slots.some(s => !s.done)) return toastErr('Vui lòng nạp đủ 5 góc trước khi lưu.');
     const ok = await saveServer();
     if (ok) toastOk('Đã lưu 5 góc khuôn mặt lên hệ thống.');
   };
 
   // ========================= DETECTION LOOP =========================
-  const captureCanvas = document.createElement('canvas');
-  const capCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
-
-  let currentMediaStream = null;
-
   async function startCamera(){
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
@@ -476,7 +627,8 @@
       if (currentIndex < 5) hudStatus.textContent = '🎯 ' + slots[currentIndex].guide;
     } catch(e){
       console.error(e);
-      hudStatus.textContent = '⚠️ Không mở được camera. Vui lòng cấp quyền truy cập camera.';
+      hudStatus.textContent = '⚠️ Không mở được camera. Bạn vẫn có thể TẢI ẢNH từ thiết bị.';
+      hudHint.textContent = 'Cấp quyền camera hoặc dùng nút "📁 Tải ảnh".';
     }
   }
 
@@ -509,6 +661,8 @@
       if (canvas.width !== dispW || canvas.height !== dispH) { canvas.width = dispW; canvas.height = dispH; }
       ctx.clearRect(0, 0, dispW, dispH);
 
+      if (currentIndex >= 5) advanceToNextUndone(0);
+
       let m = null;
       if (detections.length === 1) {
         const resized = faceapi.resizeResults(detections, { width: dispW, height: dispH });
@@ -516,12 +670,7 @@
         const drawX = dispW - box.x - box.width; // mirror
         ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3; ctx.strokeRect(drawX, box.y, box.width, box.height);
         m = metricsOf(detections[0]);
-        latestDetection = { 
-          detection: detections[0], 
-          landmarks: detections[0].landmarks,
-          image: captureCanvas
-        };
-        //hud hint metric
+        latestDetection = { detection: detections[0], landmarks: detections[0].landmarks, image: captureCanvas };
         if (currentIndex < 5) {
           const slot = slots[currentIndex];
           if (!slot.done && SLOTS_DEF[currentIndex].target(m)) {
@@ -529,8 +678,8 @@
             hudHint.textContent = `🟢 Góc chuẩn! Giữ yên... (${slot._stable}/${STABLE_FRAMES})`;
             if (slot._stable >= STABLE_FRAMES) {
               slot._stable = 0;
-              const cap = await captureFromDetection(detections[0], currentIndex);
-              if (cap) await applyCapture(currentIndex, cap);
+              const cap = await captureFromDetection(detections[0], currentIndex, captureCanvas);
+              if (cap) await applyCapture(currentIndex, cap, true);
             }
           } else {
             slot._stable = 0;
