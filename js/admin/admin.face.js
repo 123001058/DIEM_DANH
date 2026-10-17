@@ -561,7 +561,8 @@ async function processAdminCameraFrame(media) {
   if (!canvas) return;
 
   // Kiểm tra phiên mở: BẮT BUỘC CÓ PHIÊN ĐANG MỞ MỚI QUÉT
-  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
+  const activeSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id) ? currentSession : (window.currentSession && window.currentSession.id ? window.currentSession : null);
+  const hasOpenSession = Boolean(activeSession && activeSession.id);
   const hudStatus = document.getElementById('adminCamHudStatus');
 
   if (!hasOpenSession) {

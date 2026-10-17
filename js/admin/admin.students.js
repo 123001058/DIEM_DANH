@@ -1161,7 +1161,7 @@ window.backFromPastSession = async function() {
   window._isViewingPastSession = false;
   window._currentViewingSessionId = null;
   await loadSession();
-  if (currentSession && currentSession.is_open) {
+  if (currentSession && currentSession.id) {
     await refreshAll();
   } else {
     showEmpty();
