@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Как я написал движок распознавания лиц на C, который обогнал ONNX Runtime</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; color: #333; line-height: 1.8; }
+article { max-width: 780px; margin: 30px auto; padding: 20px 32px 60px; }
+.hubs { color: #999; font-size: 13px; margin-bottom: 12px; }
+.hubs a { color: #548eaa; text-decoration: none; }
+h1 { font-size: 28px; color: #333; margin-bottom: 20px; line-height: 1.3; font-weight: 700; }
+h2 { font-size: 22px; color: #333; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+h3 { font-size: 17px; color: #333; margin: 24px 0 10px; }
+p { margin-bottom: 14px; font-size: 16px; color: #333; }
+strong { color: #000; }
+em { color: #555; font-style: italic; }
+a { color: #548eaa; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 3px solid #548eaa; padding: 10px 18px; margin: 16px 0; background: #f8f9fa; color: #555; font-size: 15px; border-radius: 0 4px 4px 0; }
+blockquote strong { color: #333; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; }
+th { text-align: left; padding: 10px 14px; background: #f5f5f5; color: #666; font-weight: 600; border-bottom: 2px solid #ddd; }
+td { padding: 10px 14px; border-bottom: 1px solid #eee; }
+tr:hover td { background: #fafafa; }
+.green { color: #2e7d32; font-weight: 700; }
+pre { background: #f5f5f5; padding: 18px; border-radius: 4px; overflow-x: auto; margin: 16px 0; font-size: 14px; line-height: 1.6; border: 1px solid #eee; }
+code { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 14px; }
+p code, li code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 13px; color: #c7254e; }
+ul, ol { margin: 12px 0 16px 28px; font-size: 16px; }
+li { margin-bottom: 8px; }
+hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
+.bug { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 14px 18px; margin: 12px 0; }
+.bug h4 { font-size: 14px; color: #e65100; margin-bottom: 6px; }
+.bug pre { background: #fff; border: 1px solid #ffe082; margin: 8px 0 0; font-size: 13px; }
+.result { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; padding: 14px 18px; margin: 16px 0; text-align: center; font-size: 16px; }
+.author { margin-top: 30px; padding-top: 16px; border-top: 1px solid #eee; color: #999; font-size: 14px; }
+</style>
+</head>
+<body>
+<article>
+
+<div class="hubs">
+  <a href="#">Программирование</a> · <a href="#">C</a> · <a href="#">Машинное обучение</a> · <a href="#">Высокая производительность</a> · <a href="#">Компьютерное зрение</a>
+</div>
+
+<h1>Как я написал движок распознавания лиц на C, который обогнал ONNX Runtime</h1>
+
+<p>Полгода назад я начал портировать нейросеть EdgeFace-XS из ONNX в чистый C. Думал — граф небольшой, 1.77M параметров, что может пойти не так? Первый наивный порт выдал <strong>24мс</strong>. ONNX Runtime — <strong>3.9мс</strong>. В 6 раз медленнее. А потом началась оптимизация.</p>
+
+<h2>Результат</h2>
+
+<table>
+<tr><th></th><th>FaceX</th><th>ONNX Runtime 1.23</th></tr>
+<tr><td>Медиана</td><td class="green">3.0 мс</td><td>3.9 мс</td></tr>
+<tr><td>Минимум</td><td class="green">2.87 мс</td><td>3.18 мс</td></tr>
+<tr><td>Размер библиотеки</td><td class="green">148 КБ</td><td>28 МБ</td></tr>
+<tr><td>Зависимости</td><td class="green">нет</td><td>Python + onnxruntime</td></tr>
+<tr><td>Точность LFW</td><td class="green">99.73%</td><td>99.73%</td></tr>
+</table>
+
+<blockquote>Чистый C с SIMD интринсиками обгоняет ONNX Runtime на <strong>23%</strong>. Один и тот же CPU (i5-11500), одна модель, одни входные данные.</blockquote>
+
+<h2>Путь оптимизации: 24мс → 3мс</h2>
+
+<h3>Этап 0: Профилирование</h3>
+
+<p>Замерил каждую операцию отдельно. Главный сюрприз:</p>
+
+<blockquote><strong>Матричное умножение — всего 6% от общего времени инференса.</strong></blockquote>
+
+<p>Настоящие убийцы производительности:</p>
+
+<table>
+<tr><th>Операция</th><th>Доля</th><th>Проблема</th></tr>
+<tr><td>Depthwise conv</td><td>~30%</td><td>Транспозы HWC↔CHW на каждом блоке</td></tr>
+<tr><td>LayerNorm × 17</td><td>~16%</td><td>Скалярный mean/variance</td></tr>
+<tr><td>GELU × 17</td><td>~10%</td><td>Наивный <code>tanh()</code> через math.h</td></tr>
+<tr><td>Транспозы памяти</td><td>~8%</td><td>Лишние копирования</td></tr>
+<tr><td>MatMul</td><td>~6%</td><td>Уже быстро</td></tr>
+</table>
+
+<h3>Этап 1: SIMD ядра (24мс → 8мс)</h3>
+
+<p>Написал AVX2 версии для каждой операции:</p>
+
+<ul>
+  <li><strong>LayerNorm</strong> — fused mean+variance в одном проходе. Вместо двух циклов по памяти — один с <code>_mm256_fmadd_ps</code> для накопления суммы и суммы квадратов</li>
+  <li><strong>GELU</strong> — выкинул <code>tanh()</code>. Реализовал exact erf через полиномиальную аппроксимацию Абрамовица-Стегуна (формула 7.1.26) с кастомным <code>_mm256_exp_ps</code> на 8 элементов за такт</li>
+  <li><strong>Depthwise conv</strong> — перевёл весь движок на нативный HWC layout. Ни одного транспоза во всём forward pass</li>
+</ul>
+
+<h3>Этап 2: MatMul (8мс → 5мс)</h3>
+
+<ul>
+  <li><strong>FP32 packed column-panel</strong>: веса перепакованы в формат <code>[ceil(N/8), K, 8]</code> — каждый столбец-панель помещается в L1 кэш</li>
+  <li><strong>INT8 GEMM микроядро</strong> с per-channel квантизацией:
+    <ul>
+      <li>AVX2: <code>vpmaddubsw</code> с ±63 clamping для предотвращения s16 насыщения</li>
+      <li>AVX-512 VNNI: <code>vpdpbusd</code> — нативные INT8 dot products без насыщения</li>
+    </ul>
+  </li>
+  <li><strong>Thread pool</strong> — lock-free с work-stealing через атомарный счётчик и <code>WaitOnAddress</code>/<code>futex</code></li>
+</ul>
+
+<h3>Этап 3: Последние миллисекунды (5мс → 3мс)</h3>
+
+<ul>
+  <li>Убрал <strong>все</strong> транспозы — данные в HWC от входа до выхода</li>
+  <li><strong>Статический workspace</strong> вместо <code>malloc</code> на каждом вызове</li>
+  <li><strong>Pre-computed position embedding</strong> — это константа, не зависит от входа</li>
+  <li><strong>Pre-packed веса</strong> — транспозиция и паковка при загрузке, не при инференсе</li>
+</ul>
+
+<h3>Хронология</h3>
+
+<table>
+<tr><th>Фаза</th><th>Время</th><th>Длительность работы</th></tr>
+<tr><td>Наивный порт</td><td>24 мс</td><td>2 недели</td></tr>
+<tr><td>SIMD ядра</td><td>8 мс</td><td>3 недели</td></tr>
+<tr><td>MatMul + INT8</td><td>5 мс</td><td>1 месяц</td></tr>
+<tr><td><strong>Финальная полировка</strong></td><td class="green">3 мс</td><td><strong>4 месяца</strong></td></tr>
+</table>
+
+<blockquote>Последние 2мс заняли 4 месяца. Первые 16мс — 2 недели. Вот что такое оптимизация.</blockquote>
+
+<h2>7 багов точности</h2>
+
+<p>Самая болезненная часть. Cosine similarity с ONNX reference начиналась на <strong>0.067</strong> (мусор). Должно быть <strong>1.0</strong>. Нашёл 7 багов через послойные дампы — каждый из 286 тензоров сравнивался с NumPy эталоном.</p>
+
+<div class="bug">
+<h4>Баг 1: Индекс gamma</h4>
+<pre><code>Stage 0, block 2: использовал W(38) — это bias
+Правильно: W(39) — это gamma</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 2: XCA residual connections</h4>
+<pre><code>Было:   attention_residual = original_input
+        mlp_residual       = original_input
+
+Надо:   attention_residual = DW_output + pos_embed
+        mlp_residual       = original_input</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 3: XCA Depthwise Conv — каскадный, не независимый</h4>
+<pre><code>Было:   conv0(x_split0),  conv1(x_split1)         — независимо
+Надо:   r0 = conv0(x_split0),  conv1(r0 + x_split1) — каскадно</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 4: Position Embedding — это константа</h4>
+<pre><code>Было:   pos = Conv1x1(INPUT, W)       — пересчитывается каждый раз
+Надо:   pos = Conv1x1(CONSTANT, W)    — вычисляется один раз при загрузке</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 5: XCA Attention — размерность</h4>
+<pre><code>Было:   attn = softmax(Q @ K^T / τ)           — полная [C × C] матрица
+Надо:   attn_h = softmax(Q_h @ K_h^T / τ)     — per-head [dim × dim]</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 6: Workspace overlap</h4>
+<pre><code>Stage 3, head_dim=48: attn_buf начинался по адресу,
+перекрывающему конец V_nhd. Сдвиг буфера решил проблему.</code></pre>
+</div>
+
+<div class="bug">
+<h4>Баг 7: GELU drift</h4>
+<pre><code>tanh-аппроксимация GELU: ошибка ε на каждом блоке.
+17 блоков × ε = заметное расхождение.
+Фикс: заменил на exact erf (A&S 7.1.26).</code></pre>
+</div>
+
+<div class="result">
+  Каждый фикс: <strong>+0.1</strong> cosine similarity → Семь фиксов: <strong>1.000</strong>
+</div>
+
+<h2>API</h2>
+
+<pre><code><span style="color:#888">// Инициализация (~100мс, один раз)</span>
+FaceX* fx = facex_init("edgeface_xs_fp32.bin", NULL);
+
+<span style="color:#888">// Эмбеддинг (3мс на вызов)</span>
+float face[112 * 112 * 3];  <span style="color:#888">// RGB, HWC layout, [-1, 1]</span>
+float embedding[512];
+facex_embed(fx, face, embedding);
+
+<span style="color:#888">// Сравнение двух лиц</span>
+float sim = facex_similarity(emb_a, emb_b);
+<span style="color:#888">// sim > 0.3 → один и тот же человек</span>
+
+facex_free(fx);</code></pre>
+
+<div class="result">
+  <strong>4 функции · 148 КБ · Ноль зависимостей · Apache 2.0</strong>
+</div>
+
+<h2>Вывод</h2>
+
+<p>Один человек может написать inference движок быстрее продукта Microsoft — если оптимизирует под одну конкретную модель. ONNX Runtime рассчитан на тысячи моделей. FaceX — на одну. <strong>Специализация бьёт универсальность.</strong></p>
+
+<hr>
+
+<p>Исходники: <a href="https://github.com/facex-engine/facex"><strong>github.com/facex-engine/facex</strong></a></p>
+
+<div class="author">
+  Автор: <strong>Baurzhan Atinov</strong> · Казахстан · При поддержке гранта NLnet
+</div>
+
+</article>
+</body>
+</html>

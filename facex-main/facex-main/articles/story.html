@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Sweetest Millisecond</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Georgia, 'Times New Roman', serif; background: #faf9f6; color: #2c2c2c; }
+article { max-width: 680px; margin: 0 auto; padding: 60px 24px 80px; }
+h1 { font-size: 36px; line-height: 1.3; margin-bottom: 12px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.5px; }
+.subtitle { font-size: 18px; color: #888; margin-bottom: 40px; font-style: italic; }
+p { font-size: 18px; line-height: 1.9; margin-bottom: 20px; color: #333; }
+.drop:first-letter { float: left; font-size: 72px; line-height: 60px; padding-right: 8px; padding-top: 4px; color: #1a1a1a; font-weight: 700; }
+strong { color: #1a1a1a; }
+em { color: #555; }
+.separator { text-align: center; color: #ccc; font-size: 24px; letter-spacing: 12px; margin: 36px 0; }
+.pullquote { font-size: 22px; font-style: italic; color: #666; border-left: 3px solid #ddd; padding: 8px 24px; margin: 32px 0; line-height: 1.7; }
+.stat { font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 42px; font-weight: 700; color: #1a1a1a; text-align: center; margin: 28px 0; letter-spacing: -1px; }
+.caption { text-align: center; font-size: 14px; color: #999; margin-top: -20px; margin-bottom: 28px; }
+.end { text-align: center; margin-top: 48px; padding-top: 28px; border-top: 1px solid #eee; }
+.end p { font-size: 15px; color: #999; }
+.end a { color: #2563eb; text-decoration: none; }
+.flag { font-size: 32px; }
+</style>
+</head>
+<body>
+<article>
+
+<h1>The Sweetest Millisecond</h1>
+<p class="subtitle">How a developer from Kazakhstan outran Microsoft — and went to buy a pastry.</p>
+
+<div class="separator">···</div>
+
+<p class="drop">The bakery is seven minutes from my apartment. I know this because I've been measuring everything in milliseconds for the past six months, and some of that sickness has leaked into the rest of my life.</p>
+
+<p>But today I'm not thinking about milliseconds. Today I'm buying a sweet roll. Because my brain earned it.</p>
+
+<p>Let me tell you why.</p>
+
+<div class="separator">···</div>
+
+<p>Six months ago I opened a blank file on my computer and typed the first line of C code. I was going to write a face recognition engine. Not use one — <em>write</em> one. From scratch. By hand. Every multiplication, every addition, every memory access.</p>
+
+<p>The neural network I chose was small. EdgeFace-XS — one-point-seven-seven million parameters. For comparison, ChatGPT has over a trillion. This little thing was supposed to look at a photo of a face and turn it into a list of 512 numbers. Compare two lists — and you know if it's the same person.</p>
+
+<p>Simple in theory. Everyone uses a framework for this. You install Python, download ONNX Runtime — Microsoft's neural network engine — feed it the model, and it just works. Three-point-nine milliseconds per face on my CPU. Fast enough for anyone.</p>
+
+<p>I wanted to do it without the framework. Without Python. Without Microsoft. Just me and the processor.</p>
+
+<div class="pullquote">My first version ran in twenty-four milliseconds. Six times slower than the thing I was trying to replace.</div>
+
+<p>Not a great start.</p>
+
+<div class="separator">···</div>
+
+<p>I did what any engineer would do. I profiled. I measured every single one of the three hundred operations inside the neural network. Timed each one. Made a spreadsheet. Sorted by time.</p>
+
+<p>And here's where the story gets interesting.</p>
+
+<p>If you ask any machine learning engineer what's slow in a neural network, they'll say matrix multiplication. It's the big operation. The heavy lifting. The thing that GPUs were invented for.</p>
+
+<p>I looked at my spreadsheet.</p>
+
+<div class="stat">6%</div>
+<p class="caption">Matrix multiplication's share of total inference time.</p>
+
+<p>Six percent. The "heavy lifting" was barely lifting at all.</p>
+
+<p>The real killers were the operations nobody writes blog posts about. Layer normalization — computing the mean and standard deviation of a row of numbers, seventeen times per image. GELU activation — a mathematical function applied to every single number in the network, also seventeen times. And memory layout conversions — reshuffling data from one format to another, back and forth, on every layer.</p>
+
+<p>The glue. The boring stuff between the important parts.</p>
+
+<p>Except in this network, the glue <strong>was</strong> the important part.</p>
+
+<div class="separator">···</div>
+
+<p>So I rewrote the glue.</p>
+
+<p>Modern CPUs have special instructions that can process eight or sixteen numbers at once. They're called SIMD — Single Instruction, Multiple Data. Intel calls their version AVX2. Instead of adding one number to another, you add eight pairs simultaneously. Instead of computing one square root, you compute eight.</p>
+
+<p>I wrote custom SIMD kernels for every operation. Layer normalization that computes mean and variance in a single pass instead of two. A GELU function built from a polynomial approximation of the error function — an equation from a 1964 math textbook, translated into CPU instructions that process eight floating-point numbers per clock cycle.</p>
+
+<p>Twenty-four milliseconds became eight.</p>
+
+<p>Then I tackled the matrix multiplications. Even at six percent, they were worth optimizing. I quantized the weights to 8-bit integers and wrote a microkernel using an instruction called <em>vpmaddubsw</em> that multiplies sixteen pairs of integers and adds them up in one cycle. Discovered a saturation bug — when the partial sums exceeded 32,767, the hardware silently clipped them, corrupting the result. Spent two weeks debugging that.</p>
+
+<p>Eight became five.</p>
+
+<div class="separator">···</div>
+
+<p>And then the wall.</p>
+
+<p>Five milliseconds. No matter what I did. I tried writing in assembly language. I tried JIT-compiling custom kernels at startup. I tried three different compilers. I tried link-time optimization, profile-guided optimization, thread pool tuning, operation fusion.</p>
+
+<p>Nothing. Four months of nothing.</p>
+
+<p>I started reading academic papers. Dozens of them. Looked through my old research files. Read Intel's optimization manual — all four thousand pages.</p>
+
+<p>And then, on a random Tuesday, buried in the output of a CPU diagnostic tool, I saw it.</p>
+
+<p>My processor supported AVX-512.</p>
+
+<p>AVX-512 is a wider version of the SIMD instructions I was already using. Instead of processing eight numbers at once, it processes sixteen. Not every CPU has it. Nobody had told me mine did. I never thought to check.</p>
+
+<p>I rewrote the hottest kernels. Sixteen numbers at a time instead of eight. New instructions that do integer dot products without the saturation bug.</p>
+
+<div class="stat">3.0 ms</div>
+<p class="caption">Final inference time. ONNX Runtime: 3.9 ms.</p>
+
+<p>I stared at the number on my screen. Ran the benchmark again. And again. Same result.</p>
+
+<p>I was faster than Microsoft.</p>
+
+<div class="separator">···</div>
+
+<p>But speed was the easy part. The hard part — the part that nearly broke me — was accuracy.</p>
+
+<p>A face recognition engine that's fast but wrong is worse than useless. It's dangerous. It would tell you strangers are your friends and your friends are strangers.</p>
+
+<p>After my speed optimizations, I compared my engine's output to the reference. The cosine similarity — a measure of how similar two lists of numbers are, where 1.0 means identical — was 0.067.</p>
+
+<p>Zero-point-zero-six-seven. My engine was producing random noise.</p>
+
+<p>I spent three weeks on this. I dumped every intermediate tensor — all 286 of them — from both my engine and a Python reference implementation. Compared them number by number, layer by layer, dimension by dimension.</p>
+
+<p>Found seven bugs.</p>
+
+<p>The first was embarrassing — I used the wrong weight index in one block. W(38) instead of W(39). One digit. The bias instead of the gamma parameter.</p>
+
+<p>The last was devious. Part of the neural network computes something called a position embedding — it tells the network where each patch of the image is located. In the ONNX graph, it looked like a convolution applied to the input. So I convolved the input.</p>
+
+<p>But the input to that convolution wasn't actually the input. It was a constant. A pre-computed tensor baked into the model at training time. It never changes. I was computing it fresh every frame, using slightly different floating-point arithmetic, and the tiny rounding errors accumulated through seventeen layers until the output was meaningless.</p>
+
+<p>Each bug fix added about 0.1 to the cosine similarity. Seven bugs. 0.067 became 1.000.</p>
+
+<p>Exact match.</p>
+
+<div class="separator">···</div>
+
+<p>So here's what I have now.</p>
+
+<p>A face recognition engine written in four thousand lines of C. It takes a 112-by-112 pixel photo of a face and produces a 512-dimensional embedding vector in three milliseconds. It's 23 percent faster than Microsoft's ONNX Runtime. The library is 148 kilobytes. The total deployment — binary plus model weights — is seven megabytes. You can copy it to any Linux server and run it. No Python. No Docker. No package manager. No dependencies of any kind.</p>
+
+<p>99.73 percent accuracy on the standard LFW benchmark. Same as models sixty times larger.</p>
+
+<p>I built it in Kazakhstan. By myself. With a free compiler and a consumer CPU.</p>
+
+<p>It's open source now. Apache 2.0 license. Anyone can use it.</p>
+
+<div class="separator">···</div>
+
+<p>I'm putting on my jacket. The bakery closes in forty minutes, and I've been staring at benchmark numbers all morning.</p>
+
+<p>There's a specific pastry I like — a round one with custard filling and powdered sugar on top. It costs about a dollar. I've been eating one every time I hit a milestone. After the first SIMD kernel worked. After the INT8 bug was fixed. After cosine similarity hit 1.0.</p>
+
+<p>Today's pastry is for the final number. Three-point-zero milliseconds. Faster than Microsoft.</p>
+
+<p>Six months of work. Seven bugs. Forty-nine SIMD kernels. Four thousand lines of code. One pastry.</p>
+
+<div class="pullquote">Sometimes the best way to celebrate beating a trillion-dollar company is a one-dollar sweet roll.</div>
+
+<p>The bakery is seven minutes away. Four hundred and twenty thousand milliseconds. I used to think that was fast.</p>
+
+<p>Now I know what fast really means.</p>
+
+<div class="end">
+<p class="flag">🇰🇿</p>
+<p><strong>Baurzhan Atinov</strong> · Kazakhstan</p>
+<p><a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+
+</article>
+</body>
+</html>

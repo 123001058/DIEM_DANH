@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="200" font-family="system-ui,sans-serif">
+  <style>
+    text { font-size: 12px; fill: #333; }
+    .title { font-size: 15px; font-weight: bold; fill: #1a1a2e; }
+    .h { font-size: 11px; font-weight: bold; fill: #666; }
+    .facex { font-weight: bold; fill: #10b981; }
+    .ort { fill: #6366f1; }
+    .sep { stroke: #e5e7eb; }
+  </style>
+
+  <text x="260" y="24" text-anchor="middle" class="title">Footprint Comparison</text>
+
+  <!-- Header -->
+  <text x="200" y="55" text-anchor="end" class="h">metric</text>
+  <text x="300" y="55" text-anchor="middle" class="h">FaceX</text>
+  <text x="440" y="55" text-anchor="middle" class="h">ONNX Runtime</text>
+  <line x1="120" y1="62" x2="510" y2="62" class="sep" stroke-width="1"/>
+
+  <!-- Binary -->
+  <text x="200" y="82" text-anchor="end">Binary size</text>
+  <text x="300" y="82" text-anchor="middle" class="facex">148 KB</text>
+  <text x="440" y="82" text-anchor="middle" class="ort">28 MB</text>
+
+  <!-- Weights -->
+  <text x="200" y="107" text-anchor="end">Model weights</text>
+  <text x="300" y="107" text-anchor="middle" class="facex">7 MB</text>
+  <text x="440" y="107" text-anchor="middle" class="ort">7 MB + 150 MB runtime</text>
+
+  <!-- Dependencies -->
+  <text x="200" y="132" text-anchor="end">Dependencies</text>
+  <text x="300" y="132" text-anchor="middle" class="facex">none</text>
+  <text x="440" y="132" text-anchor="middle" class="ort">Python + onnxruntime</text>
+
+  <!-- Deploy -->
+  <text x="200" y="157" text-anchor="end">Deploy</text>
+  <text x="300" y="157" text-anchor="middle" class="facex">scp 1 file</text>
+  <text x="440" y="157" text-anchor="middle" class="ort">pip install + config</text>
+
+  <!-- Cold start -->
+  <text x="200" y="182" text-anchor="end">Cold start</text>
+  <text x="300" y="182" text-anchor="middle" class="facex">~100 ms</text>
+  <text x="440" y="182" text-anchor="middle" class="ort">~350 ms</text>
+</svg>

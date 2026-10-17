@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiểm Thử Benchmark Độc Lập — MiniFASNet-V2 (Chuẩn FaceX)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- ONNX Runtime Web 1.18.0 & Face-API Tiny Detector -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+<style>
+  :root {
+    --bg: #090d16;
+    --surface: #111827;
+    --surface-2: #1f2937;
+    --border: #374151;
+    --text: #f9fafb;
+    --muted: #9ca3af;
+    --live: #22c55e;
+    --spoof: #ef4444;
+    --accent: #38bdf8;
+    --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    padding: 20px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+  .badge-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+  .grid-layout {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 20px;
+  }
+  @media(max-width: 900px) { .grid-layout { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .controls-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  input[type="text"], input[type="file"], select, button {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-family: inherit;
+  }
+  button {
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--surface-2);
+  }
+  button:hover { background: #374151; }
+  button.primary { background: var(--accent); color: #04121d; border-color: var(--accent); }
+  button.primary:hover { background: #7dd3fc; }
+  .camera-box {
+    position: relative;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 360px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+  }
+  #viewImg, #viewVideo {
+    max-width: 100%;
+    max-height: 480px;
+    display: block;
+    object-fit: contain;
+  }
+  #overlayCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px;
+  }
+  .metric-label { color: var(--muted); }
+  .metric-val { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  .bar-container {
+    margin-top: 6px;
+    background: rgba(255,255,255,0.08);
+    height: 10px;
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill { height: 100%; transition: width 0.15s ease; border-radius: 99px; }
+  .bar-live { background: var(--live); }
+  .bar-replay { background: var(--warn); }
+  .bar-print { background: var(--spoof); }
+  .verdict-box {
+    padding: 14px;
+    border-radius: 10px;
+    text-align: center;
+    margin-top: 14px;
+    font-weight: 800;
+    font-size: 16px;
+  }
+  .verdict-live { background: rgba(34, 197, 94, 0.15); color: var(--live); border: 1.5px solid var(--live); }
+  .verdict-spoof { background: rgba(239, 68, 68, 0.15); color: var(--spoof); border: 1.5px solid var(--spoof); }
+  .verdict-idle { background: var(--surface-2); color: var(--muted); border: 1.5px dashed var(--border); }
+  .crop-preview-box {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    margin-top: 12px;
+  }
+  #cropCanvas {
+    width: 80px;
+    height: 80px;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    image-rendering: pixelated;
+  }
+  .alert-card {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fde68a;
+  }
+  .alert-card b { color: #fff; }
+  .row-live90 {
+    background: rgba(34, 197, 94, 0.16) !important;
+    border-left: 3px solid var(--live);
+  }
+  .tag-live90 {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    background: rgba(34, 197, 94, 0.25);
+    border: 1px solid #22c55e;
+    color: #4ade80;
+  }
+  .tag-spoof {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #f87171;
+  }
+  #historyTableBody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.1s ease;
+  }
+  #historyTableBody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>🧪 Kiểm Thử Benchmark Độc Lập: MiniFASNet-V2</h1>
+      <p style="font-size:12px;color:var(--muted);margin-top:2px;">
+        Đánh giá độ nhạy model <code>minifasnet_v2.onnx</code> với tiền xử lý RAW [0, 255] BGR chuẩn FaceX.
+      </p>
+    </div>
+    <div class="badge-tag">Môi trường Isolated Benchmark · Không đụng Admin Core</div>
+  </header>
+
+  <!-- NGUỒN DỮ LIỆU ĐẦU VÀO -->
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="controls-bar">
+      <label style="font-size:12px;font-weight:700;">Nguồn hình ảnh:</label>
+      <select id="sourceSelect" onchange="switchSource()">
+        <option value="esp32">1. Camera ESP32-S3 (MJPEG Stream)</option>
+        <option value="webcam">2. Webcam Laptop trực tiếp</option>
+        <option value="image">3. Tải ảnh từ máy tính (Static Test)</option>
+      </select>
+
+      <span id="espControls" style="display:inline-flex;gap:6px;align-items:center;">
+        <input type="text" id="espIpInput" value="10.96.38.99" style="width:130px;" placeholder="IP ESP32">
+        <button class="primary" onclick="startEspStream()">📡 Kết nối ESP32</button>
+      </span>
+
+      <span id="webcamControls" style="display:none;">
+        <button class="primary" onclick="startWebcam()">📷 Bật Webcam</button>
+      </span>
+
+      <span id="fileControls" style="display:none;">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleImageFile(this)">
+      </span>
+
+      <button onclick="stopAllStreams()" style="margin-left:auto;">⏹ Dừng</button>
+    </div>
+    <div id="statusLog" style="font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);">
+      ⏳ Đang khởi tạo mô hình ONNX & Face-API...
+    </div>
+  </div>
+
+  <div class="grid-layout">
+    <!-- CỘT TRÁI: KHUNG HÌNH CAMERA / ẢNH -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:13px;font-weight:700;">Khung hình quan sát</span>
+        <span id="fpsDisplay" style="font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--muted);">0 FPS</span>
+      </div>
+      
+      <div class="camera-box" id="camContainer">
+        <img id="viewImg" crossorigin="anonymous" style="display:none;" alt="Camera Stream">
+        <video id="viewVideo" autoplay playsinline muted style="display:none;"></video>
+        <canvas id="overlayCanvas"></canvas>
+        <div id="camPlaceholder" style="color:var(--muted);text-align:center;padding:30px;">
+          <div style="font-size:36px;margin-bottom:6px;">📷</div>
+          <div style="font-size:13px;font-weight:600;">Chưa kích hoạt nguồn video</div>
+          <div style="font-size:11.5px;margin-top:4px;">Chọn nguồn trên thanh công cụ và bấm kết nối.</div>
+        </div>
+      </div>
+
+      <!-- Preview ảnh crop 80x80 đưa vào model -->
+      <div class="crop-preview-box">
+        <canvas id="cropCanvas" width="80" height="80"></canvas>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);">Vùng Crop chuẩn FaceX (80×80 BGR)</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            Scale 2.7× quanh tâm bbox · RAW pixel [0, 255] (không chia 255).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CỘT PHẢI: BẢNG SỐ LIỆU SUY LUẬN & ĐỐI CHIẾU -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Kết quả suy luận thời gian thực</div>
+
+      <div class="metric-row">
+        <span class="metric-label">Model Session:</span>
+        <span class="metric-val" id="modelStatus">Đang nạp...</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Thời gian suy luận (Latency):</span>
+        <span class="metric-val" id="latencyVal">— ms</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Dạng ngõ ra (Output Type):</span>
+        <span class="metric-val" id="outputTypeVal">—</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Raw Output Vector:</span>
+        <span class="metric-val" id="rawLogitsVal" style="font-size:11.5px;">[—, —, —]</span>
+      </div>
+
+      <!-- THANH ĐO XÁC SUẤT 3 LỚP -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+        <!-- Class 1: LIVE -->
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--live);">
+          <span>Class 1: Người thật (LIVE)</span>
+          <span id="pLiveVal">0.0%</span>
+        </div>
+        <div class="bar-container"><div id="barLive" class="bar-fill bar-live" style="width:0%;"></div></div>
+
+        <!-- Class 2: REPLAY (Màn hình) -->
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--warn);margin-top:10px;">
+          <span>Class 2: Màn hình điện thoại (Replay)</span>
+          <span id="pReplayVal">0.0%</span>
+        </div>
+        <div class="bar-container"><div id="barReplay" class="bar-fill bar-replay" style="width:0%;"></div></div>
+
+        <!-- Class 0: PRINT (Ảnh in giấy) -->
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--spoof);margin-top:10px;">
+          <span>Class 0: Ảnh in 2D (Print)</span>
+          <span id="pPrintVal">0.0%</span>
+        </div>
+        <div class="bar-container"><div id="barPrint" class="bar-fill bar-print" style="width:0%;"></div></div>
+      </div>
+
+      <!-- KẾT LUẬN SƠ BỘ -->
+      <div id="verdictBox" class="verdict-box verdict-idle">
+        ĐANG CHỜ KHUÔN MẶT
+      </div>
+
+      <!-- HƯỚNG DẪN KIỂM THỬ ĐỐI CHIẾU KHOA HỌC -->
+      <div class="alert-card">
+        <b>💡 HƯỚNG DẪN KIỂM THỬ ĐỐI CHIẾU:</b>
+        <ol style="margin-left: 18px; margin-top: 6px;">
+          <li><b>Thử mặt thật:</b> Ngồi trước camera ở khoảng cách 40–70cm, quan sát thanh <code>LIVE</code> có đạt $> 70\%$ ổn định hay không.</li>
+          <li><b>Thử ảnh màn hình:</b> Mở ảnh chụp khuôn mặt bạn trên điện thoại, đưa ngang tầm mắt cách camera 30–50cm trong <i>cùng điều kiện ánh sáng</i>. Quan sát thanh <code>Replay</code> hoặc <code>Print</code> có tăng vọt lên hay không.</li>
+          <li><b>Lưu ý khoa học:</b> Mức 70%/30% chỉ là mốc tham khảo ban đầu. Thử nghiệm trên ảnh tĩnh không thay thế được kiểm thử video trực tiếp.</li>
+        </ol>
+      </div>
+  </div>
+
+  <!-- BẢNG LỊCH SỬ BENCHMARK ĐỘC LẬP -->
+  <div class="card" style="margin-top: 20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+      <div>
+        <h3 style="font-size:15px; font-weight:800; display:flex; align-items:center; gap:8px;">
+          📋 Lịch Sử Ghi Mẫu Benchmark MiniFASNet
+          <span id="recordingBadge" style="font-size:11px; padding:3px 10px; border-radius:99px; background:rgba(156,163,175,0.2); color:var(--muted); font-weight:700;">Đang dừng ghi</span>
+        </h3>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">
+          Tần suất ghi: Tối đa 1 mẫu / giây khi có khuôn mặt hợp lệ · 
+          <span style="color:var(--warn); font-weight:600;">Chú thích: Ngưỡng 90% chỉ để thử nghiệm, chưa phải ngưỡng an toàn đã được xác nhận.</span>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button id="btnStartRecord" class="primary" onclick="startRecording()">⏺ Bắt đầu ghi</button>
+        <button id="btnStopRecord" onclick="stopRecording()" disabled>⏹ Dừng ghi</button>
+        <button onclick="clearHistory()">🗑 Xóa lịch sử</button>
+        <button onclick="exportCSV()">📥 Xuất CSV</button>
+      </div>
+    </div>
+
+    <!-- Bảng số liệu thống kê nhanh -->
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; padding:10px 14px; background:var(--surface-2); border-radius:8px; font-size:12.5px;">
+      <div>Tổng số mẫu: <b id="statTotal" style="font-family:'JetBrains Mono',monospace;">0</b></div>
+      <div>LIVE ≥ 90% (Thử nghiệm): <b id="statLive90" style="font-family:'JetBrains Mono',monospace; color:var(--live);">0 (0.0%)</b></div>
+      <div>Replay ≥ 50%: <b id="statReplay50" style="font-family:'JetBrains Mono',monospace; color:var(--warn);">0 (0.0%)</b></div>
+      <div>Print ≥ 50%: <b id="statPrint50" style="font-family:'JetBrains Mono',monospace; color:var(--spoof);">0 (0.0%)</b></div>
+    </div>
+
+    <!-- Bảng cuộn danh sách mẫu -->
+    <div style="max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+        <thead style="background:var(--surface-2); position:sticky; top:0; z-index:2;">
+          <tr style="border-bottom:1px solid var(--border); color:var(--muted); font-size:11.5px;">
+            <th style="padding:9px 12px; width:45px;">#</th>
+            <th style="padding:9px 12px; width:110px;">Thời gian</th>
+            <th style="padding:9px 12px; width:120px;">Nguồn</th>
+            <th style="padding:9px 12px;">Print (%)</th>
+            <th style="padding:9px 12px;">LIVE (%)</th>
+            <th style="padding:9px 12px;">Replay (%)</th>
+            <th style="padding:9px 12px; width:80px;">Latency</th>
+            <th style="padding:9px 12px;">Đánh giá sơ bộ</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody">
+          <tr>
+            <td colspan="8" style="text-align:center; padding:24px; color:var(--muted);">
+              Chưa có mẫu nào được ghi. Bấm <b>"Bắt đầu ghi"</b> để tự động thu thập kết quả (1 mẫu / giây).
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPT CHÍNH THỰC THI KIỂM THỬ -->
+<script>
+// Canvas ẩn để chụp snapshot và crop 80x80
+const captureCanvas = document.createElement('canvas');
+const captureCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
+
+const cropCanvas = document.getElementById('cropCanvas');
+const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
+const spoofTensorBuffer = new Float32Array(3 * 80 * 80);
+
+let ortSession = null;
+let isModelsReady = false;
+let isLoopRunning = false;
+let currentSource = 'esp32';
+let activeStream = null;
+
+let fpsCounter = 0;
+let lastFpsTime = performance.now();
+
+// Trạng thái ghi lịch sử benchmark
+let isRecording = false;
+let benchmarkHistory = [];
+let lastRecordTimestamp = 0;
+
+// 1. KHỞI TẠO ONNX RUNTIME VÀ FACE-API
+async function initBenchmark() {
+  const log = document.getElementById('statusLog');
+  const modelStatus = document.getElementById('modelStatus');
+
+  try {
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+    ort.env.wasm.numThreads = 1;
+
+    // Tải mô hình MiniFASNet-V2 hiện có
+    log.textContent = '⏳ Đang nạp models/anti-spoofing/minifasnet_v2.onnx...';
+    ortSession = await ort.InferenceSession.create('models/anti-spoofing/minifasnet_v2.onnx', {
+      executionProviders: ['wasm']
+    });
+
+    modelStatus.textContent = 'minifasnet_v2.onnx (WASM Ready)';
+    modelStatus.style.color = 'var(--live)';
+
+    // Tải TinyFaceDetector của Face-API để tìm bounding box
+    log.textContent = '⏳ Đang nạp Face-API TinyFaceDetector...';
+    await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+
+    isModelsReady = true;
+    log.textContent = '🟢 ĐÃ SẴN SÀNG: Mô hình MiniFASNet-V2 và TinyFaceDetector đã nạp xong.';
+    log.style.color = 'var(--live)';
+  } catch(err) {
+    console.error('Lỗi khởi tạo:', err);
+    log.textContent = '❌ LỖI KHỞI TẠO: ' + err.message;
+    log.style.color = 'var(--spoof)';
+    modelStatus.textContent = 'Lỗi nạp mô hình';
+    modelStatus.style.color = 'var(--spoof)';
+  }
+}
+
+// 2. CHUYỂN ĐỔI NGUỒN VIDEO / ẢNH
+function switchSource() {
+  stopAllStreams();
+  currentSource = document.getElementById('sourceSelect').value;
+  document.getElementById('espControls').style.display = (currentSource === 'esp32') ? 'inline-flex' : 'none';
+  document.getElementById('webcamControls').style.display = (currentSource === 'webcam') ? 'inline-flex' : 'none';
+  document.getElementById('fileControls').style.display = (currentSource === 'image') ? 'inline-flex' : 'none';
+}
+
+function stopAllStreams() {
+  isLoopRunning = false;
+  const vImg = document.getElementById('viewImg');
+  const vVid = document.getElementById('viewVideo');
+  vImg.src = '';
+  vImg.style.display = 'none';
+  if (activeStream) {
+    activeStream.getTracks().forEach(t => t.stop());
+    activeStream = null;
+  }
+  vVid.style.display = 'none';
+  document.getElementById('camPlaceholder').style.display = 'block';
+
+  const overlay = document.getElementById('overlayCanvas');
+  const ctx = overlay.getContext('2d');
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+}
+
+// 3. NGUỒN 1: ESP32 STREAM
+function startEspStream() {
+  if (!isModelsReady) return alert('Mô hình AI chưa nạp xong, vui lòng đợi vài giây!');
+  stopAllStreams();
+
+  const ip = document.getElementById('espIpInput').value.trim();
+  if (!ip) return alert('Vui lòng nhập IP ESP32!');
+
+  const url = `http://${ip}:81/stream`;
+  const vImg = document.getElementById('viewImg');
+  document.getElementById('camPlaceholder').style.display = 'none';
+  vImg.style.display = 'block';
+
+  vImg.onload = () => {
+    if (!isLoopRunning) {
+      isLoopRunning = true;
+      requestAnimationFrame(runInferenceLoop);
+    }
+  };
+  vImg.onerror = () => {
+    alert(`Không tải được luồng từ ${url}. Kiểm tra kết nối mạng hoặc cờ Insecure Content trên trình duyệt.`);
+    stopAllStreams();
+  };
+  vImg.src = url;
+}
+
+// 4. NGUỒN 2: WEBCAM LAPTOP
+async function startWebcam() {
+  if (!isModelsReady) return alert('Mô hình AI chưa nạp xong!');
+  stopAllStreams();
+
+  const vVid = document.getElementById('viewVideo');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    activeStream = stream;
+    vVid.srcObject = stream;
+    document.getElementById('camPlaceholder').style.display = 'none';
+    vVid.style.display = 'block';
+
+    vVid.onloadedmetadata = () => {
+      isLoopRunning = true;
+      requestAnimationFrame(runInferenceLoop);
+    };
+  } catch(e) {
+    alert('Không thể mở Webcam: ' + e.message);
+  }
+}
+
+// 5. NGUỒN 3: ẢNH TĨNH
+function handleImageFile(input) {
+  if (!input.files || !input.files[0]) return;
+  stopAllStreams();
+
+  const file = input.files[0];
+  const reader = new FileReader();
+  const vImg = document.getElementById('viewImg');
+
+  reader.onload = (e) => {
+    document.getElementById('camPlaceholder').style.display = 'none';
+    vImg.style.display = 'block';
+    vImg.onload = async () => {
+      // Chạy suy luận 1 lần trên ảnh tĩnh
+      await analyzeSingleFrame(vImg);
+    };
+    vImg.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// 6. THUẬT TOÁN CROP CHUẨN FACEX: fillSpoofTensor (Scale 2.7x, BGR, Raw [0, 255])
+function fillSpoofTensorFaceX(srcMedia, box, scale, dst) {
+  const vw = srcMedia.naturalWidth || srcMedia.videoWidth || srcMedia.width;
+  const vh = srcMedia.naturalHeight || srcMedia.videoHeight || srcMedia.height;
+  const bw = box.width;
+  const bh = box.height;
+  const bx = box.x;
+  const by = box.y;
+
+  // Thuật toán Mirror generate_patches.CropImage của Silent-Face:
+  const s = Math.min((vh - 1) / bh, Math.min((vw - 1) / bw, scale));
+  const nw = bw * s;
+  const nh = bh * s;
+  const cx = bx + bw / 2;
+  const cy = by + bh / 2;
+
+  let ltx = cx - nw / 2;
+  let lty = cy - nh / 2;
+  let rbx = cx + nw / 2;
+  let rby = cy + nh / 2;
+
+  if (ltx < 0) { rbx -= ltx; ltx = 0; }
+  if (lty < 0) { rby -= lty; lty = 0; }
+  if (rbx > vw - 1) { ltx -= (rbx - vw + 1); rbx = vw - 1; }
+  if (rby > vh - 1) { lty -= (rby - vh + 1); rby = vh - 1; }
+
+  const sw = Math.max(1, Math.floor(rbx - ltx));
+  const sh = Math.max(1, Math.floor(rby - lty));
+
+  cropCtx.fillStyle = '#000000';
+  cropCtx.fillRect(0, 0, 80, 80);
+  cropCtx.drawImage(srcMedia, Math.floor(ltx), Math.floor(lty), sw, sh, 0, 0, 80, 80);
+
+  const imgData = cropCtx.getImageData(0, 0, 80, 80).data;
+  const N = 80 * 80;
+
+  // MiniFASNet chuẩn: RAW pixel [0, 255], thứ tự kênh màu BGR, layout CHW
+  for (let i = 0, p = 0; i < N; i++) {
+    const r = imgData[p++];
+    const g = imgData[p++];
+    const b = imgData[p++];
+    p++; // bỏ qua alpha
+    dst[i]         = b; // Kênh Blue (0 - 255)
+    dst[N + i]     = g; // Kênh Green (0 - 255)
+    dst[2 * N + i] = r; // Kênh Red (0 - 255)
+  }
+}
+
+// 7. VÒNG LẶP SUY LUẬN REALTIME
+async function runInferenceLoop() {
+  if (!isLoopRunning) return;
+
+  const media = (currentSource === 'webcam') ? document.getElementById('viewVideo') : document.getElementById('viewImg');
+  if (media && (media.naturalWidth > 0 || media.videoWidth > 0)) {
+    await analyzeSingleFrame(media);
+  }
+
+  // FPS đếm
+  fpsCounter++;
+  const now = performance.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('fpsDisplay').textContent = `${fpsCounter} FPS`;
+    fpsCounter = 0;
+    lastFpsTime = now;
+  }
+
+  if (isLoopRunning) {
+    requestAnimationFrame(runInferenceLoop);
+  }
+}
+
+// 8. HÀM PHÂN TÍCH 1 FRAME
+async function analyzeSingleFrame(media) {
+  const overlay = document.getElementById('overlayCanvas');
+  const w = media.clientWidth || media.videoWidth || media.naturalWidth || 640;
+  const h = media.clientHeight || media.videoHeight || media.naturalHeight || 480;
+
+  if (overlay.width !== w || overlay.height !== h) {
+    overlay.width = w;
+    overlay.height = h;
+  }
+
+  const oCtx = overlay.getContext('2d');
+  oCtx.clearRect(0, 0, w, h);
+
+  // Snapshot sang captureCanvas
+  const srcW = media.videoWidth || media.naturalWidth || w;
+  const srcH = media.videoHeight || media.naturalHeight || h;
+  if (captureCanvas.width !== srcW || captureCanvas.height !== srcH) {
+    captureCanvas.width = srcW;
+    captureCanvas.height = srcH;
+  }
+  captureCtx.drawImage(media, 0, 0, srcW, srcH);
+
+  // Tìm khuôn mặt bằng Face-API Tiny
+  let det = null;
+  try {
+    det = await faceapi.detectSingleFace(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 }));
+  } catch(e) {}
+
+  if (!det) {
+    updateMetricsIdle();
+    return;
+  }
+
+  const box = det.box;
+
+  // Vẽ khung khuôn mặt trên overlay
+  const scaleX = w / srcW;
+  const scaleY = h / srcH;
+  const drawX = box.x * scaleX;
+  const drawY = box.y * scaleY;
+  const drawW = box.width * scaleX;
+  const drawH = box.height * scaleY;
+
+  // Chuẩn bị tensor theo chuẩn FaceX
+  fillSpoofTensorFaceX(captureCanvas, box, 2.7, spoofTensorBuffer);
+
+  const t0 = performance.now();
+  const inputTensor = new ort.Tensor('float32', spoofTensorBuffer, [1, 3, 80, 80]);
+  const feeds = { [ortSession.inputNames[0]]: inputTensor };
+  const results = await ortSession.run(feeds);
+  const latency = (performance.now() - t0).toFixed(1);
+
+  const raw = results[ortSession.outputNames[0]].data;
+
+  // Xác minh Output là Logits hay Probability
+  const sumRaw = raw[0] + raw[1] + raw[2];
+  const isAlreadyProb = (Math.abs(sumRaw - 1.0) < 0.05 && raw[0] >= 0 && raw[1] >= 0 && raw[2] >= 0);
+
+  let probs = [0, 0, 0];
+  if (isAlreadyProb) {
+    probs = [raw[0], raw[1], raw[2]];
+    document.getElementById('outputTypeVal').textContent = 'Xác suất (Probabilities)';
+  } else {
+    // Softmax an toàn số học
+    const maxVal = Math.max(raw[0], raw[1], raw[2]);
+    const exp = [Math.exp(raw[0] - maxVal), Math.exp(raw[1] - maxVal), Math.exp(raw[2] - maxVal)];
+    const sumExp = exp[0] + exp[1] + exp[2];
+    probs = exp.map(v => v / sumExp);
+    document.getElementById('outputTypeVal').textContent = 'Raw Logits (Đã Softmax)';
+  }
+
+  // Thứ tự nhãn chuẩn Silent-Face / FaceX:
+  // Class 0: Print (Ảnh in)
+  // Class 1: LIVE (Người thật)
+  // Class 2: Replay (Màn hình)
+  const pPrint = probs[0];
+  const pLive = probs[1];
+  const pReplay = probs[2];
+
+  // Cập nhật UI
+  document.getElementById('latencyVal').textContent = `${latency} ms`;
+  document.getElementById('rawLogitsVal').textContent = `[${raw[0].toFixed(2)}, ${raw[1].toFixed(2)}, ${raw[2].toFixed(2)}]`;
+
+  document.getElementById('pLiveVal').textContent = `${(pLive * 100).toFixed(1)}%`;
+  document.getElementById('barLive').style.width = `${(pLive * 100).toFixed(1)}%`;
+
+  document.getElementById('pReplayVal').textContent = `${(pReplay * 100).toFixed(1)}%`;
+  document.getElementById('barReplay').style.width = `${(pReplay * 100).toFixed(1)}%`;
+
+  document.getElementById('pPrintVal').textContent = `${(pPrint * 100).toFixed(1)}%`;
+  document.getElementById('barPrint').style.width = `${(pPrint * 100).toFixed(1)}%`;
+
+  const vBox = document.getElementById('verdictBox');
+  let boxColor = '#38bdf8';
+
+  if (pLive > pPrint && pLive > pReplay && pLive >= 0.50) {
+    vBox.className = 'verdict-box verdict-live';
+    vBox.textContent = `✅ NGƯỜI THẬT (LIVE: ${(pLive*100).toFixed(1)}%)`;
+    boxColor = '#22c55e';
+  } else {
+    vBox.className = 'verdict-box verdict-spoof';
+    const reason = pReplay >= pPrint ? `Màn hình Replay (${(pReplay*100).toFixed(1)}%)` : `Ảnh in Print (${(pPrint*100).toFixed(1)}%)`;
+    vBox.textContent = `🚫 GIẢ MẠO: ${reason}`;
+    boxColor = '#ef4444';
+  }
+
+  oCtx.strokeStyle = boxColor;
+  oCtx.lineWidth = 2.5;
+  oCtx.strokeRect(drawX, drawY, drawW, drawH);
+
+  // 9. TỰ ĐỘNG GHI MẪU VÀO LỊCH SỬ BENCHMARK (NẾU ĐANG BẬT & CÁCH MẪU TRƯỚC >= 1000ms)
+  const now = Date.now();
+  if (isRecording && (now - lastRecordTimestamp >= 1000)) {
+    lastRecordTimestamp = now;
+    recordBenchmarkSample(pPrint, pLive, pReplay, latency);
+  }
+}
+
+function updateMetricsIdle() {
+  document.getElementById('verdictBox').className = 'verdict-box verdict-idle';
+  document.getElementById('verdictBox').textContent = 'KHÔNG TÌM THẤY KHUÔN MẶT';
+}
+
+// 10. CÁC HÀM QUẢN LÝ LỊCH SỬ BENCHMARK
+function getSourceName() {
+  if (currentSource === 'esp32') {
+    const ip = document.getElementById('espIpInput') ? document.getElementById('espIpInput').value.trim() : '';
+    return ip ? `ESP32 (${ip})` : 'ESP32-S3';
+  }
+  if (currentSource === 'webcam') return 'Webcam Laptop';
+  return 'Ảnh tải lên';
+}
+
+function startRecording() {
+  isRecording = true;
+  document.getElementById('btnStartRecord').disabled = true;
+  document.getElementById('btnStopRecord').disabled = false;
+  const badge = document.getElementById('recordingBadge');
+  badge.textContent = '● Đang ghi mẫu (1/giây)';
+  badge.style.background = 'rgba(239, 68, 68, 0.2)';
+  badge.style.color = '#f87171';
+  badge.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+}
+
+function stopRecording() {
+  isRecording = false;
+  document.getElementById('btnStartRecord').disabled = false;
+  document.getElementById('btnStopRecord').disabled = true;
+  const badge = document.getElementById('recordingBadge');
+  badge.textContent = 'Đang dừng ghi';
+  badge.style.background = 'rgba(156, 163, 175, 0.2)';
+  badge.style.color = 'var(--muted)';
+  badge.style.border = 'none';
+}
+
+function clearHistory() {
+  if (benchmarkHistory.length > 0 && !confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử benchmark hiện tại?')) {
+    return;
+  }
+  benchmarkHistory = [];
+  renderHistoryTable();
+  updateHistoryStats();
+}
+
+function recordBenchmarkSample(pPrint, pLive, pReplay, latency) {
+  const d = new Date();
+  const timeStr = d.toTimeString().split(' ')[0] + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  const livePct = (pLive * 100);
+  const replayPct = (pReplay * 100);
+  const printPct = (pPrint * 100);
+  const isLive90 = livePct >= 90.0;
+
+  let verdictText = '';
+  if (isLive90) {
+    verdictText = 'LIVE ≥ 90% (Vượt ngưỡng test)';
+  } else if (pLive > pPrint && pLive > pReplay && pLive >= 0.50) {
+    verdictText = 'LIVE (Người thật)';
+  } else if (pReplay >= pPrint) {
+    verdictText = 'Spoof (Màn hình)';
+  } else {
+    verdictText = 'Spoof (Ảnh in)';
+  }
+
+  const sample = {
+    index: benchmarkHistory.length + 1,
+    time: timeStr,
+    source: getSourceName(),
+    pPrint: printPct.toFixed(1),
+    pLive: livePct.toFixed(1),
+    pReplay: replayPct.toFixed(1),
+    latency: latency,
+    isLive90: isLive90,
+    verdict: verdictText
+  };
+
+  benchmarkHistory.unshift(sample); // Đưa mẫu mới nhất lên đầu bảng
+  renderHistoryTable();
+  updateHistoryStats();
+}
+
+function updateHistoryStats() {
+  const total = benchmarkHistory.length;
+  const live90Count = benchmarkHistory.filter(s => s.isLive90).length;
+  const replay50Count = benchmarkHistory.filter(s => parseFloat(s.pReplay) >= 50.0).length;
+  const print50Count = benchmarkHistory.filter(s => parseFloat(s.pPrint) >= 50.0).length;
+
+  const live90Pct = total > 0 ? ((live90Count / total) * 100).toFixed(1) : '0.0';
+  const replay50Pct = total > 0 ? ((replay50Count / total) * 100).toFixed(1) : '0.0';
+  const print50Pct = total > 0 ? ((print50Count / total) * 100).toFixed(1) : '0.0';
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statLive90').textContent = `${live90Count} (${live90Pct}%)`;
+  document.getElementById('statReplay50').textContent = `${replay50Count} (${replay50Pct}%)`;
+  document.getElementById('statPrint50').textContent = `${print50Count} (${print50Pct}%)`;
+}
+
+function renderHistoryTable() {
+  const tbody = document.getElementById('historyTableBody');
+  if (benchmarkHistory.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--muted);">Chưa có mẫu nào được ghi. Bấm <b>"Bắt đầu ghi"</b> để tự động thu thập kết quả (1 mẫu / giây).</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = benchmarkHistory.map(s => {
+    const rowClass = s.isLive90 ? 'class="row-live90"' : '';
+    const verdictBadge = s.isLive90 
+      ? `<span class="tag-live90">⚡ LIVE ≥ 90%</span>`
+      : (s.verdict.startsWith('LIVE') ? `<span style="color:var(--live); font-weight:700;">✅ ${s.verdict}</span>` : `<span class="tag-spoof">${s.verdict}</span>`);
+
+    return `<tr ${rowClass}>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace;">${s.index}</td>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace;">${s.time}</td>
+      <td style="padding:7px 12px;">${s.source}</td>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace; color:var(--spoof); font-weight:600;">${s.pPrint}%</td>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace; color:var(--live); font-weight:700;">${s.pLive}%</td>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace; color:var(--warn); font-weight:600;">${s.pReplay}%</td>
+      <td style="padding:7px 12px; font-family:'JetBrains Mono',monospace; color:var(--muted);">${s.latency} ms</td>
+      <td style="padding:7px 12px;">${verdictBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV() {
+  if (benchmarkHistory.length === 0) {
+    return alert('Chưa có dữ liệu nào trong lịch sử để xuất CSV!');
+  }
+
+  const headers = ['STT', 'Thoi_Gian', 'Nguon_Camera', 'Print_Percent', 'LIVE_Percent', 'Replay_Percent', 'Latency_ms', 'LIVE_Tren_90_Pct', 'Danh_Gia_So_Bo'];
+  const rows = benchmarkHistory.slice().reverse().map(s => [
+    s.index,
+    `"${s.time}"`,
+    `"${s.source}"`,
+    s.pPrint,
+    s.pLive,
+    s.pReplay,
+    s.latency,
+    s.isLive90 ? 'YES' : 'NO',
+    `"${s.verdict}"`
+  ]);
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const d = new Date();
+  const fileDate = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+  link.setAttribute('href', url);
+  link.setAttribute('download', `minifasnet_benchmark_${fileDate}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// Bắt đầu nạp mô hình ngay khi mở trang
+window.addEventListener('DOMContentLoaded', initBenchmark);
+</script>
+
+</body>
+</html>

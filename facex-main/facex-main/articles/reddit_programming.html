@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>I spent 6 months writing a face embedding engine in C + AVX2 that beats ONNX Runtime by 23%</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1b; color: #d7dadc; line-height: 1.8; }
+.post { max-width: 780px; margin: 30px auto; background: #1a1a1b; padding: 20px 32px 40px; }
+.subreddit { color: #818384; font-size: 13px; margin-bottom: 6px; }
+.subreddit span { color: #d7dadc; font-weight: 600; }
+h1 { font-size: 22px; color: #d7dadc; margin-bottom: 16px; line-height: 1.4; }
+h2 { font-size: 18px; color: #d7dadc; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #343536; }
+h3 { font-size: 15px; color: #d7dadc; margin: 20px 0 8px; }
+p { margin-bottom: 14px; font-size: 15px; }
+strong { color: #fff; }
+a { color: #4fbcff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+blockquote { border-left: 4px solid #4fbcff; padding: 8px 16px; margin: 14px 0; background: #222; border-radius: 0 4px 4px 0; color: #b0b3b8; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+th { text-align: left; padding: 8px 12px; background: #272729; color: #818384; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 8px 12px; border-bottom: 1px solid #343536; }
+td:first-child { color: #818384; }
+tr:hover td { background: #222; }
+.highlight td { color: #4fbcff; font-weight: 600; }
+pre { background: #272729; padding: 16px; border-radius: 6px; overflow-x: auto; margin: 14px 0; font-size: 13px; line-height: 1.6; }
+code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; color: #ce9178; }
+pre code { color: #d4d4d4; }
+.keyword { color: #569cd6; }
+.type { color: #4ec9b0; }
+.string { color: #ce9178; }
+.comment { color: #6a9955; }
+.func { color: #dcdcaa; }
+.number { color: #b5cea8; }
+ul, ol { margin: 10px 0 14px 24px; font-size: 15px; }
+li { margin-bottom: 6px; }
+li strong { color: #4fbcff; }
+hr { border: none; border-top: 1px solid #343536; margin: 28px 0; }
+.meta { color: #818384; font-size: 13px; margin-top: 20px; padding-top: 12px; border-top: 1px solid #343536; }
+.tag { display: inline-block; background: #272729; color: #818384; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="post">
+
+<div class="subreddit">
+  <span>r/programming</span> · Posted by u/bauratynov
+</div>
+
+<h1>I spent 6 months writing a face embedding engine in C + AVX2 that beats ONNX Runtime by 23%</h1>
+
+<p>I wrote a face embedding library in pure C99 with handwritten SIMD kernels. It runs <strong>23% faster than ONNX Runtime</strong> on the same model and CPU.</p>
+
+<h2>The numbers</h2>
+
+<table>
+<tr><th></th><th>FaceX</th><th>ONNX Runtime</th></tr>
+<tr class="highlight"><td>Median latency</td><td><strong>3.0 ms</strong></td><td>3.9 ms</td></tr>
+<tr class="highlight"><td>Min latency</td><td><strong>2.87 ms</strong></td><td>3.18 ms</td></tr>
+<tr><td>Library size</td><td><strong>148 KB</strong></td><td>28 MB</td></tr>
+<tr><td>Total w/ weights</td><td><strong>7 MB</strong></td><td>157 MB</td></tr>
+<tr><td>Dependencies</td><td><strong>zero</strong></td><td>Python + onnxruntime</td></tr>
+<tr><td>LFW accuracy</td><td><strong>99.73%</strong></td><td>99.73%</td></tr>
+</table>
+
+<blockquote>Tested on Intel i5-11500, same model (EdgeFace-XS 1.77M params), same input.</blockquote>
+
+<h2>API — 4 functions, one header</h2>
+
+<pre><code><span class="comment">// Include the single header</span>
+<span class="keyword">#include</span> <span class="string">"facex.h"</span>
+
+<span class="comment">// Initialize (~100ms, once)</span>
+<span class="type">FaceX</span>* fx = <span class="func">facex_init</span>(<span class="string">"weights.bin"</span>, NULL);
+
+<span class="comment">// Compute embedding (3ms per call)</span>
+<span class="keyword">float</span> embedding[<span class="number">512</span>];
+<span class="func">facex_embed</span>(fx, rgb_112x112, embedding);
+
+<span class="comment">// Compare two faces</span>
+<span class="keyword">float</span> sim = <span class="func">facex_similarity</span>(emb_a, emb_b);
+<span class="comment">// sim > 0.3 → same person</span>
+
+<span class="func">facex_free</span>(fx);</code></pre>
+
+<h2>Optimization journey: 24ms → 3ms</h2>
+
+<p>Started with a naive C port of the ONNX graph. <strong>24ms.</strong> Profiled every operation and found the surprising bottleneck:</p>
+
+<blockquote><strong>Matrix multiplication was only 6% of total inference time.</strong></blockquote>
+
+<p>The real killers were:</p>
+
+<ul>
+  <li><strong>LayerNorm × 17 blocks</strong> — scalar mean/variance loop → custom AVX2 fused single-pass</li>
+  <li><strong>GELU × 17</strong> — naive <code>tanh()</code> via math.h → polynomial erf with custom <code>_mm256_exp_ps</code></li>
+  <li><strong>Depthwise conv</strong> — HWC↔CHW transposes on every block → native HWC layout, <strong>zero transposes</strong></li>
+  <li><strong>MatMul</strong> → INT8 GEMM with <code>vpmaddubsw</code> (AVX2) and <code>vpdpbusd</code> (AVX-512 VNNI)</li>
+  <li><strong>Memory</strong> → pre-packed weights, static workspace, no <code>malloc</code> per call</li>
+</ul>
+
+<h3>The timeline</h3>
+
+<table>
+<tr><th>Phase</th><th>Time</th><th>What changed</th></tr>
+<tr><td>Naive C port</td><td>24 ms</td><td>Just works</td></tr>
+<tr><td>SIMD kernels</td><td>8 ms</td><td>AVX2 for LN, GELU, conv</td></tr>
+<tr><td>MatMul optimization</td><td>5 ms</td><td>INT8 GEMM, packed FP32, thread pool</td></tr>
+<tr class="highlight"><td>Final polish</td><td><strong>3 ms</strong></td><td>Eliminated transposes, pre-computed constants</td></tr>
+</table>
+
+<blockquote>The last 2ms took 4 months. The first 16ms took 2 weeks.</blockquote>
+
+<h2>7 accuracy bugs</h2>
+
+<p>The hardest part — matching ONNX output exactly. <code>cos_sim</code> started at <strong>0.067</strong> (garbage). Found 7 bugs through per-layer intermediate dumps:</p>
+
+<ol>
+  <li><strong>Wrong gamma index</strong> — used W(38) instead of W(39) in one block</li>
+  <li><strong>XCA residual</strong> — wrong residual connections in attention</li>
+  <li><strong>XCA DW conv</strong> — should be cascaded, not independent</li>
+  <li><strong>Position embedding</strong> — it's a CONSTANT, not a function of input</li>
+  <li><strong>XCA attention</strong> — full C×C instead of per-head [head_dim × head_dim]</li>
+  <li><strong>Workspace overlap</strong> — buffers overlapped at head_dim=48</li>
+  <li><strong>GELU drift</strong> — tanh approximation accumulated error through 17 blocks</li>
+</ol>
+
+<p>Each fix: <strong>+0.1 cos_sim</strong>. Seven fixes → <strong>1.0.</strong></p>
+
+<hr>
+
+<p><strong>Tech:</strong> C99, ~4000 LOC, AVX2/FMA/AVX-512 VNNI. Apache 2.0.</p>
+<p><strong>GitHub:</strong> <a href="https://github.com/facex-engine/facex">https://github.com/facex-engine/facex</a></p>
+<p>Solo dev from Kazakhstan, funded by NLnet grant. AMA about the SIMD kernels or accuracy debugging.</p>
+
+<div class="meta">
+  <span class="tag">C99</span>
+  <span class="tag">SIMD</span>
+  <span class="tag">face-recognition</span>
+  <span class="tag">performance</span>
+  <span class="tag">open-source</span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,112 @@
+  0 420                                                (432,) 432 params
+  1 421                                                (16,) 16 params
+  2 423                                                (144,) 144 params
+  3 424                                                (16,) 16 params
+  4 426                                                (144,) 144 params
+  5 427                                                (16,) 16 params
+  6 429                                                (288,) 288 params
+  7 430                                                (32,) 32 params
+  8 432                                                (288,) 288 params
+  9 433                                                (32,) 32 params
+ 10 435                                                (576,) 576 params
+ 11 436                                                (64,) 64 params
+ 12 438                                                (576,) 576 params
+ 13 439                                                (64,) 64 params
+ 14 441                                                (576,) 576 params
+ 15 442                                                (64,) 64 params
+ 16 444                                                (576,) 576 params
+ 17 445                                                (64,) 64 params
+ 18 447                                                (576,) 576 params
+ 19 448                                                (64,) 64 params
+ 20 450                                                (576,) 576 params
+ 21 451                                                (64,) 64 params
+ 22 453                                                (576,) 576 params
+ 23 454                                                (64,) 64 params
+ 24 456                                                (576,) 576 params
+ 25 457                                                (64,) 64 params
+ 26 459                                                (576,) 576 params
+ 27 460                                                (64,) 64 params
+ 28 462                                                (576,) 576 params
+ 29 463                                                (64,) 64 params
+ 30 464                                                (4,) 4 params
+ 31 465                                                (4,) 4 params
+ 32 backbone.model0.conv2.conv1.bias                   (16,) 16 params
+ 33 backbone.model0.conv2.conv1.weight                 (256,) 256 params
+ 34 backbone.model1.conv1.conv1.bias                   (16,) 16 params
+ 35 backbone.model1.conv1.conv1.weight                 (256,) 256 params
+ 36 backbone.model1.conv2.conv1.bias                   (32,) 32 params
+ 37 backbone.model1.conv2.conv1.weight                 (512,) 512 params
+ 38 backbone.model2.conv1.conv1.bias                   (32,) 32 params
+ 39 backbone.model2.conv1.conv1.weight                 (1024,) 1024 params
+ 40 backbone.model2.conv2.conv1.bias                   (64,) 64 params
+ 41 backbone.model2.conv2.conv1.weight                 (2048,) 2048 params
+ 42 backbone.model3.conv1.conv1.bias                   (64,) 64 params
+ 43 backbone.model3.conv1.conv1.weight                 (4096,) 4096 params
+ 44 backbone.model3.conv2.conv1.bias                   (64,) 64 params
+ 45 backbone.model3.conv2.conv1.weight                 (4096,) 4096 params
+ 46 backbone.model4.conv1.conv1.bias                   (64,) 64 params
+ 47 backbone.model4.conv1.conv1.weight                 (4096,) 4096 params
+ 48 backbone.model4.conv2.conv1.bias                   (64,) 64 params
+ 49 backbone.model4.conv2.conv1.weight                 (4096,) 4096 params
+ 50 backbone.model5.conv1.conv1.bias                   (64,) 64 params
+ 51 backbone.model5.conv1.conv1.weight                 (4096,) 4096 params
+ 52 backbone.model5.conv2.conv1.bias                   (64,) 64 params
+ 53 backbone.model5.conv2.conv1.weight                 (4096,) 4096 params
+ 54 bbox_head.multi_level_bbox.0.conv1.bias            (4,) 4 params
+ 55 bbox_head.multi_level_bbox.0.conv1.weight          (256,) 256 params
+ 56 bbox_head.multi_level_bbox.0.conv2.bias            (4,) 4 params
+ 57 bbox_head.multi_level_bbox.0.conv2.weight          (36,) 36 params
+ 58 bbox_head.multi_level_bbox.1.conv1.bias            (4,) 4 params
+ 59 bbox_head.multi_level_bbox.1.conv1.weight          (256,) 256 params
+ 60 bbox_head.multi_level_bbox.1.conv2.bias            (4,) 4 params
+ 61 bbox_head.multi_level_bbox.1.conv2.weight          (36,) 36 params
+ 62 bbox_head.multi_level_bbox.2.conv1.bias            (4,) 4 params
+ 63 bbox_head.multi_level_bbox.2.conv1.weight          (256,) 256 params
+ 64 bbox_head.multi_level_bbox.2.conv2.bias            (4,) 4 params
+ 65 bbox_head.multi_level_bbox.2.conv2.weight          (36,) 36 params
+ 66 bbox_head.multi_level_cls.0.conv1.bias             (1,) 1 params
+ 67 bbox_head.multi_level_cls.0.conv1.weight           (64,) 64 params
+ 68 bbox_head.multi_level_cls.0.conv2.bias             (1,) 1 params
+ 69 bbox_head.multi_level_cls.0.conv2.weight           (9,) 9 params
+ 70 bbox_head.multi_level_cls.1.conv1.bias             (1,) 1 params
+ 71 bbox_head.multi_level_cls.1.conv1.weight           (64,) 64 params
+ 72 bbox_head.multi_level_cls.1.conv2.bias             (1,) 1 params
+ 73 bbox_head.multi_level_cls.1.conv2.weight           (9,) 9 params
+ 74 bbox_head.multi_level_cls.2.conv1.bias             (1,) 1 params
+ 75 bbox_head.multi_level_cls.2.conv1.weight           (64,) 64 params
+ 76 bbox_head.multi_level_cls.2.conv2.bias             (1,) 1 params
+ 77 bbox_head.multi_level_cls.2.conv2.weight           (9,) 9 params
+ 78 bbox_head.multi_level_kps.0.conv1.bias             (10,) 10 params
+ 79 bbox_head.multi_level_kps.0.conv1.weight           (640,) 640 params
+ 80 bbox_head.multi_level_kps.0.conv2.bias             (10,) 10 params
+ 81 bbox_head.multi_level_kps.0.conv2.weight           (90,) 90 params
+ 82 bbox_head.multi_level_kps.1.conv1.bias             (10,) 10 params
+ 83 bbox_head.multi_level_kps.1.conv1.weight           (640,) 640 params
+ 84 bbox_head.multi_level_kps.1.conv2.bias             (10,) 10 params
+ 85 bbox_head.multi_level_kps.1.conv2.weight           (90,) 90 params
+ 86 bbox_head.multi_level_kps.2.conv1.bias             (10,) 10 params
+ 87 bbox_head.multi_level_kps.2.conv1.weight           (640,) 640 params
+ 88 bbox_head.multi_level_kps.2.conv2.bias             (10,) 10 params
+ 89 bbox_head.multi_level_kps.2.conv2.weight           (90,) 90 params
+ 90 bbox_head.multi_level_obj.0.conv1.bias             (1,) 1 params
+ 91 bbox_head.multi_level_obj.0.conv1.weight           (64,) 64 params
+ 92 bbox_head.multi_level_obj.0.conv2.bias             (1,) 1 params
+ 93 bbox_head.multi_level_obj.0.conv2.weight           (9,) 9 params
+ 94 bbox_head.multi_level_obj.1.conv1.bias             (1,) 1 params
+ 95 bbox_head.multi_level_obj.1.conv1.weight           (64,) 64 params
+ 96 bbox_head.multi_level_obj.1.conv2.bias             (1,) 1 params
+ 97 bbox_head.multi_level_obj.1.conv2.weight           (9,) 9 params
+ 98 bbox_head.multi_level_obj.2.conv1.bias             (1,) 1 params
+ 99 bbox_head.multi_level_obj.2.conv1.weight           (64,) 64 params
+100 bbox_head.multi_level_obj.2.conv2.bias             (1,) 1 params
+101 bbox_head.multi_level_obj.2.conv2.weight           (9,) 9 params
+102 neck.lateral_convs.0.conv1.bias                    (64,) 64 params
+103 neck.lateral_convs.0.conv1.weight                  (4096,) 4096 params
+104 neck.lateral_convs.1.conv1.bias                    (64,) 64 params
+105 neck.lateral_convs.1.conv1.weight                  (4096,) 4096 params
+106 neck.lateral_convs.2.conv1.bias                    (64,) 64 params
+107 neck.lateral_convs.2.conv1.weight                  (4096,) 4096 params
+108 240                                                (0,) 0 params
+109 290                                                (3,) 3 params
+110 362                                                (3,) 3 params
+111 395                                                (3,) 3 params

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FaceX — Threads</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #fff; line-height: 1.7; }
+.container { max-width: 540px; margin: 0 auto; padding: 20px 16px; }
+h1 { text-align: center; font-size: 20px; margin: 30px 0 6px; }
+.sub { text-align: center; color: #777; font-size: 13px; margin-bottom: 30px; }
+
+.thread { border-bottom: 1px solid #222; padding: 24px 0; }
+.thread-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ava { width: 38px; height: 38px; background: #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+.uname { font-weight: 600; font-size: 14px; }
+.time { color: #777; font-size: 13px; margin-left: auto; }
+.thread-body { font-size: 15px; line-height: 1.8; padding-left: 48px; }
+.thread-body p { margin-bottom: 13px; }
+.thread-body a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.day { text-align: center; color: #444; font-size: 11px; padding: 20px 0 4px; letter-spacing: 2px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Threads</h1>
+<p class="sub">10 постов · EN + RU</p>
+
+<!-- 1 -->
+<div class="day">— 1 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>When your phone unlocks by looking at your face — there's a neural network behind that. It turns your face into a list of 512 numbers. Then it compares those numbers with the ones it stored when you first set it up.</p>
+<p>That neural network usually needs a big framework to run. Python. ONNX Runtime. Hundreds of megabytes.</p>
+<p>I rewrote the whole thing in C. From scratch. By hand. It takes 3 milliseconds and fits in 148 kilobytes.</p>
+<p>That's faster than Microsoft's version.</p>
+<p><a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Когда ваш телефон разблокируется по лицу — за этим стоит нейросеть. Она превращает лицо в список из 512 чисел. Потом сравнивает эти числа с теми что запомнила при первой настройке.</p>
+<p>Обычно для запуска такой нейросети нужен большой фреймворк. Python. ONNX Runtime. Сотни мегабайт.</p>
+<p>Я переписал всё это на C. С нуля. Вручную. Работает за 3 миллисекунды и помещается в 148 килобайт.</p>
+<p>Это быстрее чем версия Microsoft.</p>
+<p><a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+</div>
+
+<!-- 2 -->
+<div class="day">— 2 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>Microsoft has dozens of engineers working on their neural network runtime. It's called ONNX Runtime. It's the industry standard. Banks use it. Hospitals use it. Governments use it.</p>
+<p>I'm one developer. From Kazakhstan. Working from home.</p>
+<p>My engine processes a face in 3.0 milliseconds. Theirs takes 3.9.</p>
+<p>My engine is 148 kilobytes. Theirs is 28 megabytes.</p>
+<p>My engine needs nothing installed. Theirs needs Python and a package manager.</p>
+<p>How? I only optimize for one neural network. They optimize for ten thousand.</p>
+<p>A scalpel beats a Swiss army knife — when you know exactly what you're cutting.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>У Microsoft десятки инженеров работают над ONNX Runtime. Это стандарт индустрии. Его используют банки. Больницы. Правительства.</p>
+<p>Я — один разработчик. Из Казахстана. Работаю из дома.</p>
+<p>Мой движок обрабатывает лицо за 3.0 миллисекунды. Их — за 3.9.</p>
+<p>Мой движок — 148 килобайт. Их — 28 мегабайт.</p>
+<p>Мой движок не требует установки. Их — Python и менеджер пакетов.</p>
+<p>Как? Я оптимизирую под одну нейросеть. Они — под десять тысяч.</p>
+<p>Скальпель побеждает швейцарский нож — когда точно знаешь что режешь.</p>
+</div>
+</div>
+
+<!-- 3 -->
+<div class="day">— 3 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>My first attempt ran at 24 milliseconds. The goal was under 4. I was six times too slow.</p>
+<p>So I did what engineers do — I measured every single operation inside the neural network. There are about 300 of them. Matrix multiplications, normalizations, activation functions, memory copies.</p>
+<p>Everyone on the internet said "optimize the matrix multiplication, that's where all the time goes in neural networks."</p>
+<p>I measured. Matrix multiplication was 6 percent of total time. Six.</p>
+<p>The slow parts were the boring stuff nobody writes papers about. Computing averages. Converting memory layouts. Calculating activation functions one number at a time.</p>
+<p>I rewrote every single one using processor instructions that work on 8 or 16 numbers simultaneously. Took six months. Got to 3 milliseconds.</p>
+<p>The answer was where nobody was looking.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Первая версия работала за 24 миллисекунды. Цель — меньше 4. Я был в шесть раз медленнее.</p>
+<p>Сделал то что делают инженеры — замерил каждую из ~300 операций внутри нейросети. Матричные умножения, нормализации, функции активации, копирование памяти.</p>
+<p>Все в интернете писали: "оптимизируй матричное умножение, туда уходит всё время в нейросетях."</p>
+<p>Замерил. Матричное умножение — 6 процентов общего времени. Шесть.</p>
+<p>Тормозили скучные вещи о которых никто не пишет статей. Вычисление средних. Конвертация раскладок памяти. Подсчёт функций активации по одному числу за раз.</p>
+<p>Переписал каждую используя инструкции процессора которые работают с 8 или 16 числами одновременно. Заняло шесть месяцев. Добился 3 миллисекунд.</p>
+<p>Ответ был там где никто не искал.</p>
+</div>
+</div>
+
+<!-- 4 -->
+<div class="day">— 4 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>Making my engine fast was hard. Making it accurate was harder.</p>
+<p>After the speed optimizations, my engine looked at a face and produced 512 numbers. The reference model produced 512 different numbers. They should have been identical.</p>
+<p>The similarity between them was 0.067 out of 1.0. Basically random noise.</p>
+<p>I spent three weeks comparing every single number at every single layer — 286 checkpoints — between my code and a reference implementation. Found seven bugs. Each one tiny. Each one invisible. Together they turned signal into garbage.</p>
+<p>The most devious: a part of the network that looked like it depended on the input image actually didn't. It was a constant. I was recomputing it every time, and tiny rounding errors accumulated through 17 layers until the output was meaningless.</p>
+<p>Seven fixes later: 1.000 similarity. Exact match.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Сделать движок быстрым было сложно. Сделать его точным — сложнее.</p>
+<p>После оптимизации скорости движок смотрел на лицо и выдавал 512 чисел. Эталонная модель выдавала 512 других чисел. Они должны были совпадать.</p>
+<p>Сходство между ними — 0.067 из 1.0. По сути случайный шум.</p>
+<p>Три недели я сравнивал каждое число на каждом из 286 слоёв между моим кодом и эталоном. Нашёл семь багов. Каждый крошечный. Каждый невидимый. Вместе они превращали сигнал в мусор.</p>
+<p>Самый коварный: часть сети выглядела так, будто зависит от входного изображения. На самом деле нет. Это была константа. Я пересчитывал её каждый раз, и крошечные ошибки округления накапливались через 17 слоёв, пока результат не терял смысл.</p>
+<p>Семь исправлений: 1.000. Точное совпадение.</p>
+</div>
+</div>
+
+<!-- 5 -->
+<div class="day">— 5 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>The fastest CPU face recognition engine in the world was built in Kazakhstan.</p>
+<p>Not in Silicon Valley where Google and Meta sit. Not in Seattle where Microsoft sits. Not in Beijing where Megvii built Face++. Not in London. Not in Tel Aviv.</p>
+<p>In Kazakhstan. A country most people in tech couldn't place on a map.</p>
+<p>By one person. With an internet connection and a free compiler.</p>
+<p>There's no secret formula. There's no special access. There's no connections or funding rounds. Just a European research grant, time, and stubbornness.</p>
+<p>If you're building something from a country that nobody associates with tech — good. When you ship, the contrast will be the story.</p>
+<p>🇰🇿</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Самый быстрый CPU движок распознавания лиц в мире создан в Казахстане.</p>
+<p>Не в Кремниевой долине где сидят Google и Meta. Не в Сиэтле где Microsoft. Не в Пекине где Megvii сделали Face++. Не в Лондоне. Не в Тель-Авиве.</p>
+<p>В Казахстане. Стране которую большинство людей в IT не покажут на карте.</p>
+<p>Один человек. Интернет и бесплатный компилятор.</p>
+<p>Нет секретной формулы. Нет особого доступа. Нет связей и раундов инвестиций. Только европейский исследовательский грант, время и упрямство.</p>
+<p>Если вы строите что-то из страны которую никто не ассоциирует с технологиями — хорошо. Когда выпустите продукт, контраст и станет историей.</p>
+<p>🇰🇿</p>
+</div>
+</div>
+
+<!-- 6 -->
+<div class="day">— 6 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>To run face recognition with the standard tools you need to install Python, a package manager, a neural network runtime, numpy, pillow, and download 166 megabytes of model files. Minimum half a gigabyte on disk.</p>
+<p>My version: one file, 7 megabytes, copy to server, run. Done.</p>
+<p>And it's faster.</p>
+<p>Somewhere along the way we decided that software has to be complex. That deploying AI means containers and orchestration and dependency trees.</p>
+<p>It doesn't. Not always. Sometimes it's just a well-written C program and a weights file.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Чтобы запустить распознавание лиц стандартными средствами нужно установить Python, менеджер пакетов, runtime нейросетей, numpy, pillow и скачать 166 мегабайт моделей. Минимум полгигабайта на диске.</p>
+<p>Моя версия: один файл, 7 мегабайт, скопировал на сервер, запустил. Готово.</p>
+<p>И работает быстрее.</p>
+<p>Где-то по пути мы решили что софт обязан быть сложным. Что деплой AI — это контейнеры, оркестрация и деревья зависимостей.</p>
+<p>Не обязан. Не всегда. Иногда это просто хорошо написанная программа на C и файл с весами.</p>
+</div>
+</div>
+
+<!-- 7 -->
+<div class="day">— 7 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>The first 16 milliseconds of optimization took me two weeks. I felt unstoppable. Every morning I'd find a new bottleneck, write a new SIMD kernel, and shave off another millisecond.</p>
+<p>Then I hit 5 milliseconds and everything stopped. Tried assembly language. Tried JIT compilation. Tried different compilers. Tried threading. Tried operation fusion. Four months of trying.</p>
+<p>Then I discovered my CPU had a wider instruction set I wasn't using. AVX-512. Nobody told me. I had to read the processor flags myself.</p>
+<p>Rewrote the hottest kernels. 5 became 3.</p>
+<p>Two lessons: first, the wall isn't always real — sometimes you're just not seeing the door. Second, read your CPU's spec sheet. It knows things your compiler doesn't.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Первые 16 миллисекунд оптимизации заняли две недели. Чувствовал себя непобедимым. Каждое утро находил новое узкое место, писал новое SIMD ядро, срезал ещё миллисекунду.</p>
+<p>Потом упёрся в 5 миллисекунд и всё остановилось. Пробовал ассемблер. JIT компиляцию. Другие компиляторы. Многопоточность. Слияние операций. Четыре месяца попыток.</p>
+<p>Потом обнаружил что мой процессор поддерживает более широкий набор инструкций — AVX-512. Никто не подсказал. Пришлось самому прочитать флаги процессора.</p>
+<p>Переписал самые горячие ядра. 5 стали 3.</p>
+<p>Два урока: стена не всегда настоящая — иногда ты просто не видишь дверь. И второй: читайте спецификацию своего процессора. Он знает то чего не знает ваш компилятор.</p>
+</div>
+</div>
+
+<!-- 8 -->
+<div class="day">— 8 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>My engine recognizes faces with 99.73% accuracy on the standard benchmark. That's the same as models 100 times larger.</p>
+<p>The model I use has 1.77 million parameters. For comparison, a typical ArcFace model has 65 million. GPT-4 has over a trillion.</p>
+<p>1.77 million parameters. Fits in 7 megabytes. Runs in 3 milliseconds. 99.73% accurate.</p>
+<p>Bigger isn't always better. Sometimes the smallest model is the right model — you just have to run it really, really fast.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Мой движок распознаёт лица с точностью 99.73% на стандартном бенчмарке. Столько же дают модели в 100 раз крупнее.</p>
+<p>Модель которую я использую — 1.77 миллиона параметров. Для сравнения: типичный ArcFace — 65 миллионов. GPT-4 — больше триллиона.</p>
+<p>1.77 миллиона параметров. 7 мегабайт. 3 миллисекунды. 99.73% точности.</p>
+<p>Больше — не всегда лучше. Иногда самая маленькая модель и есть правильная — нужно просто запустить её очень, очень быстро.</p>
+</div>
+</div>
+
+<!-- 9 -->
+<div class="day">— 9 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>People ask what tools I used. Here's the full list:</p>
+<p>A text editor. GCC (free). A $200 Intel i5. Six months.</p>
+<p>No cloud compute. No TPUs. No training runs. No team. No office.</p>
+<p>The whole project cost less than one month of AWS bills for a typical ML startup.</p>
+<p>The result beats ONNX Runtime. Open source. Free for everyone.</p>
+<p>You don't need expensive tools to build fast software. You need understanding of the hardware you're running on. That knowledge is free. It's in the Intel manuals. All 4,000 pages of them.</p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Спрашивают какие инструменты использовал. Полный список:</p>
+<p>Текстовый редактор. GCC (бесплатный). Intel i5 за $200. Шесть месяцев.</p>
+<p>Без облачных вычислений. Без TPU. Без тренировок моделей. Без команды. Без офиса.</p>
+<p>Весь проект стоил меньше чем месяц AWS счёта типичного ML стартапа.</p>
+<p>Результат быстрее ONNX Runtime. Open source. Бесплатно для всех.</p>
+<p>Не нужны дорогие инструменты чтобы строить быстрый софт. Нужно понимание железа на котором работаешь. Это знание бесплатно. Оно в мануалах Intel. Все 4000 страниц.</p>
+</div>
+</div>
+
+<!-- 10 -->
+<div class="day">— 10 —</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">EN</div></div>
+<div class="thread-body">
+<p>Six months ago I had an idea and a text editor.</p>
+<p>Today I have the fastest CPU face recognition engine I could find anywhere in the world. Open source. Free. Built entirely in Kazakhstan.</p>
+<p>If you're working on something from a place nobody expects — keep going. The world notices results, not addresses.</p>
+<p>🇰🇿 <a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+</div>
+
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="time">RU</div></div>
+<div class="thread-body">
+<p>Шесть месяцев назад у меня была идея и текстовый редактор.</p>
+<p>Сегодня у меня самый быстрый CPU движок распознавания лиц из всех что я смог найти в мире. Open source. Бесплатный. Полностью сделан в Казахстане.</p>
+<p>Если вы строите что-то из места откуда никто не ждёт — продолжайте. Мир замечает результаты, а не адреса.</p>
+<p>🇰🇿 <a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+</div>
+
+</div>
+</body>
+</html>

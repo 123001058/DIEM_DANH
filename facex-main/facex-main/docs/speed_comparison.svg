@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="280" font-family="system-ui,sans-serif">
+  <style>
+    text { font-size: 13px; fill: #333; }
+    .title { font-size: 16px; font-weight: bold; fill: #1a1a2e; }
+    .label { font-size: 12px; fill: #555; }
+    .val { font-size: 13px; font-weight: bold; }
+  </style>
+
+  <text x="300" y="28" text-anchor="middle" class="title">CPU Inference Latency (ms/face, lower is better)</text>
+
+  <!-- FaceX -->
+  <rect x="140" y="50" width="108" height="32" rx="4" fill="#10b981"/>
+  <text x="130" y="71" text-anchor="end" class="label">FaceX</text>
+  <text x="255" y="71" class="val" fill="#10b981">3.0 ms</text>
+
+  <!-- ONNX Runtime -->
+  <rect x="140" y="92" width="140" height="32" rx="4" fill="#6366f1"/>
+  <text x="130" y="113" text-anchor="end" class="label">ONNX Runtime</text>
+  <text x="287" y="113" class="val" fill="#6366f1">3.9 ms</text>
+
+  <!-- InsightFace R34 -->
+  <rect x="140" y="134" width="306" height="32" rx="4" fill="#f59e0b"/>
+  <text x="130" y="155" text-anchor="end" class="label">InsightFace R34</text>
+  <text x="453" y="155" class="val" fill="#f59e0b">17 ms</text>
+
+  <!-- FaceNet -->
+  <rect x="140" y="176" width="396" height="32" rx="4" fill="#ef4444"/>
+  <text x="130" y="197" text-anchor="end" class="label">FaceNet</text>
+  <text x="543" y="197" class="val" fill="#ef4444">30 ms</text>
+
+  <!-- dlib -->
+  <rect x="140" y="218" width="450" height="32" rx="4" fill="#94a3b8"/>
+  <text x="130" y="239" text-anchor="end" class="label">dlib</text>
+  <text x="564" y="239" class="val" fill="#94a3b8">50+ ms</text>
+
+  <text x="300" y="272" text-anchor="middle" class="label">Intel i5-11500, single thread, 112x112 input, 512-dim output</text>
+</svg>

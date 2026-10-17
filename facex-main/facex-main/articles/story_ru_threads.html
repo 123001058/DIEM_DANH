@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Самая сладкая миллисекунда</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #000; color: #f5f5f5; line-height: 1.8; }
+.container { max-width: 540px; margin: 0 auto; padding: 20px 16px 60px; }
+.thread { padding: 22px 0; }
+.thread + .thread { border-top: 1px solid #1a1a1a; }
+.thread-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ava { width: 38px; height: 38px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; color: #888; }
+.uname { font-weight: 600; font-size: 14px; }
+.dim { color: #555; font-size: 13px; }
+.thread-body { padding-left: 48px; font-size: 15px; line-height: 1.85; }
+.thread-body p { margin-bottom: 14px; color: #e0e0e0; }
+.thread-body a { color: #e0e0e0; text-decoration: underline; text-underline-offset: 3px; }
+.note { text-align: center; color: #333; font-size: 12px; padding: 30px 0 10px; letter-spacing: 2px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="note">thread · 3 поста</div>
+
+<!-- 1 -->
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="dim">1/3</div></div>
+<div class="thread-body">
+<p>Иду в магазин за сладкой булочкой. Мозг заслужил. Сейчас расскажу почему.</p>
+<p>Полгода назад я открыл пустой файл и начал писать движок распознавания лиц на чистом C. С нуля. Каждое умножение вручную. Потому что стандартный способ — это установить Python, скачать ONNX Runtime от Microsoft, подтянуть кучу библиотек. Полгигабайта зависимостей чтобы посмотреть на фотку и сказать "это Бауыржан". Мне показалось что можно проще.</p>
+<p>Первая версия — 24 миллисекунды. Microsoft делает за 3.9. В шесть раз медленнее. Начал профилировать. Весь интернет пишет: тормозит матричное умножение. Замерил. Матричное умножение — шесть процентов. Тормозили скучные операции о которых никто не пишет статей. Переписал каждую вручную на SIMD — инструкции процессора которые считают восемь чисел за раз. 24 стало 8. Потом 5. Потом стена — четыре месяца ничего не помогало. Ассемблер, JIT, три компилятора — всё без толку.</p>
+</div>
+</div>
+
+<!-- 2 -->
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="dim">2/3</div></div>
+<div class="thread-body">
+<p>В обычный вторник в выводе диагностики процессора увидел: мой CPU поддерживает AVX-512. Шестнадцать чисел за раз вместо восьми. Никто не подсказал. Просто никогда не проверял. Переписал ядра — 5 стало 3. Три миллисекунды. Microsoft — 3.9. Я быстрее.</p>
+<p>Но скорость — это была простая часть. После оптимизации движок выдавал мусор. Сходство с эталоном: 0.067 из 1.0. Три недели сравнивал 286 тензоров, число за числом, слой за слоем. Нашёл семь багов. Каждый крошечный. Вместе — катастрофа. Самый коварный: часть сети выглядела так будто зависит от входа. На самом деле — константа. Я пересчитывал её каждый кадр и ошибка копилась через 17 слоёв. Семь фиксов — 0.067 стал 1.000.</p>
+</div>
+</div>
+
+<!-- 3 -->
+<div class="thread">
+<div class="thread-header"><div class="ava">BA</div><div class="uname">bauratynov</div><div class="dim">3/3</div></div>
+<div class="thread-body">
+<p>Итог. 4000 строк C. 3 миллисекунды на лицо. На 23% быстрее Microsoft. 148 килобайт. Ноль зависимостей. 99.73% точности. Скопировал на сервер — работает. Без Python, без Docker, без молитв.</p>
+<p>Сделано в Казахстане. Одним человеком. С бесплатным компилятором. Самый быстрый CPU движок распознавания лиц в мире создан не в Долине и не в Сиэтле — а в стране которую половина мира не найдёт на карте.</p>
+<p>Шесть месяцев. Семь багов. Три миллисекунды. И одна булочка за сто тенге чтобы это отпраздновать. 🇰🇿</p>
+<p><a href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+</div>
+
+</div>
+</body>
+</html>

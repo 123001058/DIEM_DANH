@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FaceX — LinkedIn Posts</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f2ef; color: #333; line-height: 1.7; }
+.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; font-size: 24px; color: #0a66c2; margin: 30px 0 8px; }
+.subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 30px; }
+
+.card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
+.card-header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+.avatar { width: 48px; height: 48px; background: #0a66c2; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 18px; }
+.name { font-weight: 600; font-size: 15px; color: #333; }
+.title-line { font-size: 12px; color: #666; }
+.post-num { background: #e8f4fd; color: #0a66c2; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: auto; }
+.lang-tag { background: #f0f0f0; color: #666; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+
+.card-body { padding: 0 20px 20px; font-size: 15px; line-height: 1.75; color: #333; }
+.card-body p { margin-bottom: 12px; }
+.card-body .bold { font-weight: 700; color: #000; }
+.card-body .stat { font-size: 22px; font-weight: 700; color: #0a66c2; }
+.card-body .link { color: #0a66c2; font-weight: 600; }
+.card-body .quote { border-left: 3px solid #0a66c2; padding: 8px 14px; margin: 12px 0; background: #f8f9fa; color: #555; font-style: italic; }
+.card-body .arrow { color: #0a66c2; font-weight: 600; }
+.card-body .highlight { background: linear-gradient(120deg, #e8f4fd 0%, #e8f4fd 100%); padding: 2px 4px; border-radius: 3px; }
+
+.hashtags { padding: 12px 20px; border-top: 1px solid #f0f0f0; color: #0a66c2; font-size: 13px; font-weight: 600; }
+
+.sep { text-align: center; padding: 16px; color: #999; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>LinkedIn — 5 Posts</h1>
+<p class="subtitle">Один пост в день · EN + RU версии</p>
+
+<!-- ===== POST 1 EN ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">1/5</span>
+  <span class="lang-tag">EN</span>
+</div>
+<div class="card-body">
+<p>I just open-sourced a project I've been working on for 6 months.</p>
+
+<p><span class="bold">FaceX</span> is a face embedding library written in pure C.<br>
+No Python. No ONNX Runtime. No dependencies at all.</p>
+
+<p>It runs face recognition at <span class="stat">3ms</span> per face on CPU.<br>
+That's <span class="highlight">23% faster</span> than Microsoft's ONNX Runtime.</p>
+
+<p>The entire library is <span class="bold">148 KB</span>.</p>
+
+<p>How did one person beat a Microsoft product?</p>
+
+<p>By optimizing for <span class="bold">one</span> specific model instead of thousands.</p>
+
+<p>ONNX Runtime is a general-purpose inference engine.<br>
+FaceX is a scalpel — every SIMD instruction hand-picked for the EdgeFace-XS architecture.</p>
+
+<p><span class="bold">4 functions. One header file. Apache 2.0.</span></p>
+
+<p><span class="arrow">→</span> <a class="link" href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+<div class="hashtags">#FacialRecognition #ComputerVision #EdgeAI #MachineLearning #OpenSource #Performance</div>
+</div>
+
+<!-- ===== POST 1 RU ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">1/5</span>
+  <span class="lang-tag">RU</span>
+</div>
+<div class="card-body">
+<p>Выложил в open source проект над которым работал полгода.</p>
+
+<p><span class="bold">FaceX</span> — библиотека эмбеддинга лиц на чистом C.<br>
+Без Python. Без ONNX Runtime. Вообще без зависимостей.</p>
+
+<p><span class="stat">3мс</span> на лицо на CPU.<br>
+На <span class="highlight">23% быстрее</span> ONNX Runtime от Microsoft.</p>
+
+<p>Вся библиотека — <span class="bold">148 КБ</span>.</p>
+
+<p>Как один человек обогнал продукт Microsoft?</p>
+
+<p>Оптимизация под <span class="bold">одну</span> конкретную модель вместо тысяч.</p>
+
+<p>ONNX Runtime — универсальный движок.<br>
+FaceX — скальпель. Каждая SIMD инструкция подобрана под архитектуру EdgeFace-XS.</p>
+
+<p><span class="bold">4 функции. Один заголовочный файл. Apache 2.0.</span></p>
+
+<p><span class="arrow">→</span> <a class="link" href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+<div class="hashtags">#РаспознаваниеЛиц #AI #OpenSource #Производительность #EdgeAI</div>
+</div>
+
+<div class="sep">— день 2 —</div>
+
+<!-- ===== POST 2 EN ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">2/5</span>
+  <span class="lang-tag">EN</span>
+</div>
+<div class="card-body">
+<p>How I went from <span class="bold">24ms</span> to <span class="bold">3ms</span> in face recognition inference.</p>
+
+<p>6 months ago I started porting a neural network from ONNX to C.</p>
+
+<p>Week 1: naive port. 24ms. Works, but 7x slower than ONNX Runtime.</p>
+
+<p>I profiled every operation. The surprise?</p>
+
+<div class="quote">Matrix multiplication was only 6% of inference time.</div>
+
+<p>The real killers:</p>
+
+<p><span class="arrow">→</span> Layer normalization — 17 calls, scalar loops<br>
+<span class="arrow">→</span> GELU activation — naive tanh through math.h<br>
+<span class="arrow">→</span> Memory transposes — layout conversions on every block</p>
+
+<p>So I wrote custom SIMD kernels for each operation.<br>
+AVX2 for everything. AVX-512 where available.<br>
+INT8 quantized GEMM with per-channel scaling.</p>
+
+<p><span class="stat">24ms → 8ms → 5ms → 3ms</span></p>
+
+<p>The last 2ms took <span class="bold">4 months</span>.<br>
+The first 16ms took <span class="bold">2 weeks</span>.</p>
+
+<p><span class="bold">That's optimization in a nutshell.</span></p>
+</div>
+<div class="hashtags">#Optimization #SIMD #Performance #DeepLearning #CProgramming</div>
+</div>
+
+<!-- ===== POST 2 RU ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">2/5</span>
+  <span class="lang-tag">RU</span>
+</div>
+<div class="card-body">
+<p>Как я ускорил inference с <span class="bold">24мс</span> до <span class="bold">3мс</span>.</p>
+
+<p>Полгода назад начал портировать нейросеть из ONNX в C.</p>
+
+<p>Неделя 1: наивный порт. 24мс. В 7 раз медленнее ONNX Runtime.</p>
+
+<div class="quote">Матричное умножение — всего 6% времени.</div>
+
+<p>Настоящие убийцы:</p>
+
+<p><span class="arrow">→</span> LayerNorm — 17 вызовов, скалярные циклы<br>
+<span class="arrow">→</span> GELU — наивный tanh через math.h<br>
+<span class="arrow">→</span> Транспозы — HWC↔CHW на каждом блоке</p>
+
+<p><span class="stat">24мс → 8мс → 5мс → 3мс</span></p>
+
+<p>Последние 2мс заняли <span class="bold">4 месяца</span>.<br>
+Первые 16мс — <span class="bold">2 недели</span>.</p>
+
+<p><span class="bold">Вот что такое оптимизация.</span></p>
+</div>
+<div class="hashtags">#Оптимизация #AI #Производительность</div>
+</div>
+
+<div class="sep">— день 3 —</div>
+
+<!-- ===== POST 3 EN ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">3/5</span>
+  <span class="lang-tag">EN</span>
+</div>
+<div class="card-body">
+<p>The hardest part of beating ONNX Runtime wasn't speed.<br>
+<span class="bold">It was accuracy.</span></p>
+
+<p>My C engine produced garbage embeddings.<br>
+Cosine similarity with the reference: <span class="stat">0.067</span><br>
+Should be: <span class="stat">1.0</span></p>
+
+<p>I found <span class="bold">7 bugs</span> through per-layer intermediate dumps, comparing every tensor against a NumPy reference.</p>
+
+<p>The most subtle:</p>
+
+<p><span class="bold">①</span> XCA attention computed full C×C matrices instead of per-head [head_dim × head_dim]. The reshape was hidden in the ONNX graph.</p>
+
+<p><span class="bold">②</span> Position embedding was treated as a function of input. It's actually a <span class="highlight">CONSTANT</span> — computed once at load.</p>
+
+<p><span class="bold">③</span> Depthwise conv was independent per-channel. ONNX cascades: conv0 → result → conv1.</p>
+
+<p>Each fix: <span class="bold">+0.1</span> cosine similarity.<br>
+Seven fixes later: <span class="stat">1.0</span></p>
+
+<div class="quote">Lesson: never trust your understanding of a computational graph. Dump intermediates. Compare everything.</div>
+</div>
+<div class="hashtags">#Debugging #NeuralNetworks #MachineLearning #SoftwareEngineering</div>
+</div>
+
+<div class="sep">— день 4 —</div>
+
+<!-- ===== POST 4 EN ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">4/5</span>
+  <span class="lang-tag">EN</span>
+</div>
+<div class="card-body">
+<p>My face recognition library has <span class="bold">zero dependencies</span>.</p>
+
+<p>No Python.<br>No ONNX Runtime.<br>No MKL.<br>No OpenBLAS.<br>No package manager.<br>No version conflicts.</p>
+
+<p><span class="stat">148 KB</span> of C code. That's the entire engine.</p>
+
+<p>Deploy: copy one file. Run.</p>
+
+<p>In a world of 500MB Docker images for "hello world", there's something refreshing about a <span class="bold">7MB binary</span> that does face recognition at 3ms/face.</p>
+
+<p>We forgot that software can be small.<br>
+That inference doesn't need a framework.<br>
+That C is still the fastest language for numerical code.</p>
+
+<div class="quote">Every dependency is a liability.<br>Every framework is someone else's complexity.</div>
+
+<p>Sometimes the best optimization is <span class="bold">deletion</span>.</p>
+
+<p><span class="arrow">→</span> <a class="link" href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+</div>
+<div class="hashtags">#Minimalism #SoftwareDevelopment #Performance #ZeroDependencies</div>
+</div>
+
+<div class="sep">— день 5 —</div>
+
+<!-- ===== POST 5 EN ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">5/5</span>
+  <span class="lang-tag">EN</span>
+</div>
+<div class="card-body">
+<p>I'm a developer from Kazakhstan.</p>
+
+<p>6 months ago I decided to write the fastest CPU face recognition engine in the world.</p>
+
+<div class="quote">
+"ONNX Runtime has dozens of engineers.<br>
+You can't beat Microsoft alone."
+</div>
+
+<p>This week I open-sourced <span class="bold">FaceX</span>.</p>
+
+<p><span class="bold">3.0ms</span> per face. ONNX Runtime does <span class="bold">3.9ms</span>.<br>
+<span class="bold">148 KB</span> binary. They need <span class="bold">28 MB</span>.<br>
+<span class="bold">Zero</span> dependencies. They need Python.</p>
+
+<p>I'm not smarter than Microsoft's engineers.<br>
+I just had a narrower target.</p>
+
+<p>They optimize for 10,000 models.<br>
+I optimized for <span class="bold">one</span>.</p>
+
+<p><span class="stat">Specialization beats generalization.</span><br>
+<span class="stat">Focus beats resources.</span></p>
+
+<p>Funded by NLnet (EU open source grant). Apache 2.0.</p>
+
+<p><span class="arrow">→</span> <a class="link" href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+
+<p>If you're building something alone and people say it can't be done — <span class="bold">keep going</span>.</p>
+</div>
+<div class="hashtags">#Startup #SoloFounder #OpenSource #Kazakhstan #NeverGiveUp</div>
+</div>
+
+<!-- ===== POST 5 RU ===== -->
+<div class="card">
+<div class="card-header">
+  <div class="avatar">BA</div>
+  <div><div class="name">Baurzhan Atinov</div><div class="title-line">Software Engineer · Kazakhstan</div></div>
+  <span class="post-num">5/5</span>
+  <span class="lang-tag">RU</span>
+</div>
+<div class="card-body">
+<p>Я разработчик из Казахстана.</p>
+
+<p>Полгода назад решил написать самый быстрый CPU движок распознавания лиц в мире.</p>
+
+<div class="quote">
+"У ONNX Runtime десятки инженеров.<br>
+Ты не обгонишь Microsoft в одиночку."
+</div>
+
+<p>На этой неделе я выложил <span class="bold">FaceX</span> в open source.</p>
+
+<p><span class="bold">3.0мс</span> на лицо. ONNX Runtime — <span class="bold">3.9мс</span>.<br>
+<span class="bold">148 КБ</span> бинарник. Им нужно <span class="bold">28 МБ</span>.<br>
+<span class="bold">Ноль</span> зависимостей. Им нужен Python.</p>
+
+<p>Я не умнее инженеров Microsoft.<br>
+У меня просто была более узкая цель.</p>
+
+<p>Они оптимизируют под 10 000 моделей.<br>
+Я оптимизировал под <span class="bold">одну</span>.</p>
+
+<p><span class="stat">Специализация бьёт универсальность.</span><br>
+<span class="stat">Фокус бьёт ресурсы.</span></p>
+
+<p>При поддержке NLnet. Apache 2.0.</p>
+
+<p><span class="arrow">→</span> <a class="link" href="https://github.com/facex-engine/facex">github.com/facex-engine/facex</a></p>
+
+<p>Если вы строите что-то в одиночку и говорят что это невозможно — <span class="bold">продолжайте</span>.</p>
+</div>
+<div class="hashtags">#Стартап #OpenSource #Казахстан #Разработка</div>
+</div>
+
+</div>
+</body>
+</html>
