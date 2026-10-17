@@ -481,47 +481,78 @@
     </section>
 
     <!-- ==========================================================
-         VIEW: CAMERA ĐIỂM DANH ESP32 (FACE-CAM)
+         VIEW: CAMERA ĐIỂM DANH & QUẢN LÝ DỮ LIỆU KHUÔN MẶT
          ========================================================== -->
     <section class="app-view" id="view-face-cam">
+      <!-- Top Banner & Chỉ số KPI khuôn mặt -->
       <div class="card" style="padding:18px 20px;margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
           <div>
             <h2 style="font-size:17px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;">
-              <span>📷</span> Camera Điểm danh Khuôn mặt (ESP32-CAM)
+              <span>👤</span> Quản Lý Nhận Diện Khuôn Mặt & Điểm Danh AI
             </h2>
             <p style="font-size:12px;color:var(--muted);margin:4px 0 0;">
-              Nhận diện khuôn mặt tự động qua camera ESP32 và đồng bộ kết quả điểm danh vào phiên trực tiếp.
+              Hệ thống điểm danh khuôn mặt tự động qua camera ESP32-S3, tích hợp MiniFASNet-V2 chống ảnh giả và quản lý dữ liệu sinh viên theo MSSV.
             </p>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminFaceFullscreen" onclick="toggleAdminFaceFullscreen()" title="Bật/Tắt chế độ toàn màn hình">
+            <span id="adminFasnetStatusPill" style="font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);">
+              MiniFASNet: Đang kiểm tra...
+            </span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminFaceFullscreen" onclick="toggleAdminFaceFullscreen()" title="Toàn màn hình">
               <span>⛶</span> Toàn màn hình
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="syncAdminFacesFromSupabase(true)" title="Kéo 5 góc mặt thật từ Server về bộ nhớ AI">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="syncAdminFacesFromSupabase(true)" title="Đồng bộ lại từ Server">
               ☁️ Đồng bộ Server
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="exportAllFaceData()" title="Tải toàn bộ descriptor + ảnh khuôn mặt của sinh viên để huấn luyện">
-              ⬇️ Xuất dữ liệu khuôn mặt (JSON)
+            <button type="button" class="btn btn-secondary btn-sm" onclick="exportAllFaceData()" title="Xuất dữ liệu khuôn mặt">
+              ⬇️ Xuất dữ liệu AI
             </button>
-            <button type="button" class="btn btn-primary btn-sm" onclick="openAdminFaceEnrollModal()" title="Chụp và huấn luyện 5 góc mặt trực tiếp từ Webcam hoặc ESP32">
-              📷 Huấn luyện khuôn mặt SV
+            <button type="button" class="btn btn-primary btn-sm" onclick="openAdminFaceEnrollModal()" title="Mở quản lý ảnh khuôn mặt theo từng MSSV">
+              📷 Quản lý ảnh theo MSSV
             </button>
+          </div>
+        </div>
+
+        <!-- 3 Thẻ thống kê KPI -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px;">
+          <div class="stat">
+            <div class="stat-label">Tổng sinh viên</div>
+            <div class="stat-num blue" id="kpiFaceTotalStudents">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Đã đăng ký khuôn mặt</div>
+            <div class="stat-num green" id="kpiFaceEnrolledCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Chưa có dữ liệu mặt</div>
+            <div class="stat-num gray" id="kpiFaceMissingCount">0</div>
           </div>
         </div>
       </div>
 
-      <div class="card" style="padding:18px 20px;">
-        <!-- Toolbar ESP32 -->
+      <!-- Khung quét nhận diện trực tiếp -->
+      <div class="card" style="padding:18px 20px;margin-bottom:16px;">
+        <!-- Toolbar Camera -->
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <label style="font-size:12px;font-weight:700;">📡 IP ESP32:
-              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:150px;margin-left:4px;">
+            <!-- Chọn nguồn Camera -->
+            <label style="font-size:12px;font-weight:700;">Nguồn Camera:
+              <select id="adminCamSourceSelect" onchange="setAdminCameraSource(this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);margin-left:4px;font-weight:700;">
+                <option value="esp32">1. Camera ESP32-S3 (Stream IP)</option>
+                <option value="webcam">2. Webcam máy tính (Trực tiếp)</option>
+              </select>
             </label>
-            <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminAntiSpoof" onclick="toggleAdminAntiSpoof()" title="Bật/Tắt AI MiniFASNet-V2 chặn ảnh in và màn hình điện thoại">🛡️ AI Chống ảnh 2D: BẬT</button>
-            <label style="font-size:12px;font-weight:700;margin-left:4px;" title="Sau bao nhiêu phút kể từ lúc mở phiên thì tính là đi muộn">⏱️ Đi muộn sau:
+
+            <!-- IP ESP32 -->
+            <span id="adminEspControlsGroup" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="text" id="adminEspIpInput" value="10.96.38.99" placeholder="VD: 10.96.38.99" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:130px;" title="Địa chỉ IP của ESP32-CAM">
+            </span>
+
+            <button type="button" class="btn btn-primary btn-sm" id="btnAdminCamToggle" onclick="toggleAdminCamera()">📡 Bắt đầu quét</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminCamFlip()">🔄 Lật gương</button>
+            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminAntiSpoof" onclick="toggleAdminAntiSpoof()" title="Bật/Tắt chống giả mạo MiniFASNet-V2">🛡️ AI Chống ảnh 2D: BẬT</button>
+            <label style="font-size:12px;font-weight:700;margin-left:4px;" title="Sau bao nhiêu phút thì tính là đi muộn">⏱️ Đi muộn sau:
               <input type="number" id="adminLateMinutesInput" value="15" min="1" max="180" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:55px;text-align:center;font-weight:700;" onchange="saveAdminLateMinutes(this.value)"> phút
             </label>
           </div>
@@ -530,52 +561,106 @@
           </div>
         </div>
 
-        <!-- Khung quét chính: Trái = Camera ESP32, Phải = Lịch sử quét gần nhất -->
-        <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:14px;" class="admin-face-grid">
-          <!-- Cột Camera -->
-          <div style="position:relative;background:#090d16;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:380px;display:flex;align-items:center;justify-content:center;">
-            <!-- Luồng ảnh MJPEG từ ESP32 -->
-            <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
-            <!-- Canvas vẽ khung nhận diện -->
-            <canvas id="adminEspCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
-            
-            <!-- Laser quét -->
-            <div id="adminScanLaser" style="display:none;position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#22c55e,#38bdf8,transparent);box-shadow:0 0 12px #38bdf8;animation:laserSweepAdmin 2.2s ease-in-out infinite;pointer-events:none;"></div>
-            
-            <!-- Placeholder khi chưa kết nối -->
-            <div id="adminEspPlaceholder" style="text-align:center;padding:40px 20px;color:var(--muted);">
-              <div style="font-size:42px;margin-bottom:10px;">📷</div>
-              <div style="font-size:15px;font-weight:700;color:var(--text);">Camera ESP32 chưa kết nối</div>
-              <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Nhập đúng địa chỉ IP của ESP32 (VD: <code>192.168.2.168</code>) và bấm <b>Bắt đầu quét</b> để camera nhận diện khuôn mặt tự động.</div>
-            </div>
+        <!-- Khung quét 2 cột: Trái = Camera, Phải = Sinh viên vừa nhận diện & Lịch sử -->
+        <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px;" class="admin-face-grid">
+          <!-- Cột Trái: Camera Feed -->
+          <div>
+            <div style="position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:380px;display:flex;align-items:center;justify-content:center;">
+              <!-- Luồng ảnh MJPEG từ ESP32 -->
+              <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
+              <!-- Video Webcam -->
+              <video id="adminWebcamVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;"></video>
+              <!-- Canvas vẽ khung nhận diện -->
+              <canvas id="adminCamOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
 
-            <!-- Overlay chúc mừng khi khớp sinh viên -->
-            <div id="adminMatchOverlay" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(15,23,42,0.95);backdrop-filter:blur(10px);border:2px solid #22c55e;padding:16px 20px;border-radius:16px;box-shadow:0 12px 36px rgba(0,0,0,0.7);align-items:center;gap:14px;z-index:10;animation:popInAdmin 0.25s ease-out;">
-              <img id="adminMatchAvatar" src="images/logo.png" style="width:64px;height:64px;border-radius:12px;border:3px solid #22c55e;object-fit:cover;">
-              <div>
-                <div id="adminMatchName" style="font-size:16px;font-weight:800;color:#fff;">—</div>
-                <div id="adminMatchDetail" style="font-size:12px;color:#94a3b8;margin-top:2px;">—</div>
-                <div style="margin-top:6px;display:inline-flex;padding:3px 9px;background:#22c55e;color:#052e16;font-size:11px;font-weight:800;border-radius:6px;">✓ ĐÃ ĐIỂM DANH THÀNH CÔNG</div>
+              <!-- Placeholder khi camera chưa chạy -->
+              <div id="adminCamPlaceholder" style="text-align:center;padding:40px 20px;color:var(--muted);display:flex;flex-direction:column;align-items:center;">
+                <div style="font-size:42px;margin-bottom:10px;">📷</div>
+                <div style="font-size:15px;font-weight:700;color:var(--text);">Camera chưa kích hoạt</div>
+                <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Chọn nguồn camera bên trên và nhấn <b>"Bắt đầu quét"</b> để thực hiện điểm danh tự động.</div>
+              </div>
+
+              <!-- HUD Thanh trạng thái dưới khung camera -->
+              <div style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid var(--border);padding:7px 12px;border-radius:8px;font-size:12px;color:var(--text);display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+                <span id="adminCamHudStatus" style="font-weight:700;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sẵn sàng kết nối...</span>
+                <span id="adminCamFpsText" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);flex-shrink:0;margin-left:8px;">0 FPS</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cột Phải: Thẻ sinh viên vừa nhận diện & Danh sách quét trong phiên -->
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- Thẻ hồ sơ sinh viên nhận diện nổi bật -->
+            <div id="adminRecognizedCard">
+              <div style="padding:14px;background:var(--surface-2);border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);">
+                <div style="font-size:24px;margin-bottom:4px;">👤</div>
+                <div style="font-size:12.5px;font-weight:700;color:var(--text);">Chưa có sinh viên nhận diện</div>
+                <div style="font-size:11.5px;margin-top:2px;">Khi sinh viên đứng trước camera, thông tin hồ sơ và điểm danh sẽ hiển thị tại đây.</div>
               </div>
             </div>
 
-            <!-- HUD status góc dưới -->
-            <div id="adminEspHud" style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(0,0,0,0.65);padding:6px 12px;border-radius:6px;font-size:11.5px;color:#e2e8f0;backdrop-filter:blur(4px);display:flex;justify-content:space-between;align-items:center;">
-              <span id="adminEspHudText">Sẵn sàng kết nối...</span>
-              <span id="adminEspFpsText">0 FPS</span>
+            <!-- Bảng lịch sử quét gần nhất -->
+            <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;overflow:hidden;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+                <div style="font-size:13px;font-weight:700;">📋 Lịch sử quét trong phiên (<span id="adminScanCount">0</span>)</div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:3px 8px;font-size:11px;">🗑️ Xóa</button>
+              </div>
+              <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:300px;display:flex;flex-direction:column;">
+                <div id="adminRecentEmpty" style="text-align:center;padding:30px 10px;color:var(--muted);font-size:12px;font-style:italic;">
+                  Chưa có lượt quét nào trong phiên này.
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <!-- Cột Lịch sử quét mặt gần nhất -->
-          <div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;overflow:hidden;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-              <div style="font-size:13.5px;font-weight:700;">📋 Vừa quét qua Camera ESP32 (<span id="adminScanCount">0</span>)</div>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:4px 8px;font-size:11px;">🗑️ Xóa</button>
-            </div>
-            <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:380px;display:flex;flex-direction:column;gap:8px;">
-              <div id="adminRecentEmpty" style="text-align:center;padding:40px 10px;color:var(--muted);font-size:12px;font-style:italic;">Chưa có sinh viên nào quét qua camera ESP32.</div>
-            </div>
+      <!-- KHU VỰC C: BẢNG QUẢN LÝ DỮ LIỆU KHUÔN MẶT THEO SINH VIÊN (BẮT BUỘC) -->
+      <div class="card" style="padding:18px 20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+          <div>
+            <h3 style="font-size:15px;font-weight:800;margin:0;display:flex;align-items:center;gap:6px;">
+              <span>📁</span> Danh Sách Quản Lý Ảnh Khuôn Mặt Theo Sinh Viên
+            </h3>
+            <p style="font-size:12px;color:var(--muted);margin:2px 0 0;">
+              Tra cứu sinh viên, xem các ảnh khuôn mặt đã đăng ký, thêm ảnh mới từ máy tính hoặc camera theo từng MSSV.
+            </p>
           </div>
+          <span id="faceStudentTableCount" style="font-size:12px;font-weight:700;color:var(--muted);">0 sinh viên</span>
+        </div>
+
+        <!-- Bộ lọc & Tìm kiếm -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-primary btn-sm" id="btnFaceFilter_all" onclick="setFaceStudentFilter('all')">Tất cả</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_enrolled" onclick="setFaceStudentFilter('enrolled')">Đã đăng ký</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_missing" onclick="setFaceStudentFilter('missing')">Chưa có ảnh</button>
+          </div>
+          <div style="min-width:240px;max-width:320px;flex:1;">
+            <input type="text" id="faceStudentSearchInput" placeholder="Tìm theo MSSV hoặc họ tên..." oninput="renderFaceStudentTable()" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;">
+          </div>
+        </div>
+
+        <!-- Bảng danh sách sinh viên -->
+        <div class="tbl-wrap" style="max-height:360px;overflow-y:auto;">
+          <table style="width:100%;font-size:12.5px;">
+            <thead>
+              <tr style="background:var(--surface-2);position:sticky;top:0;z-index:2;">
+                <th style="width:40px;text-align:center;">STT</th>
+                <th style="width:110px;">MSSV</th>
+                <th>Họ và tên</th>
+                <th style="width:90px;">Lớp</th>
+                <th style="width:140px;">Trạng thái khuôn mặt</th>
+                <th style="width:120px;">Cập nhật lúc</th>
+                <th style="width:160px;text-align:right;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="faceStudentTableBody">
+              <tr>
+                <td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Đang tải danh sách sinh viên...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -1401,110 +1486,136 @@
   </div>
 </div>
 
-<!-- Modal Huấn Luyện Khuôn Mặt AI Trong Admin (Webcam / ESP32-CAM) -->
+<!-- Modal Quản Lý Ảnh Khuôn Mặt Sinh Viên Theo MSSV (Giao diện Sáng, Chuyên nghiệp) -->
 <div class="modal-bg" id="adminFaceEnrollModal" onclick="if(event.target===this)closeAdminFaceEnrollModal()">
-  <div class="modal" style="max-width:880px;width:95vw;max-height:92vh;overflow-y:auto;text-align:left;padding:20px 24px;">
-    <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+  <div class="modal" style="max-width:880px;width:95vw;max-height:92vh;overflow-y:auto;text-align:left;padding:22px 24px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);">
+    <!-- Header Modal -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px;">
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:42px;height:42px;border-radius:12px;background:rgba(37,99,235,0.12);color:var(--primary);display:grid;place-items:center;font-size:22px;flex-shrink:0;">📷</div>
+        <div style="width:42px;height:42px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-size:22px;flex-shrink:0;">
+          👤
+        </div>
         <div>
-          <h3 style="margin:0;font-size:16.5px;font-weight:800;color:var(--text)">Huấn luyện khuôn mặt sinh viên (5 góc AI)</h3>
-          <p style="margin:2px 0 0;font-size:12px;color:var(--muted)">Chụp trực tiếp từ Webcam hoặc Camera ESP32 để lưu vector descriptors vào Supabase</p>
+          <h3 style="margin:0;font-size:16.5px;font-weight:800;color:var(--text);">Hồ Sơ Khuôn Mặt Sinh Viên</h3>
+          <p style="margin:2px 0 0;font-size:12px;color:var(--muted);">Quản lý danh sách ảnh, tải ảnh mới hoặc chụp camera để phục vụ nhận diện AI.</p>
         </div>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" onclick="closeAdminFaceEnrollModal()" style="padding:4px 10px;font-size:14px;">✕</button>
     </div>
 
-    <!-- Toolbar: Chọn Sinh viên & Nguồn Camera -->
-    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;">
-      <!-- Chọn sinh viên -->
-      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:280px;">
-        <img id="enrollStudentAvatar" src="images/logo.png" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;">
-        <div style="flex:1;">
-          <div style="font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:3px;">SINH VIÊN HUẤN LUYỆN:</div>
-          <select id="enrollStudentSelect" onchange="onEnrollStudentChange()" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-weight:700;background:var(--surface);color:var(--text);">
-            <option value="">-- Chọn sinh viên --</option>
-          </select>
-        </div>
-        <div id="enrollStudentBadge" style="flex-shrink:0;font-size:11px;font-weight:800;padding:4px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);">
-          ⚪ Chưa có
-        </div>
+    <!-- Chọn Sinh viên & Thẻ thông tin hồ sơ -->
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px;">
+      <div style="margin-bottom:10px;">
+        <label for="enrollStudentSelect" style="display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px;">
+          CHỌN SINH VIÊN CẦN QUẢN LÝ / ĐĂNG KÝ:
+        </label>
+        <select id="enrollStudentSelect" onchange="onEnrollStudentChange()" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border-strong);font-size:13px;font-weight:700;background:var(--surface);color:var(--text);">
+          <option value="">-- Chọn sinh viên --</option>
+        </select>
       </div>
 
-      <!-- Nguồn camera & tùy chọn -->
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div style="display:inline-flex;border-radius:8px;border:1px solid var(--border);overflow:hidden;background:var(--surface);">
-          <button type="button" id="btnEnrollSrcWebcam" onclick="setEnrollCameraSource('webcam')" style="padding:6px 11px;font-size:12px;font-weight:700;border:none;background:var(--primary);color:#fff;cursor:pointer;">📷 Webcam</button>
-          <button type="button" id="btnEnrollSrcEsp" onclick="setEnrollCameraSource('esp32')" style="padding:6px 11px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--text);cursor:pointer;">📡 ESP32-CAM</button>
+      <!-- Thẻ thông tin hồ sơ sinh viên đang chọn -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.06);flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img id="enrollStudentAvatar" src="images/logo.png" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--border);background:#fff;flex-shrink:0;">
+          <div>
+            <div id="enrollStudentName" style="font-size:14px;font-weight:800;color:var(--text);">Chưa chọn sinh viên</div>
+            <div id="enrollStudentMeta" style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px;">—</div>
+          </div>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEnrollFlip()" title="Lật gương camera">🔄 Lật</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="btnEnrollAutoSnap" onclick="toggleEnrollAutoSnap()" title="Tự động chụp khi khuôn mặt đạt tư thế chuẩn">
-          ⚡ Tự động: BẬT
-        </button>
+        <div id="enrollStatusBadge" style="font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--surface);border:1px solid var(--border);color:var(--muted);">
+          ⚪ Chưa có ảnh
+        </div>
       </div>
     </div>
 
-    <!-- Main Grid: Cột Camera Trái vs 5 Góc Phải -->
-    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start;" class="admin-enroll-grid">
-      <!-- Cột Camera Trực Tiếp -->
-      <div style="background:#090d16;border:1px solid var(--border);border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:360px;">
-        <!-- Video Webcam -->
-        <video id="enrollVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:360px;object-fit:cover;display:block;"></video>
-        <!-- Ảnh ESP32 Stream -->
-        <img id="enrollEspImg" crossorigin="anonymous" style="width:100%;height:100%;max-height:360px;object-fit:cover;display:none;">
-        <!-- Canvas vẽ khung & Landmarks -->
-        <canvas id="enrollCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+    <!-- PHẦN 1: DANH SÁCH ẢNH KHUÔN MẶT ĐÃ ĐĂNG KÝ -->
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h4 style="margin:0;font-size:13.5px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px;">
+          <span>🖼️</span> Ảnh khuôn mặt hiện có trong cơ sở dữ liệu
+        </h4>
+        <span id="enrollPhotoCountBadge" style="font-size:11.5px;font-weight:700;color:var(--primary);background:var(--primary-soft);padding:2px 8px;border-radius:6px;">
+          0 ảnh
+        </span>
+      </div>
 
-        <!-- Laser Quét -->
-        <div id="enrollLaser" style="position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#38bdf8,#22c55e,#38bdf8,transparent);box-shadow:0 0 10px #38bdf8;animation:laserSweepAdmin 2.2s ease-in-out infinite;pointer-events:none;"></div>
+      <!-- Grid danh sách ảnh thumbnail -->
+      <div id="enrollPhotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;">
+        <!-- Tự động render qua renderEnrollPhotoGrid() -->
+      </div>
+    </div>
 
-        <!-- HUD Chỉ Dẫn Góc Chụp Trên Top -->
-        <div id="enrollHudGuide" style="position:absolute;top:8px;left:8px;right:8px;background:rgba(15,23,42,0.85);backdrop-filter:blur(6px);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);display:flex;justify-content:space-between;align-items:center;z-index:2;">
-          <div>
-            <div id="enrollGuideTitle" style="font-size:12.5px;font-weight:800;color:#38bdf8;">🎯 Góc 1: Nhìn thẳng (0°)</div>
-            <div id="enrollGuideDesc" style="font-size:11px;color:#cbd5e1;margin-top:1px;">Nhìn thẳng vào tâm camera, giữ nét mặt tự nhiên</div>
-          </div>
-          <span id="enrollHoldBadge" style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,0.1);color:#fff;">0/10 frame</span>
+    <!-- PHẦN 2: THÊM ẢNH KHUÔN MẶT MỚI (TẢI TỪ MÁY HOẶC CHỤP CAMERA) -->
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+        <div>
+          <h4 style="margin:0;font-size:13.5px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px;">
+            <span>➕</span> Thêm ảnh khuôn mặt mới cho sinh viên
+          </h4>
+          <p style="margin:2px 0 0;font-size:11.5px;color:var(--muted);">
+            Ảnh phải chụp rõ một khuôn mặt, đủ ánh sáng. Hệ thống sẽ tự động trích xuất vector 128D.
+          </p>
         </div>
-
-        <!-- Metric Pills Dưới Đáy -->
-        <div style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(0,0,0,0.7);padding:6px 10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#94a3b8;backdrop-filter:blur(4px);z-index:2;">
-          <span id="enrollMetricYaw">Yaw: 1.00</span>
-          <span id="enrollMetricPitch">Pitch: 0.45</span>
-          <span id="enrollMetricEar">Mắt: 0.28</span>
-          <span id="enrollMetricMar">Miệng: 0.16</span>
-          <button type="button" class="btn btn-primary btn-sm" id="btnEnrollSnapCurrent" onclick="enrollSnapCurrent()" style="padding:4px 10px;font-size:11px;font-weight:800;">
-            📷 Chụp góc này
+        <!-- Bộ chuyển đổi phương thức -->
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="btn btn-primary btn-sm" id="btnEnrollModeUpload" onclick="setEnrollInputMode('upload')">
+            📁 Tải ảnh từ máy
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnEnrollModeCamera" onclick="setEnrollInputMode('camera')">
+            📷 Chụp từ Camera
           </button>
         </div>
       </div>
 
-      <!-- Cột 5 Góc Đã Thu Thập -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border);">
-          <span style="font-size:12.5px;font-weight:800;color:var(--text);">📋 Bộ 5 góc huấn luyện</span>
-          <span id="enrollSlotsCountBadge" style="font-size:11px;font-weight:800;color:var(--primary);background:rgba(37,99,235,0.1);padding:2px 8px;border-radius:6px;">0 / 5 đã chụp</span>
-        </div>
+      <!-- Khung 1: Tải từ máy tính -->
+      <div id="enrollUploadBox" style="display:block;">
+        <label style="display:block;border:2px dashed var(--border-strong);border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:var(--surface);transition:all 0.15s ease;">
+          <div style="font-size:32px;margin-bottom:6px;">📤</div>
+          <div style="font-size:13px;font-weight:700;color:var(--primary);">Bấm vào đây để chọn ảnh từ máy tính</div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Hỗ trợ định dạng JPG, PNG, WebP (Tối đa 5MB)</div>
+          <input type="file" id="enrollFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleEnrollFileUpload(event)">
+        </label>
+      </div>
 
-        <!-- 5 Slots Container -->
-        <div id="enrollSlotsContainer" style="display:flex;flex-direction:column;gap:6px;max-height:330px;overflow-y:auto;padding-right:2px;">
-          <!-- Được render tự động qua renderEnrollSlots() -->
+      <!-- Khung 2: Chụp từ camera -->
+      <div id="enrollCameraBox" style="display:none;">
+        <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;max-width:440px;margin:0 auto;min-height:280px;display:flex;align-items:center;justify-content:center;">
+          <video id="enrollModalVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:300px;object-fit:cover;"></video>
+        </div>
+        <div style="text-align:center;margin-top:10px;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="captureFromEnrollCamera()" style="font-weight:800;padding:6px 16px;">
+            📸 Chụp khung hình này
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview & Kiểm tra ảnh hợp lệ -->
+      <div id="enrollPreviewCard" style="display:none;margin-top:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <img id="enrollPreviewImg" src="" style="width:70px;height:70px;border-radius:8px;object-fit:cover;border:1.5px solid var(--border);flex-shrink:0;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">Kết quả phân tích khuôn mặt:</div>
+            <div id="enrollPreviewStatus" style="font-size:12px;line-height:1.45;color:var(--muted);">Đang phân tích...</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearPendingEnrollPhoto()">Huỷ</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnConfirmSavePendingPhoto" onclick="confirmSavePendingPhoto()" disabled style="font-weight:800;">
+              💾 Lưu ảnh này vào hồ sơ
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Footer Actions -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px;">
-      <button type="button" class="btn btn-danger btn-sm" id="btnEnrollDeleteServer" onclick="deleteEnrollStudentFromServer()" style="display:none;">
-        🗑️ Xóa mẫu SV này trên Server
+    <!-- Footer Modal Actions -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+      <button type="button" class="btn btn-danger btn-sm" id="btnEnrollDeleteAll" onclick="deleteEnrollStudentFromServer()" style="display:none;">
+        🗑️ Xóa toàn bộ ảnh của sinh viên này
       </button>
-      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-        <button type="button" class="btn btn-secondary" onclick="closeAdminFaceEnrollModal()">Đóng</button>
-        <button type="button" class="btn btn-primary" id="btnEnrollSaveServer" onclick="saveEnrollToServer()" style="font-weight:800;" disabled>
-          💾 Lưu vào Server (Supabase)
-        </button>
-      </div>
+      <button type="button" class="btn btn-secondary" onclick="closeAdminFaceEnrollModal()" style="margin-left:auto;">
+        Đóng cửa sổ
+      </button>
     </div>
   </div>
 </div>

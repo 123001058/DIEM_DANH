@@ -2125,7 +2125,7 @@ tbody tr:last-child td { border-bottom: none; }
 /* Fullscreen mode for ESP32 face camera */
 #view-face-cam:fullscreen,
 #view-face-cam.is-fullscreen {
-  background: #090d16 !important;
+  background: var(--bg) !important;
   padding: 16px 20px !important;
   overflow-y: auto !important;
   display: flex !important;
@@ -2135,19 +2135,32 @@ tbody tr:last-child td { border-bottom: none; }
 }
 #view-face-cam:fullscreen .card,
 #view-face-cam.is-fullscreen .card {
-  background: rgba(15, 23, 42, 0.94) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
 }
 #view-face-cam:fullscreen .admin-face-grid,
 #view-face-cam.is-fullscreen .admin-face-grid {
-  grid-template-columns: 1.6fr 1fr !important;
+  grid-template-columns: 1.5fr 1fr !important;
   min-height: calc(100vh - 170px) !important;
 }
 #view-face-cam:fullscreen #adminEspImg,
-#view-face-cam.is-fullscreen #adminEspImg {
+#view-face-cam:fullscreen #adminWebcamVideo,
+#view-face-cam.is-fullscreen #adminEspImg,
+#view-face-cam.is-fullscreen #adminWebcamVideo {
   max-height: calc(100vh - 210px) !important;
 }
 @media (max-width: 860px) {
   .admin-face-grid { grid-template-columns: 1fr !important; }
+}
+
+@keyframes fadeSlideInAdmin {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
