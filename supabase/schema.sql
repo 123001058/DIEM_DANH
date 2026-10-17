@@ -3149,3 +3149,14 @@ end;
 $function$;
 
 grant execute on function public.admin_export_face_data() to authenticated;
+
+-- =====================================================================
+-- 11. SIẾT RLS BẢNG students (chỉ admin ghi qua RPC definer)
+-- Bỏ lỗ hổng: mọi authenticated (kể cả sinh viên) tự do thêm/sửa/xóa.
+-- =====================================================================
+drop policy if exists "students_write_all" on public.students;
+
+revoke all on table public.students from anon;
+revoke all on table public.students from authenticated;
+grant select on table public.students to anon, authenticated;
+grant all on table public.students to service_role;

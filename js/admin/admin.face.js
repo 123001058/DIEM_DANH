@@ -324,6 +324,34 @@ function resetAdminLivenessSession(label, reason = '') {
   }
 }
 
+// ==========================================================
+// THÔNG SỐ CẤU HÌNH BỘ LỌC CHỐNG GIẢ MẠO 3 LỚP (LIVENESS CONFIG)
+// ==========================================================
+const ADMIN_LIVENESS_CONFIG = {
+  // Lớp 1: Độ nét & Chống lóa màn hình
+  BLUR_THRESHOLD: 35,          // Ngưỡng phương sai Laplacian tối thiểu (ảnh nhòe/mờ < 35)
+  GLARE_RATIO_MAX: 0.08,       // Tỉ lệ điểm ảnh chói gắt (Y >= 245) tối đa cho phép (8%)
+
+  // Lớp 2: Sinh trắc học động (EAR & 3D Head Pose)
+  BLINK_EAR_CLOSED: 0.18,      // Ngưỡng tỷ lệ mở mắt tính là nhắm
+  BLINK_EAR_OPEN: 0.25,        // Ngưỡng tỷ lệ mở mắt tính là mở bình thường
+  BLINK_WINDOW_FRAMES: 30,     // Cửa sổ trượt lưu EAR (30 frames ~ 2 - 2.5s)
+  BLINK_VALID_DURATION_MS: 4000, // Thời hạn hiệu lực của một lần chớp mắt hợp lệ (4 giây)
+  POSE_WINDOW_FRAMES: 15,      // Cửa sổ trượt lưu góc đầu (15 frames ~ 1s)
+  POSE_MIN_DELTA: 0.03,        // Biên độ biến thiên góc quay tối thiểu (tránh ảnh 2D đơ)
+  POSE_MAX_DELTA: 0.50,        // Biên độ biến thiên góc quay tối đa (tránh giật lắc dị thường)
+
+  // Lớp 3: Cửa sổ ổn định thời gian thực
+  QUALIFIED_SCORE_MIN: 85,     // Điểm tin cậy tối thiểu để kích hoạt đồng hồ đếm
+  STABILIZE_DURATION_MS: 1500  // Phải duy trì liên tục >= 85 điểm trong 1.5 giây
+};
+
+// Canvas phụ chuyên dụng cho phân tích độ nét & chống lóa (kích thước cố định 100x100)
+const adminLivenessAuxCanvas = document.createElement('canvas');
+adminLivenessAuxCanvas.width = 100;
+adminLivenessAuxCanvas.height = 100;
+const adminLivenessAuxCtx = adminLivenessAuxCanvas.getContext('2d', { willReadFrequently: true });
+
 // 1. Tính Eye Aspect Ratio (EAR) - Tỉ lệ mở mắt chuẩn 6 điểm landmarks
 function calculateAdminEyeEAR(eye) {
   if (!eye || eye.length < 6) return 0.28;
@@ -331,6 +359,15 @@ function calculateAdminEyeEAR(eye) {
   const p2_p4 = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
   const p0_p3 = Math.hypot(eye[0].x - eye[3].x, eye[0].y - eye[3].y);
   return p0_p3 > 1 ? (p1_p5 + p2_p4) / (2.0 * p0_p3) : 0.28;
+}
+
+// Tính EAR trung bình cả 2 mắt
+function calculateAdminAvgEAR(landmarks) {
+  if (!landmarks) return 0.28;
+  const leftEye = landmarks.getLeftEye ? landmarks.getLeftEye() : null;
+  const rightEye = landmarks.getRightEye ? landmarks.getRightEye() : null;
+  if (!leftEye || !rightEye) return 0.28;
+  return (calculateAdminEyeEAR(leftEye) + calculateAdminEyeEAR(rightEye)) / 2;
 }
 
 // 2. Tính Mouth Aspect Ratio (MAR) - Tỉ lệ mở miệng/cười chuẩn 20 điểm landmarks miệng
@@ -347,8 +384,8 @@ function calculateAdminMAR(mouth) {
 // 3. Tính tỉ lệ lệch 3D chóp mũi so với 2 bên má (3D Head Yaw Parallax)
 function calculateAdminHeadYaw(landmarks) {
   if (!landmarks) return 1.0;
-  const nose = landmarks.getNose();
-  const jaw = landmarks.getJawOutline();
+  const nose = landmarks.getNose ? landmarks.getNose() : null;
+  const jaw = landmarks.getJawOutline ? landmarks.getJawOutline() : null;
   if (!nose || !jaw || jaw.length < 17) return 1.0;
 
   const noseTip = nose[3] || nose[0]; // Chóp mũi (Landmark 30)
@@ -360,6 +397,82 @@ function calculateAdminHeadYaw(landmarks) {
 
   if (dRight < 1) return 1.0;
   return dLeft / dRight;
+}
+
+// 4. Tính tỉ lệ ngửa/gật đầu 3D (Head Pitch)
+function calculateAdminHeadPitch(landmarks) {
+  if (!landmarks) return 1.0;
+  const nose = landmarks.getNose ? landmarks.getNose() : null;
+  const jaw = landmarks.getJawOutline ? landmarks.getJawOutline() : null;
+  if (!nose || !jaw || jaw.length < 9) return 1.0;
+
+  const noseRoot = nose[0];           // Gốc sống mũi giữa 2 mắt (Landmark 27)
+  const noseTip = nose[3] || nose[0]; // Chóp mũi (Landmark 30)
+  const chin = jaw[8];                // Đáy cằm (Landmark 8)
+
+  const dUpper = Math.hypot(noseTip.x - noseRoot.x, noseTip.y - noseRoot.y);
+  const dLower = Math.hypot(chin.x - noseTip.x, chin.y - noseTip.y);
+
+  if (dUpper < 1) return 1.0;
+  return dLower / dUpper;
+}
+
+// LỚP 1: Kiểm tra độ nét (Laplacian Variance) & Chống lóa bề mặt màn hình/mặt kính (Specular Glare)
+function checkAdminBlurAndGlare(box) {
+  const srcW = adminCaptureCanvas.width;
+  const srcH = adminCaptureCanvas.height;
+  if (!box || srcW <= 0 || srcH <= 0) {
+    return { blurScore: 50, glareRatio: 0, isBlur: false, isGlare: false };
+  }
+
+  const sx = Math.max(0, Math.floor(box.x));
+  const sy = Math.max(0, Math.floor(box.y));
+  const sw = Math.min(srcW - sx, Math.max(1, Math.floor(box.width)));
+  const sh = Math.min(srcH - sy, Math.max(1, Math.floor(box.height)));
+
+  adminLivenessAuxCtx.drawImage(adminCaptureCanvas, sx, sy, sw, sh, 0, 0, 100, 100);
+  const imgData = adminLivenessAuxCtx.getImageData(0, 0, 100, 100).data;
+
+  const gray = new Float32Array(10000);
+  let glarePixels = 0;
+
+  for (let i = 0; i < 10000; i++) {
+    const r = imgData[i * 4 + 0];
+    const g = imgData[i * 4 + 1];
+    const b = imgData[i * 4 + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray[i] = lum;
+    if (lum >= 245) glarePixels++;
+  }
+
+  const glareRatio = glarePixels / 10000;
+
+  // Tính phương sai Laplacian (Laplacian Variance) với kernel 3x3
+  let sumLap = 0;
+  let sumLapSq = 0;
+  let countLap = 0;
+
+  for (let y = 1; y < 99; y++) {
+    const row = y * 100;
+    for (let x = 1; x < 99; x++) {
+      const idx = row + x;
+      const lap = gray[idx - 100] + gray[idx + 100] + gray[idx - 1] + gray[idx + 1] - 4 * gray[idx];
+      sumLap += lap;
+      sumLapSq += lap * lap;
+      countLap++;
+    }
+  }
+
+  const meanLap = sumLap / countLap;
+  const lapVar = (sumLapSq / countLap) - (meanLap * meanLap);
+  const blurScore = Math.max(0, Math.round(lapVar));
+
+  return {
+    blurScore,
+    glareRatio,
+    isBlur: blurScore < ADMIN_LIVENESS_CONFIG.BLUR_THRESHOLD,
+    isGlare: glareRatio > ADMIN_LIVENESS_CONFIG.GLARE_RATIO_MAX
+  };
 }
 
 // Pre-process crop khuôn mặt từ adminCaptureCanvas cho MiniFASNet-V2
@@ -460,90 +573,165 @@ async function runAdminFasnet(box) {
   }
 }
 
-// Kiểm tra độ sống động người thật (Kết hợp AI MiniFASNet + Vi chuyển động 3D landmarks chống ảnh tĩnh)
+// ==========================================================
+// HÀM ĐÁNH GIÁ CHỐNG GIẢ MẠO 3 LỚP (3-TIER CONTINUOUS LIVENESS)
+// ==========================================================
 async function evaluateAdminLiveness(label, landmarks, box) {
   if (!adminAntiSpoofEnabled) {
     return { isLive: true, prompt: '⚡ Nhận diện tức thì (Đã tắt chống giả)', isStaticPhoto: false };
   }
-  if (!landmarks) {
+  if (!landmarks || !box) {
     return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false };
   }
 
   const now = Date.now();
-  const yaw = calculateAdminHeadYaw(landmarks);
 
+  // Khởi tạo trạng thái phiên cho người này nếu chưa có
   if (!adminLivenessState[label]) {
     adminLivenessState[label] = {
-      frames: 1,
+      frames: 0,
       firstSeen: now,
-      yawHistory: [yaw],
-      minYaw: yaw,
-      maxYaw: yaw,
-      fasnetChecked: false,
-      fasnetPass: false,
-      fasnetMsg: ''
+      confidenceScore: 0,
+      firstQualifiedTime: null,
+      earHistory: [],
+      yawHistory: [],
+      pitchHistory: [],
+      lastBlinkTime: 0,
+      hasBlinked: false
     };
   }
 
   const st = adminLivenessState[label];
   st.frames++;
-  st.yawHistory.push(yaw);
-  if (st.yawHistory.length > 20) st.yawHistory.shift();
-  st.minYaw = Math.min(...st.yawHistory);
-  st.maxYaw = Math.max(...st.yawHistory);
 
-  // 1. MiniFASNet: không cho phép bỏ qua khi mô hình lỗi
-  if (!adminFasnetSession) {
+  // --- LỚP 1: KIỂM TRA ĐỘ NÉT & CHỐNG LÓA MÀN HÌNH ---
+  const quality = checkAdminBlurAndGlare(box);
+  if (quality.isBlur) {
+    st.confidenceScore = Math.max(0, st.confidenceScore - 20);
+    st.firstQualifiedTime = null;
     return {
       isLive: false,
-      prompt: '🛡️ Mô hình chống giả chưa sẵn sàng',
-      isStaticPhoto: false
+      prompt: `🚫 Ảnh quá mờ (${quality.blurScore} < ${ADMIN_LIVENESS_CONFIG.BLUR_THRESHOLD})`,
+      isStaticPhoto: true
     };
   }
 
-  if (!st.fasnetChecked) {
-    const fas = await runAdminFasnet(box);
+  if (quality.isGlare) {
+    st.confidenceScore = Math.max(0, st.confidenceScore - 25);
+    st.firstQualifiedTime = null;
+    return {
+      isLive: false,
+      prompt: `🚫 Phát hiện lóa màn hình/mặt kính (${Math.round(quality.glareRatio * 100)}%)`,
+      isStaticPhoto: true
+    };
+  }
 
-    // Không có kết quả suy luận: tạm thời từ chối
-    if (!fas) {
+  // --- LỚP 2: KIỂM TRA SINH TRẮC HỌC ĐỘNG LIÊN TỤC (EAR & 3D HEAD POSE) ---
+  // A. Kiểm tra nhấp nháy mắt (EAR)
+  const currentEar = calculateAdminAvgEAR(landmarks);
+  st.earHistory.push(currentEar);
+  if (st.earHistory.length > ADMIN_LIVENESS_CONFIG.BLINK_WINDOW_FRAMES) {
+    st.earHistory.shift();
+  }
+
+  const minEar = Math.min(...st.earHistory);
+  const maxEar = Math.max(...st.earHistory);
+  // Điều kiện chớp mắt: Trong cửa sổ trượt có lúc nhắm (<= 0.18) và có lúc mở (>= 0.25)
+  if (minEar <= ADMIN_LIVENESS_CONFIG.BLINK_EAR_CLOSED && maxEar >= ADMIN_LIVENESS_CONFIG.BLINK_EAR_OPEN) {
+    st.lastBlinkTime = now;
+    st.hasBlinked = true;
+  }
+
+  const hasRecentBlink = (now - st.lastBlinkTime <= ADMIN_LIVENESS_CONFIG.BLINK_VALID_DURATION_MS);
+
+  // B. Kiểm tra biến thiên góc quay đầu 3D (Yaw & Pitch)
+  const yaw = calculateAdminHeadYaw(landmarks);
+  const pitch = calculateAdminHeadPitch(landmarks);
+
+  st.yawHistory.push(yaw);
+  if (st.yawHistory.length > ADMIN_LIVENESS_CONFIG.POSE_WINDOW_FRAMES) st.yawHistory.shift();
+
+  st.pitchHistory.push(pitch);
+  if (st.pitchHistory.length > ADMIN_LIVENESS_CONFIG.POSE_WINDOW_FRAMES) st.pitchHistory.shift();
+
+  const yawDelta = Math.max(...st.yawHistory) - Math.min(...st.yawHistory);
+  const pitchDelta = Math.max(...st.pitchHistory) - Math.min(...st.pitchHistory);
+  const poseDelta = Math.max(yawDelta, pitchDelta);
+
+  // Phát hiện ảnh 2D tĩnh cứng đơ (sau khi quan sát tối thiểu 8 frames)
+  if (st.frames >= 8 && poseDelta < ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA) {
+    st.confidenceScore = Math.max(0, st.confidenceScore - 15);
+    st.firstQualifiedTime = null;
+    return {
+      isLive: false,
+      prompt: '🚫 Ảnh phẳng 2D không có chuyển động 3D!',
+      isStaticPhoto: true
+    };
+  }
+
+  // --- LỚP 3: BỘ ĐẾM XÁC THỰC THỜI GIAN THỰC (STABILIZATION WINDOW) ---
+  // Tính điểm chất lượng từng frame (Thang điểm 100):
+  let frameScore = 0;
+
+  // 1. Độ nét và không lóa: 30 điểm
+  if (!quality.isBlur && !quality.isGlare) {
+    frameScore += 30;
+  }
+
+  // 2. Vi chuyển động đầu 3D tự nhiên: 30 điểm
+  if (poseDelta >= ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA && poseDelta <= ADMIN_LIVENESS_CONFIG.POSE_MAX_DELTA) {
+    frameScore += 30;
+  }
+
+  // 3. Có chớp mắt hợp lệ: 40 điểm (BẮT BUỘC để đạt ngưỡng >= 85%)
+  if (hasRecentBlink) {
+    frameScore += 40;
+  }
+
+  // Làm mượt điểm số bằng bộ lọc trượt EMA (Exponential Moving Average)
+  st.confidenceScore = Math.max(0, Math.min(100, Math.round(st.confidenceScore * 0.65 + frameScore * 0.35)));
+
+  // Đánh giá thời gian duy trì liên tục >= 85 điểm
+  if (st.confidenceScore >= ADMIN_LIVENESS_CONFIG.QUALIFIED_SCORE_MIN) {
+    if (!st.firstQualifiedTime) {
+      st.firstQualifiedTime = now;
+    }
+    const elapsedMs = now - st.firstQualifiedTime;
+
+    if (elapsedMs >= ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS) {
+      // ĐẠT TRẠNG THÁI REAL: Khung xanh điểm danh
+      return {
+        isLive: true,
+        prompt: `✅ Người thật xác thực (${st.confidenceScore}%)`,
+        isStaticPhoto: false
+      };
+    } else {
+      const remainSec = Math.max(0, (ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS - elapsedMs) / 1000).toFixed(1);
       return {
         isLive: false,
-        prompt: '🛡️ Không đánh giá được chống giả, hãy thử lại',
+        prompt: `⏳ Giữ ổn định khuôn mặt... (${remainSec}s)`,
+        isStaticPhoto: false
+      };
+    }
+  } else {
+    // Điểm chưa đạt mốc 85% -> Reset bộ đếm thời gian
+    st.firstQualifiedTime = null;
+
+    if (!hasRecentBlink) {
+      return {
+        isLive: false,
+        prompt: `👁️ Hãy chớp mắt tự nhiên (Điểm: ${st.confidenceScore}%)`,
         isStaticPhoto: false
       };
     }
 
-    // Mô hình phát hiện ảnh in hoặc màn hình
-    if (!fas.isLive) {
-      st.fasnetMsg =
-        `🚫 Phát hiện ${fas.attackType} ` +
-        `(${Math.round((1 - fas.liveScore) * 100)}%)`;
-
-      return {
-        isLive: false,
-        prompt: st.fasnetMsg,
-        isStaticPhoto: true
-      };
-    }
-
-    st.fasnetChecked = true;
-    st.fasnetPass = true;
+    return {
+      isLive: false,
+      prompt: `⏳ Đang xác thực sinh trắc học (${st.confidenceScore}% / 85%)`,
+      isStaticPhoto: false
+    };
   }
-
-  // 2. Kiểm tra vi chuyển động sống (Ảnh 2D đưa trước cam thường cứng đơ, yaw delta gần như = 0)
-  const yawDiff = st.maxYaw - st.minYaw;
-  if (st.frames < 3) {
-    return { isLive: false, prompt: '🛡️ Đang kiểm tra người thật...', isStaticPhoto: false };
-  }
-
-  // Người thật đứng thở/nháy mắt/cử động nhẹ luôn có vi biến thiên yaw >= 0.04
-  if (st.frames >= 8 && yawDiff < 0.035) {
-    return { isLive: false, prompt: '🚫 Ảnh tĩnh 2D không có cử động!', isStaticPhoto: true };
-  }
-
-  return { isLive: true, prompt: '✅ Người thật hợp lệ', isStaticPhoto: false };
 }
-
 function toggleAdminAntiSpoof() {
   adminAntiSpoofEnabled = !adminAntiSpoofEnabled;
   const btn = document.getElementById('btnAdminAntiSpoof');
