@@ -21,6 +21,11 @@ void setup() {
   digitalWrite(FLASH_LED_PIN, LOW);
   #endif
 
+  // WS2812B NeoPixel RGB LED: Mặc định tắt
+  #ifdef WS2812_LED_PIN
+  neopixelWrite(WS2812_LED_PIN, 0, 0, 0);
+  #endif
+
   Serial.begin(115200);
   delay(2000); // Đợi ổn định USB CDC trên cổng OTG
   Serial.println("\n\n========================================");

@@ -4,7 +4,8 @@
 #define CAMERA_MODEL_ESP32S3_EYE
 #define BUZZER_PIN 14
 
-// Chân đèn Flash LED kép (chuẩn 100% theo sơ đồ mạch ESP32-S3-CAM là GPIO 3)
+// Đèn LED thông minh WS2812B trên ESP32-S3 (chân chuẩn 100% là GPIO 48)
+#define WS2812_LED_PIN 48
 #define FLASH_LED_PIN 3
 
 #include "camera_pins.h"

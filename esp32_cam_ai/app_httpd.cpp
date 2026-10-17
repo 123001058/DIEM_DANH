@@ -82,6 +82,19 @@ static esp_err_t index_handler(httpd_req_t *req) {
   return httpd_resp_send(req, html, strlen(html));
 }
 
+static void setFlashLedState(bool on) {
+  #ifdef FLASH_LED_PIN
+  digitalWrite(FLASH_LED_PIN, on ? HIGH : LOW);
+  #endif
+  #ifdef WS2812_LED_PIN
+  if (on) {
+    neopixelWrite(WS2812_LED_PIN, 255, 255, 255); // Màu trắng cực đại
+  } else {
+    neopixelWrite(WS2812_LED_PIN, 0, 0, 0); // Tắt
+  }
+  #endif
+}
+
 static esp_err_t beep_handler(httpd_req_t *req) {
   char query[64] = {0};
   int duration = 120; // Người thật thành công: Kêu đúng 1 tiếng 'tít' (120ms)
@@ -95,19 +108,14 @@ static esp_err_t beep_handler(httpd_req_t *req) {
   }
 
   // Active Low với Buzzer: LOW = kêu, HIGH = ngắt
-  // Active High với Flash LED: HIGH = sáng, LOW = tắt
   for (int i = 0; i < repeats; i++) {
-    #ifdef FLASH_LED_PIN
-    digitalWrite(FLASH_LED_PIN, HIGH);
-    #endif
+    setFlashLedState(true);
     digitalWrite(BUZZER_PIN, LOW);
 
     vTaskDelay(pdMS_TO_TICKS(duration));
 
     digitalWrite(BUZZER_PIN, HIGH);
-    #ifdef FLASH_LED_PIN
-    digitalWrite(FLASH_LED_PIN, LOW);
-    #endif
+    setFlashLedState(false);
   }
 
   httpd_resp_set_type(req, "application/json");
@@ -117,22 +125,59 @@ static esp_err_t beep_handler(httpd_req_t *req) {
 
 static esp_err_t flash_handler(httpd_req_t *req) {
   char query[64] = {0};
-  #ifdef FLASH_LED_PIN
   if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
     if (strstr(query, "val=1") != NULL || strstr(query, "state=1") != NULL) {
-      digitalWrite(FLASH_LED_PIN, HIGH);
+      setFlashLedState(true);
     } else if (strstr(query, "val=0") != NULL || strstr(query, "state=0") != NULL) {
-      digitalWrite(FLASH_LED_PIN, LOW);
+      setFlashLedState(false);
     } else {
-      digitalWrite(FLASH_LED_PIN, HIGH);
-      vTaskDelay(pdMS_TO_TICKS(150));
-      digitalWrite(FLASH_LED_PIN, LOW);
+      setFlashLedState(true);
+      vTaskDelay(pdMS_TO_TICKS(3000));
+      setFlashLedState(false);
     }
+  } else {
+    setFlashLedState(true);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    setFlashLedState(false);
   }
-  #endif
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   return httpd_resp_send(req, "{\"ok\":true}", strlen("{\"ok\":true}"));
+}
+
+static esp_err_t rgb_handler(httpd_req_t *req) {
+  char query[64] = {0};
+  int pin = 48; // Mặc định chân 48 của ESP32-S3
+
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    char pinStr[16] = {0};
+    if (httpd_query_key_value(query, "pin", pinStr, sizeof(pinStr)) == ESP_OK) {
+      pin = atoi(pinStr);
+    }
+  }
+
+  Serial.printf(">> [RGB WS2812B] Kich hoat neopixelWrite tren GPIO %d\n", pin);
+
+  // Đỏ
+  neopixelWrite(pin, 255, 0, 0);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  // Xanh lá
+  neopixelWrite(pin, 0, 255, 0);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  // Xanh dương
+  neopixelWrite(pin, 0, 0, 255);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  // Trắng siêu sáng giữ 4 giây
+  neopixelWrite(pin, 255, 255, 255);
+  vTaskDelay(pdMS_TO_TICKS(4000));
+  // Tắt
+  neopixelWrite(pin, 0, 0, 0);
+
+  char res[96];
+  snprintf(res, sizeof(res), "{\"ok\":true,\"tested_ws2812_pin\":%d,\"message\":\"Da chay test WS2812B tren chan %d\"}", pin, pin);
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  return httpd_resp_send(req, res, strlen(res));
 }
 
 static esp_err_t test_pin_handler(httpd_req_t *req) {
@@ -209,7 +254,7 @@ static esp_err_t test_pin_handler(httpd_req_t *req) {
 
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.max_uri_handlers = 10;
+  config.max_uri_handlers = 12;
   config.server_port = 80;
 
   httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler, .user_ctx = NULL };
@@ -218,6 +263,7 @@ void startCameraServer() {
   httpd_uri_t beep_uri = { .uri = "/beep", .method = HTTP_GET, .handler = beep_handler, .user_ctx = NULL };
   httpd_uri_t flash_uri = { .uri = "/flash", .method = HTTP_GET, .handler = flash_handler, .user_ctx = NULL };
   httpd_uri_t test_pin_uri = { .uri = "/test_pin", .method = HTTP_GET, .handler = test_pin_handler, .user_ctx = NULL };
+  httpd_uri_t rgb_uri = { .uri = "/rgb", .method = HTTP_GET, .handler = rgb_handler, .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
@@ -225,6 +271,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &beep_uri);
     httpd_register_uri_handler(camera_httpd, &flash_uri);
     httpd_register_uri_handler(camera_httpd, &test_pin_uri);
+    httpd_register_uri_handler(camera_httpd, &rgb_uri);
   }
 
   config.server_port = 81;
@@ -234,5 +281,6 @@ void startCameraServer() {
     httpd_register_uri_handler(stream_httpd, &beep_uri);
     httpd_register_uri_handler(stream_httpd, &flash_uri);
     httpd_register_uri_handler(stream_httpd, &test_pin_uri);
+    httpd_register_uri_handler(stream_httpd, &rgb_uri);
   }
 }
