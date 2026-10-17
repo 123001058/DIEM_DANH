@@ -908,21 +908,22 @@ function playAdminSuccessBeep() {
   } catch (e) {}
 }
 
-// Âm thanh cảnh báo lỗi / giả mạo trên máy tính (tiếng buzz trầm kéo dài)
+// Âm thanh cảnh báo lỗi / giả mạo trên máy tính (2 tiếng tít-tít ngắt quãng)
 function playAdminWarningBeep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    osc.frequency.setValueAtTime(160, ctx.currentTime + 0.25);
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
+    [0, 0.15].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(440, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime + delay);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + delay + 0.1);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.1);
+    });
   } catch (e) {}
 }
 

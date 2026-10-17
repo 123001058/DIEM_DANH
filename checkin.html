@@ -118,53 +118,52 @@ body {
 }
 .student-sidebar-nav {
   display: grid;
-  gap: 5px;
+  gap: 6px;
   padding-top: 12px;
   overflow-y: auto;
 }
-.student-sidebar-nav button {
+.student-sidebar-nav button,
+.student-sidebar-nav a {
+  width: 100%;
   min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 13.5px;
   font-weight: 700;
-  text-align: left;
+  text-align: left !important;
+  text-decoration: none;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
-.student-sidebar-nav a {
-  min-height: 44px;
-  display: flex;
+.student-sidebar-nav button span,
+.student-sidebar-nav a span {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: all 0.15s ease;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  flex-shrink: 0;
+  text-align: center;
 }
-.student-sidebar-nav a:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
-}
+.student-sidebar-nav a:hover,
 .student-sidebar-nav button:hover {
   background: var(--surface-2);
   border-color: var(--border);
 }
 .student-sidebar-nav button.active {
-  background: rgba(37, 99, 235, 0.1);
-  border-color: var(--primary);
-  color: var(--primary);
+  background: var(--primary-soft) !important;
+  border-color: var(--primary-border) !important;
+  color: var(--primary) !important;
 }
 .student-view {
   display: none;
@@ -762,7 +761,6 @@ body.student-menu-open { overflow: hidden; }
     <button type="button" id="snav-tasks" onclick="switchStudentView('tasks')"><span aria-hidden="true">✅</span> Nhiệm vụ của tôi</button>
     <button type="button" id="snav-rules" onclick="switchStudentView('rules')"><span aria-hidden="true">📜</span> Nội quy xưởng</button>
     <button type="button" id="snav-feedback" onclick="switchStudentView('feedback')"><span aria-hidden="true">💬</span> Gửi phản hồi ẩn danh</button>
-    <a href="face-kiosk.html" id="snav-face"><span aria-hidden="true">👤</span> Kiosk Khuôn mặt AI</a>
     <a href="face-sinhvien.html" id="snav-face-data"><span aria-hidden="true">📸</span> Khuôn mặt &amp; Ảnh đại diện</a>
     <a href="lichhoc.html" id="snav-timetable"><span aria-hidden="true">📅</span> Thời khóa biểu ME</a>
   </nav>
