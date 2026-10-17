@@ -105,3 +105,141 @@ function navTo(viewName) {
   else if (viewName === 'zalo') initZaloScheduleView();
 }
 
+
+
+/* ==========================================================
+   HỆ THỐNG THÔNG BÁO & NHẮC VIỆC CHO ADMIN (NOTIFICATION CENTER)
+   ========================================================== */
+let adminPendingWorkData = {
+  leaveCount: 0,
+  resetCount: 0
+};
+
+function toggleAdminNotifyDropdown() {
+  const dd = document.getElementById('adminNotifyDropdown');
+  if (!dd) return;
+  const isHidden = (dd.style.display === 'none' || !dd.style.display);
+  dd.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    checkAdminPendingWork();
+  }
+}
+
+// Tự động đóng dropdown khi click ra ngoài
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.topbar-notify-wrap');
+  const dd = document.getElementById('adminNotifyDropdown');
+  if (dd && wrap && !wrap.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
+async function checkAdminPendingWork() {
+  const badgeBell = document.getElementById('adminNotifyBadge');
+  const listEl = document.getElementById('adminNotifyList');
+  const totalText = document.getElementById('adminNotifyTotalText');
+  const navLeaveBadge = document.getElementById('navLeaveBadge');
+  const navResetBadge = document.getElementById('navPasswordResetBadge');
+
+  try {
+    if (typeof supabase === 'undefined') return;
+
+    // 1. Đếm đơn xin nghỉ chờ duyệt
+    const { count: leaveCount } = await supabase.from('leave_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    // 2. Đếm yêu cầu đặt lại mật khẩu
+    const { count: resetCount } = await supabase.from('password_reset_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    const lCount = leaveCount || 0;
+    const rCount = resetCount || 0;
+    const total = lCount + rCount;
+
+    adminPendingWorkData.leaveCount = lCount;
+    adminPendingWorkData.resetCount = rCount;
+
+    // Cập nhật Badge trên Menu bên trái
+    if (navLeaveBadge) {
+      navLeaveBadge.textContent = lCount;
+      navLeaveBadge.style.background = lCount > 0 ? '#ef4444' : 'var(--surface-2)';
+      navLeaveBadge.style.color = lCount > 0 ? '#ffffff' : 'var(--muted)';
+      navLeaveBadge.style.fontWeight = lCount > 0 ? '800' : '600';
+    }
+
+    if (navResetBadge) {
+      navResetBadge.textContent = rCount;
+      navResetBadge.style.display = rCount > 0 ? 'inline-flex' : 'none';
+      navResetBadge.style.background = '#f59e0b';
+      navResetBadge.style.color = '#ffffff';
+      navResetBadge.style.fontWeight = '800';
+    }
+
+    // Cập nhật Chuông Thông Báo trên Topbar
+    if (badgeBell) {
+      if (total > 0) {
+        badgeBell.textContent = total;
+        badgeBell.style.display = 'inline-block';
+      } else {
+        badgeBell.style.display = 'none';
+      }
+    }
+
+    if (totalText) {
+      totalText.textContent = total > 0 ? `${total} việc cần xử lý` : 'Đã xong hết';
+    }
+
+    // Render danh sách việc vào Dropdown
+    if (listEl) {
+      if (total === 0) {
+        listEl.innerHTML = `
+          <div style="text-align:center;padding:26px 12px;color:var(--muted);font-size:12px;">
+            <div style="font-size:24px;margin-bottom:6px;">🎉</div>
+            <div style="font-weight:700;color:var(--text);">Không có việc nào tồn đọng!</div>
+            <div style="margin-top:2px;">Tất cả đơn xin nghỉ và yêu cầu đã được xử lý.</div>
+          </div>
+        `;
+      } else {
+        let itemsHtml = '';
+
+        if (lCount > 0) {
+          itemsHtml += `
+            <div onclick="navTo('leave');toggleAdminNotifyDropdown()" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface-2)'">
+              <span style="font-size:20px;">📋</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--text);">Có <b>${lCount}</b> đơn xin nghỉ chờ duyệt</div>
+                <div style="font-size:11px;color:var(--primary);margin-top:2px;">Bấm để vào duyệt đơn ngay →</div>
+              </div>
+              <span style="font-size:11px;font-weight:800;background:#ef4444;color:#fff;padding:2px 7px;border-radius:99px;">${lCount}</span>
+            </div>
+          `;
+        }
+
+        if (rCount > 0) {
+          itemsHtml += `
+            <div onclick="navTo('password-reset');toggleAdminNotifyDropdown()" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface-2)'">
+              <span style="font-size:20px;">🔑</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;font-weight:700;color:var(--text);">Có <b>${rCount}</b> sinh viên yêu cầu cấp lại mật khẩu</div>
+                <div style="font-size:11px;color:var(--primary);margin-top:2px;">Bấm để xem và cấp lại →</div>
+              </div>
+              <span style="font-size:11px;font-weight:800;background:#f59e0b;color:#fff;padding:2px 7px;border-radius:99px;">${rCount}</span>
+            </div>
+          `;
+        }
+
+        listEl.innerHTML = itemsHtml;
+      }
+    }
+  } catch (err) {
+    console.warn('Lỗi kiểm tra việc pending admin:', err);
+  }
+}
+
+// Khởi chạy kiểm tra ngay khi mở trang và lặp lại định kỳ mỗi 30s
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(checkAdminPendingWork, 1500);
+  setInterval(checkAdminPendingWork, 30000);
+});

@@ -273,7 +273,7 @@ function renderLeaveRequests(){
             </div>
 
             ${r.evidence_path?`<div style="margin-bottom:6px"><button type="button" class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 8px" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
-            ${r.reviewer_note ? `<div style="font-size:11px;color:var(--muted);background:var(--surface-2);padding:4px 8px;border-radius:6px;margin-bottom:6px"><b>Ghi chú:</b> ${escapeHtml(r.reviewer_note)}</div>` : ''}
+            ${renderLeaveChatHtml(parseLeaveChatNotes(r.reviewer_note), r.id, true)}
             ${historyHtml?`<details style="margin:4px 0 6px;font-size:11px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:3px;padding:5px;background:var(--surface-2);border-radius:5px">${historyHtml}</div></details>`:''}
 
             <!-- Hàng hành động 1-chạm -->
