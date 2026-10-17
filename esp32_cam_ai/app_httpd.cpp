@@ -94,16 +94,45 @@ static esp_err_t beep_handler(httpd_req_t *req) {
     }
   }
 
-  // Active Low: LOW = kêu, HIGH = ngắt
+  // Active Low với Buzzer: LOW = kêu, HIGH = ngắt
+  // Active High với Flash LED: HIGH = sáng, LOW = tắt
   for (int i = 0; i < repeats; i++) {
+    #ifdef FLASH_LED_PIN
+    digitalWrite(FLASH_LED_PIN, HIGH);
+    #endif
     digitalWrite(BUZZER_PIN, LOW);
+
     vTaskDelay(pdMS_TO_TICKS(duration));
+
     digitalWrite(BUZZER_PIN, HIGH);
+    #ifdef FLASH_LED_PIN
+    digitalWrite(FLASH_LED_PIN, LOW);
+    #endif
   }
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  return httpd_resp_send(req, "{\"ok\":true,\"buzzer\":\"beeped\"}", strlen("{\"ok\":true,\"buzzer\":\"beeped\"}"));
+  return httpd_resp_send(req, "{\"ok\":true,\"buzzer\":\"beeped\",\"flash\":\"blinked\"}", strlen("{\"ok\":true,\"buzzer\":\"beeped\",\"flash\":\"blinked\"}"));
+}
+
+static esp_err_t flash_handler(httpd_req_t *req) {
+  char query[64] = {0};
+  #ifdef FLASH_LED_PIN
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    if (strstr(query, "val=1") != NULL || strstr(query, "state=1") != NULL) {
+      digitalWrite(FLASH_LED_PIN, HIGH);
+    } else if (strstr(query, "val=0") != NULL || strstr(query, "state=0") != NULL) {
+      digitalWrite(FLASH_LED_PIN, LOW);
+    } else {
+      digitalWrite(FLASH_LED_PIN, HIGH);
+      vTaskDelay(pdMS_TO_TICKS(150));
+      digitalWrite(FLASH_LED_PIN, LOW);
+    }
+  }
+  #endif
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  return httpd_resp_send(req, "{\"ok\":true}", strlen("{\"ok\":true}"));
 }
 
 void startCameraServer() {
@@ -115,11 +144,13 @@ void startCameraServer() {
   httpd_uri_t capture_uri = { .uri = "/capture", .method = HTTP_GET, .handler = capture_handler, .user_ctx = NULL };
   httpd_uri_t stream_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler, .user_ctx = NULL };
   httpd_uri_t beep_uri = { .uri = "/beep", .method = HTTP_GET, .handler = beep_handler, .user_ctx = NULL };
+  httpd_uri_t flash_uri = { .uri = "/flash", .method = HTTP_GET, .handler = flash_handler, .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
     httpd_register_uri_handler(camera_httpd, &beep_uri);
+    httpd_register_uri_handler(camera_httpd, &flash_uri);
   }
 
   config.server_port = 81;
@@ -127,5 +158,6 @@ void startCameraServer() {
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
     httpd_register_uri_handler(stream_httpd, &beep_uri);
+    httpd_register_uri_handler(stream_httpd, &flash_uri);
   }
 }

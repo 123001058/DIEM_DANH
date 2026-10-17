@@ -15,6 +15,12 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, HIGH);
 
+  // Flash LED Active High: Mặc định tắt đèn
+  #ifdef FLASH_LED_PIN
+  pinMode(FLASH_LED_PIN, OUTPUT);
+  digitalWrite(FLASH_LED_PIN, LOW);
+  #endif
+
   Serial.begin(115200);
   delay(2000); // Đợi ổn định USB CDC trên cổng OTG
   Serial.println("\n\n========================================");
