@@ -10240,17 +10240,42 @@ async function evaluateAdminLiveness(label, landmarks, box) {
   st.minYaw = Math.min(...st.yawHistory);
   st.maxYaw = Math.max(...st.yawHistory);
 
-  // 1. Kiểm tra mô hình MiniFASNet-V2 (Chặn ảnh in / màn hình)
-  if (adminFasnetSession && !st.fasnetChecked) {
+  // 1. MiniFASNet: không cho phép bỏ qua khi mô hình lỗi
+  if (!adminFasnetSession) {
+    return {
+      isLive: false,
+      prompt: '🛡️ Mô hình chống giả chưa sẵn sàng',
+      isStaticPhoto: false
+    };
+  }
+
+  if (!st.fasnetChecked) {
     const fas = await runAdminFasnet(box);
-    if (fas) {
-      if (!fas.isLive) {
-        st.fasnetMsg = `🚫 Phát hiện ${fas.attackType} (${Math.round((1 - fas.liveScore)*100)}%)`;
-        return { isLive: false, prompt: st.fasnetMsg, isStaticPhoto: true };
-      }
-      st.fasnetChecked = true;
-      st.fasnetPass = true;
+
+    // Không có kết quả suy luận: tạm thời từ chối
+    if (!fas) {
+      return {
+        isLive: false,
+        prompt: '🛡️ Không đánh giá được chống giả, hãy thử lại',
+        isStaticPhoto: false
+      };
     }
+
+    // Mô hình phát hiện ảnh in hoặc màn hình
+    if (!fas.isLive) {
+      st.fasnetMsg =
+        `🚫 Phát hiện ${fas.attackType} ` +
+        `(${Math.round((1 - fas.liveScore) * 100)}%)`;
+
+      return {
+        isLive: false,
+        prompt: st.fasnetMsg,
+        isStaticPhoto: true
+      };
+    }
+
+    st.fasnetChecked = true;
+    st.fasnetPass = true;
   }
 
   // 2. Kiểm tra vi chuyển động sống (Ảnh 2D đưa trước cam thường cứng đơ, yaw delta gần như = 0)
