@@ -82,6 +82,36 @@ static esp_err_t index_handler(httpd_req_t *req) {
   return httpd_resp_send(req, html, strlen(html));
 }
 
+static esp_err_t beep_handler(httpd_req_t *req) {
+  char query[32] = {0};
+  int duration = 140; // 140ms tiếng bíp dứt khoát
+  int repeats = 1;
+
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    char type_param[16] = {0};
+    if (httpd_query_key_value(query, "type", type_param, sizeof(type_param)) == ESP_OK) {
+      if (strcmp(type_param, "warn") == 0 || strcmp(type_param, "error") == 0) {
+        repeats = 2;
+        duration = 70;
+      }
+    }
+  }
+
+  // Active Low: LOW = kêu, HIGH = ngắt
+  for (int i = 0; i < repeats; i++) {
+    digitalWrite(BUZZER_PIN, LOW);
+    vTaskDelay(pdMS_TO_TICKS(duration));
+    digitalWrite(BUZZER_PIN, HIGH);
+    if (i < repeats - 1) {
+      vTaskDelay(pdMS_TO_TICKS(70));
+    }
+  }
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  return httpd_resp_send(req, "{\"ok\":true,\"buzzer\":\"beeped\"}", strlen("{\"ok\":true,\"buzzer\":\"beeped\"}"));
+}
+
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 8;
@@ -90,15 +120,18 @@ void startCameraServer() {
   httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler, .user_ctx = NULL };
   httpd_uri_t capture_uri = { .uri = "/capture", .method = HTTP_GET, .handler = capture_handler, .user_ctx = NULL };
   httpd_uri_t stream_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler, .user_ctx = NULL };
+  httpd_uri_t beep_uri = { .uri = "/beep", .method = HTTP_GET, .handler = beep_handler, .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
+    httpd_register_uri_handler(camera_httpd, &beep_uri);
   }
 
   config.server_port = 81;
   config.ctrl_port = 32769;
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
+    httpd_register_uri_handler(stream_httpd, &beep_uri);
   }
 }

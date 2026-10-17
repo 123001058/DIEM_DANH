@@ -58,13 +58,6 @@ async function initFaceCamInAdmin() {
   if (ipInput) ipInput.value = savedIp;
   localStorage.setItem('esp_cam_ip', savedIp);
 
-  // Khôi phục số phút đi muộn
-  const lateInput = document.getElementById('adminLateMinutesInput');
-  const savedLateMin = localStorage.getItem('admin_late_minutes') || '15';
-  if (lateInput) lateInput.value = savedLateMin;
-
-  updateAdminFaceKpi();
-
   // Nạp song song MiniFASNet và Face-API
   loadAdminFasnetModel();
 
@@ -322,18 +315,7 @@ function reloadAdminFaceMatcher() {
 }
 
 function updateAdminFaceKpi() {
-  const total = students ? students.length : 0;
-  const db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
-  const enrolledCount = Object.keys(db).length;
-  const missingCount = Math.max(0, total - enrolledCount);
-
-  const elTotal = document.getElementById('kpiFaceTotalStudents');
-  const elEnrolled = document.getElementById('kpiFaceEnrolledCount');
-  const elMissing = document.getElementById('kpiFaceMissingCount');
-
-  if (elTotal) elTotal.textContent = total;
-  if (elEnrolled) elEnrolled.textContent = enrolledCount;
-  if (elMissing) elMissing.textContent = missingCount;
+  // Đã gỡ bỏ 3 ô thống kê to theo yêu cầu tối giản giao diện
 }
 
 // =====================================================================
@@ -537,6 +519,11 @@ async function runAdminDetectionLoop() {
   }
 }
 
+// Biến theo dõi xác thực đa khung hình chắc chắn
+let adminTrackingMssv = null;
+let adminTrackingFrames = 0;
+const REQUIRED_CONFIRM_FRAMES = 6; // Yêu cầu giữ mặt liên tục 6 frames (~0.8s - 1.2s) để chốt điểm danh chắc chắn
+
 async function processAdminCameraFrame(media) {
   const canvas = document.getElementById('adminCamOverlayCanvas');
   if (!canvas) return;
@@ -560,6 +547,8 @@ async function processAdminCameraFrame(media) {
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
 
+  const hudStatus = document.getElementById('adminCamHudStatus');
+
   // 1. Phát hiện khuôn mặt bằng Face-API Tiny
   let det = null;
   try {
@@ -569,10 +558,17 @@ async function processAdminCameraFrame(media) {
     ).withFaceLandmarks(true).withFaceDescriptor();
   } catch (e) {}
 
-  const hudStatus = document.getElementById('adminCamHudStatus');
-
+  // NẾU MẤT KHUÔN MẶT: RESET NGAY LẬP TỨC TIẾN TRÌNH XÁC THỰC
   if (!det) {
-    if (hudStatus) hudStatus.textContent = '🔍 Đang quan sát... Hãy đứng trước camera';
+    adminTrackingMssv = null;
+    adminTrackingFrames = 0;
+    adminLastUnknownFaceDataUrl = null;
+    const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
+    if (btnQuick) btnQuick.style.display = 'none';
+    if (hudStatus) {
+      hudStatus.textContent = '🔍 Đang quan sát... Hãy đứng trước camera';
+      hudStatus.style.color = 'var(--primary)';
+    }
     return;
   }
 
@@ -585,9 +581,20 @@ async function processAdminCameraFrame(media) {
   const drawH = box.height * scaleY;
 
   // 2. Kiểm tra chống giả mạo bằng MiniFASNet-V2 chuẩn FaceX
-  let antiSpoofResult = { ok: false, isLive: true };
-  if (adminAntiSpoofEnabled && adminFasnetSession) {
-    antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
+  let antiSpoofResult = { ok: false, isLive: false };
+  if (adminAntiSpoofEnabled) {
+    if (adminFasnetSession) {
+      antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
+    } else {
+      // FAIL-CLOSED: Mô hình chống ảnh giả chưa sẵn sàng -> KHÔNG cho phép nhận diện
+      if (hudStatus) {
+        hudStatus.textContent = '⏳ Đang nạp AI chống giả mạo MiniFASNet... Tạm dừng xác thực';
+        hudStatus.style.color = 'var(--warn)';
+      }
+      adminTrackingMssv = null;
+      adminTrackingFrames = 0;
+      return;
+    }
   }
 
   // 3. So khớp nhận diện danh tính bằng FaceMatcher
@@ -596,41 +603,68 @@ async function processAdminCameraFrame(media) {
     bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
   }
 
-  // 4. Đánh giá kết hợp & Temporal Confirmation
+  // 4. Đánh giá kết hợp & Xác thực Đa Khung Hình Chắc Chắn (Temporal Confirmation)
   let boxColor = '#3b82f6'; // Xanh dương: Đang theo dõi
   let statusText = '';
+  let progressRatio = 0;
 
   if (adminAntiSpoofEnabled && antiSpoofResult.ok && !antiSpoofResult.isLive) {
-    // Phát hiện giả mạo (Replay màn hình hoặc Print ảnh in)
+    // PHÁT HIỆN GIẢ MẠO: Reset ngay lập tức
+    adminTrackingMssv = null;
+    adminTrackingFrames = 0;
+    adminLastUnknownFaceDataUrl = null;
+    const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
+    if (btnQuick) btnQuick.style.display = 'none';
+
     adminConsecutiveSpoofHits++;
     boxColor = '#dc2626'; // Đỏ cảnh báo
+
+    // Kêu còi cảnh báo giả mạo trên ESP32 (rate-limit 3 giây)
+    const now = Date.now();
+    if (!window._lastSpoofBeepTime || (now - window._lastSpoofBeepTime > 3000)) {
+      window._lastSpoofBeepTime = now;
+      triggerEspBuzzer('warn');
+    }
 
     const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
       ? `Màn hình điện thoại (${(antiSpoofResult.pReplay * 100).toFixed(1)}%)`
       : `Ảnh in 2D (${(antiSpoofResult.pPrint * 100).toFixed(1)}%)`;
 
-    statusText = `🚫 TỪ CHỐI ĐIỂM DANH: Ảnh giả mạo [${reason}]`;
+    statusText = `🚫 TỪ CHỐI: Phát hiện ảnh giả [${reason}]`;
     if (hudStatus) {
       hudStatus.textContent = statusText;
       hudStatus.style.color = 'var(--err)';
     }
   } else {
-    // Khuôn mặt thật hoặc tắt chống giả mạo
+    // Khuôn mặt vượt qua bộ lọc chống ảnh giả hoặc đã tắt chống giả
     adminConsecutiveSpoofHits = 0;
 
     if (bestMatch && bestMatch.label !== 'unknown') {
+      const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
+      if (btnQuick) btnQuick.style.display = 'none';
+      adminLastUnknownFaceDataUrl = null;
+
       const parts = bestMatch.label.split(' - ');
       const mssv = parts[0];
       const name = parts[1] || mssv;
       const distance = bestMatch.distance;
 
-      // Đếm số khung hình liên tiếp xác nhận
-      adminConsecutiveLiveHits[mssv] = (adminConsecutiveLiveHits[mssv] || 0) + 1;
+      // Kiểm tra người này có đang giữ liên tục trước camera không
+      if (adminTrackingMssv === mssv) {
+        adminTrackingFrames++;
+      } else {
+        // Đổi người -> bắt đầu đếm lại từ 1
+        adminTrackingMssv = mssv;
+        adminTrackingFrames = 1;
+      }
 
-      if (adminConsecutiveLiveHits[mssv] >= 2) {
-        boxColor = '#16a34a'; // Xanh lá: Xác nhận danh tính
+      progressRatio = Math.min(1.0, adminTrackingFrames / REQUIRED_CONFIRM_FRAMES);
+
+      if (adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES) {
+        // ĐÃ GIỮ ĐỦ 6 FRAMES LIÊN TỤC (~1s) CHẮC CHẮN -> CHỐT ĐIỂM DANH!
+        boxColor = '#16a34a'; // Xanh lá: Xác nhận thành công
         const liveInfo = antiSpoofResult.ok ? ` · LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : '';
-        statusText = `✅ ${name} (${mssv})${liveInfo}`;
+        statusText = `✅ ĐÃ XÁC THỰC: ${name} (${mssv})${liveInfo}`;
 
         if (hudStatus) {
           hudStatus.textContent = statusText;
@@ -640,39 +674,71 @@ async function processAdminCameraFrame(media) {
         // Kích hoạt điểm danh hợp lệ
         executeFaceCheckin(mssv, name, distance, antiSpoofResult);
       } else {
-        statusText = `Đang xác minh: ${name}...`;
-        if (hudStatus) hudStatus.textContent = statusText;
+        // ĐANG TRONG QUÁ TRÌNH GIỮ MẶT XÁC THỰC (BỎ QUA KIỂU 1 PHÁT ĂN NGAY)
+        boxColor = '#2563eb';
+        const pct = Math.round(progressRatio * 100);
+        statusText = `⏳ Giữ yên khuôn mặt: ${name} [${adminTrackingFrames}/${REQUIRED_CONFIRM_FRAMES}] (${pct}%)`;
+
+        if (hudStatus) {
+          hudStatus.textContent = statusText;
+          hudStatus.style.color = 'var(--primary)';
+        }
       }
     } else {
-      // Khuôn mặt chưa đăng ký trong cơ sở dữ liệu
+      // Khuôn mặt chưa có trong danh sách
+      adminTrackingMssv = null;
+      adminTrackingFrames = 0;
       boxColor = '#d97706'; // Vàng cam: Chưa đăng ký
-      statusText = '⚠️ Khuôn mặt chưa có trong danh sách sinh viên';
+      statusText = '⚠️ Khuôn mặt chưa có trong dữ liệu sinh viên';
       if (hudStatus) {
         hudStatus.textContent = statusText;
         hudStatus.style.color = 'var(--warn)';
       }
+
+      // Cắt ảnh khuôn mặt hiện tại để hỗ trợ bấm nút đăng ký nhanh
+      try {
+        const cropCanvas = document.createElement('canvas');
+        const pad = Math.round(box.width * 0.25);
+        const cropX = Math.max(0, box.x - pad);
+        const cropY = Math.max(0, box.y - pad);
+        const cropW = Math.min(adminCaptureCanvas.width - cropX, box.width + pad * 2);
+        const cropH = Math.min(adminCaptureCanvas.height - cropY, box.height + pad * 2);
+
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
+        const cropCtx = cropCanvas.getContext('2d');
+        cropCtx.drawImage(adminCaptureCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        adminLastUnknownFaceDataUrl = cropCanvas.toDataURL('image/jpeg', 0.9);
+
+        const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
+        if (btnQuick) btnQuick.style.display = 'inline-flex';
+      } catch (e) {}
     }
   }
 
-  // Vẽ bounding box trang nhã (không laser hay neon)
+  // Vẽ bounding box trang nhã trên canvas
   ctx.save();
-  if (adminEspMirrored) {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-  }
-
   ctx.strokeStyle = boxColor;
   ctx.lineWidth = 2.5;
   ctx.strokeRect(drawX, drawY, drawW, drawH);
 
+  // Thanh tiến trình xác thực (Progress Bar) dưới đáy Bounding Box
+  if (progressRatio > 0 && progressRatio < 1.0) {
+    const barH = 5;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(drawX, drawY + drawH + 4, drawW, barH);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(drawX, drawY + drawH + 4, drawW * progressRatio, barH);
+  }
+
   // Nhãn trên khung khuôn mặt
   ctx.fillStyle = boxColor;
   const tagH = 22;
-  const tagW = Math.max(120, ctx.measureText(statusText).width + 16);
+  const tagW = Math.max(140, ctx.measureText(statusText).width + 16);
   ctx.fillRect(drawX, Math.max(0, drawY - tagH), tagW, tagH);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '700 11px Plus Jakarta Sans, sans-serif';
+  ctx.font = '700 11.5px Plus Jakarta Sans, sans-serif';
   ctx.fillText(statusText, drawX + 8, Math.max(14, drawY - 6));
   ctx.restore();
 }
@@ -710,7 +776,13 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
 
     if (error) {
       console.warn('Lỗi RPC kiosk_record_face_checkin:', error);
+      toast('err', 'Điểm danh thất bại', error.message || 'Máy chủ không ghi nhận được.');
+      return;
     } else if (data) {
+      if (data.ok === false) {
+        toast('warn', 'Không thể điểm danh', data.message || 'Phiên không hợp lệ hoặc đã kết thúc');
+        return;
+      }
       if (data.code === 'ALREADY') {
         toast('info', 'Đã điểm danh', `${name} (${mssv}) đã được điểm danh trước đó.`);
         addRecentScanRow(name, mssv, avatar, timeFormatted, data.status || 'có mặt', true);
@@ -723,6 +795,8 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     }
   } catch (e) {
     console.error('Lỗi khi gọi điểm danh:', e);
+    toast('err', 'Lỗi kết nối', 'Không thể gửi dữ liệu điểm danh lên máy chủ.');
+    return;
   }
 
   // 3. Cập nhật state điểm danh giao diện Admin
@@ -739,7 +813,8 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     if (typeof renderAll === 'function') renderAll();
   }
 
-  // 4. Phát âm thanh xác nhận nhẹ nhàng & toast
+  // 4. Phát âm thanh xác nhận trên còi ESP32 & loa máy tính
+  triggerEspBuzzer('success');
   playAdminSuccessBeep();
   addRecentScanRow(name, mssv, avatar, timeFormatted, checkinStatus, false);
   toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${isLate ? 'Đi muộn' : 'Có mặt'}`);
@@ -830,6 +905,51 @@ function playAdminSuccessBeep() {
     osc.start();
     osc.stop(ctx.currentTime + 0.22);
   } catch (e) {}
+}
+
+// Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
+async function triggerEspBuzzer(type = 'success') {
+  const ipInput = document.getElementById('adminEspIpInput');
+  const ip = (ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '10.96.38.99';
+  if (!ip) return;
+
+  // Gửi lệnh đồng thời tới port 80 và port 81 của ESP32
+  const url80 = `http://${ip}/beep?type=${encodeURIComponent(type)}&_=${Date.now()}`;
+  const url81 = `http://${ip}:81/beep?type=${encodeURIComponent(type)}&_=${Date.now()}`;
+
+  try {
+    fetch(url80, { mode: 'no-cors' }).catch(() => {});
+    fetch(url81, { mode: 'no-cors' }).catch(() => {});
+  } catch (e) {}
+}
+
+// Nút kiểm tra còi Buzzer trên giao diện Admin
+async function testAdminEspBuzzer() {
+  const btn = document.getElementById('btnAdminTestBuzzer');
+  if (btn) btn.textContent = '🔊 Đang kêu...';
+  toast('info', 'Thử còi ESP32', 'Đang gửi lệnh kích hoạt còi Buzzer tới ESP32...');
+
+  await triggerEspBuzzer('success');
+  playAdminSuccessBeep();
+
+  setTimeout(() => {
+    if (btn) btn.textContent = '🔔 Thử còi';
+  }, 1000);
+}
+
+// Biến lưu ảnh khuôn mặt chưa nhận diện để đăng ký nhanh
+let adminLastUnknownFaceDataUrl = null;
+
+// Chức năng: Đăng ký nhanh khuôn mặt đang đứng trước camera cho sinh viên
+function quickEnrollFromCurrentFeed() {
+  if (!adminLastUnknownFaceDataUrl) {
+    toast('warn', 'Chưa có ảnh', 'Chưa bắt được khuôn mặt từ luồng camera.');
+    return;
+  }
+  openAdminFaceEnrollModal();
+  setTimeout(() => {
+    validateAndPreviewPendingPhoto(adminLastUnknownFaceDataUrl, `Chụp trực tiếp từ camera (${new Date().toLocaleTimeString('vi-VN')})`);
+  }, 250);
 }
 
 // =====================================================================
