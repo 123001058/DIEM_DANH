@@ -2418,7 +2418,7 @@ tbody tr:last-child td { border-bottom: none; }
             </div>
           </div>
 
-          <div class="session-form" style="display:grid;grid-template-columns:1fr 140px auto;gap:14px;align-items:end;width:100%">
+          <div class="session-form" style="display:grid;grid-template-columns:1fr 130px 140px auto;gap:14px;align-items:end;width:100%">
             <div class="form-field" style="margin:0">
               <label for="quickName" style="font-size:11.5px;font-weight:700">Tên phiên điểm danh *</label>
               <input type="text" id="quickName" placeholder="VD: Điểm danh ca chiều 13/10..." style="font-size:13.5px;padding:10px 14px;margin-top:4px">
@@ -2426,6 +2426,10 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="form-field" style="margin:0">
               <label for="quickDuration" style="font-size:11.5px;font-weight:700">Thời lượng (phút)</label>
               <input type="number" id="quickDuration" value="90" min="1" style="font-size:13.5px;padding:10px 14px;margin-top:4px">
+            </div>
+            <div class="form-field" style="margin:0">
+              <label for="quickLateThreshold" style="font-size:11.5px;font-weight:700" title="Sau bao nhiêu phút tính từ khi mở phiên thì đánh dấu là Đi muộn">⏱️ Đi muộn sau (phút)</label>
+              <input type="number" id="quickLateThreshold" value="15" min="1" max="180" style="font-size:13.5px;padding:10px 14px;margin-top:4px;font-weight:700;color:#f59e0b">
             </div>
             <button class="btn btn-primary btn-open-session" onclick="openSession()" style="padding:10px 22px;font-size:13.5px;height:43px;margin:0;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">
               ▶ Bắt đầu phiên điểm danh
@@ -2444,7 +2448,10 @@ tbody tr:last-child td { border-bottom: none; }
               <div class="session-bar-meta">
                 <span>📅 <span id="sessionStartTime">—</span></span>
                 <span>🔑 ID: <code id="sessionIdDisplay">—</code></span>
-                <span>⏱ <span id="sessionDurationDisplay">—</span></span>
+                <span>⏱ Tổng: <span id="sessionDurationDisplay">—</span></span>
+                <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.12);padding:2px 8px;border-radius:6px;border:1px solid rgba(245,158,11,0.25);color:#d97706;font-weight:700;">
+                  ⚠️ Đi muộn sau: <span id="sessionLateDisplay">15 phút</span>
+                </span>
               </div>
             </div>
             <div class="countdown-chip" id="countdownChip">⏱ <span id="countdownText">--:--</span></div>
@@ -2664,6 +2671,9 @@ tbody tr:last-child td { border-bottom: none; }
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
             <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminAntiSpoof" onclick="toggleAdminAntiSpoof()" title="Bật/Tắt AI MiniFASNet-V2 chặn ảnh in và màn hình điện thoại">🛡️ AI Chống ảnh 2D: BẬT</button>
+            <label style="font-size:12px;font-weight:700;margin-left:4px;" title="Sau bao nhiêu phút kể từ lúc mở phiên thì tính là đi muộn">⏱️ Đi muộn sau:
+              <input type="number" id="adminLateMinutesInput" value="15" min="1" max="180" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:55px;text-align:center;font-weight:700;" onchange="saveAdminLateMinutes(this.value)"> phút
+            </label>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -6739,10 +6749,19 @@ async function openSession(){
   const name = document.getElementById('quickName').value.trim();
   const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
   if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
-  const warn = Math.min(30, Math.max(1, Math.floor(dur / 10)));
-  const { data, error } = await supabase.rpc('admin_open_session', { p_name: name, p_duration_min: dur, p_warn_before_min: warn });
+
+  // Lấy ngưỡng đi muộn từ ô nhập người dùng (mặc định 15 phút nếu để trống)
+  const lateInput = document.getElementById('quickLateThreshold');
+  const lateMin = lateInput ? (parseInt(lateInput.value, 10) || 15) : 15;
+  localStorage.setItem('admin_late_minutes', String(lateMin));
+
+  const { data, error } = await supabase.rpc('admin_open_session', {
+    p_name: name,
+    p_duration_min: dur,
+    p_warn_before_min: lateMin
+  });
   if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
-  toast('ok', 'Đã mở phiên', '"' + name + '" — ' + dur + ' phút');
+  toast('ok', 'Đã mở phiên', `"${name}" — ${dur} phút (Tính đi muộn sau ${lateMin} phút)`);
   await refreshAll();
 }
 
@@ -9119,6 +9138,11 @@ async function refreshAll(){
   document.getElementById('sessionStartTime').textContent = new Date(currentSession.started_at).toLocaleString('vi-VN');
   document.getElementById('sessionIdDisplay').textContent = String(currentSession.id).slice(0, 8);
   document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
+  const lateDisp = document.getElementById('sessionLateDisplay');
+  if (lateDisp) {
+    const lateVal = currentSession.warn_before_min || localStorage.getItem('admin_late_minutes') || 15;
+    lateDisp.textContent = lateVal + ' phút';
+  }
   _lastMssvSet = new Set();
   await loadAttendance();
   Object.keys(attendanceMap).forEach(m => _lastMssvSet.add(m));
@@ -9191,6 +9215,8 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
   if (idEl) idEl.textContent = String(sess.id).slice(0, 8);
   const durEl = document.getElementById('sessionDurationDisplay');
   if (durEl) durEl.textContent = sess.duration_min ? sess.duration_min + ' phút' : 'Không giới hạn';
+  const lateDisp = document.getElementById('sessionLateDisplay');
+  if (lateDisp) lateDisp.textContent = (sess.warn_before_min || 15) + ' phút';
 
   // Hiển thị Dashboard to
   const emptyState = document.getElementById('emptyState');
@@ -9832,6 +9858,11 @@ async function initFaceCamInAdmin() {
   if (ipInput) ipInput.value = savedIp;
   localStorage.setItem('esp_cam_ip', savedIp);
 
+  // Khôi phục cấu hình số phút đi muộn đã lưu
+  const lateInput = document.getElementById('adminLateMinutesInput');
+  const savedLateMin = localStorage.getItem('admin_late_minutes') || '15';
+  if (lateInput) lateInput.value = savedLateMin;
+
   // Tải MiniFASNet song song
   loadAdminFasnetModel();
 
@@ -10254,6 +10285,15 @@ function toggleAdminAntiSpoof() {
   }
 }
 
+// Lưu cấu hình số phút đi muộn
+function saveAdminLateMinutes(val) {
+  const m = parseInt(val, 10);
+  if (!isNaN(m) && m > 0) {
+    localStorage.setItem('admin_late_minutes', String(m));
+    toast('ok', 'Cài đặt Đi muộn', `Đã lưu: Sinh viên quét sau ${m} phút mở phiên sẽ bị tính là Đi muộn.`);
+  }
+}
+
 // Vòng lặp nhận diện khuôn mặt ESP32 trong Admin
 const adminCaptureCanvas = document.createElement('canvas');
 const adminCaptureCtx = adminCaptureCanvas.getContext('2d', { willReadFrequently: true });
@@ -10452,14 +10492,19 @@ async function handleAdminFaceCheckin(label) {
 
   const sessionStartMs = currentSession.started_at ? new Date(currentSession.started_at).getTime() : nowMs;
   const elapsedMin = (nowMs - sessionStartMs) / 60000;
-  const lateThresholdMin = (currentSession.warn_before_min && currentSession.warn_before_min > 5)
-    ? currentSession.warn_before_min
-    : 15;
+  
+  // Lấy ngưỡng đi muộn từ ô nhập người dùng (hoặc localStorage, mặc định 15 phút)
+  const inputEl = document.getElementById('adminLateMinutesInput');
+  const userLateSetting = inputEl ? parseInt(inputEl.value, 10) : parseInt(localStorage.getItem('admin_late_minutes') || '15', 10);
+  const lateThresholdMin = (!isNaN(userLateSetting) && userLateSetting > 0)
+    ? userLateSetting
+    : ((currentSession.warn_before_min && currentSession.warn_before_min > 0) ? currentSession.warn_before_min : 15);
+
   const isLate = elapsedMin > lateThresholdMin;
   const targetStatus = isLate ? 'đi muộn' : 'có mặt';
   const lateMinRound = Math.round(elapsedMin);
   const checkinNote = isLate
-    ? `Camera ESP32: Đi muộn (+${lateMinRound}p)`
+    ? `Camera ESP32: Đi muộn (+${lateMinRound}p, sau mốc ${lateThresholdMin}p)`
     : 'Camera ESP32 điểm danh AI';
 
   try {
