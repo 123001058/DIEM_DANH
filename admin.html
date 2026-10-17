@@ -1167,7 +1167,11 @@
           <div class="zalo-controls-row">
             <div class="zalo-date-picker-group">
               <label for="zaloDatePicker" style="font-size:12.5px;font-weight:700;color:var(--text)">📅 Chọn ngày:</label>
-              <input type="date" id="zaloDatePicker" class="zalo-date-input" onchange="onZaloDateChanged(this.value)">
+              <div style="display:inline-flex;align-items:center;gap:4px">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="changeZaloDateOffset(-1)" title="Lùi 1 ngày" style="padding:5px 9px;border-radius:8px;font-weight:800;line-height:1">◀</button>
+                <input type="date" id="zaloDatePicker" class="zalo-date-input" onchange="onZaloDateChanged(this.value)">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="changeZaloDateOffset(1)" title="Tiến 1 ngày" style="padding:5px 9px;border-radius:8px;font-weight:800;line-height:1">▶</button>
+              </div>
               <div class="zalo-quick-btns">
                 <button type="button" class="zalo-quick-btn" id="btnQuickToday" onclick="setZaloQuickDate(0)">Hôm nay</button>
                 <button type="button" class="zalo-quick-btn active" id="btnQuickTomorrow" onclick="setZaloQuickDate(1)">Ngày mai</button>
@@ -1198,40 +1202,52 @@
           <div id="zaloImageStatus" style="margin-top:10px;font-size:12px;color:var(--muted)">Đang tải dữ liệu lịch học…</div>
         </div>
 
-        <!-- 3 KPI Cards for Shift Statistics -->
+        <!-- 3 KPI Cards for Shift Statistics (Bấm vào Rảnh hoặc Bận để lọc trực tiếp) -->
         <div class="zalo-kpi-grid">
-          <div class="zalo-kpi-card interactive" id="kpiCardMorning" style="--card-accent:#f59e0b" onclick="setMatrixFilter('free_morning')" title="Bấm để lọc nhanh sinh viên rảnh ca Sáng">
+          <div class="zalo-kpi-card interactive" id="kpiCardMorning" style="--card-accent:#f59e0b" onclick="setMatrixShiftFilter('morning', 'all')" title="Bấm để lọc toàn bộ sinh viên ca Sáng">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">🌅 CA SÁNG</span>
               <span class="zalo-kpi-time">07:30 – 11:25</span>
             </div>
             <div class="zalo-kpi-counts">
-              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiMorningFree">0</b></div>
-              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiMorningBusy">0</b></div>
+              <div class="kpi-pill free" id="kpiPillMorningFree" onclick="setMatrixShiftFilter('morning', 'free', event)" title="Bấm để CHỈ XEM sinh viên RẢNH ca Sáng" style="cursor:pointer">
+                <span>🟢 Rảnh:</span><b id="kpiMorningFree">0</b>
+              </div>
+              <div class="kpi-pill busy" id="kpiPillMorningBusy" onclick="setMatrixShiftFilter('morning', 'busy', event)" title="Bấm để CHỈ XEM sinh viên BẬN ca Sáng" style="cursor:pointer">
+                <span>🔴 Bận:</span><b id="kpiMorningBusy">0</b>
+              </div>
             </div>
             <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiMorningBar" style="width:50%"></div></div>
           </div>
 
-          <div class="zalo-kpi-card interactive" id="kpiCardAfternoon" style="--card-accent:#3b82f6" onclick="setMatrixFilter('free_afternoon')" title="Bấm để lọc nhanh sinh viên rảnh ca Chiều">
+          <div class="zalo-kpi-card interactive" id="kpiCardAfternoon" style="--card-accent:#3b82f6" onclick="setMatrixShiftFilter('afternoon', 'all')" title="Bấm để lọc toàn bộ sinh viên ca Chiều">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">☀️ CA CHIỀU</span>
               <span class="zalo-kpi-time">12:50 – 16:45</span>
             </div>
             <div class="zalo-kpi-counts">
-              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiAfternoonFree">0</b></div>
-              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiAfternoonBusy">0</b></div>
+              <div class="kpi-pill free" id="kpiPillAfternoonFree" onclick="setMatrixShiftFilter('afternoon', 'free', event)" title="Bấm để CHỈ XEM sinh viên RẢNH ca Chiều" style="cursor:pointer">
+                <span>🟢 Rảnh:</span><b id="kpiAfternoonFree">0</b>
+              </div>
+              <div class="kpi-pill busy" id="kpiPillAfternoonBusy" onclick="setMatrixShiftFilter('afternoon', 'busy', event)" title="Bấm để CHỈ XEM sinh viên BẬN ca Chiều" style="cursor:pointer">
+                <span>🔴 Bận:</span><b id="kpiAfternoonBusy">0</b>
+              </div>
             </div>
             <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiAfternoonBar" style="width:50%"></div></div>
           </div>
 
-          <div class="zalo-kpi-card interactive" id="kpiCardEvening" style="--card-accent:#8b5cf6" onclick="setMatrixFilter('free_evening')" title="Bấm để lọc nhanh sinh viên rảnh ca Tối">
+          <div class="zalo-kpi-card interactive" id="kpiCardEvening" style="--card-accent:#8b5cf6" onclick="setMatrixShiftFilter('evening', 'all')" title="Bấm để lọc toàn bộ sinh viên ca Tối">
             <div class="zalo-kpi-head">
               <span class="zalo-kpi-title">🌙 CA TỐI</span>
               <span class="zalo-kpi-time">17:30 – 20:50</span>
             </div>
             <div class="zalo-kpi-counts">
-              <div class="kpi-pill free"><span>Rảnh:</span><b id="kpiEveningFree">0</b></div>
-              <div class="kpi-pill busy"><span>Bận:</span><b id="kpiEveningBusy">0</b></div>
+              <div class="kpi-pill free" id="kpiPillEveningFree" onclick="setMatrixShiftFilter('evening', 'free', event)" title="Bấm để CHỈ XEM sinh viên RẢNH ca Tối" style="cursor:pointer">
+                <span>🟢 Rảnh:</span><b id="kpiEveningFree">0</b>
+              </div>
+              <div class="kpi-pill busy" id="kpiPillEveningBusy" onclick="setMatrixShiftFilter('evening', 'busy', event)" title="Bấm để CHỈ XEM sinh viên BẬN ca Tối" style="cursor:pointer">
+                <span>🔴 Bận:</span><b id="kpiEveningBusy">0</b>
+              </div>
             </div>
             <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiEveningBar" style="width:50%"></div></div>
           </div>
@@ -1242,25 +1258,40 @@
 
         <!-- Matrix Table Section -->
         <div class="zalo-matrix-card">
-          <div class="zalo-matrix-toolbar">
-            <div class="zalo-matrix-filters" id="matrixFilterButtons">
-              <button type="button" class="matrix-filter-btn active" data-filter="all" onclick="setMatrixFilter('all')">Tất cả (<span id="filterCountAll">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_all_day" onclick="setMatrixFilter('free_all_day')">🌟 Rảnh cả ngày (<span id="filterCountAllDay">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_morning" onclick="setMatrixFilter('free_morning')">🌅 Rảnh Sáng (<span id="filterCountMorning">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_afternoon" onclick="setMatrixFilter('free_afternoon')">☀️ Rảnh Chiều (<span id="filterCountAfternoon">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="free_evening" onclick="setMatrixFilter('free_evening')">🌙 Rảnh Tối (<span id="filterCountEvening">0</span>)</button>
-              <button type="button" class="matrix-filter-btn" data-filter="busy_any" onclick="setMatrixFilter('busy_any')">🔴 Có lịch học (<span id="filterCountBusy">0</span>)</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <button type="button" class="btn btn-secondary btn-sm" id="btnToggleZaloView" onclick="toggleZaloViewMode()" title="Chuyển chế độ xem Thẻ / Bảng" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
-                <span>📊</span> <span id="zaloToggleViewText">Xem Bảng</span>
-              </button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btnCopyFilteredList" onclick="copyFilteredStudentList()" title="Sao chép danh sách sinh viên theo bộ lọc hiện tại để gửi Zalo" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
-                <span>📋</span> Copy DS đang lọc
-              </button>
-              <div class="zalo-search-box">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" color="var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="zaloMatrixSearch" placeholder="Tìm theo tên hoặc MSSV..." oninput="filterZaloMatrix()" autocomplete="off">
+          <div class="zalo-matrix-toolbar" style="display:flex;flex-direction:column;gap:10px;align-items:stretch">
+            <!-- Hàng 1: Bộ lọc Ca và Trạng thái rõ ràng -->
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div class="zalo-matrix-filters" id="matrixFilterButtons" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <!-- Chọn ca -->
+                <div style="display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);padding:3px;border-radius:99px;border:1px solid var(--border)">
+                  <button type="button" class="matrix-filter-btn active" data-shift="all" onclick="setMatrixShiftFilter('all')" style="border:none">Toàn ngày</button>
+                  <button type="button" class="matrix-filter-btn" data-shift="morning" onclick="setMatrixShiftFilter('morning')" style="border:none">🌅 Sáng</button>
+                  <button type="button" class="matrix-filter-btn" data-shift="afternoon" onclick="setMatrixShiftFilter('afternoon')" style="border:none">☀️ Chiều</button>
+                  <button type="button" class="matrix-filter-btn" data-shift="evening" onclick="setMatrixShiftFilter('evening')" style="border:none">🌙 Tối</button>
+                </div>
+
+                <!-- Phân cách -->
+                <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+
+                <!-- Chọn trạng thái -->
+                <button type="button" class="matrix-filter-btn active" data-status="all" onclick="setMatrixStatusFilter('all')">Tất cả (<span id="filterCountAll">0</span>)</button>
+                <button type="button" class="matrix-filter-btn" data-status="free" onclick="setMatrixStatusFilter('free')" style="color:var(--ok)">🟢 Người RẢNH (<span id="filterCountFree">0</span>)</button>
+                <button type="button" class="matrix-filter-btn" data-status="busy" onclick="setMatrixStatusFilter('busy')" style="color:var(--err)">🔴 Người BẬN (<span id="filterCountBusy">0</span>)</button>
+                <button type="button" class="matrix-filter-btn" data-status="free_all_day" id="btnFilterAllDay" onclick="setMatrixStatusFilter('free_all_day')">🌟 Rảnh cả ngày (<span id="filterCountAllDay">0</span>)</button>
+              </div>
+
+              <!-- Hàng công cụ phụ & tìm kiếm -->
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnToggleZaloView" onclick="toggleZaloViewMode()" title="Chuyển chế độ xem Thẻ / Bảng" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
+                  <span>📊</span> <span id="zaloToggleViewText">Xem Bảng</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCopyFilteredList" onclick="copyFilteredStudentList()" title="Sao chép danh sách sinh viên theo bộ lọc hiện tại" style="padding:6px 11px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">
+                  <span>📋</span> Copy DS đang lọc
+                </button>
+                <div class="zalo-search-box">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" color="var(--muted)"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input type="text" id="zaloMatrixSearch" placeholder="Tìm theo tên hoặc MSSV..." oninput="filterZaloMatrix()" autocomplete="off">
+                </div>
               </div>
             </div>
           </div>

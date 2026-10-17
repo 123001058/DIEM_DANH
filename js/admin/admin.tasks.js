@@ -879,24 +879,6 @@ async function loadZaloScheduleMatrix(dateKey){
       if (fEvening) fEvening.innerHTML = `<span style="color:var(--ok)">${eFree} Rảnh</span> / <span style="color:var(--err)">${eBusy} Bận</span>`;
     }
 
-    // 5. Update Filter Button Counts
-    const cAll = document.getElementById('filterCountAll');
-    const cAllDay = document.getElementById('filterCountAllDay');
-    const cM = document.getElementById('filterCountMorning');
-    const cA = document.getElementById('filterCountAfternoon');
-    const cE = document.getElementById('filterCountEvening');
-    const cBusy = document.getElementById('filterCountBusy');
-
-    const allDayFreeCount = matrixRows.filter(r => r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree).length;
-    const hasBusyCount = matrixRows.filter(r => !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree).length;
-
-    if (cAll) cAll.textContent = totalStudents;
-    if (cAllDay) cAllDay.textContent = allDayFreeCount;
-    if (cM) cM.textContent = mFree;
-    if (cA) cA.textContent = aFree;
-    if (cE) cE.textContent = eFree;
-    if (cBusy) cBusy.textContent = hasBusyCount;
-
     window.zaloScheduleMatrixData = {
       dateKey,
       day: dayDisplay,
@@ -909,6 +891,7 @@ async function loadZaloScheduleMatrix(dateKey){
       }
     };
 
+    updateMatrixFilterCounts();
     filterZaloMatrix();
     if (status) status.textContent = `Đã tải ma trận cho ${totalStudents} sinh viên · ${dayDisplay}.`;
   } catch (err) {
@@ -918,29 +901,139 @@ async function loadZaloScheduleMatrix(dateKey){
   }
 }
 
-let _matrixCurrentFilter = 'all';
-function setMatrixFilter(filterType){
-  _matrixCurrentFilter = filterType;
-  document.querySelectorAll('#matrixFilterButtons .matrix-filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === filterType);
+// ==========================================================
+// BỘ LỌC LỊCH RẢNH / BẬN THÔNG MINH (THEO CA & TRẠNG THÁI)
+// ==========================================================
+let _matrixCurrentShift = 'all';   // 'all' | 'morning' | 'afternoon' | 'evening'
+let _matrixCurrentStatus = 'all';  // 'all' | 'free' | 'busy' | 'free_all_day'
+let _matrixCurrentFilter = 'all';  // tương thích ngược
+
+function updateMatrixFilterCounts() {
+  const data = window.zaloScheduleMatrixData;
+  if (!data || !data.matrixRows) return;
+  const rows = data.matrixRows;
+  const total = rows.length;
+
+  const cAll = document.getElementById('filterCountAll');
+  const cFree = document.getElementById('filterCountFree');
+  const cBusy = document.getElementById('filterCountBusy');
+  const cAllDay = document.getElementById('filterCountAllDay');
+  const btnAllDay = document.getElementById('btnFilterAllDay');
+
+  if (cAll) cAll.textContent = total;
+
+  let freeCount = 0;
+  let busyCount = 0;
+
+  if (_matrixCurrentShift === 'morning') {
+    freeCount = rows.filter(r => r.periods.morning.isFree).length;
+    busyCount = total - freeCount;
+    if (btnAllDay) btnAllDay.style.display = 'none';
+  } else if (_matrixCurrentShift === 'afternoon') {
+    freeCount = rows.filter(r => r.periods.afternoon.isFree).length;
+    busyCount = total - freeCount;
+    if (btnAllDay) btnAllDay.style.display = 'none';
+  } else if (_matrixCurrentShift === 'evening') {
+    freeCount = rows.filter(r => r.periods.evening.isFree).length;
+    busyCount = total - freeCount;
+    if (btnAllDay) btnAllDay.style.display = 'none';
+  } else {
+    // Toàn bộ ngày
+    freeCount = rows.filter(r => r.periods.morning.isFree || r.periods.afternoon.isFree || r.periods.evening.isFree).length;
+    busyCount = rows.filter(r => !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree).length;
+    const allDayFree = rows.filter(r => r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree).length;
+    if (cAllDay) cAllDay.textContent = allDayFree;
+    if (btnAllDay) btnAllDay.style.display = '';
+  }
+
+  if (cFree) cFree.textContent = freeCount;
+  if (cBusy) cBusy.textContent = busyCount;
+}
+
+function setMatrixShiftFilter(shift, status, ev) {
+  if (ev) ev.stopPropagation();
+  _matrixCurrentShift = shift || 'all';
+  if (status) {
+    _matrixCurrentStatus = status;
+  } else if (_matrixCurrentShift !== 'all' && _matrixCurrentStatus === 'free_all_day') {
+    _matrixCurrentStatus = 'free';
+  }
+
+  // Cập nhật active class cho nhóm nút Ca
+  document.querySelectorAll('#matrixFilterButtons [data-shift]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.shift === _matrixCurrentShift);
   });
 
-  // Highlight table shift column (Phương án A)
+  // Cập nhật active class cho nhóm nút Status
+  document.querySelectorAll('#matrixFilterButtons [data-status]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === _matrixCurrentStatus);
+  });
+
+  // Highlight cột trên table
   const table = document.getElementById('zaloMatrixTable');
   if (table) {
     table.classList.remove('focus-morning', 'focus-afternoon', 'focus-evening');
-    if (filterType === 'free_morning') table.classList.add('focus-morning');
-    else if (filterType === 'free_afternoon') table.classList.add('focus-afternoon');
-    else if (filterType === 'free_evening') table.classList.add('focus-evening');
+    if (_matrixCurrentShift === 'morning') table.classList.add('focus-morning');
+    else if (_matrixCurrentShift === 'afternoon') table.classList.add('focus-afternoon');
+    else if (_matrixCurrentShift === 'evening') table.classList.add('focus-evening');
   }
 
-  // Highlight KPI card
+  // Highlight KPI card & KPI pills
   document.querySelectorAll('.zalo-kpi-card').forEach(c => c.classList.remove('active-focus'));
-  if (filterType === 'free_morning') document.getElementById('kpiCardMorning')?.classList.add('active-focus');
-  else if (filterType === 'free_afternoon') document.getElementById('kpiCardAfternoon')?.classList.add('active-focus');
-  else if (filterType === 'free_evening') document.getElementById('kpiCardEvening')?.classList.add('active-focus');
+  document.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active-pill'));
+
+  if (_matrixCurrentShift === 'morning') {
+    document.getElementById('kpiCardMorning')?.classList.add('active-focus');
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillMorningFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillMorningBusy')?.classList.add('active-pill');
+  } else if (_matrixCurrentShift === 'afternoon') {
+    document.getElementById('kpiCardAfternoon')?.classList.add('active-focus');
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillAfternoonFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillAfternoonBusy')?.classList.add('active-pill');
+  } else if (_matrixCurrentShift === 'evening') {
+    document.getElementById('kpiCardEvening')?.classList.add('active-focus');
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillEveningFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillEveningBusy')?.classList.add('active-pill');
+  }
+
+  updateMatrixFilterCounts();
+  filterZaloMatrix();
+}
+
+function setMatrixStatusFilter(status) {
+  _matrixCurrentStatus = status || 'all';
+  document.querySelectorAll('#matrixFilterButtons [data-status]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === _matrixCurrentStatus);
+  });
+
+  // Đồng bộ highlight pill trên KPI card
+  document.querySelectorAll('.kpi-pill').forEach(p => p.classList.remove('active-pill'));
+  if (_matrixCurrentShift === 'morning') {
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillMorningFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillMorningBusy')?.classList.add('active-pill');
+  } else if (_matrixCurrentShift === 'afternoon') {
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillAfternoonFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillAfternoonBusy')?.classList.add('active-pill');
+  } else if (_matrixCurrentShift === 'evening') {
+    if (_matrixCurrentStatus === 'free') document.getElementById('kpiPillEveningFree')?.classList.add('active-pill');
+    else if (_matrixCurrentStatus === 'busy') document.getElementById('kpiPillEveningBusy')?.classList.add('active-pill');
+  }
 
   filterZaloMatrix();
+}
+
+// Proxy tương thích ngược với các lệnh gọi cũ
+function setMatrixFilter(filterType) {
+  _matrixCurrentFilter = filterType;
+  if (filterType === 'free_morning') setMatrixShiftFilter('morning', 'free');
+  else if (filterType === 'busy_morning') setMatrixShiftFilter('morning', 'busy');
+  else if (filterType === 'free_afternoon') setMatrixShiftFilter('afternoon', 'free');
+  else if (filterType === 'busy_afternoon') setMatrixShiftFilter('afternoon', 'busy');
+  else if (filterType === 'free_evening') setMatrixShiftFilter('evening', 'free');
+  else if (filterType === 'busy_evening') setMatrixShiftFilter('evening', 'busy');
+  else if (filterType === 'free_all_day') setMatrixShiftFilter('all', 'free_all_day');
+  else if (filterType === 'busy_any') setMatrixShiftFilter('all', 'busy');
+  else setMatrixShiftFilter('all', 'all');
 }
 
 function filterZaloMatrix(){
@@ -953,12 +1046,27 @@ function filterZaloMatrix(){
     const mssv = r.dataset.mssv || '';
     const matchSearch = !search || name.includes(search) || mssv.includes(search);
 
+    const isFreeAllDay = r.dataset.freeAllDay === 'true';
+    const isFreeMorning = r.dataset.freeMorning === 'true';
+    const isFreeAfternoon = r.dataset.freeAfternoon === 'true';
+    const isFreeEvening = r.dataset.freeEvening === 'true';
+    const hasBusy = r.dataset.hasBusy === 'true';
+
     let matchFilter = true;
-    if (_matrixCurrentFilter === 'free_all_day') matchFilter = r.dataset.freeAllDay === 'true';
-    else if (_matrixCurrentFilter === 'free_morning') matchFilter = r.dataset.freeMorning === 'true';
-    else if (_matrixCurrentFilter === 'free_afternoon') matchFilter = r.dataset.freeAfternoon === 'true';
-    else if (_matrixCurrentFilter === 'free_evening') matchFilter = r.dataset.freeEvening === 'true';
-    else if (_matrixCurrentFilter === 'busy_any') matchFilter = r.dataset.hasBusy === 'true';
+    if (_matrixCurrentShift === 'morning') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeMorning;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeMorning;
+    } else if (_matrixCurrentShift === 'afternoon') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeAfternoon;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeAfternoon;
+    } else if (_matrixCurrentShift === 'evening') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeEvening;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeEvening;
+    } else {
+      if (_matrixCurrentStatus === 'free_all_day') matchFilter = isFreeAllDay;
+      else if (_matrixCurrentStatus === 'free') matchFilter = (isFreeMorning || isFreeAfternoon || isFreeEvening);
+      else if (_matrixCurrentStatus === 'busy') matchFilter = hasBusy;
+    }
 
     const isVisible = (matchSearch && matchFilter);
     r.style.display = isVisible ? '' : 'none';
@@ -977,12 +1085,27 @@ function filterZaloMatrix(){
     const mssv = c.dataset.mssv || '';
     const matchSearch = !search || name.includes(search) || mssv.includes(search);
 
+    const isFreeAllDay = c.dataset.freeAllDay === 'true';
+    const isFreeMorning = c.dataset.freeMorning === 'true';
+    const isFreeAfternoon = c.dataset.freeAfternoon === 'true';
+    const isFreeEvening = c.dataset.freeEvening === 'true';
+    const hasBusy = c.dataset.hasBusy === 'true';
+
     let matchFilter = true;
-    if (_matrixCurrentFilter === 'free_all_day') matchFilter = c.dataset.freeAllDay === 'true';
-    else if (_matrixCurrentFilter === 'free_morning') matchFilter = c.dataset.freeMorning === 'true';
-    else if (_matrixCurrentFilter === 'free_afternoon') matchFilter = c.dataset.freeAfternoon === 'true';
-    else if (_matrixCurrentFilter === 'free_evening') matchFilter = c.dataset.freeEvening === 'true';
-    else if (_matrixCurrentFilter === 'busy_any') matchFilter = c.dataset.hasBusy === 'true';
+    if (_matrixCurrentShift === 'morning') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeMorning;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeMorning;
+    } else if (_matrixCurrentShift === 'afternoon') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeAfternoon;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeAfternoon;
+    } else if (_matrixCurrentShift === 'evening') {
+      if (_matrixCurrentStatus === 'free') matchFilter = isFreeEvening;
+      else if (_matrixCurrentStatus === 'busy') matchFilter = !isFreeEvening;
+    } else {
+      if (_matrixCurrentStatus === 'free_all_day') matchFilter = isFreeAllDay;
+      else if (_matrixCurrentStatus === 'free') matchFilter = (isFreeMorning || isFreeAfternoon || isFreeEvening);
+      else if (_matrixCurrentStatus === 'busy') matchFilter = hasBusy;
+    }
 
     c.style.display = (matchSearch && matchFilter) ? '' : 'none';
   });
@@ -1002,6 +1125,19 @@ function filterZaloMatrix(){
   }
 }
 
+function changeZaloDateOffset(delta) {
+  const currentKey = window.zaloSelectedDate || document.getElementById('zaloDatePicker')?.value || getVietnamDateKey(0);
+  const curDate = new Date(`${currentKey}T12:00:00+07:00`);
+  curDate.setDate(curDate.getDate() + delta);
+  const y = curDate.getFullYear();
+  const m = String(curDate.getMonth() + 1).padStart(2, '0');
+  const d = String(curDate.getDate()).padStart(2, '0');
+  const newDateKey = `${y}-${m}-${d}`;
+  const dateInput = document.getElementById('zaloDatePicker');
+  if (dateInput) dateInput.value = newDateKey;
+  onZaloDateChanged(newDateKey);
+}
+
 function copyFilteredStudentList() {
   const visibleRows = Array.from(document.querySelectorAll('#zaloMatrixTbody .matrix-row')).filter(r => r.style.display !== 'none');
   if (!visibleRows.length) {
@@ -1009,21 +1145,44 @@ function copyFilteredStudentList() {
     return;
   }
   
-  let filterName = 'Tất cả sinh viên';
-  if (_matrixCurrentFilter === 'free_all_day') filterName = 'Rảnh cả ngày (Full 3 ca)';
-  else if (_matrixCurrentFilter === 'free_morning') filterName = 'Rảnh ca Sáng (07:30–11:25)';
-  else if (_matrixCurrentFilter === 'free_afternoon') filterName = 'Rảnh ca Chiều (12:50–16:45)';
-  else if (_matrixCurrentFilter === 'free_evening') filterName = 'Rảnh ca Tối (17:30–20:50)';
-  else if (_matrixCurrentFilter === 'busy_any') filterName = 'Có lịch học';
+  let shiftLabel = 'TOÀN BỘ NGÀY';
+  if (_matrixCurrentShift === 'morning') shiftLabel = 'CA SÁNG (07:30–11:25)';
+  else if (_matrixCurrentShift === 'afternoon') shiftLabel = 'CA CHIỀU (12:50–16:45)';
+  else if (_matrixCurrentShift === 'evening') shiftLabel = 'CA TỐI (17:30–20:50)';
+
+  let statusLabel = 'Tất cả sinh viên';
+  if (_matrixCurrentStatus === 'free') statusLabel = 'Chỉ người RẢNH';
+  else if (_matrixCurrentStatus === 'busy') statusLabel = 'Chỉ người BẬN';
+  else if (_matrixCurrentStatus === 'free_all_day') statusLabel = 'Rảnh cả ngày';
 
   const dateStr = window.zaloScheduleMatrixData?.day || 'Hôm nay';
   const lines = [
-    `📋 DANH SÁCH ${filterName.toUpperCase()} (${visibleRows.length} SV) — ${dateStr}:`
+    `📋 DANH SÁCH [${shiftLabel} — ${statusLabel.toUpperCase()}] (${visibleRows.length} SV) — ${dateStr}:`
   ];
+
   visibleRows.forEach((r, idx) => {
     const mssv = r.dataset.mssv || '';
     const name = r.querySelector('td:nth-child(3)')?.textContent?.trim() || '';
-    lines.push(`${idx + 1}. ${name} - ${mssv}`);
+
+    let extra = '';
+    if (_matrixCurrentShift === 'morning') {
+      const col = r.querySelector('.col-shift-morning');
+      const info = col?.querySelector('.cell-class-info')?.textContent?.trim();
+      extra = r.dataset.freeMorning === 'true' ? ' — 🟢 Rảnh' : ` — 🔴 Bận (${info || 'Có lịch học'})`;
+    } else if (_matrixCurrentShift === 'afternoon') {
+      const col = r.querySelector('.col-shift-afternoon');
+      const info = col?.querySelector('.cell-class-info')?.textContent?.trim();
+      extra = r.dataset.freeAfternoon === 'true' ? ' — 🟢 Rảnh' : ` — 🔴 Bận (${info || 'Có lịch học'})`;
+    } else if (_matrixCurrentShift === 'evening') {
+      const col = r.querySelector('.col-shift-evening');
+      const info = col?.querySelector('.cell-class-info')?.textContent?.trim();
+      extra = r.dataset.freeEvening === 'true' ? ' — 🟢 Rảnh' : ` — 🔴 Bận (${info || 'Có lịch học'})`;
+    } else {
+      const isAllDay = r.dataset.freeAllDay === 'true';
+      extra = isAllDay ? ' — 🌟 Rảnh cả ngày' : (r.dataset.hasBusy === 'true' ? ' — 🔴 Có lịch học' : ' — 🟢 Rảnh');
+    }
+
+    lines.push(`${idx + 1}. ${name} (${mssv})${extra}`);
   });
 
   const textToCopy = lines.join('\n');

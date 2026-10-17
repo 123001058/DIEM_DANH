@@ -15,27 +15,43 @@ function toggleZaloViewMode() {
 function renderZaloWeekPills(dateKey) {
   const container = document.getElementById('zaloWeekCarousel');
   if (!container) return;
-  const today = new Date();
+  const todayKey = getVietnamDateKey(0);
+  const tomorrowKey = getVietnamDateKey(1);
   const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const pills = [];
-  
-  // Hiển thị 7 ngày từ hôm qua (-1) đến 5 ngày sau (+5)
-  for (let offset = -1; offset <= 5; offset++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + offset);
-    const key = getVietnamDateKey(offset);
-    const labelDay = offset === 0 ? 'H.Nay' : offset === 1 ? 'N.Mai' : dayNames[d.getDay()];
-    const labelDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+  const baseDate = dateKey ? new Date(`${dateKey}T12:00:00+07:00`) : new Date();
+
+  // Hiển thị 7 ngày quanh baseDate (từ -2 đến +4)
+  for (let offset = -2; offset <= 4; offset++) {
+    const d = new Date(baseDate);
+    d.setDate(baseDate.getDate() + offset);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${day}`;
+
+    let labelDay = dayNames[d.getDay()];
+    if (key === todayKey) labelDay = 'H.Nay';
+    else if (key === tomorrowKey) labelDay = 'N.Mai';
+
+    const labelDate = `${day}/${m}`;
     const isActive = (key === dateKey);
 
     pills.push(`
-      <button type="button" class="zalo-week-pill ${isActive ? 'active' : ''}" onclick="setZaloQuickDate(${offset})">
+      <button type="button" class="zalo-week-pill ${isActive ? 'active' : ''}" onclick="onZaloPillClicked('${key}')">
         <span class="wp-day">${labelDay}</span>
         <span class="wp-date">${labelDate}</span>
       </button>
     `);
   }
   container.innerHTML = pills.join('');
+}
+
+function onZaloPillClicked(dateKey) {
+  const dateInput = document.getElementById('zaloDatePicker');
+  if (dateInput) dateInput.value = dateKey;
+  onZaloDateChanged(dateKey);
 }
 
 function openDatePickerPopup() {

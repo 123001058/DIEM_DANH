@@ -2164,3 +2164,11 @@ tbody tr:last-child td { border-bottom: none; }
     transform: translateY(0);
   }
 }
+
+/* ACTIVE PILL STYLING CHO LỊCH RẢNH / BẬN */
+.kpi-pill { cursor: pointer; transition: all 0.15s ease; user-select: none; }
+.kpi-pill:hover { filter: brightness(0.95); transform: translateY(-1px); }
+.kpi-pill.free.active-pill { background: #15803d !important; color: #ffffff !important; box-shadow: 0 0 0 2px #15803d, 0 3px 8px rgba(21, 128, 61, 0.35) !important; }
+.kpi-pill.busy.active-pill { background: #b91c1c !important; color: #ffffff !important; box-shadow: 0 0 0 2px #b91c1c, 0 3px 8px rgba(185, 28, 28, 0.35) !important; }
+#matrixFilterButtons .matrix-filter-btn { transition: all 0.15s ease; }
+#matrixFilterButtons .matrix-filter-btn:hover { opacity: 0.9; }
