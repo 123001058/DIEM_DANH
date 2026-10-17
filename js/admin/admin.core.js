@@ -248,14 +248,14 @@ document.addEventListener('DOMContentLoaded', () => {
    QUẢN LÝ AVATAR (ẢNH ĐẠI DIỆN) ADMIN (THỰC TẾ 100%)
    ========================================================== */
 let adminCurrentUserId = null;
-let adminCurrentMssv = '123000555';
-let adminCurrentName = 'Nguyễn Lê Vũ Duy';
+let adminCurrentMssv = '123001058';
+let adminCurrentName = 'Nguyễn Khánh Hoà';
 let pendingAdminAvatarDataUrl = null;
 
 function applyAdminAvatar(avatarUrl, name) {
   const topEl = document.getElementById('topbarAvatar');
   const sideEl = document.getElementById('sidebarAvatar');
-  const displayName = name || adminCurrentName || document.getElementById('adminName')?.textContent || 'Admin';
+  const displayName = name || adminCurrentName || document.getElementById('adminName')?.textContent || 'Nguyễn Khánh Hoà';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
 
   const effectiveUrl = avatarUrl 
@@ -291,7 +291,7 @@ async function loadAdminAvatar(userId, mssv, name) {
   // 2. Tải avatar từ Database Supabase (bảng students)
   if (typeof supabase !== 'undefined') {
     try {
-      const targetMssv = adminCurrentMssv || '123000555';
+      const targetMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : '123001058';
       const { data: st } = await supabase.from('students').select('avatar').eq('mssv', targetMssv).maybeSingle();
       if (st?.avatar) {
         localStorage.setItem('admin_custom_avatar', st.avatar);
@@ -311,6 +311,7 @@ async function loadAdminAvatar(userId, mssv, name) {
 }
 
 function openAdminAvatarModal() {
+  if (typeof closeSidebar === 'function') closeSidebar();
   const modal = document.getElementById('adminAvatarModal');
   if (!modal) return;
 
@@ -320,11 +321,20 @@ function openAdminAvatarModal() {
   const fileInput = document.getElementById('adminAvatarFileInput');
   const btnSave = document.getElementById('btnSaveAdminAvatar');
 
-  const curName = adminCurrentName || document.getElementById('adminName')?.textContent || 'Nguyễn Lê Vũ Duy';
-  const curMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : (document.getElementById('adminMssv')?.textContent || '123000555');
+  const curName = adminCurrentName 
+    || document.getElementById('sidebarAdminName')?.textContent?.trim()
+    || document.getElementById('adminName')?.textContent?.trim()
+    || 'Nguyễn Khánh Hoà';
+
+  const curMssv = (adminCurrentMssv && adminCurrentMssv !== '—') 
+    ? adminCurrentMssv 
+    : (document.getElementById('sidebarAdminMssv')?.textContent?.trim() || document.getElementById('adminMssv')?.textContent?.trim() || '123001058');
+
+  adminCurrentMssv = curMssv;
+  adminCurrentName = curName;
 
   if (nameEl) nameEl.textContent = curName;
-  if (mssvEl) mssvEl.textContent = 'MSSV: ' + (curMssv === '—' ? '123000555' : curMssv);
+  if (mssvEl) mssvEl.textContent = 'MSSV: ' + curMssv;
   if (fileInput) fileInput.value = '';
   if (btnSave) {
     btnSave.disabled = true;
@@ -336,7 +346,7 @@ function openAdminAvatarModal() {
     || (adminCurrentUserId ? localStorage.getItem('admin_custom_avatar_' + adminCurrentUserId) : null);
 
   if (previewImg) {
-    previewImg.src = currentAvatar || 'images/faces/123000555.png';
+    previewImg.src = currentAvatar || ('images/faces/' + curMssv + '.png');
   }
 
   pendingAdminAvatarDataUrl = null;
@@ -412,7 +422,7 @@ async function saveAdminAvatar() {
   }
 
   const avatarData = pendingAdminAvatarDataUrl;
-  const targetMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : '123000555';
+  const targetMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : '123001058';
 
   try {
     // ==============================================================
@@ -426,17 +436,21 @@ async function saveAdminAvatar() {
     applyAdminAvatar(avatarData, adminCurrentName);
 
     // ==============================================================
-    // BƯỚC 2: LƯU VÀO DATABASE SUPABASE QUA RPC
+    // BƯỚC 2: LƯU VÀO DATABASE SUPABASE QUA RPC CHUYÊN DỤNG
     // ==============================================================
     let savedToCloud = false;
     if (typeof supabase !== 'undefined') {
       try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_set_my_avatar', { p_avatar: avatarData });
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_update_avatar', {
+          p_mssv: targetMssv,
+          p_avatar: avatarData
+        });
         if (!rpcErr && rpcRes?.ok) {
           savedToCloud = true;
+          console.log('[Admin Avatar] Đã lưu avatar vào Supabase qua admin_update_avatar:', rpcRes);
         } else {
-          const { data: rpc2, error: err2 } = await supabase.rpc('student_set_my_avatar', { p_avatar: avatarData });
-          if (!err2 && rpc2?.ok) savedToCloud = true;
+          console.warn('[Admin Avatar] Lỗi RPC admin_update_avatar, thử fallback:', rpcErr);
+          await supabase.rpc('admin_set_my_avatar', { p_avatar: avatarData });
         }
       } catch (cloudErr) {
         console.warn('[Admin Avatar] Lỗi RPC Supabase:', cloudErr);
@@ -469,7 +483,7 @@ async function saveAdminAvatar() {
           const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
           const finalUrl = pub?.publicUrl ? (pub.publicUrl + '?t=' + Date.now()) : null;
           if (finalUrl) {
-            await supabase.rpc('student_set_my_avatar', { p_avatar: finalUrl });
+            await supabase.rpc('admin_update_avatar', { p_mssv: targetMssv, p_avatar: finalUrl });
             localStorage.setItem('admin_custom_avatar', finalUrl);
             if (adminCurrentUserId) localStorage.setItem('admin_custom_avatar_' + adminCurrentUserId, finalUrl);
             applyAdminAvatar(finalUrl, adminCurrentName);

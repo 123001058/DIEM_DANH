@@ -120,6 +120,106 @@ async function loadLeaveManagement(){
   adminLeaveSchedules=schedules;renderLeaveRequests();
 }
 
+/* ==========================================================
+   HỆ THỐNG TRAO ĐỔI & PHẢN HỒI (LEAVE CHAT) TRÊN ĐƠN NGHỈ
+   ========================================================== */
+function parseLeaveChatNotes(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'object' && Array.isArray(raw)) return raw;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return parsed;
+    return [{ id: 'legacy', sender: 'admin', name: 'Quản lý', text: String(raw), time: '' }];
+  } catch (_) {
+    return [{ id: 'legacy', sender: 'admin', name: 'Quản lý', text: String(raw), time: '' }];
+  }
+}
+
+function renderLeaveChatHtml(messages, leaveId, isAdmin) {
+  const msgs = Array.isArray(messages) ? messages : [];
+  let msgsHtml = '';
+  if (msgs.length) {
+    msgsHtml = msgs.map(m => {
+      const isFromAdmin = (m.sender === 'admin');
+      const bubbleBg = isFromAdmin ? 'var(--surface, #fff)' : 'var(--surface-2, #f1f5f9)';
+      const bubbleColor = isFromAdmin ? 'var(--primary)' : 'var(--text)';
+      const align = isFromAdmin ? 'flex-end' : 'flex-start';
+      const border = isFromAdmin ? '1px solid var(--primary)' : '1px solid var(--border)';
+      return `
+        <div style="display:flex;flex-direction:column;align-items:${align};margin-bottom:6px;">
+          <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">
+            <b>${escapeHtml(m.name || (isFromAdmin ? 'Quản lý' : 'Sinh viên'))}</b> · <span>${escapeHtml(m.time || '')}</span>
+          </div>
+          <div style="max-width:85%;padding:6px 10px;border-radius:10px;background:${bubbleBg};color:${bubbleColor};border:${border};font-size:12px;word-break:break-word;line-height:1.4;">
+            ${escapeHtml(m.text || '')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  return `
+    <div class="leave-chat-box" style="margin:8px 0;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:5px">
+        <span>💬</span> Trao đổi & Ghi chú phản hồi ${msgs.length ? `(${msgs.length})` : ''}
+      </div>
+      <div id="leaveChatMsgs_${leaveId}" style="max-height:160px;overflow-y:auto;margin-bottom:6px;">
+        ${msgsHtml || '<div style="font-size:11px;color:var(--muted);font-style:italic">Chưa có phản hồi hay trao đổi nào.</div>'}
+      </div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="leaveChatInput_${leaveId}" placeholder="Nhập tin nhắn phản hồi cho sinh viên..." style="flex:1;padding:5px 8px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLeaveComment('${leaveId}');}">
+        <button type="button" class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:11.5px;font-weight:700" onclick="sendLeaveComment('${leaveId}')">Gửi</button>
+      </div>
+    </div>
+  `;
+}
+
+async function sendLeaveComment(leaveId) {
+  const inp = document.getElementById(`leaveChatInput_${leaveId}`);
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  inp.disabled = true;
+
+  try {
+    const { data, error } = await supabase.rpc('submit_leave_comment', {
+      p_leave_id: leaveId,
+      p_message: text
+    });
+
+    if (error) {
+      const row = adminLeaveCache.find(r => r.id === leaveId);
+      const currentMsgs = parseLeaveChatNotes(row?.reviewer_note);
+      const newMsg = {
+        id: 'msg_' + Date.now(),
+        sender: 'admin',
+        name: (typeof adminCurrentName !== 'undefined' && adminCurrentName) || 'Quản lý',
+        text: text,
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+      };
+      currentMsgs.push(newMsg);
+      const { error: upErr } = await supabase.from('leave_requests').update({
+        reviewer_note: JSON.stringify(currentMsgs),
+        updated_at: new Date().toISOString()
+      }).eq('id', leaveId);
+      if (upErr) throw upErr;
+      if (row) row.reviewer_note = JSON.stringify(currentMsgs);
+    } else if (data?.ok) {
+      const row = adminLeaveCache.find(r => r.id === leaveId);
+      if (row) row.reviewer_note = JSON.stringify(data.notes);
+    }
+
+    if (typeof toast === 'function') toast('ok', 'Đã gửi phản hồi', 'Tin nhắn đã được lưu vào đơn.');
+    renderLeaveRequests();
+  } catch (err) {
+    console.error('Lỗi gửi phản hồi đơn:', err);
+    if (typeof toast === 'function') toast('err', 'Không gửi được', err.message || 'Lỗi gửi tin nhắn');
+    inp.disabled = false;
+  }
+}
+
+
 function renderLeaveRequests(){
   const list=document.getElementById('leaveRequestDays');if(!list)return;
   const filterStatus=document.getElementById('leaveFilterStatus')?.value||'all';
