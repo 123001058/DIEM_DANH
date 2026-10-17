@@ -9974,7 +9974,7 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.52);
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.39);
     const hud = document.getElementById('adminEspHudText');
     if (hud) hud.textContent = `🟢 Đã nạp ${labeled.length} sinh viên vào bộ nhớ AI`;
   } else {
@@ -10422,7 +10422,7 @@ async function startAdminFaceLoop() {
 
             if (adminFaceMatcher) {
               const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-              const maxDistance = adminAntiSpoofEnabled ? 0.45 : 0.52;
+              const maxDistance = adminAntiSpoofEnabled ? 0.39 : 0.42;
 
               if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
                 isMatched = true;
