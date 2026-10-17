@@ -1,8 +1,8 @@
 #ifndef BOARD_CONFIG_H
 #define BOARD_CONFIG_H
 
-// Cấu hình chuẩn cho mạch ESP32-S3-CAM WROOM N16R8 (OV2640)
 #define CAMERA_MODEL_ESP32S3_EYE
+#define BUZZER_PIN 14
 
 #include "camera_pins.h"
 

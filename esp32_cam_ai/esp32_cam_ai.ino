@@ -3,7 +3,6 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include "board_config.h"
-
 // ===========================
 // CẤU HÌNH WIFI ĐA MẠNG
 // ===========================
@@ -12,6 +11,10 @@ WiFiMulti wifiMulti;
 void startCameraServer();
 
 void setup() {
+  // Buzzer Active Low: Mặc định tắt còi
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, HIGH);
+
   Serial.begin(115200);
   delay(2000); // Đợi ổn định USB CDC trên cổng OTG
   Serial.println("\n\n========================================");
