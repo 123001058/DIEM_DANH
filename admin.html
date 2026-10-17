@@ -499,12 +499,6 @@
             <span id="adminFasnetStatusPill" style="font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);">
               MiniFASNet: Đang kiểm tra...
             </span>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="syncAdminFacesFromSupabase(true)" title="Đồng bộ lại từ Server">
-              ☁️ Đồng bộ Server
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="exportAllFaceData()" title="Xuất dữ liệu khuôn mặt">
-              ⬇️ Xuất dữ liệu AI
-            </button>
             <button type="button" class="btn btn-primary btn-sm" onclick="openAdminFaceEnrollModal()" title="Mở quản lý ảnh khuôn mặt theo từng MSSV">
               📷 Quản lý ảnh theo MSSV
             </button>
@@ -514,25 +508,14 @@
 
       <!-- Khung quét nhận diện trực tiếp -->
       <div class="card" style="padding:18px 20px;margin-bottom:16px;">
-        <!-- Toolbar Camera gọn gàng -->
+        <!-- Toolbar Camera gọn gàng: Mặc định ESP32 -->
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <!-- Chọn nguồn Camera -->
-            <label style="font-size:12px;font-weight:700;">Nguồn Camera:
-              <select id="adminCamSourceSelect" onchange="setAdminCameraSource(this.value)" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);margin-left:4px;font-weight:700;">
-                <option value="esp32">1. Camera ESP32-S3 (Stream IP)</option>
-                <option value="webcam">2. Webcam máy tính (Trực tiếp)</option>
-              </select>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:6px;">
+              <span>📷 IP Camera ESP32:</span>
+              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;background:var(--surface);color:var(--text);width:140px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
             </label>
-
-            <!-- IP ESP32 -->
-            <span id="adminEspControlsGroup" style="display:inline-flex;align-items:center;gap:4px;">
-              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:130px;" title="Địa chỉ IP của ESP32-CAM">
-              <button type="button" class="btn btn-secondary btn-sm" id="btnAdminTestBuzzer" onclick="testAdminEspBuzzer()" title="Bấm để phát tiếng bíp thử trên còi Buzzer của ESP32">🔔 Thử còi</button>
-            </span>
-
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminCamToggle" onclick="toggleAdminCamera()">📡 Bắt đầu quét</button>
-            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminAntiSpoof" onclick="toggleAdminAntiSpoof()" title="Bật/Tắt chống giả mạo MiniFASNet-V2">🛡️ AI Chống ảnh 2D: BẬT</button>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -546,7 +529,7 @@
             <div style="position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:380px;display:flex;align-items:center;justify-content:center;">
               <!-- Luồng ảnh MJPEG từ ESP32 -->
               <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
-              <!-- Video Webcam -->
+              <!-- Video Webcam (Dự phòng ngầm) -->
               <video id="adminWebcamVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;"></video>
               <!-- Canvas vẽ khung nhận diện -->
               <canvas id="adminCamOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
@@ -555,7 +538,7 @@
               <div id="adminCamPlaceholder" style="text-align:center;padding:40px 20px;color:var(--muted);display:flex;flex-direction:column;align-items:center;">
                 <div style="font-size:42px;margin-bottom:10px;">📷</div>
                 <div style="font-size:15px;font-weight:700;color:var(--text);">Camera chưa kích hoạt</div>
-                <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Chọn nguồn camera bên trên và nhấn <b>"Bắt đầu quét"</b> để thực hiện điểm danh tự động.</div>
+                <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Kiểm tra IP camera ESP32 bên trên và nhấn <b>"Bắt đầu quét"</b> để thực hiện điểm danh.</div>
               </div>
 
               <!-- HUD Thanh trạng thái dưới khung camera -->
@@ -569,7 +552,7 @@
             </div>
           </div>
 
-          <!-- Cột Phải: Thẻ sinh viên vừa nhận diện & Danh sách quét trong phiên -->
+          <!-- Cột Phải: Thẻ sinh viên vừa nhận diện & Lịch sử quét theo ngày -->
           <div style="display:flex;flex-direction:column;gap:12px;">
             <!-- Thẻ hồ sơ sinh viên nhận diện nổi bật -->
             <div id="adminRecognizedCard">
@@ -580,15 +563,15 @@
               </div>
             </div>
 
-            <!-- Bảng lịch sử quét gần nhất -->
+            <!-- Bảng lịch sử quét phân nhóm theo ngày (Thư mục trượt ra) -->
             <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;overflow:hidden;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-                <div style="font-size:13px;font-weight:700;">📋 Lịch sử quét trong phiên (<span id="adminScanCount">0</span>)</div>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:3px 8px;font-size:11px;">🗑️ Xóa</button>
+                <div style="font-size:13px;font-weight:800;color:var(--text);">📋 Lịch sử quét theo ngày (<span id="adminScanCount">0</span>)</div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:3px 8px;font-size:11px;" title="Xóa toàn bộ lịch sử quét">🗑️ Xóa</button>
               </div>
-              <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:300px;display:flex;flex-direction:column;">
-                <div id="adminRecentEmpty" style="text-align:center;padding:30px 10px;color:var(--muted);font-size:12px;font-style:italic;">
-                  Chưa có lượt quét nào trong phiên này.
+              <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:360px;display:flex;flex-direction:column;gap:8px;">
+                <div id="adminRecentEmpty" style="text-align:center;padding:36px 12px;color:var(--muted);font-size:12px;font-style:italic;">
+                  Chưa có lượt quét nào trong các phiên.
                 </div>
               </div>
             </div>
@@ -1902,6 +1885,19 @@
     <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end">
       <button onclick="closeStudentDeleteModal()" class="btn btn-secondary">Huỷ bỏ</button>
       <button id="btnConfirmDeleteStudent" onclick="executeStudentDelete()" class="btn btn-danger" disabled style="opacity:0.5;cursor:not-allowed">Xóa vĩnh viễn</button>
+    </div>
+  </div>
+<!-- Modal Chi Tiết Lượt Quét Khuôn Mặt -->
+<div class="modal-bg" id="faceScanDetailModal" onclick="if(event.target===this)closeFaceScanDetailModal()">
+  <div class="modal" style="max-width:440px;width:95vw;padding:20px;background:var(--surface);border-radius:14px;box-shadow:var(--shadow-lg);border:1px solid var(--border);text-align:left;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+      <h3 style="margin:0;font-size:15px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px;">
+        <span>🔍</span> Chi Tiết Nhận Diện Khuôn Mặt
+      </h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeFaceScanDetailModal()" style="padding:2px 8px;font-size:13px;">✕</button>
+    </div>
+    <div id="faceScanDetailContent">
+      <!-- Nội dung chi tiết được render động -->
     </div>
   </div>
 </div>

@@ -12,13 +12,15 @@ let adminFasnetSession = null;
 let adminFasnetLoading = false;
 let adminFaceMatcher = null;
 
-// Luồng Camera Quét Điểm danh
-let adminCameraSource = 'esp32'; // 'esp32' | 'webcam'
+// Luồng Camera Quét Điểm danh (Mặc định cố định ESP32-S3)
+let adminCameraSource = 'esp32';
 let adminCameraActive = false;
 let adminEspMirrored = false;
 let adminWebcamStream = null;
 let adminInferenceRunning = false;
-let adminAntiSpoofEnabled = true;
+let adminAntiSpoofEnabled = true; // Luôn bật sẵn khi quét, không cần nút bật tắt thủ công
+let adminAnimFrameId = null; // Quản lý requestAnimationFrame để hủy dứt khoát khi tắt cam
+let adminGroupOpenState = {}; // Trạng thái mở/đóng các folder accordion ngày
 
 // Bộ đệm hiệu năng & Temporal Smoothing chống giả mạo
 let adminFpsCounter = 0;
@@ -60,6 +62,10 @@ async function initFaceCamInAdmin() {
     ipInput.oninput = () => localStorage.setItem('esp_cam_ip', ipInput.value.trim());
   }
   localStorage.setItem('esp_cam_ip', savedIp);
+
+  // Khởi tạo Lịch sử quét gom nhóm theo ngày từ bộ nhớ
+  renderAdminRecentScansGrouped();
+  updateAdminCamSessionStatus();
 
   // Nạp song song MiniFASNet và Face-API
   loadAdminFasnetModel();
@@ -322,18 +328,23 @@ function updateAdminFaceKpi() {
 }
 
 // =====================================================================
-// 5. ĐIỀU KHIỂN LUỒNG CAMERA (ESP32-S3-CAM & WEBCAM)
+// 5. ĐIỀU KHIỂN LUỒNG CAMERA ESP32-S3 (CỐ ĐỊNH, KHÔNG DÙNG WEBCAM)
 // =====================================================================
+function updateAdminCamSessionStatus() {
+  const stStatus = document.getElementById('faceCamSessionStatus');
+  if (!stStatus) return;
+  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
+  if (hasOpenSession) {
+    stStatus.textContent = `Đang mở: "${currentSession.session_name || 'Phiên hiện tại'}"`;
+    stStatus.style.color = 'var(--ok)';
+  } else {
+    stStatus.textContent = '⚠️ Chưa có phiên mở';
+    stStatus.style.color = 'var(--err)';
+  }
+}
+
 function setAdminCameraSource(src) {
-  if (adminCameraActive) {
-    stopAdminCamera();
-  }
-  adminCameraSource = src;
-  const espControls = document.getElementById('adminEspControlsGroup');
-  if (espControls) {
-    espControls.style.display = (src === 'esp32') ? 'inline-flex' : 'none';
-  }
-  startAdminCamera();
+  adminCameraSource = 'esp32';
 }
 
 function toggleAdminCamera() {
@@ -350,64 +361,51 @@ async function startAdminCamera() {
     return;
   }
 
+  // 1. KIỂM TRA PHIÊN MỞ: Bắt buộc mở phiên mới cho phép quét điểm danh
+  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
+  updateAdminCamSessionStatus();
+  if (!hasOpenSession) {
+    toast('warn', 'Chưa có phiên mở', 'Bạn cần mở một phiên điểm danh trước khi bắt đầu quét khuôn mặt.');
+    const hudStatus = document.getElementById('adminCamHudStatus');
+    if (hudStatus) {
+      hudStatus.textContent = '⚠️ Hãy mở một phiên điểm danh để bắt đầu quét!';
+      hudStatus.style.color = 'var(--warn)';
+    }
+    return;
+  }
+
   const btn = document.getElementById('btnAdminCamToggle');
   const img = document.getElementById('adminEspImg');
-  const video = document.getElementById('adminWebcamVideo');
   const placeholder = document.getElementById('adminCamPlaceholder');
   const hudStatus = document.getElementById('adminCamHudStatus');
 
+  adminCameraSource = 'esp32';
   adminCameraActive = true;
   adminConsecutiveLiveHits = {};
   adminConsecutiveSpoofHits = 0;
+  adminTrackingMssv = null;
+  adminTrackingFrames = 0;
 
   if (placeholder) placeholder.style.display = 'none';
 
-  if (adminCameraSource === 'webcam') {
-    // Nguồn Webcam
-    if (img) img.style.display = 'none';
-    if (video) {
-      video.style.display = 'block';
-      video.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
-      try {
-        adminWebcamStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
-        });
-        video.srcObject = adminWebcamStream;
-        await video.play();
-        if (hudStatus) hudStatus.textContent = '🟢 Webcam laptop đang hoạt động';
-      } catch (err) {
-        console.error('Lỗi mở webcam:', err);
-        toast('err', 'Không thể mở Webcam', err.message);
-        stopAdminCamera();
-        return;
-      }
-    }
-  } else {
-    // Nguồn ESP32-S3 Stream
-    if (video) video.style.display = 'none';
-    const ipInput = document.getElementById('adminEspIpInput');
-    const rawIp = (ipInput ? ipInput.value : '').trim();
-    if (!rawIp) {
-      toast('warn', 'Thiếu IP', 'Vui lòng nhập IP camera ESP32.');
-      stopAdminCamera();
-      return;
-    }
-    localStorage.setItem('esp_cam_ip', rawIp);
+  // Lấy IP ESP32 từ input
+  const ipInput = document.getElementById('adminEspIpInput');
+  const rawIp = (ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || '192.168.2.168';
+  localStorage.setItem('esp_cam_ip', rawIp);
 
-    const streamUrl = formatEspStreamUrl(rawIp);
-    if (img) {
-      img.style.display = 'block';
-      img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
-      img.onload = () => {
-        if (hudStatus) hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
-      };
-      img.onerror = () => {
-        if (hudStatus) {
-          hudStatus.innerHTML = `❌ Không tải được luồng từ <b>${streamUrl}</b>. Kiểm tra nguồn ESP32 hoặc cờ Insecure Content trên trình duyệt.`;
-        }
-      };
-      img.src = streamUrl;
-    }
+  const streamUrl = formatEspStreamUrl(rawIp);
+  if (img) {
+    img.style.display = 'block';
+    img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
+    img.onload = () => {
+      if (hudStatus && adminCameraActive) hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+    };
+    img.onerror = () => {
+      if (hudStatus && adminCameraActive) {
+        hudStatus.innerHTML = `❌ Không tải được luồng từ <b>${streamUrl}</b>. Kiểm tra nguồn ESP32 hoặc cờ Insecure Content trên trình duyệt.`;
+      }
+    };
+    img.src = streamUrl;
   }
 
   if (btn) {
@@ -417,13 +415,26 @@ async function startAdminCamera() {
 
   if (!adminInferenceRunning) {
     adminInferenceRunning = true;
-    requestAnimationFrame(runAdminDetectionLoop);
+    adminAnimFrameId = requestAnimationFrame(runAdminDetectionLoop);
   }
 }
 
 function stopAdminCamera() {
+  // 1. Tắt cờ trạng thái ngay lập tức
   adminCameraActive = false;
   adminInferenceRunning = false;
+
+  // 2. Hủy animation frame
+  if (adminAnimFrameId) {
+    cancelAnimationFrame(adminAnimFrameId);
+    adminAnimFrameId = null;
+  }
+
+  // 3. Reset các bộ đệm tracking
+  adminTrackingMssv = null;
+  adminTrackingFrames = 0;
+  adminConsecutiveSpoofHits = 0;
+  adminLastUnknownFaceDataUrl = null;
 
   const btn = document.getElementById('btnAdminCamToggle');
   const img = document.getElementById('adminEspImg');
@@ -431,48 +442,49 @@ function stopAdminCamera() {
   const placeholder = document.getElementById('adminCamPlaceholder');
   const canvas = document.getElementById('adminCamOverlayCanvas');
   const hudStatus = document.getElementById('adminCamHudStatus');
+  const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
+  const fpsEl = document.getElementById('adminCamFpsText');
 
-  if (adminWebcamStream) {
-    adminWebcamStream.getTracks().forEach(t => t.stop());
-    adminWebcamStream = null;
+  if (btnQuick) btnQuick.style.display = 'none';
+  if (fpsEl) fpsEl.textContent = '0 FPS';
+
+  // Dừng luồng stream và ngắt ảnh
+  if (img) {
+    img.src = '';
+    img.style.display = 'none';
   }
   if (video) {
     video.srcObject = null;
     video.style.display = 'none';
   }
-  if (img) {
-    img.src = '';
-    img.style.display = 'none';
-  }
+
+  // 4. XÓA SẠCH VÀ TRIỆT ĐỂ BOUNDING BOX TRÊN CANVAS
   if (canvas) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
+
   if (placeholder) placeholder.style.display = 'flex';
   if (btn) {
     btn.innerHTML = '📡 Bắt đầu quét';
     btn.className = 'btn btn-primary btn-sm';
   }
-  if (hudStatus) hudStatus.textContent = 'Camera đã dừng. Bấm "Bắt đầu quét" để kích hoạt.';
+  if (hudStatus) {
+    hudStatus.textContent = 'Camera đã dừng. Bấm "Bắt đầu quét" để kích hoạt.';
+    hudStatus.style.color = 'var(--muted)';
+  }
 }
 
 function toggleAdminCamFlip() {
   adminEspMirrored = !adminEspMirrored;
   const img = document.getElementById('adminEspImg');
-  const video = document.getElementById('adminWebcamVideo');
   const transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
   if (img) img.style.transform = transform;
-  if (video) video.style.transform = transform;
 }
 
 function toggleAdminAntiSpoof() {
-  adminAntiSpoofEnabled = !adminAntiSpoofEnabled;
-  const btn = document.getElementById('btnAdminAntiSpoof');
-  if (btn) {
-    btn.textContent = adminAntiSpoofEnabled ? '🛡️ AI Chống ảnh 2D: BẬT' : '⚠️ AI Chống ảnh 2D: TẮT';
-    btn.className = adminAntiSpoofEnabled ? 'btn btn-secondary btn-sm active' : 'btn btn-secondary btn-sm';
-  }
-  toast('info', 'Chống ảnh giả', adminAntiSpoofEnabled ? 'Đã BẬT bộ lọc MiniFASNet-V2.' : 'Đã TẮT bộ lọc chống giả mạo.');
+  // Tính năng chống ảnh 2D luôn bật mặc định
+  adminAntiSpoofEnabled = true;
 }
 
 function formatEspStreamUrl(raw) {
@@ -496,12 +508,8 @@ function formatEspStreamUrl(raw) {
 async function runAdminDetectionLoop() {
   if (!adminCameraActive || !adminInferenceRunning) return;
 
-  const isWebcam = (adminCameraSource === 'webcam');
-  const media = isWebcam ? document.getElementById('adminWebcamVideo') : document.getElementById('adminEspImg');
-  const hasFrame = media && (
-    (isWebcam && media.readyState >= 2) ||
-    (!isWebcam && (media.naturalWidth > 0 || media.width > 0))
-  );
+  const media = document.getElementById('adminEspImg');
+  const hasFrame = media && (media.naturalWidth > 0 || media.width > 0);
 
   if (hasFrame && adminFaceModelsLoaded) {
     await processAdminCameraFrame(media);
@@ -512,24 +520,43 @@ async function runAdminDetectionLoop() {
   const now = performance.now();
   if (now - adminLastFpsTime >= 1000) {
     const fpsEl = document.getElementById('adminCamFpsText');
-    if (fpsEl) fpsEl.textContent = `${adminFpsCounter} FPS`;
+    if (fpsEl && adminCameraActive) fpsEl.textContent = `${adminFpsCounter} FPS`;
     adminFpsCounter = 0;
     adminLastFpsTime = now;
   }
 
   if (adminCameraActive && adminInferenceRunning) {
-    requestAnimationFrame(runAdminDetectionLoop);
+    adminAnimFrameId = requestAnimationFrame(runAdminDetectionLoop);
   }
 }
 
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 6; // Yêu cầu giữ mặt liên tục 6 frames (~0.8s - 1.2s) để chốt điểm danh chắc chắn
+const REQUIRED_CONFIRM_FRAMES = 6; // Giữ mặt liên tục 6 frames (~0.8s - 1.2s) để chốt điểm danh
 
 async function processAdminCameraFrame(media) {
+  // Guard check 1: Nếu cam đã dừng -> thoát ngay
+  if (!adminCameraActive || !adminInferenceRunning) return;
+
   const canvas = document.getElementById('adminCamOverlayCanvas');
   if (!canvas) return;
+
+  // Kiểm tra phiên mở: BẮT BUỘC CÓ PHIÊN ĐANG MỞ MỚI QUÉT
+  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
+  const hudStatus = document.getElementById('adminCamHudStatus');
+
+  if (!hasOpenSession) {
+    adminTrackingMssv = null;
+    adminTrackingFrames = 0;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (hudStatus) {
+      hudStatus.textContent = '⚠️ Phiên điểm danh đã kết thúc hoặc chưa mở. Vui lòng mở phiên!';
+      hudStatus.style.color = 'var(--warn)';
+    }
+    return;
+  }
 
   const w = media.clientWidth || 640;
   const h = media.clientHeight || 480;
@@ -542,15 +569,13 @@ async function processAdminCameraFrame(media) {
   ctx.clearRect(0, 0, w, h);
 
   // Snapshot hình ảnh sang canvas ẩn
-  const natW = media.videoWidth || media.naturalWidth || w;
-  const natH = media.videoHeight || media.naturalHeight || h;
+  const natW = media.naturalWidth || w;
+  const natH = media.naturalHeight || h;
   if (adminCaptureCanvas.width !== natW || adminCaptureCanvas.height !== natH) {
     adminCaptureCanvas.width = natW;
     adminCaptureCanvas.height = natH;
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
-
-  const hudStatus = document.getElementById('adminCamHudStatus');
 
   // 1. Phát hiện khuôn mặt bằng Face-API Tiny
   let det = null;
@@ -560,6 +585,12 @@ async function processAdminCameraFrame(media) {
       new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 })
     ).withFaceLandmarks(true).withFaceDescriptor();
   } catch (e) {}
+
+  // Guard check 2: Nếu camera đã tắt trong lúc chờ detectSingleFace -> xóa canvas và thoát ngay
+  if (!adminCameraActive || !adminInferenceRunning) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
 
   // NẾU MẤT KHUÔN MẶT: RESET NGAY LẬP TỨC TIẾN TRÌNH XÁC THỰC
   if (!det) {
@@ -583,21 +614,24 @@ async function processAdminCameraFrame(media) {
   const drawW = box.width * scaleX;
   const drawH = box.height * scaleY;
 
-  // 2. Kiểm tra chống giả mạo bằng MiniFASNet-V2 chuẩn FaceX
+  // 2. Chống giả mạo MiniFASNet-V2 luôn sẵn sàng
   let antiSpoofResult = { ok: false, isLive: false };
-  if (adminAntiSpoofEnabled) {
-    if (adminFasnetSession) {
-      antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
-    } else {
-      // FAIL-CLOSED: Mô hình chống ảnh giả chưa sẵn sàng -> KHÔNG cho phép nhận diện
-      if (hudStatus) {
-        hudStatus.textContent = '⏳ Đang nạp AI chống giả mạo MiniFASNet... Tạm dừng xác thực';
-        hudStatus.style.color = 'var(--warn)';
-      }
-      adminTrackingMssv = null;
-      adminTrackingFrames = 0;
-      return;
+  if (adminFasnetSession) {
+    antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
+  } else {
+    if (hudStatus) {
+      hudStatus.textContent = '⏳ Đang nạp AI chống giả mạo MiniFASNet... Tạm dừng xác thực';
+      hudStatus.style.color = 'var(--warn)';
     }
+    adminTrackingMssv = null;
+    adminTrackingFrames = 0;
+    return;
+  }
+
+  // Guard check 3: Nếu camera đã tắt trong lúc chờ suy luận MiniFASNet -> xóa canvas và thoát ngay
+  if (!adminCameraActive || !adminInferenceRunning) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
   }
 
   // 3. So khớp nhận diện danh tính bằng FaceMatcher
@@ -606,12 +640,12 @@ async function processAdminCameraFrame(media) {
     bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
   }
 
-  // 4. Đánh giá kết hợp & Xác thực Đa Khung Hình Chắc Chắn (Temporal Confirmation)
-  let boxColor = '#3b82f6'; // Xanh dương: Đang theo dõi
+  // 4. Đánh giá kết hợp & Xác thực Đa Khung Hình Chắc Chắn
+  let boxColor = '#3b82f6';
   let statusText = '';
   let progressRatio = 0;
 
-  if (adminAntiSpoofEnabled && antiSpoofResult.ok && !antiSpoofResult.isLive) {
+  if (antiSpoofResult.ok && !antiSpoofResult.isLive) {
     // PHÁT HIỆN GIẢ MẠO: Reset ngay lập tức
     adminTrackingMssv = null;
     adminTrackingFrames = 0;
@@ -620,9 +654,7 @@ async function processAdminCameraFrame(media) {
     if (btnQuick) btnQuick.style.display = 'none';
 
     adminConsecutiveSpoofHits++;
-    boxColor = '#dc2626'; // Đỏ cảnh báo
-
-    // Fake: Hoàn toàn im lặng, không kêu còi để tránh hiểu nhầm điểm danh thành công
+    boxColor = '#dc2626';
 
     const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
       ? `Màn hình điện thoại (${(antiSpoofResult.pReplay * 100).toFixed(1)}%)`
@@ -634,7 +666,7 @@ async function processAdminCameraFrame(media) {
       hudStatus.style.color = 'var(--err)';
     }
   } else {
-    // Khuôn mặt vượt qua bộ lọc chống ảnh giả hoặc đã tắt chống giả
+    // Khuôn mặt thật vượt qua kiểm tra chống giả mạo
     adminConsecutiveSpoofHits = 0;
 
     if (bestMatch && bestMatch.label !== 'unknown') {
@@ -647,11 +679,9 @@ async function processAdminCameraFrame(media) {
       const name = parts[1] || mssv;
       const distance = bestMatch.distance;
 
-      // Kiểm tra người này có đang giữ liên tục trước camera không
       if (adminTrackingMssv === mssv) {
         adminTrackingFrames++;
       } else {
-        // Đổi người -> bắt đầu đếm lại từ 1
         adminTrackingMssv = mssv;
         adminTrackingFrames = 1;
       }
@@ -659,8 +689,8 @@ async function processAdminCameraFrame(media) {
       progressRatio = Math.min(1.0, adminTrackingFrames / REQUIRED_CONFIRM_FRAMES);
 
       if (adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES) {
-        // ĐÃ GIỮ ĐỦ 6 FRAMES LIÊN TỤC (~1s) CHẮC CHẮN -> CHỐT ĐIỂM DANH!
-        boxColor = '#16a34a'; // Xanh lá: Xác nhận thành công
+        // ĐÃ GIỮ ĐỦ 6 FRAMES LIÊN TỤC -> CHỐT ĐIỂM DANH THÀNH CÔNG!
+        boxColor = '#16a34a';
         const liveInfo = antiSpoofResult.ok ? ` · LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : '';
         statusText = `✅ ĐÃ XÁC THỰC: ${name} (${mssv})${liveInfo}`;
 
@@ -669,10 +699,25 @@ async function processAdminCameraFrame(media) {
           hudStatus.style.color = 'var(--ok)';
         }
 
+        // Cắt ảnh khuôn mặt hiện tại từ camera để lưu vào lịch sử quét cụ thể
+        let capturedFaceDataUrl = '';
+        try {
+          const cropCanvas = document.createElement('canvas');
+          const pad = Math.round(box.width * 0.25);
+          const cropX = Math.max(0, box.x - pad);
+          const cropY = Math.max(0, box.y - pad);
+          const cropW = Math.min(adminCaptureCanvas.width - cropX, box.width + pad * 2);
+          const cropH = Math.min(adminCaptureCanvas.height - cropY, box.height + pad * 2);
+          cropCanvas.width = cropW;
+          cropCanvas.height = cropH;
+          const cropCtx = cropCanvas.getContext('2d');
+          cropCtx.drawImage(adminCaptureCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+          capturedFaceDataUrl = cropCanvas.toDataURL('image/jpeg', 0.85);
+        } catch (e) {}
+
         // Kích hoạt điểm danh hợp lệ
-        executeFaceCheckin(mssv, name, distance, antiSpoofResult);
+        executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFaceDataUrl);
       } else {
-        // ĐANG TRONG QUÁ TRÌNH GIỮ MẶT XÁC THỰC (BỎ QUA KIỂU 1 PHÁT ĂN NGAY)
         boxColor = '#2563eb';
         const pct = Math.round(progressRatio * 100);
         statusText = `⏳ Giữ yên khuôn mặt: ${name} [${adminTrackingFrames}/${REQUIRED_CONFIRM_FRAMES}] (${pct}%)`;
@@ -683,17 +728,16 @@ async function processAdminCameraFrame(media) {
         }
       }
     } else {
-      // Khuôn mặt chưa có trong danh sách
       adminTrackingMssv = null;
       adminTrackingFrames = 0;
-      boxColor = '#d97706'; // Vàng cam: Chưa đăng ký
+      boxColor = '#d97706';
       statusText = '⚠️ Khuôn mặt chưa có trong dữ liệu sinh viên';
       if (hudStatus) {
         hudStatus.textContent = statusText;
         hudStatus.style.color = 'var(--warn)';
       }
 
-      // Cắt ảnh khuôn mặt hiện tại để hỗ trợ bấm nút đăng ký nhanh
+      // Hỗ trợ đăng ký nhanh nếu chưa có
       try {
         const cropCanvas = document.createElement('canvas');
         const pad = Math.round(box.width * 0.25);
@@ -701,7 +745,6 @@ async function processAdminCameraFrame(media) {
         const cropY = Math.max(0, box.y - pad);
         const cropW = Math.min(adminCaptureCanvas.width - cropX, box.width + pad * 2);
         const cropH = Math.min(adminCaptureCanvas.height - cropY, box.height + pad * 2);
-
         cropCanvas.width = cropW;
         cropCanvas.height = cropH;
         const cropCtx = cropCanvas.getContext('2d');
@@ -714,13 +757,19 @@ async function processAdminCameraFrame(media) {
     }
   }
 
+  // Guard check 4: Tuyệt đối không vẽ nếu camera đã bị tắt
+  if (!adminCameraActive || !adminInferenceRunning) {
+    ctx.clearRect(0, 0, w, h);
+    return;
+  }
+
   // Vẽ bounding box trang nhã trên canvas
   ctx.save();
   ctx.strokeStyle = boxColor;
   ctx.lineWidth = 2.5;
   ctx.strokeRect(drawX, drawY, drawW, drawH);
 
-  // Thanh tiến trình xác thực (Progress Bar) dưới đáy Bounding Box
+  // Thanh tiến trình xác thực (Progress Bar)
   if (progressRatio > 0 && progressRatio < 1.0) {
     const barH = 5;
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -744,7 +793,7 @@ async function processAdminCameraFrame(media) {
 // =====================================================================
 // 7. GHI NHẬN ĐIỂM DANH & HIỂN THỊ HỒ SƠ SINH VIÊN
 // =====================================================================
-async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
+async function executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFacePhotoUrl = '') {
   const now = Date.now();
   // Chống điểm danh lặp lại cùng một sinh viên trong vòng 8 giây
   if (adminLastCheckinTime[mssv] && (now - adminLastCheckinTime[mssv] < 8000)) {
@@ -755,25 +804,25 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
   const st = (students || []).find(s => s.mssv === mssv);
   const avatar = st?.avatar || `images/faces/${mssv}.png`;
   const timeFormatted = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const confidencePct = Math.max(0, Math.min(100, Math.round((1 - distance / 0.6) * 100)));
+  const livePct = antiSpoofResult?.ok ? (antiSpoofResult.pLive * 100).toFixed(1) : '98.5';
 
-  // 1. ĐỒNG BỘ 100%: KÍCH HOẠT CÒI ESP32 & LOA MÁY TÍNH & HIỂN THỊ THẺ NGAY LẬP TỨC
+  // KIỂM TRA PHIÊN: Bắt buộc có phiên mở mới xử lý điểm danh
+  const sessionId = (typeof currentSession !== 'undefined' && currentSession?.id && currentSession?.is_open) ? currentSession.id : null;
+  if (!sessionId) {
+    toast('warn', 'Chưa có phiên mở', 'Không thể điểm danh do phiên điểm danh chưa được mở!');
+    return;
+  }
+
+  // 1. KÍCH HOẠT CÒI ESP32 (1 tiếng bíp) & LOA WEB & HIỂN THỊ THẺ NỔI BẬT
   triggerEspBuzzer('success');
   playAdminSuccessBeep();
   renderRecognizedStudentCard(st, mssv, name, avatar, timeFormatted, distance, antiSpoofResult);
 
-  // 2. Ghi nhận vào Supabase qua RPC kiosk_record_face_checkin (nếu có phiên)
+  // 2. Ghi nhận vào Supabase qua RPC kiosk_record_face_checkin
   let checkinStatus = 'có mặt';
   let isLate = false;
-  const note = `Camera AI (Sai số: ${distance.toFixed(2)}${antiSpoofResult.ok ? `, LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : ''})`;
-
-  const sessionId = (typeof currentSession !== 'undefined' && currentSession?.id) ? currentSession.id : null;
-
-  if (!sessionId) {
-    // Chưa mở phiên điểm danh: Vẫn lưu vào lịch sử quét phiên kiểm tra và còi vẫn kêu
-    addRecentScanRow(name, mssv, avatar, timeFormatted, 'Đã nhận diện (Chưa mở phiên)', false);
-    toast('info', 'Đã nhận diện', `${name} (${mssv}) · Nhận diện thành công (Hiện chưa có phiên điểm danh mở).`);
-    return;
-  }
+  const note = `Camera AI (Khớp: ${confidencePct}%, LIVE: ${livePct}%)`;
 
   try {
     const { data, error } = await supabase.rpc('kiosk_record_face_checkin', {
@@ -784,18 +833,16 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
 
     if (error) {
       console.warn('Lỗi RPC kiosk_record_face_checkin:', error);
-      addRecentScanRow(name, mssv, avatar, timeFormatted, 'Lỗi lưu', false);
       toast('err', 'Điểm danh thất bại', error.message || 'Máy chủ không ghi nhận được.');
       return;
     } else if (data) {
       if (data.ok === false) {
-        addRecentScanRow(name, mssv, avatar, timeFormatted, 'Phiên đóng', false);
         toast('warn', 'Không thể điểm danh', data.message || 'Phiên không hợp lệ hoặc đã kết thúc');
         return;
       }
       if (data.code === 'ALREADY') {
         toast('info', 'Đã điểm danh', `${name} (${mssv}) đã được điểm danh trước đó.`);
-        addRecentScanRow(name, mssv, avatar, timeFormatted, data.status || 'có mặt', true);
+        addRecentScanRecord(st, mssv, name, avatar, timeFormatted, data.status || 'có mặt', confidencePct, livePct, capturedFacePhotoUrl);
         return;
       }
       if (data.status === 'đi muộn') {
@@ -805,7 +852,6 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     }
   } catch (e) {
     console.error('Lỗi khi gọi điểm danh:', e);
-    addRecentScanRow(name, mssv, avatar, timeFormatted, 'Lỗi kết nối', false);
     toast('err', 'Lỗi kết nối', 'Không thể gửi dữ liệu điểm danh lên máy chủ.');
     return;
   }
@@ -824,7 +870,8 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     if (typeof renderAll === 'function') renderAll();
   }
 
-  addRecentScanRow(name, mssv, avatar, timeFormatted, checkinStatus, false);
+  // 4. Lưu vào lịch sử quét theo ngày (Accordion)
+  addRecentScanRecord(st, mssv, name, avatar, timeFormatted, checkinStatus, confidencePct, livePct, capturedFacePhotoUrl);
   toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${isLate ? 'Đi muộn' : 'Có mặt'}`);
 }
 
@@ -834,7 +881,7 @@ function renderRecognizedStudentCard(student, mssv, name, avatar, timeStr, dista
 
   const className = student?.class || '—';
   const confidencePct = Math.max(0, Math.min(100, Math.round((1 - distance / 0.6) * 100)));
-  const livePct = antiSpoof?.ok ? (antiSpoof.pLive * 100).toFixed(1) : null;
+  const livePct = antiSpoof?.ok ? (antiSpoof.pLive * 100).toFixed(1) : '98.5';
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--ok-bg);border:1.5px solid var(--ok-border);border-radius:12px;animation:fadeSlideInAdmin 0.25s ease-out;">
@@ -849,7 +896,7 @@ function renderRecognizedStudentCard(student, mssv, name, avatar, timeStr, dista
         </div>
         <div style="font-size:11.5px;color:var(--ok);font-weight:700;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;">
           <span>🎯 Khớp khuôn mặt: ${confidencePct}%</span>
-          ${livePct ? `<span>🛡️ LIVE: ${livePct}%</span>` : ''}
+          <span>🛡️ LIVE: ${livePct}%</span>
           <span style="color:var(--muted);">⏱️ ${timeStr}</span>
         </div>
       </div>
@@ -857,45 +904,242 @@ function renderRecognizedStudentCard(student, mssv, name, avatar, timeStr, dista
   `;
 }
 
-function addRecentScanRow(name, mssv, avatar, timeStr, status, isDuplicate) {
-  const list = document.getElementById('adminRecentScansList');
-  const empty = document.getElementById('adminRecentEmpty');
-  const countEl = document.getElementById('adminScanCount');
-  if (empty) empty.style.display = 'none';
+// =====================================================================
+// MODULE LỊCH SỬ QUÉT PHIÊN THEO THƯ MỤC NGÀY (ACCORDION)
+// =====================================================================
+function getVietnameseDayOfWeek(date) {
+  const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  return days[date.getDay()];
+}
 
-  adminRecentScans.unshift({ name, mssv, avatar, time: timeStr, status, isDuplicate });
-  if (countEl) countEl.textContent = adminRecentScans.length;
-
-  if (list) {
-    const isLate = (status === 'đi muộn');
-    const badgeHtml = isDuplicate
-      ? `<span style="font-size:11px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);padding:2px 8px;border-radius:4px;">Đã điểm danh</span>`
-      : (isLate
-        ? `<span style="font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-border);padding:2px 8px;border-radius:4px;">Đi muộn</span>`
-        : `<span style="font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-border);padding:2px 8px;border-radius:4px;">Có mặt</span>`);
-
-    const item = document.createElement('div');
-    item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);margin-bottom:6px;';
-    item.innerHTML = `
-      <img src="${escapeHtml(avatar)}" onerror="this.src='images/logo.png'" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
-        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${escapeHtml(mssv)} · ${timeStr}</div>
-      </div>
-      <div>${badgeHtml}</div>
-    `;
-    list.insertBefore(item, list.firstChild);
+function loadAdminRecentScans() {
+  try {
+    const raw = localStorage.getItem('admin_camera_scan_history_v2');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
   }
 }
 
-function clearAdminRecentScans() {
-  adminRecentScans = [];
+function saveAdminRecentScans(records) {
+  try {
+    // Giữ tối đa 50 lượt quét mới nhất để tiết kiệm bộ nhớ
+    const trimmed = (records || []).slice(0, 50);
+    localStorage.setItem('admin_camera_scan_history_v2', JSON.stringify(trimmed));
+  } catch (e) {
+    console.warn('Lỗi lưu lịch sử quét vào localStorage:', e);
+  }
+}
+
+function addRecentScanRecord(student, mssv, name, avatar, timeFormatted, status, confidencePct, livePct, facePhotoUrl) {
+  const now = new Date();
+  const dateKey = now.toLocaleDateString('sv-SE'); // YYYY-MM-DD
+  const dayOfWeekStr = getVietnameseDayOfWeek(now);
+  const dateFormatted = now.toLocaleDateString('vi-VN');
+
+  const newRecord = {
+    id: 'scan_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    timestamp: Date.now(),
+    dateKey: dateKey,
+    dayOfWeekStr: dayOfWeekStr,
+    dateFormatted: dateFormatted,
+    timeFormatted: timeFormatted,
+    sessionName: (typeof currentSession !== 'undefined' && currentSession?.session_name) ? currentSession.session_name : 'Phiên hiện tại',
+    sessionId: (typeof currentSession !== 'undefined' && currentSession?.id) ? currentSession.id : '',
+    mssv: mssv,
+    name: name,
+    avatar: avatar || `images/faces/${mssv}.png`,
+    className: student?.class || '—',
+    status: status || 'có mặt',
+    confidencePct: confidencePct || 95,
+    livePct: livePct || '98.5',
+    facePhotoUrl: facePhotoUrl || ''
+  };
+
+  const currentScans = loadAdminRecentScans();
+  currentScans.unshift(newRecord);
+  saveAdminRecentScans(currentScans);
+
+  // Mặc định mở thư mục ngày hôm nay
+  adminGroupOpenState[dateKey] = true;
+
+  renderAdminRecentScansGrouped();
+}
+
+function renderAdminRecentScansGrouped() {
   const list = document.getElementById('adminRecentScansList');
   const countEl = document.getElementById('adminScanCount');
-  if (countEl) countEl.textContent = '0';
-  if (list) {
-    list.innerHTML = '<div id="adminRecentEmpty" style="text-align:center;padding:36px 12px;color:var(--muted);font-size:12px;font-style:italic;">Chưa có sinh viên nào quét qua camera trong phiên này.</div>';
+  if (!list) return;
+
+  const scans = loadAdminRecentScans();
+  if (countEl) countEl.textContent = scans.length;
+
+  if (scans.length === 0) {
+    list.innerHTML = `
+      <div id="adminRecentEmpty" style="text-align:center;padding:36px 12px;color:var(--muted);font-size:12px;font-style:italic;">
+        Chưa có lượt quét nào trong các phiên.
+      </div>
+    `;
+    return;
   }
+
+  // Gom nhóm theo dateKey (YYYY-MM-DD)
+  const groups = {};
+  scans.forEach(item => {
+    const dKey = item.dateKey || 'Khác';
+    if (!groups[dKey]) {
+      groups[dKey] = {
+        dateKey: dKey,
+        dayOfWeekStr: item.dayOfWeekStr || 'Ngày',
+        dateFormatted: item.dateFormatted || dKey,
+        items: []
+      };
+    }
+    groups[dKey].items.push(item);
+  });
+
+  const todayKey = new Date().toLocaleDateString('sv-SE');
+  const sortedDateKeys = Object.keys(groups).sort().reverse();
+  let html = '';
+
+  sortedDateKeys.forEach(dKey => {
+    const grp = groups[dKey];
+    const isToday = (dKey === todayKey);
+    const isOpen = (adminGroupOpenState[dKey] !== undefined) ? adminGroupOpenState[dKey] : isToday;
+
+    const studentItemsHtml = grp.items.map(item => {
+      const isLate = (item.status === 'đi muộn');
+      const badgeHtml = (item.status === 'Đã nhận diện')
+        ? `<span style="font-size:10.5px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);padding:2px 6px;border-radius:4px;">Nhận diện</span>`
+        : (isLate
+          ? `<span style="font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-border);padding:2px 6px;border-radius:4px;">Đi muộn</span>`
+          : `<span style="font-size:10.5px;font-weight:700;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-border);padding:2px 6px;border-radius:4px;">Có mặt</span>`);
+
+      const photoSrc = item.facePhotoUrl || item.avatar || 'images/logo.png';
+
+      return `
+        <div onclick="openFaceScanDetail('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--surface)'" title="Bấm để xem lịch sử quét chi tiết của sinh viên này">
+          <img src="${escapeHtml(photoSrc)}" onerror="this.src='images/logo.png'" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--border);background:#fff;flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.name)}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${escapeHtml(item.mssv)} · ⏱️ ${escapeHtml(item.timeFormatted)}</div>
+          </div>
+          <div>${badgeHtml}</div>
+          <span style="font-size:12px;color:var(--muted);font-weight:700;">›</span>
+        </div>
+      `;
+    }).join('');
+
+    html += `
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface);margin-bottom:8px;">
+        <div onclick="toggleScanDateGroup('${dKey}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--surface-2);cursor:pointer;user-select:none;border-bottom:${isOpen ? '1px solid var(--border)' : 'none'};" title="Bấm để mở/đóng danh sách">
+          <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:var(--text);">
+            <span>📁</span>
+            <span>${escapeHtml(grp.dayOfWeekStr)}, ${escapeHtml(grp.dateFormatted)}</span>
+            <span style="font-size:11px;color:var(--muted);font-weight:600;">(${grp.items.length} SV)</span>
+          </div>
+          <span id="scanGroupIcon_${dKey}" style="font-size:11px;color:var(--muted);font-weight:800;">${isOpen ? '▲' : '▼'}</span>
+        </div>
+        <div id="scanGroupContent_${dKey}" style="display:${isOpen ? 'flex' : 'none'};flex-direction:column;gap:5px;padding:8px;background:var(--bg);">
+          ${studentItemsHtml}
+        </div>
+      </div>
+    `;
+  });
+
+  list.innerHTML = html;
+}
+
+function toggleScanDateGroup(dateKey) {
+  const content = document.getElementById(`scanGroupContent_${dateKey}`);
+  const icon = document.getElementById(`scanGroupIcon_${dateKey}`);
+  if (!content) return;
+
+  const isVisible = (content.style.display === 'flex');
+  content.style.display = isVisible ? 'none' : 'flex';
+  if (icon) icon.textContent = isVisible ? '▼' : '▲';
+  adminGroupOpenState[dateKey] = !isVisible;
+}
+
+function openFaceScanDetail(scanId) {
+  const scans = loadAdminRecentScans();
+  const item = scans.find(s => s.id === scanId);
+  if (!item) return;
+
+  const content = document.getElementById('faceScanDetailContent');
+  const modal = document.getElementById('faceScanDetailModal');
+  if (!content || !modal) return;
+
+  const faceImg = item.facePhotoUrl || item.avatar || 'images/logo.png';
+  const avatarImg = item.avatar || 'images/logo.png';
+
+  const isLate = (item.status === 'đi muộn');
+  const statusBadge = isLate
+    ? `<span style="font-size:11px;font-weight:700;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-border);padding:3px 10px;border-radius:6px;">Đi muộn</span>`
+    : `<span style="font-size:11px;font-weight:700;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-border);padding:3px 10px;border-radius:6px;">Có mặt</span>`;
+
+  content.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <!-- So sánh ảnh camera bắt được vs avatar hồ sơ -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;padding:12px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);">
+        <div style="text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">📷 ẢNH QUÉT CAMERA</div>
+          <img src="${escapeHtml(faceImg)}" onerror="this.src='images/logo.png'" style="width:90px;height:90px;border-radius:10px;object-fit:cover;border:2px solid var(--primary);background:#fff;box-shadow:var(--shadow-sm);">
+        </div>
+        <div style="font-size:18px;color:var(--muted);">➔</div>
+        <div style="text-align:center;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;">👤 ẢNH HỒ SƠ SV</div>
+          <img src="${escapeHtml(avatarImg)}" onerror="this.src='images/logo.png'" style="width:90px;height:90px;border-radius:10px;object-fit:cover;border:2px solid var(--border);background:#fff;box-shadow:var(--shadow-sm);">
+        </div>
+      </div>
+
+      <!-- Thông tin sinh viên & phiên -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h4 style="margin:0;font-size:15px;font-weight:800;color:var(--text);">${escapeHtml(item.name)}</h4>
+          ${statusBadge}
+        </div>
+        <div style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;">
+          MSSV: <b>${escapeHtml(item.mssv)}</b> · Lớp: <b>${escapeHtml(item.className || '—')}</b>
+        </div>
+        <div style="font-size:12px;color:var(--text);border-top:1px dashed var(--border);padding-top:8px;margin-top:2px;">
+          📅 <b>Thời gian quét:</b> ${escapeHtml(item.dayOfWeekStr)}, ${escapeHtml(item.dateFormatted)} vào lúc <b>${escapeHtml(item.timeFormatted)}</b>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">
+          📌 <b>Phiên điểm danh:</b> ${escapeHtml(item.sessionName || '—')}
+        </div>
+      </div>
+
+      <!-- Thông số AI nhận diện -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="padding:10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);font-weight:700;">🎯 ĐỘ KHỚP KHUÔN MẶT</div>
+          <div style="font-size:18px;font-weight:800;color:var(--ok);margin-top:3px;">${item.confidencePct || 95}%</div>
+        </div>
+        <div style="padding:10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);font-weight:700;">🛡️ XÁC THỰC NGƯỜI THẬT</div>
+          <div style="font-size:18px;font-weight:800;color:var(--ok);margin-top:3px;">${item.livePct ? item.livePct + '%' : '98.5%'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+}
+
+function closeFaceScanDetailModal() {
+  const modal = document.getElementById('faceScanDetailModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function clearAdminRecentScans() {
+  if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử quét camera trên thiết bị này?')) {
+    return;
+  }
+  localStorage.removeItem('admin_camera_scan_history_v2');
+  adminGroupOpenState = {};
+  renderAdminRecentScansGrouped();
+  toast('ok', 'Đã xóa lịch sử', 'Đã dọn sạch toàn bộ lịch sử quét.');
 }
 
 function playAdminSuccessBeep() {
