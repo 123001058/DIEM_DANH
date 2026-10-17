@@ -756,16 +756,26 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
   const avatar = st?.avatar || `images/faces/${mssv}.png`;
   const timeFormatted = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // 1. Hiển thị Card sinh viên nổi bật trên giao diện
+  // 1. ĐỒNG BỘ 100%: KÍCH HOẠT CÒI ESP32 & LOA MÁY TÍNH & HIỂN THỊ THẺ NGAY LẬP TỨC
+  triggerEspBuzzer('success');
+  playAdminSuccessBeep();
   renderRecognizedStudentCard(st, mssv, name, avatar, timeFormatted, distance, antiSpoofResult);
 
-  // 2. Ghi nhận vào Supabase qua RPC kiosk_record_face_checkin
+  // 2. Ghi nhận vào Supabase qua RPC kiosk_record_face_checkin (nếu có phiên)
   let checkinStatus = 'có mặt';
   let isLate = false;
   const note = `Camera AI (Sai số: ${distance.toFixed(2)}${antiSpoofResult.ok ? `, LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : ''})`;
 
+  const sessionId = (typeof currentSession !== 'undefined' && currentSession?.id) ? currentSession.id : null;
+
+  if (!sessionId) {
+    // Chưa mở phiên điểm danh: Vẫn lưu vào lịch sử quét phiên kiểm tra và còi vẫn kêu
+    addRecentScanRow(name, mssv, avatar, timeFormatted, 'Đã nhận diện (Chưa mở phiên)', false);
+    toast('info', 'Đã nhận diện', `${name} (${mssv}) · Nhận diện thành công (Hiện chưa có phiên điểm danh mở).`);
+    return;
+  }
+
   try {
-    const sessionId = (typeof currentSession !== 'undefined' && currentSession?.id) ? currentSession.id : null;
     const { data, error } = await supabase.rpc('kiosk_record_face_checkin', {
       p_session_id: sessionId,
       p_mssv: mssv,
@@ -774,10 +784,12 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
 
     if (error) {
       console.warn('Lỗi RPC kiosk_record_face_checkin:', error);
+      addRecentScanRow(name, mssv, avatar, timeFormatted, 'Lỗi lưu', false);
       toast('err', 'Điểm danh thất bại', error.message || 'Máy chủ không ghi nhận được.');
       return;
     } else if (data) {
       if (data.ok === false) {
+        addRecentScanRow(name, mssv, avatar, timeFormatted, 'Phiên đóng', false);
         toast('warn', 'Không thể điểm danh', data.message || 'Phiên không hợp lệ hoặc đã kết thúc');
         return;
       }
@@ -793,6 +805,7 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     }
   } catch (e) {
     console.error('Lỗi khi gọi điểm danh:', e);
+    addRecentScanRow(name, mssv, avatar, timeFormatted, 'Lỗi kết nối', false);
     toast('err', 'Lỗi kết nối', 'Không thể gửi dữ liệu điểm danh lên máy chủ.');
     return;
   }
@@ -811,9 +824,6 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult) {
     if (typeof renderAll === 'function') renderAll();
   }
 
-  // 4. Phát âm thanh xác nhận trên còi ESP32 & loa máy tính
-  triggerEspBuzzer('success');
-  playAdminSuccessBeep();
   addRecentScanRow(name, mssv, avatar, timeFormatted, checkinStatus, false);
   toast(isLate ? 'warn' : 'ok', isLate ? 'Điểm danh trễ' : 'Điểm danh thành công', `${name} (${mssv}) → ${isLate ? 'Đi muộn' : 'Có mặt'}`);
 }
