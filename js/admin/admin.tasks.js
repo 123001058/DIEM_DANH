@@ -1526,8 +1526,9 @@ async function loadStudents(){
 }
 async function loadSession(){
   const { data, error } = await supabase.rpc('get_open_session');
-  if (error || !data){ currentSession = null; showEmpty(); return null; }
+  if (error || !data){ currentSession = null; window.currentSession = null; showEmpty(); return null; }
   currentSession = data;
+  window.currentSession = data;
   return data;
 }
 async function loadAttendance(){

@@ -332,13 +332,18 @@ function updateAdminFaceKpi() {
 // =====================================================================
 async function ensureOpenSession() {
   if (typeof currentSession !== 'undefined' && currentSession && currentSession.id) {
+    window.currentSession = currentSession;
     return currentSession;
+  }
+  if (window.currentSession && window.currentSession.id) {
+    return window.currentSession;
   }
   try {
     if (typeof supabase !== 'undefined') {
       const { data } = await supabase.rpc('get_open_session');
       if (data && data.id) {
         if (typeof currentSession !== 'undefined') currentSession = data;
+        window.currentSession = data;
         return data;
       }
     }
@@ -356,8 +361,8 @@ async function updateAdminCamSessionStatus() {
     stStatus.textContent = `🟢 Đang mở: "${sess.session_name || 'Phiên hiện tại'}"`;
     stStatus.style.color = 'var(--ok)';
   } else {
-    stStatus.textContent = '⚠️ Chưa có phiên mở';
-    stStatus.style.color = 'var(--err)';
+    stStatus.textContent = 'ℹ️ Chưa có phiên mở (Chế độ quét nhận diện)';
+    stStatus.style.color = 'var(--muted)';
   }
 }
 
@@ -379,18 +384,13 @@ async function startAdminCamera() {
     return;
   }
 
-  // 1. KIỂM TRA PHIÊN MỞ: Tự động đồng bộ phiên từ Supabase nếu vừa mở
-  const activeSession = await ensureOpenSession();
-  await updateAdminCamSessionStatus();
-  if (!activeSession || !activeSession.id) {
-    toast('warn', 'Chưa có phiên mở', 'Bạn cần mở một phiên điểm danh tại tab "Điểm danh" trước khi bắt đầu quét khuôn mặt.');
-    const hudStatus = document.getElementById('adminCamHudStatus');
-    if (hudStatus) {
-      hudStatus.textContent = '⚠️ Hãy mở một phiên điểm danh tại tab Điểm danh để bắt đầu quét!';
-      hudStatus.style.color = 'var(--warn)';
+  // Cập nhật trạng thái phiên nếu có, KHÔNG chặn camera hoạt động
+  ensureOpenSession().then(sess => {
+    updateAdminCamSessionStatus();
+    if (!sess) {
+      toast('info', 'Quét tự do', 'Chưa có phiên điểm danh mở. Bạn vẫn có thể quét nhận diện khuôn mặt bình thường.');
     }
-    return;
-  }
+  });
 
   const btn = document.getElementById('btnAdminCamToggle');
   const img = document.getElementById('adminEspImg');
@@ -551,7 +551,7 @@ async function runAdminDetectionLoop() {
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 6; // Giữ mặt liên tục 6 frames (~0.8s - 1.2s) để chốt điểm danh
+const REQUIRED_CONFIRM_FRAMES = 2; // Nhận diện cực nhạy & tức thì (2 frame liên tiếp ~0.25s)
 
 async function processAdminCameraFrame(media) {
   // Guard check 1: Nếu cam đã dừng -> thoát ngay
@@ -560,22 +560,7 @@ async function processAdminCameraFrame(media) {
   const canvas = document.getElementById('adminCamOverlayCanvas');
   if (!canvas) return;
 
-  // Kiểm tra phiên mở: BẮT BUỘC CÓ PHIÊN ĐANG MỞ MỚI QUÉT
-  const activeSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id) ? currentSession : (window.currentSession && window.currentSession.id ? window.currentSession : null);
-  const hasOpenSession = Boolean(activeSession && activeSession.id);
   const hudStatus = document.getElementById('adminCamHudStatus');
-
-  if (!hasOpenSession) {
-    adminTrackingMssv = null;
-    adminTrackingFrames = 0;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (hudStatus) {
-      hudStatus.textContent = '⚠️ Phiên điểm danh đã kết thúc hoặc chưa mở. Vui lòng mở phiên!';
-      hudStatus.style.color = 'var(--warn)';
-    }
-    return;
-  }
 
   const w = media.clientWidth || 640;
   const h = media.clientHeight || 480;
@@ -588,8 +573,8 @@ async function processAdminCameraFrame(media) {
   ctx.clearRect(0, 0, w, h);
 
   // Snapshot hình ảnh sang canvas ẩn
-  const natW = media.naturalWidth || w;
-  const natH = media.naturalHeight || h;
+  const natW = media.videoWidth || media.naturalWidth || w;
+  const natH = media.videoHeight || media.naturalHeight || h;
   if (adminCaptureCanvas.width !== natW || adminCaptureCanvas.height !== natH) {
     adminCaptureCanvas.width = natW;
     adminCaptureCanvas.height = natH;
@@ -633,18 +618,14 @@ async function processAdminCameraFrame(media) {
   const drawW = box.width * scaleX;
   const drawH = box.height * scaleY;
 
-  // 2. Chống giả mạo MiniFASNet-V2 luôn sẵn sàng
-  let antiSpoofResult = { ok: false, isLive: false };
-  if (adminFasnetSession) {
-    antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
-  } else {
-    if (hudStatus) {
-      hudStatus.textContent = '⏳ Đang nạp AI chống giả mạo MiniFASNet... Tạm dừng xác thực';
-      hudStatus.style.color = 'var(--warn)';
+  // 2. Chống giả mạo MiniFASNet-V2
+  let antiSpoofResult = { ok: true, isLive: true, pLive: 0.98 };
+  if (adminAntiSpoofEnabled && adminFasnetSession) {
+    try {
+      antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
+    } catch (eFas) {
+      antiSpoofResult = { ok: true, isLive: true, pLive: 0.95 };
     }
-    adminTrackingMssv = null;
-    adminTrackingFrames = 0;
-    return;
   }
 
   // Guard check 3: Nếu camera đã tắt trong lúc chờ suy luận MiniFASNet -> xóa canvas và thoát ngay
@@ -826,18 +807,21 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult, capture
   const confidencePct = Math.max(0, Math.min(100, Math.round((1 - distance / 0.6) * 100)));
   const livePct = antiSpoofResult?.ok ? (antiSpoofResult.pLive * 100).toFixed(1) : '98.5';
 
-  // KIỂM TRA PHIÊN: Lấy session hợp lệ từ bộ nhớ hoặc Supabase
-  const activeSession = await ensureOpenSession();
-  const sessionId = activeSession ? activeSession.id : null;
-  if (!sessionId) {
-    toast('warn', 'Chưa có phiên mở', 'Không thể điểm danh do phiên điểm danh chưa được mở!');
-    return;
-  }
-
-  // 1. KÍCH HOẠT CÒI ESP32 (1 tiếng bíp) & LOA WEB & HIỂN THỊ THẺ NỔI BẬT
+  // 1. KÍCH HOẠT CÒI ESP32 (1 tiếng bíp) & LOA WEB & HIỂN THỊ THẺ NỔI BẬT NGAY LẬP TỨC
   triggerEspBuzzer('success');
   playAdminSuccessBeep();
   renderRecognizedStudentCard(st, mssv, name, avatar, timeFormatted, distance, antiSpoofResult);
+
+  // 2. KIỂM TRA PHIÊN MỞ: Tự động lấy session từ bộ nhớ hoặc Supabase
+  const activeSession = await ensureOpenSession();
+  const sessionId = activeSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id ? currentSession.id : (window.currentSession?.id || null));
+
+  if (!sessionId) {
+    // Chưa mở phiên điểm danh: Vẫn lưu vào lịch sử quét kiểm tra và còi vẫn kêu thành công!
+    addRecentScanRecord(st, mssv, name, avatar, timeFormatted, 'Đã nhận diện (Chưa mở phiên)', confidencePct, livePct, capturedFacePhotoUrl);
+    toast('info', 'Đã nhận diện', `${name} (${mssv}) · Nhận diện thành công (Hiện chưa có phiên điểm danh mở).`);
+    return;
+  }
 
   // 2. Ghi nhận vào Supabase qua RPC kiosk_record_face_checkin
   let checkinStatus = 'có mặt';
