@@ -52,10 +52,13 @@ let enrollCameraDetecting = false;
 async function initFaceCamInAdmin() {
   const ipInput = document.getElementById('adminEspIpInput');
   let savedIp = localStorage.getItem('esp_cam_ip');
-  if (!savedIp || savedIp === '192.168.1.104' || savedIp === '192.168.2.168') {
-    savedIp = '10.96.38.99'; // IP mặc định của mạng xưởng
+  if (!savedIp) {
+    savedIp = '192.168.2.168';
   }
-  if (ipInput) ipInput.value = savedIp;
+  if (ipInput) {
+    ipInput.value = savedIp;
+    ipInput.oninput = () => localStorage.setItem('esp_cam_ip', ipInput.value.trim());
+  }
   localStorage.setItem('esp_cam_ip', savedIp);
 
   // Nạp song song MiniFASNet và Face-API
@@ -924,7 +927,7 @@ function playAdminWarningBeep() {
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
 async function triggerEspBuzzer(type = 'success') {
   const ipInput = document.getElementById('adminEspIpInput');
-  const ip = (ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '10.96.38.99';
+  const ip = (ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '192.168.2.168';
   if (!ip) return;
 
   // Gửi lệnh đồng thời tới port 80 và port 81 của ESP32
