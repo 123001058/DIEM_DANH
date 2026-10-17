@@ -619,13 +619,7 @@ async function processAdminCameraFrame(media) {
     adminConsecutiveSpoofHits++;
     boxColor = '#dc2626'; // Đỏ cảnh báo
 
-    // Kêu còi cảnh báo giả mạo trên ESP32 (tiếng dài 750ms) và loa máy tính
-    const now = Date.now();
-    if (!window._lastSpoofBeepTime || (now - window._lastSpoofBeepTime > 3000)) {
-      window._lastSpoofBeepTime = now;
-      triggerEspBuzzer('warn');
-      playAdminWarningBeep();
-    }
+    // Fake: Hoàn toàn im lặng, không kêu còi để tránh hiểu nhầm điểm danh thành công
 
     const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
       ? `Màn hình điện thoại (${(antiSpoofResult.pReplay * 100).toFixed(1)}%)`
