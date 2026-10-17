@@ -329,21 +329,21 @@ function resetAdminLivenessSession(label, reason = '') {
 // ==========================================================
 const ADMIN_LIVENESS_CONFIG = {
   // Lớp 1: Độ nét & Chống lóa màn hình
-  BLUR_THRESHOLD: 35,          // Ngưỡng phương sai Laplacian tối thiểu (ảnh nhòe/mờ < 35)
-  GLARE_RATIO_MAX: 0.08,       // Tỉ lệ điểm ảnh chói gắt (Y >= 245) tối đa cho phép (8%)
+  BLUR_THRESHOLD: 30,            // Phương sai Laplacian tối thiểu (ảnh nhòe/mờ < 30)
+  GLARE_RATIO_MAX: 0.12,         // Tỉ lệ chói gắt (Y >= 245) tối đa cho phép (12% - nới lỏng cho ánh sáng quán cafe/kính)
 
-  // Lớp 2: Sinh trắc học động (EAR & 3D Head Pose)
-  BLINK_EAR_CLOSED: 0.18,      // Ngưỡng tỷ lệ mở mắt tính là nhắm
-  BLINK_EAR_OPEN: 0.25,        // Ngưỡng tỷ lệ mở mắt tính là mở bình thường
-  BLINK_WINDOW_FRAMES: 30,     // Cửa sổ trượt lưu EAR (30 frames ~ 2 - 2.5s)
-  BLINK_VALID_DURATION_MS: 4000, // Thời hạn hiệu lực của một lần chớp mắt hợp lệ (4 giây)
-  POSE_WINDOW_FRAMES: 15,      // Cửa sổ trượt lưu góc đầu (15 frames ~ 1s)
-  POSE_MIN_DELTA: 0.03,        // Biên độ biến thiên góc quay tối thiểu (tránh ảnh 2D đơ)
-  POSE_MAX_DELTA: 0.50,        // Biên độ biến thiên góc quay tối đa (tránh giật lắc dị thường)
+  // Lớp 2: Sinh trắc học động (Góc đầu 3D & Cử động tự nhiên)
+  POSE_WINDOW_FRAMES: 15,        // Cửa sổ trượt lưu góc đầu (15 frames ~ 1.5s ở 10 FPS)
+  POSE_MIN_DELTA: 0.022,         // Biên độ góc quay tối thiểu (nghiêng/quay nhẹ đầu là đạt)
+  POSE_MAX_DELTA: 0.60,          // Biên độ góc quay tối đa (tránh giật lắc dị thường)
+  BLINK_EAR_CLOSED: 0.20,        // Ngưỡng mở mắt nhắm (hỗ trợ người đeo kính)
+  BLINK_EAR_OPEN: 0.25,          // Ngưỡng mở mắt bình thường
+  BLINK_WINDOW_FRAMES: 30,       // Cửa sổ trượt lưu EAR
+  BLINK_VALID_DURATION_MS: 5000, // Thời hạn hiệu lực của chớp mắt (5 giây)
 
-  // Lớp 3: Cửa sổ ổn định thời gian thực
-  QUALIFIED_SCORE_MIN: 85,     // Điểm tin cậy tối thiểu để kích hoạt đồng hồ đếm
-  STABILIZE_DURATION_MS: 1500  // Phải duy trì liên tục >= 85 điểm trong 1.5 giây
+  // Lớp 3: Cửa sổ ổn định thời gian thực (Tối ưu cho camera 10 FPS)
+  QUALIFIED_SCORE_MIN: 75,       // Điểm tin cậy tối thiểu để bắt đầu chốt điểm danh
+  STABILIZE_DURATION_MS: 600     // Chỉ cần giữ ổn định 0.6 giây (~6 frames ở 10 FPS) là điểm danh ngay!
 };
 
 // Canvas phụ chuyên dụng cho phân tích độ nét & chống lóa (kích thước cố định 100x100)
@@ -574,7 +574,7 @@ async function runAdminFasnet(box) {
 }
 
 // ==========================================================
-// HÀM ĐÁNH GIÁ CHỐNG GIẢ MẠO 3 LỚP (3-TIER CONTINUOUS LIVENESS)
+// HÀM ĐÁNH GIÁ CHỐNG GIẢ MẠO TỐI ƯU CHO CAMERA ESP32 10 FPS
 // ==========================================================
 async function evaluateAdminLiveness(label, landmarks, box) {
   if (!adminAntiSpoofEnabled) {
@@ -597,6 +597,7 @@ async function evaluateAdminLiveness(label, landmarks, box) {
       yawHistory: [],
       pitchHistory: [],
       lastBlinkTime: 0,
+      lastPoseTime: 0,
       hasBlinked: false
     };
   }
@@ -607,7 +608,7 @@ async function evaluateAdminLiveness(label, landmarks, box) {
   // --- LỚP 1: KIỂM TRA ĐỘ NÉT & CHỐNG LÓA MÀN HÌNH ---
   const quality = checkAdminBlurAndGlare(box);
   if (quality.isBlur) {
-    st.confidenceScore = Math.max(0, st.confidenceScore - 20);
+    st.confidenceScore = Math.max(0, st.confidenceScore - 15);
     st.firstQualifiedTime = null;
     return {
       isLive: false,
@@ -617,7 +618,7 @@ async function evaluateAdminLiveness(label, landmarks, box) {
   }
 
   if (quality.isGlare) {
-    st.confidenceScore = Math.max(0, st.confidenceScore - 25);
+    st.confidenceScore = Math.max(0, st.confidenceScore - 20);
     st.firstQualifiedTime = null;
     return {
       isLive: false,
@@ -626,25 +627,8 @@ async function evaluateAdminLiveness(label, landmarks, box) {
     };
   }
 
-  // --- LỚP 2: KIỂM TRA SINH TRẮC HỌC ĐỘNG LIÊN TỤC (EAR & 3D HEAD POSE) ---
-  // A. Kiểm tra nhấp nháy mắt (EAR)
-  const currentEar = calculateAdminAvgEAR(landmarks);
-  st.earHistory.push(currentEar);
-  if (st.earHistory.length > ADMIN_LIVENESS_CONFIG.BLINK_WINDOW_FRAMES) {
-    st.earHistory.shift();
-  }
-
-  const minEar = Math.min(...st.earHistory);
-  const maxEar = Math.max(...st.earHistory);
-  // Điều kiện chớp mắt: Trong cửa sổ trượt có lúc nhắm (<= 0.18) và có lúc mở (>= 0.25)
-  if (minEar <= ADMIN_LIVENESS_CONFIG.BLINK_EAR_CLOSED && maxEar >= ADMIN_LIVENESS_CONFIG.BLINK_EAR_OPEN) {
-    st.lastBlinkTime = now;
-    st.hasBlinked = true;
-  }
-
-  const hasRecentBlink = (now - st.lastBlinkTime <= ADMIN_LIVENESS_CONFIG.BLINK_VALID_DURATION_MS);
-
-  // B. Kiểm tra biến thiên góc quay đầu 3D (Yaw & Pitch)
+  // --- LỚP 2: KIỂM TRA SINH TRẮC HỌC ĐỘNG (GÓC QUAY ĐẦU 3D & CỬ ĐỘNG) ---
+  // A. Biến thiên góc quay đầu 3D (Yaw & Pitch)
   const yaw = calculateAdminHeadYaw(landmarks);
   const pitch = calculateAdminHeadPitch(landmarks);
 
@@ -658,8 +642,27 @@ async function evaluateAdminLiveness(label, landmarks, box) {
   const pitchDelta = Math.max(...st.pitchHistory) - Math.min(...st.pitchHistory);
   const poseDelta = Math.max(yawDelta, pitchDelta);
 
-  // Phát hiện ảnh 2D tĩnh cứng đơ (sau khi quan sát tối thiểu 8 frames)
-  if (st.frames >= 8 && poseDelta < ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA) {
+  const hasGoodHeadPose = (poseDelta >= ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA && poseDelta <= ADMIN_LIVENESS_CONFIG.POSE_MAX_DELTA);
+  if (hasGoodHeadPose) {
+    st.lastPoseTime = now;
+  }
+
+  // B. Nhấp nháy mắt (EAR) - Hỗ trợ cộng thêm nếu bắt được
+  const currentEar = calculateAdminAvgEAR(landmarks);
+  st.earHistory.push(currentEar);
+  if (st.earHistory.length > ADMIN_LIVENESS_CONFIG.BLINK_WINDOW_FRAMES) {
+    st.earHistory.shift();
+  }
+  const minEar = Math.min(...st.earHistory);
+  const maxEar = Math.max(...st.earHistory);
+  if (minEar <= ADMIN_LIVENESS_CONFIG.BLINK_EAR_CLOSED && maxEar >= ADMIN_LIVENESS_CONFIG.BLINK_EAR_OPEN) {
+    st.lastBlinkTime = now;
+    st.hasBlinked = true;
+  }
+  const hasRecentBlink = (now - st.lastBlinkTime <= ADMIN_LIVENESS_CONFIG.BLINK_VALID_DURATION_MS);
+
+  // Phát hiện ảnh tĩnh 2D phẳng lì (sau 10 frames không hề có bất kỳ biến thiên 3D nào)
+  if (st.frames >= 10 && poseDelta < 0.015 && !hasRecentBlink) {
     st.confidenceScore = Math.max(0, st.confidenceScore - 15);
     st.firstQualifiedTime = null;
     return {
@@ -669,29 +672,28 @@ async function evaluateAdminLiveness(label, landmarks, box) {
     };
   }
 
-  // --- LỚP 3: BỘ ĐẾM XÁC THỰC THỜI GIAN THỰC (STABILIZATION WINDOW) ---
-  // Tính điểm chất lượng từng frame (Thang điểm 100):
+  // --- LỚP 3: TÍNH ĐIỂM TIN CẬY & CHỐT ĐIỂM DANH NHANH ---
   let frameScore = 0;
 
-  // 1. Độ nét và không lóa: 30 điểm
+  // 1. Độ nét và không lóa tốt: 35 điểm
   if (!quality.isBlur && !quality.isGlare) {
-    frameScore += 30;
+    frameScore += 35;
   }
 
-  // 2. Vi chuyển động đầu 3D tự nhiên: 30 điểm
-  if (poseDelta >= ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA && poseDelta <= ADMIN_LIVENESS_CONFIG.POSE_MAX_DELTA) {
-    frameScore += 30;
+  // 2. Chuyển động quay/nghiêng đầu 3D tự nhiên: 50 điểm! (Chỉ cần quay nhẹ đầu là đủ vượt mốc 75%)
+  if (hasGoodHeadPose || (now - st.lastPoseTime < 3000)) {
+    frameScore += 50;
   }
 
-  // 3. Có chớp mắt hợp lệ: 40 điểm (BẮT BUỘC để đạt ngưỡng >= 85%)
+  // 3. Nếu bắt được chớp mắt: thưởng thêm 25 điểm
   if (hasRecentBlink) {
-    frameScore += 40;
+    frameScore += 25;
   }
 
-  // Làm mượt điểm số bằng bộ lọc trượt EMA (Exponential Moving Average)
-  st.confidenceScore = Math.max(0, Math.min(100, Math.round(st.confidenceScore * 0.65 + frameScore * 0.35)));
+  // Cập nhật điểm mượt mà
+  st.confidenceScore = Math.max(0, Math.min(100, Math.round(st.confidenceScore * 0.6 + frameScore * 0.4)));
 
-  // Đánh giá thời gian duy trì liên tục >= 85 điểm
+  // Đạt ngưỡng tin cậy >= 75%
   if (st.confidenceScore >= ADMIN_LIVENESS_CONFIG.QUALIFIED_SCORE_MIN) {
     if (!st.firstQualifiedTime) {
       st.firstQualifiedTime = now;
@@ -699,35 +701,25 @@ async function evaluateAdminLiveness(label, landmarks, box) {
     const elapsedMs = now - st.firstQualifiedTime;
 
     if (elapsedMs >= ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS) {
-      // ĐẠT TRẠNG THÁI REAL: Khung xanh điểm danh
+      // ĐẠT TRẠNG THÁI REAL: Khung xanh điểm danh thành công
       return {
         isLive: true,
-        prompt: `✅ Người thật xác thực (${st.confidenceScore}%)`,
+        prompt: `✅ Người thật (${st.confidenceScore}%)`,
         isStaticPhoto: false
       };
     } else {
       const remainSec = Math.max(0, (ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS - elapsedMs) / 1000).toFixed(1);
       return {
         isLive: false,
-        prompt: `⏳ Giữ ổn định khuôn mặt... (${remainSec}s)`,
+        prompt: `⏳ Giữ yên... (${remainSec}s - ${st.confidenceScore}%)`,
         isStaticPhoto: false
       };
     }
   } else {
-    // Điểm chưa đạt mốc 85% -> Reset bộ đếm thời gian
     st.firstQualifiedTime = null;
-
-    if (!hasRecentBlink) {
-      return {
-        isLive: false,
-        prompt: `👁️ Hãy chớp mắt tự nhiên (Điểm: ${st.confidenceScore}%)`,
-        isStaticPhoto: false
-      };
-    }
-
     return {
       isLive: false,
-      prompt: `⏳ Đang xác thực sinh trắc học (${st.confidenceScore}% / 85%)`,
+      prompt: `⏳ Hãy nghiêng hoặc quay nhẹ đầu (${st.confidenceScore}% / 75%)`,
       isStaticPhoto: false
     };
   }
