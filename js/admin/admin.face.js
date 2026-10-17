@@ -330,12 +330,30 @@ function updateAdminFaceKpi() {
 // =====================================================================
 // 5. ĐIỀU KHIỂN LUỒNG CAMERA ESP32-S3 (CỐ ĐỊNH, KHÔNG DÙNG WEBCAM)
 // =====================================================================
-function updateAdminCamSessionStatus() {
+async function ensureOpenSession() {
+  if (typeof currentSession !== 'undefined' && currentSession && currentSession.id) {
+    return currentSession;
+  }
+  try {
+    if (typeof supabase !== 'undefined') {
+      const { data } = await supabase.rpc('get_open_session');
+      if (data && data.id) {
+        if (typeof currentSession !== 'undefined') currentSession = data;
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Lỗi kiểm tra phiên mở:', e);
+  }
+  return null;
+}
+
+async function updateAdminCamSessionStatus() {
   const stStatus = document.getElementById('faceCamSessionStatus');
   if (!stStatus) return;
-  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
-  if (hasOpenSession) {
-    stStatus.textContent = `Đang mở: "${currentSession.session_name || 'Phiên hiện tại'}"`;
+  const sess = await ensureOpenSession();
+  if (sess && sess.id) {
+    stStatus.textContent = `🟢 Đang mở: "${sess.session_name || 'Phiên hiện tại'}"`;
     stStatus.style.color = 'var(--ok)';
   } else {
     stStatus.textContent = '⚠️ Chưa có phiên mở';
@@ -361,14 +379,14 @@ async function startAdminCamera() {
     return;
   }
 
-  // 1. KIỂM TRA PHIÊN MỞ: Bắt buộc mở phiên mới cho phép quét điểm danh
-  const hasOpenSession = (typeof currentSession !== 'undefined' && currentSession && currentSession.id && currentSession.is_open);
-  updateAdminCamSessionStatus();
-  if (!hasOpenSession) {
-    toast('warn', 'Chưa có phiên mở', 'Bạn cần mở một phiên điểm danh trước khi bắt đầu quét khuôn mặt.');
+  // 1. KIỂM TRA PHIÊN MỞ: Tự động đồng bộ phiên từ Supabase nếu vừa mở
+  const activeSession = await ensureOpenSession();
+  await updateAdminCamSessionStatus();
+  if (!activeSession || !activeSession.id) {
+    toast('warn', 'Chưa có phiên mở', 'Bạn cần mở một phiên điểm danh tại tab "Điểm danh" trước khi bắt đầu quét khuôn mặt.');
     const hudStatus = document.getElementById('adminCamHudStatus');
     if (hudStatus) {
-      hudStatus.textContent = '⚠️ Hãy mở một phiên điểm danh để bắt đầu quét!';
+      hudStatus.textContent = '⚠️ Hãy mở một phiên điểm danh tại tab Điểm danh để bắt đầu quét!';
       hudStatus.style.color = 'var(--warn)';
     }
     return;
@@ -448,9 +466,9 @@ function stopAdminCamera() {
   if (btnQuick) btnQuick.style.display = 'none';
   if (fpsEl) fpsEl.textContent = '0 FPS';
 
-  // Dừng luồng stream và ngắt ảnh
+  // Dừng luồng stream và ngắt ảnh (xóa thuộc tính src tránh lỗi icon vỡ khung)
   if (img) {
-    img.src = '';
+    img.removeAttribute('src');
     img.style.display = 'none';
   }
   if (video) {
@@ -807,8 +825,9 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult, capture
   const confidencePct = Math.max(0, Math.min(100, Math.round((1 - distance / 0.6) * 100)));
   const livePct = antiSpoofResult?.ok ? (antiSpoofResult.pLive * 100).toFixed(1) : '98.5';
 
-  // KIỂM TRA PHIÊN: Bắt buộc có phiên mở mới xử lý điểm danh
-  const sessionId = (typeof currentSession !== 'undefined' && currentSession?.id && currentSession?.is_open) ? currentSession.id : null;
+  // KIỂM TRA PHIÊN: Lấy session hợp lệ từ bộ nhớ hoặc Supabase
+  const activeSession = await ensureOpenSession();
+  const sessionId = activeSession ? activeSession.id : null;
   if (!sessionId) {
     toast('warn', 'Chưa có phiên mở', 'Không thể điểm danh do phiên điểm danh chưa được mở!');
     return;

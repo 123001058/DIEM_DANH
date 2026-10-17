@@ -498,73 +498,77 @@
     </section>
 
     <!-- ==========================================================
-         VIEW: CAMERA ĐIỂM DANH & QUẢN LÝ DỮ LIỆU KHUÔN MẶT
+         VIEW: CAMERA ĐIỂM DANH & QUẢN LÝ DỮ LIỆU KHUÔN MẶT (GỌN GÀNG, TỐI ƯU)
          ========================================================== -->
     <section class="app-view" id="view-face-cam">
-      <!-- Top Banner Quản lý Khuôn mặt -->
-      <div class="card" style="padding:16px 20px;margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-          <div>
-            <h2 style="font-size:17px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px;">
-              <span>👤</span> Quản Lý Nhận Diện Khuôn Mặt & Điểm Danh AI
+      <!-- Card Quét Camera Chính Gọn Gàng -->
+      <div class="card" style="padding:16px 20px;margin-bottom:14px;">
+        <!-- Header tích hợp gọn 1 hàng -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h2 style="font-size:16px;font-weight:800;margin:0;display:flex;align-items:center;gap:7px;color:var(--text);">
+              <span>📷</span> Camera Điểm Danh ESP32
             </h2>
-            <p style="font-size:12px;color:var(--muted);margin:4px 0 0;">
-              Hệ thống điểm danh khuôn mặt tự động qua camera ESP32-S3, tích hợp MiniFASNet-V2 chống ảnh giả và quản lý dữ liệu sinh viên theo MSSV.
-            </p>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span id="adminFasnetStatusPill" style="font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);">
-              MiniFASNet: Đang kiểm tra...
+            <span id="faceCamSessionStatus" style="font-size:11.5px;font-weight:700;color:var(--ok);padding:3px 10px;border-radius:99px;background:var(--ok-bg);border:1px solid var(--ok-border);">
+              Đang kiểm tra phiên...
             </span>
-            <button type="button" class="btn btn-primary btn-sm" onclick="openAdminFaceEnrollModal()" title="Mở quản lý ảnh khuôn mặt theo từng MSSV">
-              📷 Quản lý ảnh theo MSSV
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span id="adminFasnetStatusPill" style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);">
+              MiniFASNet: Đang nạp...
+            </span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openAdminFaceEnrollModal()" title="Mở danh sách chụp ảnh & nạp dữ liệu khuôn mặt theo từng MSSV" style="font-size:12px;font-weight:700;">
+              👤 Quản lý ảnh MSSV
             </button>
           </div>
         </div>
-      </div>
 
-      <!-- Khung quét nhận diện trực tiếp -->
-      <div class="card" style="padding:18px 20px;margin-bottom:16px;">
-        <!-- Toolbar Camera gọn gàng: Mặc định ESP32 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <label style="font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:6px;">
-              <span>📷 IP Camera ESP32:</span>
-              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="VD: 192.168.2.168" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;background:var(--surface);color:var(--text);width:140px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
+        <!-- Toolbar Camera thao tác nhanh -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <label style="font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;">
+              <span>IP Camera:</span>
+              <input type="text" id="adminEspIpInput" value="192.168.2.168" placeholder="192.168.2.168" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:130px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
             </label>
-            <button type="button" class="btn btn-primary btn-sm" id="btnAdminCamToggle" onclick="toggleAdminCamera()">📡 Bắt đầu quét</button>
-          </div>
-          <div style="font-size:12px;color:var(--muted);font-weight:600;">
-            Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
+            <button type="button" class="btn btn-primary btn-sm" id="btnAdminCamToggle" onclick="toggleAdminCamera()" style="font-weight:800;">
+              📡 Bắt đầu quét
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminCamFlip()" title="Lật gương camera">
+              🔄 Lật gương
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminFaceFullscreen()" title="Toàn màn hình">
+              ⛶ Toàn màn hình
+            </button>
           </div>
         </div>
 
-        <!-- Khung quét 2 cột: Trái = Camera, Phải = Sinh viên vừa nhận diện & Lịch sử -->
+        <!-- Khung quét 2 cột: Trái = Camera Feed, Phải = Kết quả quét & Lịch sử -->
         <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px;" class="admin-face-grid">
           <!-- Cột Trái: Camera Feed -->
           <div>
-            <div style="position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:380px;display:flex;align-items:center;justify-content:center;">
+            <div style="position:relative;background:#0f172a;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:360px;display:flex;align-items:center;justify-content:center;">
               <!-- Luồng ảnh MJPEG từ ESP32 -->
-              <img id="adminEspImg" crossorigin="anonymous" alt="ESP32 Stream" style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;">
-              <!-- Video Webcam (Dự phòng ngầm) -->
-              <video id="adminWebcamVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:480px;object-fit:cover;display:none;"></video>
+              <img id="adminEspImg" crossorigin="anonymous" alt="" style="width:100%;height:100%;max-height:460px;object-fit:cover;display:none;background:#0f172a;" onerror="this.style.display='none';">
+              <!-- Video Webcam dự phòng ngầm -->
+              <video id="adminWebcamVideo" autoplay playsinline muted style="width:100%;height:100%;max-height:460px;object-fit:cover;display:none;"></video>
               <!-- Canvas vẽ khung nhận diện -->
               <canvas id="adminCamOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
 
-              <!-- Placeholder khi camera chưa chạy -->
-              <div id="adminCamPlaceholder" style="text-align:center;padding:40px 20px;color:var(--muted);display:flex;flex-direction:column;align-items:center;">
-                <div style="font-size:42px;margin-bottom:10px;">📷</div>
-                <div style="font-size:15px;font-weight:700;color:var(--text);">Camera chưa kích hoạt</div>
-                <div style="font-size:12.5px;margin-top:6px;max-width:320px;line-height:1.5;">Kiểm tra IP camera ESP32 bên trên và nhấn <b>"Bắt đầu quét"</b> để thực hiện điểm danh.</div>
+              <!-- Placeholder khi camera chưa chạy (Sạch sẽ, không vỡ khung) -->
+              <div id="adminCamPlaceholder" style="text-align:center;padding:36px 16px;color:#94a3b8;display:flex;flex-direction:column;align-items:center;">
+                <div style="font-size:40px;margin-bottom:8px;">📷</div>
+                <div style="font-size:14px;font-weight:700;color:#f8fafc;">Camera đang tắt</div>
+                <div style="font-size:12px;margin-top:4px;max-width:280px;line-height:1.4;color:#94a3b8;">Nhấn <b>"Bắt đầu quét"</b> để kết nối luồng camera ESP32 và điểm danh.</div>
               </div>
 
               <!-- HUD Thanh trạng thái dưới khung camera -->
-              <div style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid var(--border);padding:7px 12px;border-radius:8px;font-size:12px;color:var(--text);display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+              <div style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(15,23,42,0.85);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);padding:6px 12px;border-radius:8px;font-size:12px;color:#f8fafc;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
                 <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
-                  <span id="adminCamHudStatus" style="font-weight:700;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sẵn sàng kết nối...</span>
+                  <span id="adminCamHudStatus" style="font-weight:700;color:#38bdf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sẵn sàng kết nối...</span>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnAdminQuickEnrollFromFeed" onclick="quickEnrollFromCurrentFeed()" style="display:none;padding:2px 8px;font-size:11px;font-weight:800;white-space:nowrap;background:#eff6ff;color:#2563eb;border-color:#bfdbfe;" title="Chụp ảnh khuôn mặt đang đứng trước camera gán vào hồ sơ sinh viên">📸 Đăng ký cho SV</button>
                 </div>
-                <span id="adminCamFpsText" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);flex-shrink:0;margin-left:8px;">0 FPS</span>
+                <span id="adminCamFpsText" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;flex-shrink:0;margin-left:8px;">0 FPS</span>
               </div>
             </div>
           </div>
@@ -574,21 +578,21 @@
             <!-- Thẻ hồ sơ sinh viên nhận diện nổi bật -->
             <div id="adminRecognizedCard">
               <div style="padding:14px;background:var(--surface-2);border:1px dashed var(--border);border-radius:12px;text-align:center;color:var(--muted);">
-                <div style="font-size:24px;margin-bottom:4px;">👤</div>
+                <div style="font-size:22px;margin-bottom:4px;">👤</div>
                 <div style="font-size:12.5px;font-weight:700;color:var(--text);">Chưa có sinh viên nhận diện</div>
-                <div style="font-size:11.5px;margin-top:2px;">Khi sinh viên đứng trước camera, thông tin hồ sơ và điểm danh sẽ hiển thị tại đây.</div>
+                <div style="font-size:11.5px;margin-top:2px;">Thông tin sinh viên sẽ xuất hiện tại đây khi quét thành công.</div>
               </div>
             </div>
 
-            <!-- Bảng lịch sử quét phân nhóm theo ngày (Thư mục trượt ra) -->
+            <!-- Bảng lịch sử quét phân nhóm theo ngày (Thư mục trượt ra gọn gàng) -->
             <div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;overflow:hidden;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-                <div style="font-size:13px;font-weight:800;color:var(--text);">📋 Lịch sử quét theo ngày (<span id="adminScanCount">0</span>)</div>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:3px 8px;font-size:11px;" title="Xóa toàn bộ lịch sử quét">🗑️ Xóa</button>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+                <div style="font-size:12.5px;font-weight:800;color:var(--text);">📋 Lịch sử quét theo ngày (<span id="adminScanCount">0</span>)</div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearAdminRecentScans()" style="padding:2px 7px;font-size:11px;" title="Xóa toàn bộ lịch sử quét">🗑️ Xóa</button>
               </div>
-              <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:360px;display:flex;flex-direction:column;gap:8px;">
-                <div id="adminRecentEmpty" style="text-align:center;padding:36px 12px;color:var(--muted);font-size:12px;font-style:italic;">
-                  Chưa có lượt quét nào trong các phiên.
+              <div id="adminRecentScansList" style="flex:1;overflow-y:auto;max-height:300px;display:flex;flex-direction:column;gap:6px;">
+                <div id="adminRecentEmpty" style="text-align:center;padding:28px 12px;color:var(--muted);font-size:12px;font-style:italic;">
+                  Chưa có lượt quét nào.
                 </div>
               </div>
             </div>
@@ -596,54 +600,50 @@
         </div>
       </div>
 
-      <!-- KHU VỰC C: BẢNG QUẢN LÝ DỮ LIỆU KHUÔN MẶT THEO SINH VIÊN (BẮT BUỘC) -->
-      <div class="card" style="padding:18px 20px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
-          <div>
-            <h3 style="font-size:15px;font-weight:800;margin:0;display:flex;align-items:center;gap:6px;">
-              <span>📁</span> Danh Sách Quản Lý Ảnh Khuôn Mặt Theo Sinh Viên
-            </h3>
-            <p style="font-size:12px;color:var(--muted);margin:2px 0 0;">
-              Tra cứu sinh viên, xem các ảnh khuôn mặt đã đăng ký, thêm ảnh mới từ máy tính hoặc camera theo từng MSSV.
-            </p>
+      <!-- Khu vực Tra cứu ảnh theo Sinh viên (Thu gọn gọn gàng, mở ra khi cần) -->
+      <details class="card" style="padding:14px 18px;" id="faceStudentCollapsible">
+        <summary style="cursor:pointer;font-weight:800;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;user-select:none;color:var(--text);">
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span>📁</span> Tra cứu & quản lý ảnh theo danh sách sinh viên (<span id="faceStudentTableCount">0 sinh viên</span>)
+          </span>
+          <span style="font-size:12px;color:var(--primary);font-weight:700;">Xem danh sách sinh viên ▼</span>
+        </summary>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <!-- Bộ lọc & Tìm kiếm -->
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button type="button" class="btn btn-primary btn-sm" id="btnFaceFilter_all" onclick="setFaceStudentFilter('all')">Tất cả</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_enrolled" onclick="setFaceStudentFilter('enrolled')">Đã đăng ký</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_missing" onclick="setFaceStudentFilter('missing')">Chưa có ảnh</button>
+            </div>
+            <div style="min-width:240px;max-width:320px;flex:1;">
+              <input type="text" id="faceStudentSearchInput" placeholder="Tìm theo MSSV hoặc họ tên..." oninput="renderFaceStudentTable()" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;">
+            </div>
           </div>
-          <span id="faceStudentTableCount" style="font-size:12px;font-weight:700;color:var(--muted);">0 sinh viên</span>
-        </div>
 
-        <!-- Bộ lọc & Tìm kiếm -->
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button type="button" class="btn btn-primary btn-sm" id="btnFaceFilter_all" onclick="setFaceStudentFilter('all')">Tất cả</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_enrolled" onclick="setFaceStudentFilter('enrolled')">Đã đăng ký</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnFaceFilter_missing" onclick="setFaceStudentFilter('missing')">Chưa có ảnh</button>
-          </div>
-          <div style="min-width:240px;max-width:320px;flex:1;">
-            <input type="text" id="faceStudentSearchInput" placeholder="Tìm theo MSSV hoặc họ tên..." oninput="renderFaceStudentTable()" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;">
+          <!-- Bảng danh sách sinh viên -->
+          <div class="tbl-wrap" style="max-height:300px;overflow-y:auto;">
+            <table style="width:100%;font-size:12.5px;">
+              <thead>
+                <tr style="background:var(--surface-2);position:sticky;top:0;z-index:2;">
+                  <th style="width:40px;text-align:center;">STT</th>
+                  <th style="width:110px;">MSSV</th>
+                  <th>Họ và tên</th>
+                  <th style="width:90px;">Lớp</th>
+                  <th style="width:140px;">Trạng thái ảnh</th>
+                  <th style="width:120px;">Cập nhật</th>
+                  <th style="width:140px;text-align:right;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="faceStudentTableBody">
+                <tr>
+                  <td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Đang tải danh sách sinh viên...</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-
-        <!-- Bảng danh sách sinh viên -->
-        <div class="tbl-wrap" style="max-height:360px;overflow-y:auto;">
-          <table style="width:100%;font-size:12.5px;">
-            <thead>
-              <tr style="background:var(--surface-2);position:sticky;top:0;z-index:2;">
-                <th style="width:40px;text-align:center;">STT</th>
-                <th style="width:110px;">MSSV</th>
-                <th>Họ và tên</th>
-                <th style="width:90px;">Lớp</th>
-                <th style="width:140px;">Trạng thái khuôn mặt</th>
-                <th style="width:120px;">Cập nhật lúc</th>
-                <th style="width:160px;text-align:right;">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody id="faceStudentTableBody">
-              <tr>
-                <td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Đang tải danh sách sinh viên...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </details>
     </section>
 
     <!-- ==========================================================
