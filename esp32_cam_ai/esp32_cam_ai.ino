@@ -39,12 +39,12 @@ void setup() {
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   
-  // Tối ưu độ nét cho nhận diện mặt: VGA 640x480
-  config.frame_size   = FRAMESIZE_VGA;
+  // Tối ưu độ phân giải & băng thông cho stream mượt 25-30 FPS không giật lag: HVGA 480x320
+  config.frame_size   = FRAMESIZE_HVGA;
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode    = CAMERA_GRAB_LATEST;
   config.fb_location  = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 12; // Cân bằng độ nét và băng thông, giúp stream mượt 20-30 FPS không giật
+  config.jpeg_quality = 14; // Nén tối ưu băng thông Wi-Fi, giảm giật lag triệt để
   config.fb_count     = 2;
 
   // Khởi tạo camera
@@ -58,8 +58,8 @@ void setup() {
   // Cấu hình cảm biến OV2640 tối ưu cho mô hình Face AI & Liveness
   sensor_t *s = esp_camera_sensor_get();
   if (s) {
-    s->set_framesize(s, FRAMESIZE_VGA);  // 640x480
-    s->set_quality(s, 12);
+    s->set_framesize(s, FRAMESIZE_HVGA); // 480x320 mượt mà
+    s->set_quality(s, 14);
     s->set_sharpness(s, 0);              // Độ nét tự nhiên (0): Tránh hiện tượng gai viền nhân tạo làm AI lệch landmark mắt mũi
     s->set_contrast(s, 0);               // Giữ chi tiết vùng bóng đổ quanh hốc mắt
     s->set_brightness(s, 1);             // Nâng nhẹ độ sáng (+1) giúp mặt người trong phòng không bị tối đen

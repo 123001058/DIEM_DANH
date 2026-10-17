@@ -327,32 +327,22 @@ function resetAdminLivenessSession(label, reason = '') {
 // ==========================================================
 // THÔNG SỐ CẤU HÌNH BỘ LỌC CHỐNG GIẢ MẠO 3 LỚP (LIVENESS CONFIG)
 // ==========================================================
+// ==========================================================
+// CẤU HÌNH THỬ THÁCH NGẪU NHIÊN CHỐNG ẢNH GIẢ 100% (ACTIVE LIVENESS)
+// ==========================================================
+const ADMIN_CHALLENGES = [
+  { id: 'TURN_RIGHT', label: '👉 LỆNH: HÃY QUAY PHẢI', hint: 'Quay đầu sang PHẢI' },
+  { id: 'TURN_LEFT',  label: '👈 LỆNH: HÃY QUAY TRÁI', hint: 'Quay đầu sang TRÁI' },
+  { id: 'LOOK_UP',    label: '👆 LỆNH: HÃY NGỬA ĐẦU',   hint: 'Ngửa nhẹ cằm lên trên' },
+  { id: 'SMILE_OPEN', label: '😃 LỆNH: CƯỜI HOẶC HÁ MIỆNG', hint: 'Cười tươi hoặc há nhẹ miệng' }
+];
+
 const ADMIN_LIVENESS_CONFIG = {
-  // Lớp 1: Độ nét & Chống lóa màn hình
-  BLUR_THRESHOLD: 30,            // Phương sai Laplacian tối thiểu (ảnh nhòe/mờ < 30)
-  GLARE_RATIO_MAX: 0.12,         // Tỉ lệ chói gắt (Y >= 245) tối đa cho phép (12% - nới lỏng cho ánh sáng quán cafe/kính)
-
-  // Lớp 2: Sinh trắc học động (Góc đầu 3D & Cử động tự nhiên)
-  POSE_WINDOW_FRAMES: 15,        // Cửa sổ trượt lưu góc đầu (15 frames ~ 1.5s ở 10 FPS)
-  POSE_MIN_DELTA: 0.022,         // Biên độ góc quay tối thiểu (nghiêng/quay nhẹ đầu là đạt)
-  POSE_MAX_DELTA: 0.60,          // Biên độ góc quay tối đa (tránh giật lắc dị thường)
-  BLINK_EAR_CLOSED: 0.20,        // Ngưỡng mở mắt nhắm (hỗ trợ người đeo kính)
-  BLINK_EAR_OPEN: 0.25,          // Ngưỡng mở mắt bình thường
-  BLINK_WINDOW_FRAMES: 30,       // Cửa sổ trượt lưu EAR
-  BLINK_VALID_DURATION_MS: 5000, // Thời hạn hiệu lực của chớp mắt (5 giây)
-
-  // Lớp 3: Cửa sổ ổn định thời gian thực (Tối ưu cho camera 10 FPS)
-  QUALIFIED_SCORE_MIN: 75,       // Điểm tin cậy tối thiểu để bắt đầu chốt điểm danh
-  STABILIZE_DURATION_MS: 600     // Chỉ cần giữ ổn định 0.6 giây (~6 frames ở 10 FPS) là điểm danh ngay!
+  CHALLENGE_TIMEOUT_MS: 3800,  // Hạn thời gian 3.8 giây để làm theo lệnh
+  PASS_CONSECUTIVE_FRAMES: 3   // Giữ đúng tư thế 3 frames liên tiếp (~0.2s) là chốt điểm danh
 };
 
-// Canvas phụ chuyên dụng cho phân tích độ nét & chống lóa (kích thước cố định 100x100)
-const adminLivenessAuxCanvas = document.createElement('canvas');
-adminLivenessAuxCanvas.width = 100;
-adminLivenessAuxCanvas.height = 100;
-const adminLivenessAuxCtx = adminLivenessAuxCanvas.getContext('2d', { willReadFrequently: true });
-
-// 1. Tính Eye Aspect Ratio (EAR) - Tỉ lệ mở mắt chuẩn 6 điểm landmarks
+// 1. Tính Eye Aspect Ratio (EAR)
 function calculateAdminEyeEAR(eye) {
   if (!eye || eye.length < 6) return 0.28;
   const p1_p5 = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
@@ -361,16 +351,7 @@ function calculateAdminEyeEAR(eye) {
   return p0_p3 > 1 ? (p1_p5 + p2_p4) / (2.0 * p0_p3) : 0.28;
 }
 
-// Tính EAR trung bình cả 2 mắt
-function calculateAdminAvgEAR(landmarks) {
-  if (!landmarks) return 0.28;
-  const leftEye = landmarks.getLeftEye ? landmarks.getLeftEye() : null;
-  const rightEye = landmarks.getRightEye ? landmarks.getRightEye() : null;
-  if (!leftEye || !rightEye) return 0.28;
-  return (calculateAdminEyeEAR(leftEye) + calculateAdminEyeEAR(rightEye)) / 2;
-}
-
-// 2. Tính Mouth Aspect Ratio (MAR) - Tỉ lệ mở miệng/cười chuẩn 20 điểm landmarks miệng
+// 2. Tính Mouth Aspect Ratio (MAR)
 function calculateAdminMAR(mouth) {
   if (!mouth || mouth.length < 12) return 0.16;
   const p0_p6 = Math.hypot(mouth[0].x - mouth[6].x, mouth[0].y - mouth[6].y);
@@ -381,16 +362,16 @@ function calculateAdminMAR(mouth) {
   return (p2_p10 + p3_p9 + p4_p8) / (2.0 * p0_p6);
 }
 
-// 3. Tính tỉ lệ lệch 3D chóp mũi so với 2 bên má (3D Head Yaw Parallax)
+// 3. Tính tỉ lệ lệch 3D chóp mũi so với 2 bên má (Head Yaw)
 function calculateAdminHeadYaw(landmarks) {
   if (!landmarks) return 1.0;
   const nose = landmarks.getNose ? landmarks.getNose() : null;
   const jaw = landmarks.getJawOutline ? landmarks.getJawOutline() : null;
   if (!nose || !jaw || jaw.length < 17) return 1.0;
 
-  const noseTip = nose[3] || nose[0]; // Chóp mũi (Landmark 30)
-  const leftCheek = jaw[1];           // Má trái (Landmark 1)
-  const rightCheek = jaw[15];         // Má phải (Landmark 15)
+  const noseTip = nose[3] || nose[0];
+  const leftCheek = jaw[1];
+  const rightCheek = jaw[15];
 
   const dLeft = Math.hypot(noseTip.x - leftCheek.x, noseTip.y - leftCheek.y);
   const dRight = Math.hypot(noseTip.x - rightCheek.x, noseTip.y - rightCheek.y);
@@ -399,16 +380,16 @@ function calculateAdminHeadYaw(landmarks) {
   return dLeft / dRight;
 }
 
-// 4. Tính tỉ lệ ngửa/gật đầu 3D (Head Pitch)
+// 4. Tính tỉ lệ ngửa đầu (Head Pitch)
 function calculateAdminHeadPitch(landmarks) {
   if (!landmarks) return 1.0;
   const nose = landmarks.getNose ? landmarks.getNose() : null;
   const jaw = landmarks.getJawOutline ? landmarks.getJawOutline() : null;
   if (!nose || !jaw || jaw.length < 9) return 1.0;
 
-  const noseRoot = nose[0];           // Gốc sống mũi giữa 2 mắt (Landmark 27)
-  const noseTip = nose[3] || nose[0]; // Chóp mũi (Landmark 30)
-  const chin = jaw[8];                // Đáy cằm (Landmark 8)
+  const noseRoot = nose[0];
+  const noseTip = nose[3] || nose[0];
+  const chin = jaw[8];
 
   const dUpper = Math.hypot(noseTip.x - noseRoot.x, noseTip.y - noseRoot.y);
   const dLower = Math.hypot(chin.x - noseTip.x, chin.y - noseTip.y);
@@ -417,164 +398,8 @@ function calculateAdminHeadPitch(landmarks) {
   return dLower / dUpper;
 }
 
-// LỚP 1: Kiểm tra độ nét (Laplacian Variance) & Chống lóa bề mặt màn hình/mặt kính (Specular Glare)
-function checkAdminBlurAndGlare(box) {
-  const srcW = adminCaptureCanvas.width;
-  const srcH = adminCaptureCanvas.height;
-  if (!box || srcW <= 0 || srcH <= 0) {
-    return { blurScore: 50, glareRatio: 0, isBlur: false, isGlare: false };
-  }
-
-  const sx = Math.max(0, Math.floor(box.x));
-  const sy = Math.max(0, Math.floor(box.y));
-  const sw = Math.min(srcW - sx, Math.max(1, Math.floor(box.width)));
-  const sh = Math.min(srcH - sy, Math.max(1, Math.floor(box.height)));
-
-  adminLivenessAuxCtx.drawImage(adminCaptureCanvas, sx, sy, sw, sh, 0, 0, 100, 100);
-  const imgData = adminLivenessAuxCtx.getImageData(0, 0, 100, 100).data;
-
-  const gray = new Float32Array(10000);
-  let glarePixels = 0;
-
-  for (let i = 0; i < 10000; i++) {
-    const r = imgData[i * 4 + 0];
-    const g = imgData[i * 4 + 1];
-    const b = imgData[i * 4 + 2];
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    gray[i] = lum;
-    if (lum >= 245) glarePixels++;
-  }
-
-  const glareRatio = glarePixels / 10000;
-
-  // Tính phương sai Laplacian (Laplacian Variance) với kernel 3x3
-  let sumLap = 0;
-  let sumLapSq = 0;
-  let countLap = 0;
-
-  for (let y = 1; y < 99; y++) {
-    const row = y * 100;
-    for (let x = 1; x < 99; x++) {
-      const idx = row + x;
-      const lap = gray[idx - 100] + gray[idx + 100] + gray[idx - 1] + gray[idx + 1] - 4 * gray[idx];
-      sumLap += lap;
-      sumLapSq += lap * lap;
-      countLap++;
-    }
-  }
-
-  const meanLap = sumLap / countLap;
-  const lapVar = (sumLapSq / countLap) - (meanLap * meanLap);
-  const blurScore = Math.max(0, Math.round(lapVar));
-
-  return {
-    blurScore,
-    glareRatio,
-    isBlur: blurScore < ADMIN_LIVENESS_CONFIG.BLUR_THRESHOLD,
-    isGlare: glareRatio > ADMIN_LIVENESS_CONFIG.GLARE_RATIO_MAX
-  };
-}
-
-// Pre-process crop khuôn mặt từ adminCaptureCanvas cho MiniFASNet-V2
-function buildAdminFasnetTensor(box) {
-  const scaleConfig = 2.7;
-  const srcW = adminCaptureCanvas.width;
-  const srcH = adminCaptureCanvas.height;
-
-  const scale = Math.min((srcH - 1) / box.height, Math.min((srcW - 1) / box.width, scaleConfig));
-  const newWidth = box.width * scale;
-  const newHeight = box.height * scale;
-  const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
-
-  let leftTopX = centerX - newWidth / 2;
-  let leftTopY = centerY - newHeight / 2;
-  let rightBottomX = centerX + newWidth / 2;
-  let rightBottomY = centerY + newHeight / 2;
-
-  if (leftTopX < 0) {
-    rightBottomX -= leftTopX;
-    leftTopX = 0;
-  }
-  if (leftTopY < 0) {
-    rightBottomY -= leftTopY;
-    leftTopY = 0;
-  }
-  if (rightBottomX > srcW - 1) {
-    leftTopX -= (rightBottomX - srcW + 1);
-    rightBottomX = srcW - 1;
-  }
-  if (rightBottomY > srcH - 1) {
-    leftTopY -= (rightBottomY - srcH + 1);
-    rightBottomY = srcH - 1;
-  }
-
-  const sx = Math.max(0, Math.floor(leftTopX));
-  const sy = Math.max(0, Math.floor(leftTopY));
-  const sWidth = Math.min(srcW - sx, Math.max(1, Math.floor(rightBottomX - leftTopX)));
-  const sHeight = Math.min(srcH - sy, Math.max(1, Math.floor(rightBottomY - leftTopY)));
-
-  const tmp = document.createElement('canvas');
-  tmp.width = 80;
-  tmp.height = 80;
-  const ctx = tmp.getContext('2d');
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, 80, 80);
-
-  try {
-    ctx.drawImage(adminCaptureCanvas, sx, sy, sWidth, sHeight, 0, 0, 80, 80);
-  } catch(e) {
-    ctx.drawImage(adminCaptureCanvas, 0, 0, srcW, srcH, 0, 0, 80, 80);
-  }
-
-  const imgData = ctx.getImageData(0, 0, 80, 80).data;
-  const f32 = new Float32Array(3 * 80 * 80);
-  const plane = 80 * 80;
-  for (let i = 0; i < plane; i++) {
-    const r = imgData[i * 4 + 0];
-    const g = imgData[i * 4 + 1];
-    const b = imgData[i * 4 + 2];
-    f32[i]             = b; // B
-    f32[plane + i]     = g; // G
-    f32[2 * plane + i] = r; // R
-  }
-  return new ort.Tensor('float32', f32, [1, 3, 80, 80]);
-}
-
-async function runAdminFasnet(box) {
-  if (!adminFasnetSession || !box) return null;
-  try {
-    const tensor = buildAdminFasnetTensor(box);
-    const feeds = { [adminFasnetSession.inputNames[0]]: tensor };
-    const results = await adminFasnetSession.run(feeds);
-    const raw = results[adminFasnetSession.outputNames[0]].data;
-
-    const maxVal = Math.max(raw[0], raw[1], raw[2]);
-    const exp = [Math.exp(raw[0] - maxVal), Math.exp(raw[1] - maxVal), Math.exp(raw[2] - maxVal)];
-    const sum = exp[0] + exp[1] + exp[2];
-    const probs = exp.map(x => x / sum);
-
-    const printScore = probs[0];
-    const liveScore = probs[1];
-    const replayScore = probs[2];
-
-    const isLive = (liveScore > printScore && liveScore > replayScore && liveScore >= 0.50);
-
-    return {
-      isLive,
-      liveScore,
-      printScore,
-      replayScore,
-      attackType: replayScore >= printScore ? 'Màn hình điện thoại' : 'Ảnh in 2D'
-    };
-  } catch(e) {
-    console.warn('[Admin AntiSpoof] Inference error:', e.message);
-    return null;
-  }
-}
-
 // ==========================================================
-// HÀM ĐÁNH GIÁ CHỐNG GIẢ MẠO TỐI ƯU CHO CAMERA ESP32 10 FPS
+// HỆ THỐNG THỬ THÁCH NGẪU NHIÊN THỜI GIAN THỰC (ACTIVE CHALLENGE)
 // ==========================================================
 async function evaluateAdminLiveness(label, landmarks, box) {
   if (!adminAntiSpoofEnabled) {
@@ -586,140 +411,130 @@ async function evaluateAdminLiveness(label, landmarks, box) {
 
   const now = Date.now();
 
-  // Khởi tạo trạng thái phiên cho người này nếu chưa có
+  // Khởi tạo hoặc lấy trạng thái của người này
   if (!adminLivenessState[label]) {
     adminLivenessState[label] = {
-      frames: 0,
-      firstSeen: now,
-      confidenceScore: 0,
-      firstQualifiedTime: null,
-      earHistory: [],
-      yawHistory: [],
-      pitchHistory: [],
-      lastBlinkTime: 0,
-      lastPoseTime: 0,
-      hasBlinked: false
+      challenge: null,
+      challengeText: '',
+      challengeStartTime: 0,
+      baselineYaw: 1.0,
+      baselinePitch: 1.0,
+      baselineMar: 0.16,
+      passFrames: 0,
+      isPassed: false,
+      lastPassTime: 0,
+      failCount: 0
     };
   }
 
   const st = adminLivenessState[label];
-  st.frames++;
 
-  // --- LỚP 1: KIỂM TRA ĐỘ NÉT & CHỐNG LÓA MÀN HÌNH ---
-  const quality = checkAdminBlurAndGlare(box);
-  if (quality.isBlur) {
-    st.confidenceScore = Math.max(0, st.confidenceScore - 15);
-    st.firstQualifiedTime = null;
-    return {
-      isLive: false,
-      prompt: `🚫 Ảnh quá mờ (${quality.blurScore} < ${ADMIN_LIVENESS_CONFIG.BLUR_THRESHOLD})`,
-      isStaticPhoto: true
-    };
+  // Nếu người này vừa vượt qua thử thách trong vòng 8 giây qua -> Cho qua luôn để ghi nhận điểm danh
+  if (st.isPassed && (now - st.lastPassTime < 8000)) {
+    return { isLive: true, prompt: '✅ Đã xác thực thành công!', isStaticPhoto: false };
   }
 
-  if (quality.isGlare) {
-    st.confidenceScore = Math.max(0, st.confidenceScore - 20);
-    st.firstQualifiedTime = null;
-    return {
-      isLive: false,
-      prompt: `🚫 Phát hiện lóa màn hình/mặt kính (${Math.round(quality.glareRatio * 100)}%)`,
-      isStaticPhoto: true
-    };
-  }
-
-  // --- LỚP 2: KIỂM TRA SINH TRẮC HỌC ĐỘNG (GÓC QUAY ĐẦU 3D & CỬ ĐỘNG) ---
-  // A. Biến thiên góc quay đầu 3D (Yaw & Pitch)
   const yaw = calculateAdminHeadYaw(landmarks);
   const pitch = calculateAdminHeadPitch(landmarks);
+  const mar = calculateAdminMAR(landmarks.getMouth ? landmarks.getMouth() : null);
 
-  st.yawHistory.push(yaw);
-  if (st.yawHistory.length > ADMIN_LIVENESS_CONFIG.POSE_WINDOW_FRAMES) st.yawHistory.shift();
+  // Sinh thử thách ngẫu nhiên mới nếu chưa có hoặc vừa hết hạn
+  if (!st.challenge || (now - st.challengeStartTime > ADMIN_LIVENESS_CONFIG.CHALLENGE_TIMEOUT_MS)) {
+    // Nếu hết giờ của thử thách cũ mà chưa làm xong -> Phạt báo ảnh tĩnh
+    const wasTimeout = (st.challenge !== null);
 
-  st.pitchHistory.push(pitch);
-  if (st.pitchHistory.length > ADMIN_LIVENESS_CONFIG.POSE_WINDOW_FRAMES) st.pitchHistory.shift();
+    const randomIdx = Math.floor(Math.random() * ADMIN_CHALLENGES.length);
+    const chosen = ADMIN_CHALLENGES[randomIdx];
 
-  const yawDelta = Math.max(...st.yawHistory) - Math.min(...st.yawHistory);
-  const pitchDelta = Math.max(...st.pitchHistory) - Math.min(...st.pitchHistory);
-  const poseDelta = Math.max(yawDelta, pitchDelta);
+    st.challenge = chosen.id;
+    st.challengeText = chosen.label;
+    st.challengeStartTime = now;
+    st.baselineYaw = yaw;
+    st.baselinePitch = pitch;
+    st.baselineMar = mar;
+    st.passFrames = 0;
+    st.isPassed = false;
 
-  const hasGoodHeadPose = (poseDelta >= ADMIN_LIVENESS_CONFIG.POSE_MIN_DELTA && poseDelta <= ADMIN_LIVENESS_CONFIG.POSE_MAX_DELTA);
-  if (hasGoodHeadPose) {
-    st.lastPoseTime = now;
-  }
-
-  // B. Nhấp nháy mắt (EAR) - Hỗ trợ cộng thêm nếu bắt được
-  const currentEar = calculateAdminAvgEAR(landmarks);
-  st.earHistory.push(currentEar);
-  if (st.earHistory.length > ADMIN_LIVENESS_CONFIG.BLINK_WINDOW_FRAMES) {
-    st.earHistory.shift();
-  }
-  const minEar = Math.min(...st.earHistory);
-  const maxEar = Math.max(...st.earHistory);
-  if (minEar <= ADMIN_LIVENESS_CONFIG.BLINK_EAR_CLOSED && maxEar >= ADMIN_LIVENESS_CONFIG.BLINK_EAR_OPEN) {
-    st.lastBlinkTime = now;
-    st.hasBlinked = true;
-  }
-  const hasRecentBlink = (now - st.lastBlinkTime <= ADMIN_LIVENESS_CONFIG.BLINK_VALID_DURATION_MS);
-
-  // Phát hiện ảnh tĩnh 2D phẳng lì (sau 10 frames không hề có bất kỳ biến thiên 3D nào)
-  if (st.frames >= 10 && poseDelta < 0.015 && !hasRecentBlink) {
-    st.confidenceScore = Math.max(0, st.confidenceScore - 15);
-    st.firstQualifiedTime = null;
-    return {
-      isLive: false,
-      prompt: '🚫 Ảnh phẳng 2D không có chuyển động 3D!',
-      isStaticPhoto: true
-    };
-  }
-
-  // --- LỚP 3: TÍNH ĐIỂM TIN CẬY & CHỐT ĐIỂM DANH NHANH ---
-  let frameScore = 0;
-
-  // 1. Độ nét và không lóa tốt: 35 điểm
-  if (!quality.isBlur && !quality.isGlare) {
-    frameScore += 35;
-  }
-
-  // 2. Chuyển động quay/nghiêng đầu 3D tự nhiên: 50 điểm! (Chỉ cần quay nhẹ đầu là đủ vượt mốc 75%)
-  if (hasGoodHeadPose || (now - st.lastPoseTime < 3000)) {
-    frameScore += 50;
-  }
-
-  // 3. Nếu bắt được chớp mắt: thưởng thêm 25 điểm
-  if (hasRecentBlink) {
-    frameScore += 25;
-  }
-
-  // Cập nhật điểm mượt mà
-  st.confidenceScore = Math.max(0, Math.min(100, Math.round(st.confidenceScore * 0.6 + frameScore * 0.4)));
-
-  // Đạt ngưỡng tin cậy >= 75%
-  if (st.confidenceScore >= ADMIN_LIVENESS_CONFIG.QUALIFIED_SCORE_MIN) {
-    if (!st.firstQualifiedTime) {
-      st.firstQualifiedTime = now;
+    if (wasTimeout) {
+      st.failCount++;
+      return {
+        isLive: false,
+        prompt: `🚫 Chưa làm đúng lệnh! Thử lại: ${st.challengeText}`,
+        isStaticPhoto: true
+      };
     }
-    const elapsedMs = now - st.firstQualifiedTime;
+  }
 
-    if (elapsedMs >= ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS) {
-      // ĐẠT TRẠNG THÁI REAL: Khung xanh điểm danh thành công
+  const elapsed = now - st.challengeStartTime;
+  const remainSec = Math.max(0, (ADMIN_LIVENESS_CONFIG.CHALLENGE_TIMEOUT_MS - elapsed) / 1000).toFixed(1);
+
+  // KIỂM TRA ĐIỀU KIỆN ĐẠT CỦA TỪNG LỆNH THỬ THÁCH
+  let actionSatisfied = false;
+
+  // Tính độ lệch so với tư thế ban đầu
+  const yawDelta = yaw - st.baselineYaw;
+  const pitchDelta = pitch - st.baselinePitch;
+  const marDelta = mar - st.baselineMar;
+
+  // Xét theo chiều lật gương (adminEspMirrored)
+  const isMirrored = !!adminEspMirrored;
+
+  switch (st.challenge) {
+    case 'TURN_RIGHT':
+      // Quay mặt sang PHẢI của người dùng:
+      // Khi không lật gương: yaw dLeft/dRight tăng rõ rệt; Khi lật gương: ngược lại
+      if (isMirrored) {
+        actionSatisfied = (yaw <= 0.72 || yawDelta <= -0.22);
+      } else {
+        actionSatisfied = (yaw >= 1.35 || yawDelta >= 0.22);
+      }
+      break;
+
+    case 'TURN_LEFT':
+      // Quay mặt sang TRÁI của người dùng:
+      if (isMirrored) {
+        actionSatisfied = (yaw >= 1.35 || yawDelta >= 0.22);
+      } else {
+        actionSatisfied = (yaw <= 0.72 || yawDelta <= -0.22);
+      }
+      break;
+
+    case 'LOOK_UP':
+      // Ngửa cằm lên trên: pitch dLower/dUpper kéo dài
+      actionSatisfied = (pitch >= 1.30 || pitchDelta >= 0.20);
+      break;
+
+    case 'SMILE_OPEN':
+      // Cười tươi hoặc há nhẹ miệng
+      actionSatisfied = (mar >= 0.24 || marDelta >= 0.08);
+      break;
+  }
+
+  // Đếm số frame thỏa mãn liên tiếp
+  if (actionSatisfied) {
+    st.passFrames++;
+    if (st.passFrames >= ADMIN_LIVENESS_CONFIG.PASS_CONSECUTIVE_FRAMES) {
+      // ĐẠT THỬ THÁCH THÀNH CÔNG!
+      st.isPassed = true;
+      st.lastPassTime = now;
       return {
         isLive: true,
-        prompt: `✅ Người thật (${st.confidenceScore}%)`,
+        prompt: '✅ Thử thách thành công! Đang điểm danh...',
         isStaticPhoto: false
       };
     } else {
-      const remainSec = Math.max(0, (ADMIN_LIVENESS_CONFIG.STABILIZE_DURATION_MS - elapsedMs) / 1000).toFixed(1);
       return {
         isLive: false,
-        prompt: `⏳ Giữ yên... (${remainSec}s - ${st.confidenceScore}%)`,
+        prompt: `✓ Đúng hướng! Giữ yên chút xíu (${st.passFrames}/3)`,
         isStaticPhoto: false
       };
     }
   } else {
-    st.firstQualifiedTime = null;
+    st.passFrames = 0;
+    // Hiển thị chỉ dẫn kèm thời gian đếm ngược
     return {
       isLive: false,
-      prompt: `⏳ Hãy nghiêng hoặc quay nhẹ đầu (${st.confidenceScore}% / 75%)`,
+      prompt: `⚡ ${st.challengeText} (${remainSec}s)`,
       isStaticPhoto: false
     };
   }
@@ -795,13 +610,13 @@ async function startAdminFaceLoop() {
         let detections = [];
         try {
           detections = await faceapi
-            .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+            .detectAllFaces(adminCaptureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.22 }))
             .withFaceLandmarks(true)
             .withFaceDescriptors();
         } catch(detErr) {
           try {
             detections = await faceapi
-              .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+              .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.22 }))
               .withFaceLandmarks(true)
               .withFaceDescriptors();
           } catch(e) {}
