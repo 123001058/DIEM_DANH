@@ -1338,6 +1338,7 @@ function closeAdminFaceEnrollModal() {
   if (modal) modal.style.display = 'none';
   stopEnrollCamera();
   clearPendingEnrollPhoto();
+  clearBatchEnrollQueue();
 }
 
 async function onEnrollStudentChange() {
@@ -1347,6 +1348,7 @@ async function onEnrollStudentChange() {
   enrollActiveStudent = (students || []).find(s => s.mssv === mssv) || null;
 
   clearPendingEnrollPhoto();
+  clearBatchEnrollQueue();
 
   const avatarEl = document.getElementById('enrollStudentAvatar');
   const nameEl = document.getElementById('enrollStudentName');
@@ -1477,10 +1479,16 @@ function setEnrollInputMode(mode) {
   }
 }
 
-// Xử lý khi Admin chọn ảnh từ máy tính
+// =====================================================================
+// XỬ LÝ TẢI LÊN NHIỀU ẢNH KHUÔN MẶT CÙNG LÚC (BATCH ENROLL)
+// =====================================================================
+let enrollBatchQueue = [];
+let isBatchProcessing = false;
+
+// Xử lý khi Admin chọn ảnh từ máy tính (Hỗ trợ 1 hoặc nhiều ảnh)
 async function handleEnrollFileUpload(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
+  const files = Array.from(event.target.files || []);
+  if (!files || files.length === 0) return;
 
   if (!enrollActiveMssv) {
     toast('warn', 'Chưa chọn sinh viên', 'Vui lòng chọn sinh viên cần đăng ký khuôn mặt trước.');
@@ -1488,12 +1496,326 @@ async function handleEnrollFileUpload(event) {
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const dataUrl = e.target.result;
-    await validateAndPreviewPendingPhoto(dataUrl, `Ảnh tải lên (${file.name})`);
-  };
-  reader.readAsDataURL(file);
+  // Ẩn preview đơn lẻ nếu đang mở
+  const singlePreview = document.getElementById('enrollPreviewCard');
+  if (singlePreview) singlePreview.style.display = 'none';
+
+  // Hiển thị khung Batch
+  const batchCard = document.getElementById('enrollBatchCard');
+  if (batchCard) batchCard.style.display = 'block';
+
+  // Gán danh sách ảnh vào hàng đợi
+  enrollBatchQueue = files.map((file, idx) => ({
+    id: 'batch_' + Date.now() + '_' + idx,
+    file: file,
+    name: file.name,
+    status: 'pending', // 'pending' | 'processing' | 'valid' | 'invalid'
+    msg: 'Đang xếp hàng chờ xử lý...',
+    thumbUrl: '',
+    descriptor: null,
+    label: `Ảnh tải lên #${idx + 1}`
+  }));
+
+  renderBatchQueue();
+  await processEnrollBatchQueue();
+}
+
+// Xử lý tuần tự từng ảnh trong hàng đợi bằng Face-API
+async function processEnrollBatchQueue() {
+  if (isBatchProcessing || enrollBatchQueue.length === 0) return;
+  isBatchProcessing = true;
+
+  const total = enrollBatchQueue.length;
+  const progressText = document.getElementById('enrollBatchProgressText');
+  const summaryText = document.getElementById('enrollBatchSummaryText');
+  const progressBar = document.getElementById('enrollBatchProgressBar');
+  const btnSaveBatch = document.getElementById('btnConfirmSaveBatchPhotos');
+
+  if (btnSaveBatch) btnSaveBatch.disabled = true;
+
+  for (let i = 0; i < total; i++) {
+    const item = enrollBatchQueue[i];
+    item.status = 'processing';
+    item.msg = 'Đang phân tích khuôn mặt...';
+
+    if (progressText) progressText.textContent = `${i + 1}/${total} ảnh`;
+    if (summaryText) summaryText.textContent = `Đang trích xuất AI ảnh "${item.name}"...`;
+    if (progressBar) progressBar.style.width = `${Math.round(((i + 1) / total) * 100)}%`;
+    renderBatchQueue();
+
+    try {
+      // 1. Đọc file sang DataURL
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(item.file);
+      });
+
+      // 2. Tải vào thẻ Image
+      const imgEl = new Image();
+      imgEl.src = dataUrl;
+      await new Promise(r => imgEl.onload = r);
+
+      // 3. Chạy phát hiện khuôn mặt với Face-API
+      const detections = await faceapi.detectAllFaces(
+        imgEl,
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
+      ).withFaceLandmarks(true).withFaceDescriptors();
+
+      if (!detections || detections.length === 0) {
+        item.status = 'invalid';
+        item.msg = '❌ Không thấy khuôn mặt';
+        item.thumbUrl = dataUrl;
+      } else if (detections.length > 1) {
+        item.status = 'invalid';
+        item.msg = `⚠️ Thấy ${detections.length} khuôn mặt (chỉ chụp 1 người)`;
+        item.thumbUrl = dataUrl;
+      } else {
+        const det = detections[0];
+        const box = det.detection.box;
+
+        if (box.width < 45 || box.height < 45) {
+          item.status = 'invalid';
+          item.msg = '⚠️ Mặt quá nhỏ hoặc mờ';
+          item.thumbUrl = dataUrl;
+        } else {
+          // Cắt thumbnail 120x120 quanh box khuôn mặt
+          const thumbCanvas = document.createElement('canvas');
+          thumbCanvas.width = 120;
+          thumbCanvas.height = 120;
+          const tCtx = thumbCanvas.getContext('2d');
+          const pad = 0.35;
+          const cx = box.x + box.width / 2;
+          const cy = box.y + box.height / 2;
+          const size = Math.max(box.width, box.height) * (1 + pad);
+          const sx = Math.max(0, cx - size / 2);
+          const sy = Math.max(0, cy - size / 2);
+          const sw = Math.min(size, imgEl.width - sx);
+          const sh = Math.min(size, imgEl.height - sy);
+
+          tCtx.fillStyle = '#ffffff';
+          tCtx.fillRect(0, 0, 120, 120);
+          tCtx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, 120, 120);
+          const thumbUrl = thumbCanvas.toDataURL('image/jpeg', 0.88);
+
+          item.status = 'valid';
+          item.msg = '✅ Hợp lệ (Vector 128D)';
+          item.thumbUrl = thumbUrl;
+          item.descriptor = Array.from(det.descriptor);
+
+          // Tự động gán nhãn góc độ theo số thứ tự
+          const angleLabels = ['Chính diện', 'Nghiêng trái 15°', 'Nghiêng phải 15°', 'Cúi/Ngẩng/Cười', 'Góc bổ sung'];
+          item.label = angleLabels[i] || `Ảnh tải lên #${i + 1}`;
+        }
+      }
+    } catch (err) {
+      console.error(`Lỗi xử lý ảnh [${item.name}]:`, err);
+      item.status = 'invalid';
+      item.msg = '❌ Lỗi đọc ảnh';
+    }
+
+    renderBatchQueue();
+    // Chờ 1 chút để UI mượt mà
+    await new Promise(r => setTimeout(r, 60));
+  }
+
+  isBatchProcessing = false;
+
+  // Tổng kết sau khi xử lý xong
+  const validCount = enrollBatchQueue.filter(i => i.status === 'valid').length;
+  const invalidCount = enrollBatchQueue.filter(i => i.status === 'invalid').length;
+
+  if (summaryText) {
+    summaryText.innerHTML = `Hoàn tất phân tích: <b style="color:var(--ok);">${validCount} ảnh hợp lệ</b> • <span style="color:var(--err);">${invalidCount} ảnh không đạt</span>`;
+  }
+
+  if (btnSaveBatch) {
+    if (validCount > 0) {
+      btnSaveBatch.disabled = false;
+      btnSaveBatch.textContent = `💾 Lưu tất cả ảnh hợp lệ (${validCount} ảnh) vào hồ sơ`;
+    } else {
+      btnSaveBatch.disabled = true;
+      btnSaveBatch.textContent = '❌ Không có ảnh nào đạt chuẩn';
+    }
+  }
+}
+
+// Hiển thị lưới danh sách ảnh trong Batch Queue
+function renderBatchQueue() {
+  const grid = document.getElementById('enrollBatchGrid');
+  if (!grid) return;
+
+  if (enrollBatchQueue.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--muted);font-size:12px;">Chưa có ảnh nào được chọn.</div>';
+    return;
+  }
+
+  grid.innerHTML = enrollBatchQueue.map((item, idx) => {
+    let borderColor = 'var(--border)';
+    let badgeColor = 'var(--muted)';
+    let badgeBg = 'var(--surface-2)';
+
+    if (item.status === 'valid') {
+      borderColor = 'var(--ok)';
+      badgeColor = '#059669';
+      badgeBg = '#dcfce7';
+    } else if (item.status === 'invalid') {
+      borderColor = 'var(--err)';
+      badgeColor = '#dc2626';
+      badgeBg = '#fee2e2';
+    } else if (item.status === 'processing') {
+      borderColor = 'var(--primary)';
+      badgeColor = 'var(--primary)';
+      badgeBg = 'var(--primary-soft)';
+    }
+
+    const thumbHtml = item.thumbUrl
+      ? `<img src="${item.thumbUrl}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;display:block;">`
+      : `<div style="width:100%;height:100px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);font-size:22px;">🖼️</div>`;
+
+    return `
+      <div style="position:relative;background:var(--surface);border:2px solid ${borderColor};border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:5px;transition:all 0.15s ease;">
+        ${thumbHtml}
+        <div style="font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${item.name}">
+          ${item.name}
+        </div>
+        <div style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;color:${badgeColor};background:${badgeBg};text-align:center;line-height:1.3;">
+          ${item.msg}
+        </div>
+        <button type="button" onclick="removeBatchItem(${idx})" title="Xóa ảnh này khỏi danh sách" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;font-weight:800;cursor:pointer;display:grid;place-items:center;">
+          ✕
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+// Xóa 1 ảnh khỏi hàng đợi Batch
+function removeBatchItem(idx) {
+  if (idx < 0 || idx >= enrollBatchQueue.length) return;
+  enrollBatchQueue.splice(idx, 1);
+  renderBatchQueue();
+
+  const validCount = enrollBatchQueue.filter(i => i.status === 'valid').length;
+  const btnSaveBatch = document.getElementById('btnConfirmSaveBatchPhotos');
+  const summaryText = document.getElementById('enrollBatchSummaryText');
+
+  if (summaryText) {
+    summaryText.innerHTML = `Còn lại: <b style="color:var(--ok);">${validCount} ảnh hợp lệ</b>`;
+  }
+  if (btnSaveBatch) {
+    if (validCount > 0) {
+      btnSaveBatch.disabled = false;
+      btnSaveBatch.textContent = `💾 Lưu tất cả ảnh hợp lệ (${validCount} ảnh) vào hồ sơ`;
+    } else {
+      btnSaveBatch.disabled = true;
+      btnSaveBatch.textContent = '❌ Không có ảnh nào đạt chuẩn';
+    }
+  }
+
+  if (enrollBatchQueue.length === 0) {
+    clearBatchEnrollQueue();
+  }
+}
+
+// Dọn sạch hàng đợi Batch
+function clearBatchEnrollQueue() {
+  enrollBatchQueue = [];
+  isBatchProcessing = false;
+  const batchCard = document.getElementById('enrollBatchCard');
+  const fileInput = document.getElementById('enrollFileInput');
+  if (batchCard) batchCard.style.display = 'none';
+  if (fileInput) fileInput.value = '';
+}
+
+// XÁC NHẬN LƯU TẤT CẢ ẢNH HỢP LỆ VÀO SUPABASE VÀ LOCALSTORAGE
+async function confirmSaveBatchPhotos() {
+  if (!enrollActiveMssv) {
+    toast('warn', 'Chưa chọn sinh viên', 'Vui lòng chọn sinh viên cần đăng ký.');
+    return;
+  }
+
+  const validItems = enrollBatchQueue.filter(i => i.status === 'valid' && i.descriptor);
+  if (validItems.length === 0) {
+    toast('warn', 'Không có ảnh hợp lệ', 'Vui lòng chọn ảnh chụp rõ mặt để hệ thống trích xuất vector.');
+    return;
+  }
+
+  const btnSaveBatch = document.getElementById('btnConfirmSaveBatchPhotos');
+  if (btnSaveBatch) {
+    btnSaveBatch.disabled = true;
+    btnSaveBatch.textContent = `⏳ Đang lưu ${validItems.length} ảnh vào máy chủ...`;
+  }
+
+  try {
+    // Đưa tất cả ảnh hợp lệ vào enrollPhotos
+    validItems.forEach(item => {
+      enrollPhotos.push({
+        url: item.thumbUrl,
+        label: item.label || `Ảnh ${enrollPhotos.length + 1}`,
+        descriptor: item.descriptor,
+        created_at: new Date().toISOString()
+      });
+    });
+
+    const descriptors = enrollPhotos.map(p => p.descriptor).filter(Boolean);
+    const thumbnails = enrollPhotos.map(p => ({ url: p.url, label: p.label }));
+
+    // 1. Lưu lên Supabase student_face_data
+    const { error } = await supabase.from('student_face_data').upsert({
+      mssv: enrollActiveMssv,
+      descriptors: descriptors,
+      thumbnails: thumbnails,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'mssv' });
+
+    if (error) throw error;
+
+    // 2. Cập nhật bộ nhớ cục bộ
+    const st = enrollActiveStudent;
+    const label = `${enrollActiveMssv} - ${st ? st.name : enrollActiveMssv}`;
+    let db = JSON.parse(localStorage.getItem('face_descriptors_db') || '{}');
+    let tdb = JSON.parse(localStorage.getItem('face_thumbnails_db') || '{}');
+
+    db[label] = descriptors;
+    tdb[label] = thumbnails;
+    localStorage.setItem('face_descriptors_db', JSON.stringify(db));
+    localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));
+
+    if (typeof studentFaceDataMap !== 'undefined') {
+      studentFaceDataMap.set(enrollActiveMssv, {
+        count: descriptors.length,
+        thumbnails: thumbnails,
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // 3. Tải lại FaceMatcher nhận diện tức thì
+    reloadAdminFaceMatcher();
+    updateAdminFaceKpi();
+    renderFaceStudentTable();
+    renderEnrollPhotoGrid();
+
+    const badgeEl = document.getElementById('enrollStatusBadge');
+    if (badgeEl) {
+      badgeEl.textContent = `🟢 Đã đăng ký ${enrollPhotos.length} ảnh`;
+      badgeEl.style.color = 'var(--ok)';
+    }
+    const btnDelAll = document.getElementById('btnEnrollDeleteAll');
+    if (btnDelAll) btnDelAll.style.display = 'inline-flex';
+
+    clearBatchEnrollQueue();
+    toast('ok', `Đã lưu ${validItems.length} ảnh khuôn mặt!`, `Hồ sơ ${label} hiện có ${descriptors.length} vector nhận diện.`);
+  } catch (err) {
+    console.error('Lỗi lưu Batch ảnh:', err);
+    toast('err', 'Lỗi lưu dữ liệu', err.message);
+  } finally {
+    if (btnSaveBatch) {
+      btnSaveBatch.disabled = false;
+      btnSaveBatch.textContent = '💾 Lưu tất cả ảnh hợp lệ vào hồ sơ';
+    }
+  }
 }
 
 // Chụp ảnh từ Camera trong Modal

@@ -148,6 +148,13 @@ body {
   font-size: 12px;
   font-weight: 700;
   color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.user-profile-chip:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .user-avatar-mini {
   width: 26px;
@@ -159,6 +166,14 @@ body {
   place-items: center;
   font-size: 11px;
   font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.user-avatar-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .btn {

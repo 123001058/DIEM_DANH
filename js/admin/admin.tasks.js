@@ -1484,8 +1484,22 @@ async function checkAuth(){
     return null;
   }
   const { data: prof } = await supabase.from('profiles').select('full_name, mssv').eq('user_id', auth.session.user.id).maybeSingle();
-  document.getElementById('adminName').textContent = prof?.full_name || '—';
-  document.getElementById('adminMssv').textContent = prof?.mssv || '—';
+  const admName = prof?.full_name || 'Admin';
+  const admMssv = prof?.mssv || '—';
+  const elName = document.getElementById('adminName');
+  if (elName) elName.textContent = admName;
+  const elMssv = document.getElementById('adminMssv');
+  if (elMssv) elMssv.textContent = admMssv;
+
+  const sideName = document.getElementById('sidebarAdminName');
+  if (sideName) sideName.textContent = admName;
+  const sideMssv = document.getElementById('sidebarAdminMssv');
+  if (sideMssv) sideMssv.textContent = admMssv;
+
+  if (typeof loadAdminAvatar === 'function') {
+    await loadAdminAvatar(auth.session.user.id, prof?.mssv, admName);
+  }
+
   supabase.auth.onAuthStateChange(e => { if (e === 'SIGNED_OUT') location.href = 'index.html'; });
   return auth.session.user;
 }

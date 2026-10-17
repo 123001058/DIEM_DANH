@@ -243,3 +243,189 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(checkAdminPendingWork, 1500);
   setInterval(checkAdminPendingWork, 30000);
 });
+/* ==========================================================
+   QUẢN LÝ AVATAR (ẢNH ĐẠI DIỆN) ADMIN
+   ========================================================== */
+let adminCurrentUserId = null;
+let adminCurrentMssv = null;
+let adminCurrentName = null;
+let pendingAdminAvatarDataUrl = null;
+
+function applyAdminAvatar(avatarUrl, name) {
+  const topEl = document.getElementById('topbarAvatar');
+  const sideEl = document.getElementById('sidebarAvatar');
+  const displayName = name || adminCurrentName || 'Admin';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'A';
+
+  const content = avatarUrl
+    ? '<img src="' + avatarUrl + '" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">'
+    : initial;
+
+  if (topEl) topEl.innerHTML = content;
+  if (sideEl) sideEl.innerHTML = content;
+}
+
+async function loadAdminAvatar(userId, mssv, name) {
+  adminCurrentUserId = userId;
+  adminCurrentMssv = mssv;
+  adminCurrentName = name;
+
+  // 1. Kiểm tra ảnh trong localStorage
+  const localAvatar = localStorage.getItem('admin_custom_avatar_' + userId);
+  if (localAvatar) {
+    applyAdminAvatar(localAvatar, name);
+    return;
+  }
+
+  // 2. Nếu admin có MSSV, kiểm tra bảng students
+  if (mssv && typeof supabase !== 'undefined') {
+    try {
+      const { data: st } = await supabase.from('students').select('avatar').eq('mssv', mssv).maybeSingle();
+      if (st?.avatar) {
+        applyAdminAvatar(st.avatar, name);
+        localStorage.setItem('admin_custom_avatar_' + userId, st.avatar);
+        return;
+      }
+    } catch (e) {
+      console.warn('Lỗi load avatar sinh viên cho admin:', e);
+    }
+  }
+
+  // 3. Fallback chữ cái đầu
+  applyAdminAvatar(null, name);
+}
+
+function openAdminAvatarModal() {
+  const modal = document.getElementById('adminAvatarModal');
+  if (!modal) return;
+
+  const nameEl = document.getElementById('adminAvatarModalName');
+  const mssvEl = document.getElementById('adminAvatarModalMssv');
+  const previewImg = document.getElementById('adminAvatarPreview');
+  const fileInput = document.getElementById('adminAvatarFileInput');
+  const btnSave = document.getElementById('btnSaveAdminAvatar');
+
+  if (nameEl) nameEl.textContent = adminCurrentName || document.getElementById('adminName')?.textContent || 'Admin';
+  if (mssvEl) mssvEl.textContent = adminCurrentMssv ? ('MSSV: ' + adminCurrentMssv) : 'Tài khoản Quản trị viên';
+  if (fileInput) fileInput.value = '';
+  if (btnSave) btnSave.disabled = true;
+
+  // Lấy avatar hiện tại nếu có
+  const currentAvatar = adminCurrentUserId ? localStorage.getItem('admin_custom_avatar_' + adminCurrentUserId) : null;
+  if (previewImg) {
+    if (currentAvatar) {
+      previewImg.src = currentAvatar;
+    } else {
+      previewImg.src = 'images/logo.png';
+    }
+  }
+
+  pendingAdminAvatarDataUrl = null;
+  modal.style.display = 'flex';
+}
+
+function closeAdminAvatarModal() {
+  const modal = document.getElementById('adminAvatarModal');
+  if (modal) modal.style.display = 'none';
+  pendingAdminAvatarDataUrl = null;
+  const fileInput = document.getElementById('adminAvatarFileInput');
+  if (fileInput) fileInput.value = '';
+}
+
+async function handleAdminAvatarSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Không thể tải định dạng ảnh này'));
+    });
+
+    // Cắt vuông tâm (Center-Crop) và resize về 256x256
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const size = Math.min(img.width, img.height);
+    const sx = (img.width - size) / 2;
+    const sy = (img.height - size) / 2;
+
+    ctx.drawImage(img, sx, sy, size, size, 0, 0, 256, 256);
+    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+    pendingAdminAvatarDataUrl = croppedDataUrl;
+
+    const previewImg = document.getElementById('adminAvatarPreview');
+    if (previewImg) previewImg.src = croppedDataUrl;
+
+    const btnSave = document.getElementById('btnSaveAdminAvatar');
+    if (btnSave) btnSave.disabled = false;
+  } catch (err) {
+    console.error('Lỗi chọn ảnh avatar admin:', err);
+    if (typeof toast === 'function') toast('err', 'Lỗi xử lý ảnh', err.message);
+  }
+}
+
+async function saveAdminAvatar() {
+  if (!pendingAdminAvatarDataUrl) return;
+
+  const btnSave = document.getElementById('btnSaveAdminAvatar');
+  if (btnSave) {
+    btnSave.disabled = true;
+    btnSave.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    // 1. Lưu vào localStorage
+    if (adminCurrentUserId) {
+      localStorage.setItem('admin_custom_avatar_' + adminCurrentUserId, pendingAdminAvatarDataUrl);
+    }
+
+    // 2. Cập nhật vào Supabase students nếu admin có MSSV
+    if (adminCurrentMssv && typeof supabase !== 'undefined') {
+      try {
+        await supabase.from('students').update({ avatar: pendingAdminAvatarDataUrl }).eq('mssv', adminCurrentMssv);
+        if (typeof students !== 'undefined' && Array.isArray(students)) {
+          const st = students.find(s => s.mssv === adminCurrentMssv);
+          if (st) st.avatar = pendingAdminAvatarDataUrl;
+        }
+      } catch (errDb) {
+        console.warn('Lỗi cập nhật avatar vào bảng students:', errDb);
+      }
+    }
+
+    // 3. Thử cập nhật profiles nếu có
+    if (adminCurrentUserId && typeof supabase !== 'undefined') {
+      try {
+        await supabase.from('profiles').update({ avatar: pendingAdminAvatarDataUrl }).eq('user_id', adminCurrentUserId);
+      } catch (_) {}
+    }
+
+    // 4. Áp dụng ngay lập tức lên giao diện
+    applyAdminAvatar(pendingAdminAvatarDataUrl, adminCurrentName);
+
+    if (typeof toast === 'function') {
+      toast('ok', 'Đã đổi ảnh đại diện!', 'Ảnh đại diện Admin đã được cập nhật thành công.');
+    }
+
+    closeAdminAvatarModal();
+  } catch (err) {
+    console.error('Lỗi lưu avatar admin:', err);
+    if (typeof toast === 'function') toast('err', 'Lỗi lưu avatar', err.message);
+  } finally {
+    if (btnSave) {
+      btnSave.disabled = false;
+      btnSave.textContent = '💾 Lưu ảnh đại diện';
+    }
+  }
+}
