@@ -176,17 +176,26 @@ static esp_err_t test_pin_handler(httpd_req_t *req) {
         targetPin != 17 && targetPin != 18 && targetPin != 19 && targetPin != 20 &&
         targetPin != 35 && targetPin != 36 && targetPin != 37) {
 
-      Serial.printf(">> [TEST] Dang thu kich chan GPIO %d (chớp 3 lan)\n", targetPin);
+      bool holdOn = (strstr(query, "val=1") != NULL || strstr(query, "state=1") != NULL || strstr(query, "on=1") != NULL);
+      bool turnOff = (strstr(query, "val=0") != NULL || strstr(query, "state=0") != NULL || strstr(query, "off=1") != NULL);
+
       pinMode(targetPin, OUTPUT);
-      for (int i = 0; i < 3; i++) {
-        digitalWrite(targetPin, HIGH);
-        vTaskDelay(pdMS_TO_TICKS(200));
+
+      if (turnOff) {
+        Serial.printf(">> [TEST] Tat GPIO %d\n", targetPin);
         digitalWrite(targetPin, LOW);
-        vTaskDelay(pdMS_TO_TICKS(200));
+      } else if (holdOn) {
+        Serial.printf(">> [TEST] Bat giu sang lien tuc GPIO %d\n", targetPin);
+        digitalWrite(targetPin, HIGH);
+      } else {
+        Serial.printf(">> [TEST] Bat sang GPIO %d trong 5 giay de quan sat...\n", targetPin);
+        digitalWrite(targetPin, HIGH);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        digitalWrite(targetPin, LOW);
       }
 
       char res[96];
-      snprintf(res, sizeof(res), "{\"ok\":true,\"tested_pin\":%d,\"message\":\"Da chớp chân GPIO %d 3 lần\"}", targetPin, targetPin);
+      snprintf(res, sizeof(res), "{\"ok\":true,\"tested_pin\":%d,\"message\":\"Da kich hoat GPIO %d thanh cong\"}", targetPin, targetPin);
       httpd_resp_set_type(req, "application/json");
       httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
       return httpd_resp_send(req, res, strlen(res));

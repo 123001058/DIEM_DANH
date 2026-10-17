@@ -4,8 +4,8 @@
 #define CAMERA_MODEL_ESP32S3_EYE
 #define BUZZER_PIN 14
 
-// Chân đèn Flash LED (mặc định GPIO 2 cho board ESP32-S3-CAM / Freenove, hoặc GPIO 48 tùy bo)
-#define FLASH_LED_PIN 48
+// Chân đèn Flash LED kép (chuẩn 100% theo sơ đồ mạch ESP32-S3-CAM là GPIO 3)
+#define FLASH_LED_PIN 3
 
 #include "camera_pins.h"
 
