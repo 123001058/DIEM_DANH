@@ -619,11 +619,12 @@ async function processAdminCameraFrame(media) {
     adminConsecutiveSpoofHits++;
     boxColor = '#dc2626'; // Đỏ cảnh báo
 
-    // Kêu còi cảnh báo giả mạo trên ESP32 (rate-limit 3 giây)
+    // Kêu còi cảnh báo giả mạo trên ESP32 (tiếng dài 750ms) và loa máy tính
     const now = Date.now();
     if (!window._lastSpoofBeepTime || (now - window._lastSpoofBeepTime > 3000)) {
       window._lastSpoofBeepTime = now;
       triggerEspBuzzer('warn');
+      playAdminWarningBeep();
     }
 
     const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
@@ -904,6 +905,24 @@ function playAdminSuccessBeep() {
     gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.22);
     osc.start();
     osc.stop(ctx.currentTime + 0.22);
+  } catch (e) {}
+}
+
+// Âm thanh cảnh báo lỗi / giả mạo trên máy tính (tiếng buzz trầm kéo dài)
+function playAdminWarningBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, ctx.currentTime);
+    osc.frequency.setValueAtTime(160, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
   } catch (e) {}
 }
 

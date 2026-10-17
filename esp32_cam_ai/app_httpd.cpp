@@ -83,17 +83,15 @@ static esp_err_t index_handler(httpd_req_t *req) {
 }
 
 static esp_err_t beep_handler(httpd_req_t *req) {
-  char query[32] = {0};
-  int duration = 140; // 140ms tiếng bíp dứt khoát
+  char query[64] = {0};
+  int duration = 80; // Thành công: 1 tiếng 'tít' ngắn dứt khoát (80ms)
   int repeats = 1;
 
   if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
-    char type_param[16] = {0};
-    if (httpd_query_key_value(query, "type", type_param, sizeof(type_param)) == ESP_OK) {
-      if (strcmp(type_param, "warn") == 0 || strcmp(type_param, "error") == 0) {
-        repeats = 2;
-        duration = 70;
-      }
+    if (strstr(query, "type=warn") != NULL || strstr(query, "type=error") != NULL) {
+      // Giả mạo (Fake ảnh/màn hình): Kêu 1 tiếng DÀI 750ms báo lỗi từ chối rõ rệt
+      duration = 750;
+      repeats = 1;
     }
   }
 
@@ -103,7 +101,7 @@ static esp_err_t beep_handler(httpd_req_t *req) {
     vTaskDelay(pdMS_TO_TICKS(duration));
     digitalWrite(BUZZER_PIN, HIGH);
     if (i < repeats - 1) {
-      vTaskDelay(pdMS_TO_TICKS(70));
+      vTaskDelay(pdMS_TO_TICKS(100));
     }
   }
 
