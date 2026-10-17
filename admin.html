@@ -2166,6 +2166,7 @@ tbody tr:last-child td { border-bottom: none; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=6"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 </head>
 <body>
@@ -2662,7 +2663,7 @@ tbody tr:last-child td { border-bottom: none; }
             </label>
             <button type="button" class="btn btn-primary btn-sm" id="btnAdminEspConnect" onclick="toggleAdminEspStream()">📡 Bắt đầu quét</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminEspFlip()">🔄 Lật gương</button>
-            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminSpeedMode" onclick="toggleAdminSpeedMode()">⚡ Chế độ: Nhận diện tự động 1s</button>
+            <button type="button" class="btn btn-secondary btn-sm active" id="btnAdminAntiSpoof" onclick="toggleAdminAntiSpoof()" title="Bật/Tắt AI MiniFASNet-V2 chặn ảnh in và màn hình điện thoại">🛡️ AI Chống ảnh 2D: BẬT</button>
           </div>
           <div style="font-size:12px;color:var(--muted);font-weight:600;">
             Phiên hiện tại: <span id="faceCamSessionStatus" style="font-weight:700;color:var(--ok)">Đang kiểm tra...</span>
@@ -9758,12 +9759,41 @@ let adminFaceMatcher = null;
 let isAdminEspDetecting = false;
 let adminEspStreamRunning = false;
 let adminEspMirrored = false;
-let adminSpeedMode = true; // Siêu tốc 1s mặc định để nhận diện tức thì
+let adminAntiSpoofEnabled = true; // Bật chống ảnh giả 2D mặc định
 let adminRecentScans = [];
 let adminLastCheckinTime = {};
 let adminConsecutiveHits = {};
 let adminFpsCounter = 0;
 let adminLastFpsTime = performance.now();
+
+// MiniFASNet-V2 ONNX session cho Camera ESP32 Admin
+let adminFasnetSession = null;
+let adminFasnetLoading = false;
+
+async function loadAdminFasnetModel() {
+  if (adminFasnetSession || adminFasnetLoading) return;
+  adminFasnetLoading = true;
+  try {
+    if (typeof ort === 'undefined') {
+      console.warn('[Admin AntiSpoof] ort chưa sẵn sàng');
+      return;
+    }
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+    try {
+      adminFasnetSession = await ort.InferenceSession.create('models/anti-spoofing/minifasnet_v2.onnx', { executionProviders: ['wasm'] });
+      console.log('[Admin AntiSpoof] MiniFASNet-V2 loaded thành công từ local models/');
+    } catch(errLocal) {
+      console.warn('[Admin AntiSpoof] Thử tải HuggingFace CDN...', errLocal.message);
+      adminFasnetSession = await ort.InferenceSession.create('https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/main/minifasnet_v2.onnx', { executionProviders: ['wasm'] });
+      console.log('[Admin AntiSpoof] MiniFASNet-V2 loaded thành công từ CDN');
+    }
+  } catch(e) {
+    console.warn('[Admin AntiSpoof] Lỗi load MiniFASNet:', e.message);
+    adminFasnetSession = null;
+  } finally {
+    adminFasnetLoading = false;
+  }
+}
 
 // 1. Mở ngăn trượt Camera
 function openFaceCamAccordion() {
@@ -9802,13 +9832,16 @@ async function initFaceCamInAdmin() {
   if (ipInput) ipInput.value = savedIp;
   localStorage.setItem('esp_cam_ip', savedIp);
 
+  // Tải MiniFASNet song song
+  loadAdminFasnetModel();
+
   if (adminFaceModelsLoaded) {
     reloadAdminFaceMatcher();
     return;
   }
 
   const hud = document.getElementById('adminEspHudText');
-  if (hud) hud.textContent = '⏳ Đang tải mô hình AI...';
+  if (hud) hud.textContent = '⏳ Đang tải mô hình AI nhận diện & chống ảnh...';
 
   try {
     const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
@@ -9819,7 +9852,7 @@ async function initFaceCamInAdmin() {
 
     reloadAdminFaceMatcher();
     syncAdminFacesFromSupabase();
-    if (hud) hud.textContent = '🟢 AI sẵn sàng — Nhấn "Bắt đầu quét"';
+    if (hud) hud.textContent = '🟢 AI sẵn sàng (Đã bật chống ảnh 2D) — Nhấn "Bắt đầu quét"';
   } catch(e) {
     console.error('Lỗi load face-api trong admin:', e);
     if (hud) hud.textContent = '❌ Lỗi tải AI. Vui lòng kiểm tra mạng.';
@@ -10046,44 +10079,178 @@ function calculateAdminHeadYaw(landmarks) {
   return dLeft / dRight;
 }
 
-// Kiểm tra độ sống động người thật (Nhận diện tự động, không bao giờ kẹt thử thách)
-function evaluateAdminLiveness(label, landmarks, box) {
-  if (adminSpeedMode) {
-    return { isLive: true, prompt: '⚡ Nhận diện tức thì', isStaticPhoto: false, isFailed: false };
+// Pre-process crop khuôn mặt từ adminCaptureCanvas cho MiniFASNet-V2
+function buildAdminFasnetTensor(box) {
+  const scaleConfig = 2.7;
+  const srcW = adminCaptureCanvas.width;
+  const srcH = adminCaptureCanvas.height;
+
+  const scale = Math.min((srcH - 1) / box.height, Math.min((srcW - 1) / box.width, scaleConfig));
+  const newWidth = box.width * scale;
+  const newHeight = box.height * scale;
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+
+  let leftTopX = centerX - newWidth / 2;
+  let leftTopY = centerY - newHeight / 2;
+  let rightBottomX = centerX + newWidth / 2;
+  let rightBottomY = centerY + newHeight / 2;
+
+  if (leftTopX < 0) {
+    rightBottomX -= leftTopX;
+    leftTopX = 0;
+  }
+  if (leftTopY < 0) {
+    rightBottomY -= leftTopY;
+    leftTopY = 0;
+  }
+  if (rightBottomX > srcW - 1) {
+    leftTopX -= (rightBottomX - srcW + 1);
+    rightBottomX = srcW - 1;
+  }
+  if (rightBottomY > srcH - 1) {
+    leftTopY -= (rightBottomY - srcH + 1);
+    rightBottomY = srcH - 1;
+  }
+
+  const sx = Math.max(0, Math.floor(leftTopX));
+  const sy = Math.max(0, Math.floor(leftTopY));
+  const sWidth = Math.min(srcW - sx, Math.max(1, Math.floor(rightBottomX - leftTopX)));
+  const sHeight = Math.min(srcH - sy, Math.max(1, Math.floor(rightBottomY - leftTopY)));
+
+  const tmp = document.createElement('canvas');
+  tmp.width = 80;
+  tmp.height = 80;
+  const ctx = tmp.getContext('2d');
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 80, 80);
+
+  try {
+    ctx.drawImage(adminCaptureCanvas, sx, sy, sWidth, sHeight, 0, 0, 80, 80);
+  } catch(e) {
+    ctx.drawImage(adminCaptureCanvas, 0, 0, srcW, srcH, 0, 0, 80, 80);
+  }
+
+  const imgData = ctx.getImageData(0, 0, 80, 80).data;
+  const f32 = new Float32Array(3 * 80 * 80);
+  const plane = 80 * 80;
+  for (let i = 0; i < plane; i++) {
+    const r = imgData[i * 4 + 0];
+    const g = imgData[i * 4 + 1];
+    const b = imgData[i * 4 + 2];
+    f32[i]             = b; // B
+    f32[plane + i]     = g; // G
+    f32[2 * plane + i] = r; // R
+  }
+  return new ort.Tensor('float32', f32, [1, 3, 80, 80]);
+}
+
+async function runAdminFasnet(box) {
+  if (!adminFasnetSession || !box) return null;
+  try {
+    const tensor = buildAdminFasnetTensor(box);
+    const feeds = { [adminFasnetSession.inputNames[0]]: tensor };
+    const results = await adminFasnetSession.run(feeds);
+    const raw = results[adminFasnetSession.outputNames[0]].data;
+
+    const maxVal = Math.max(raw[0], raw[1], raw[2]);
+    const exp = [Math.exp(raw[0] - maxVal), Math.exp(raw[1] - maxVal), Math.exp(raw[2] - maxVal)];
+    const sum = exp[0] + exp[1] + exp[2];
+    const probs = exp.map(x => x / sum);
+
+    const printScore = probs[0];
+    const liveScore = probs[1];
+    const replayScore = probs[2];
+
+    const isLive = (liveScore > printScore && liveScore > replayScore && liveScore >= 0.50);
+
+    return {
+      isLive,
+      liveScore,
+      printScore,
+      replayScore,
+      attackType: replayScore >= printScore ? 'Màn hình điện thoại' : 'Ảnh in 2D'
+    };
+  } catch(e) {
+    console.warn('[Admin AntiSpoof] Inference error:', e.message);
+    return null;
+  }
+}
+
+// Kiểm tra độ sống động người thật (Kết hợp AI MiniFASNet + Vi chuyển động 3D landmarks chống ảnh tĩnh)
+async function evaluateAdminLiveness(label, landmarks, box) {
+  if (!adminAntiSpoofEnabled) {
+    return { isLive: true, prompt: '⚡ Nhận diện tức thì (Đã tắt chống giả)', isStaticPhoto: false };
   }
   if (!landmarks) {
-    return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false, isFailed: false };
+    return { isLive: false, prompt: '🔍 Đang căn chỉnh khuôn mặt...', isStaticPhoto: false };
   }
 
   const now = Date.now();
+  const yaw = calculateAdminHeadYaw(landmarks);
+
   if (!adminLivenessState[label]) {
-    adminLivenessState[label] = { frames: 1, firstSeen: now };
-    return { isLive: false, prompt: '⏳ Đang quét xác thực...', isStaticPhoto: false, isFailed: false };
+    adminLivenessState[label] = {
+      frames: 1,
+      firstSeen: now,
+      yawHistory: [yaw],
+      minYaw: yaw,
+      maxYaw: yaw,
+      fasnetChecked: false,
+      fasnetPass: false,
+      fasnetMsg: ''
+    };
   }
 
   const st = adminLivenessState[label];
   st.frames++;
-  if (st.frames >= 2) {
-    return { isLive: true, prompt: '✅ Nhận diện thành công!', isStaticPhoto: false, isFailed: false };
+  st.yawHistory.push(yaw);
+  if (st.yawHistory.length > 20) st.yawHistory.shift();
+  st.minYaw = Math.min(...st.yawHistory);
+  st.maxYaw = Math.max(...st.yawHistory);
+
+  // 1. Kiểm tra mô hình MiniFASNet-V2 (Chặn ảnh in / màn hình)
+  if (adminFasnetSession && !st.fasnetChecked) {
+    const fas = await runAdminFasnet(box);
+    if (fas) {
+      if (!fas.isLive) {
+        st.fasnetMsg = `🚫 Phát hiện ${fas.attackType} (${Math.round((1 - fas.liveScore)*100)}%)`;
+        return { isLive: false, prompt: st.fasnetMsg, isStaticPhoto: true };
+      }
+      st.fasnetChecked = true;
+      st.fasnetPass = true;
+    }
   }
-  return { isLive: false, prompt: '⏳ Đang quét xác thực...', isStaticPhoto: false, isFailed: false };
+
+  // 2. Kiểm tra vi chuyển động sống (Ảnh 2D đưa trước cam thường cứng đơ, yaw delta gần như = 0)
+  const yawDiff = st.maxYaw - st.minYaw;
+  if (st.frames < 3) {
+    return { isLive: false, prompt: '🛡️ Đang kiểm tra người thật...', isStaticPhoto: false };
+  }
+
+  // Người thật đứng thở/nháy mắt/cử động nhẹ luôn có vi biến thiên yaw >= 0.04
+  if (st.frames >= 8 && yawDiff < 0.035) {
+    return { isLive: false, prompt: '🚫 Ảnh tĩnh 2D không có cử động!', isStaticPhoto: true };
+  }
+
+  return { isLive: true, prompt: '✅ Người thật hợp lệ', isStaticPhoto: false };
 }
 
-function toggleAdminSpeedMode() {
-  adminSpeedMode = !adminSpeedMode;
-  const btn = document.getElementById('btnAdminSpeedMode');
+function toggleAdminAntiSpoof() {
+  adminAntiSpoofEnabled = !adminAntiSpoofEnabled;
+  const btn = document.getElementById('btnAdminAntiSpoof');
   if (btn) {
-    btn.textContent = adminSpeedMode ? '⚡ Chế độ: Nhận diện tự động 1s' : '🛡️ Chế độ: Xác thực 2-frame';
-    btn.classList.toggle('active', adminSpeedMode);
+    btn.textContent = adminAntiSpoofEnabled ? '🛡️ AI Chống ảnh 2D: BẬT' : '⚡ Chế độ Siêu tốc (Tắt chống ảnh)';
+    btn.classList.toggle('active', adminAntiSpoofEnabled);
   }
   adminLivenessState = {};
   adminActiveSessionLabel = null;
   adminConsecutiveHits = {};
   adminLostFaceFrames = 0;
-  if (!adminSpeedMode) {
-    toast('info', 'Chế độ Xác thực 2-frame', 'Quét xác nhận khuôn mặt liên tục trong 2 frame.');
+  if (adminAntiSpoofEnabled) {
+    toast('ok', 'Bảo vệ Anti-Spoof', 'Đã bật AI MiniFASNet-V2 chặn ảnh chụp 2D.');
   } else {
-    toast('ok', 'Chế độ Tự động 1s', 'Điểm danh tức thì 1 giây.');
+    toast('warn', 'Tắt Anti-Spoof', 'Đang ở chế độ quét nhanh không kiểm tra ảnh giả.');
   }
 }
 
@@ -10190,14 +10357,15 @@ async function startAdminFaceLoop() {
 
             if (adminFaceMatcher) {
               const bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-              const maxDistance = adminSpeedMode ? 0.52 : 0.44;
+              const maxDistance = adminAntiSpoofEnabled ? 0.45 : 0.52;
 
               if (bestMatch.label !== 'unknown' && bestMatch.distance <= maxDistance) {
                 isMatched = true;
                 const confidence = Math.round((1 - bestMatch.distance) * 100);
 
                 // Điểm danh cho sinh viên nếu khớp
-                const liveCheck = evaluateAdminLiveness(bestMatch.label, det.landmarks, det.detection.box);
+                const rawBox = detections[i] ? detections[i].detection.box : det.detection.box;
+                const liveCheck = await evaluateAdminLiveness(bestMatch.label, det.landmarks, rawBox);
                 isLive = liveCheck.isLive;
                 livenessPrompt = liveCheck.prompt;
 
@@ -10206,8 +10374,12 @@ async function startAdminFaceLoop() {
                   labelText = `✓ ${bestMatch.label} (${confidence}%)`;
                   handleAdminFaceCheckin(bestMatch.label);
                   if (hud) hud.textContent = `✅ Nhận diện thành công: ${bestMatch.label}`;
+                } else if (liveCheck.isStaticPhoto) {
+                  boxColor = '#ef4444'; // Đỏ: Chặn ảnh giả mạo
+                  labelText = `${livenessPrompt}`;
+                  if (hud) hud.textContent = `🛡️ Cảnh báo: ${livenessPrompt} — Từ chối điểm danh!`;
                 } else {
-                  boxColor = '#f59e0b'; // Cam
+                  boxColor = '#f59e0b'; // Cam: Đang quét / căn chỉnh
                   labelText = `⏳ ${bestMatch.label}: ${livenessPrompt}`;
                 }
               } else if (bestMatch.label !== 'unknown') {
