@@ -265,9 +265,24 @@ async function syncAdminFacesFromSupabase(showNotification = false) {
     let count = 0;
 
     rows.forEach(row => {
-      const mssv = row.mssv;
+      let mssv = row.mssv;
+      // Tự động chuẩn hóa MSSV cũ 12300555 -> 123000555
+      if (mssv === '12300555') {
+        mssv = '123000555';
+        if (typeof supabase !== 'undefined') {
+          supabase.from('student_face_data').upsert({
+            mssv: '123000555',
+            descriptors: row.descriptors,
+            thumbnails: (row.thumbnails || []).map(t => typeof t === 'string' ? t.replace('12300555', '123000555') : { ...t, url: (t.url || '').replace('12300555', '123000555') }),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'mssv' }).then(() => {
+            supabase.from('student_face_data').delete().eq('mssv', '12300555');
+          }).catch(e => console.warn('Lỗi migrate face data:', e));
+        }
+      }
+
       const st = (students || []).find(s => s.mssv === mssv);
-      const name = st ? st.name : mssv;
+      const name = st ? st.name : (mssv === '123000555' ? 'Nguyễn Lê Vũ Duy' : mssv);
       const label = `${mssv} - ${name}`;
       const validDescs = (row.descriptors || []).filter(d => Array.isArray(d) && d.length === 128);
 
@@ -285,6 +300,10 @@ async function syncAdminFacesFromSupabase(showNotification = false) {
         }
       }
     });
+
+    // Dọn sạch mọi key cũ liên quan đến 12300555 trong localStorage
+    Object.keys(db).forEach(k => { if (k.includes('12300555')) delete db[k]; });
+    Object.keys(tdb).forEach(k => { if (k.includes('12300555')) delete tdb[k]; });
 
     localStorage.setItem('face_descriptors_db', JSON.stringify(db));
     localStorage.setItem('face_thumbnails_db', JSON.stringify(tdb));

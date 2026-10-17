@@ -1526,14 +1526,35 @@ async function loadStudents(){
     return false;
   }
   if (errorBox) errorBox.style.display = 'none';
-  students = (data || []).map(s => ({
-    mssv: s.mssv,
-    name: s.name,
-    class: s.class || '',
-    phone: s.phone || '',
-    avatar: s.avatar || `images/faces/${s.mssv}.png`,
-    is_active: s.is_active !== false
-  }));
+  students = (data || []).map(s => {
+    let mssv = s.mssv;
+    let avatar = s.avatar;
+    if (mssv === '12300555') {
+      mssv = '123000555';
+      avatar = 'images/faces/123000555.png';
+      // Tự động chuyển đổi bản ghi sinh viên trên Supabase
+      if (typeof supabase !== 'undefined') {
+        supabase.from('students').upsert({
+          mssv: '123000555',
+          name: s.name || 'Nguyễn Lê Vũ Duy',
+          class: s.class || '23TD111',
+          phone: s.phone || '0888189218',
+          avatar: 'images/faces/123000555.png',
+          is_active: true
+        }, { onConflict: 'mssv' }).then(() => {
+          supabase.from('students').delete().eq('mssv', '12300555');
+        }).catch(e => console.warn('Lỗi migrate student:', e));
+      }
+    }
+    return {
+      mssv: mssv,
+      name: s.name,
+      class: s.class || '',
+      phone: s.phone || '',
+      avatar: avatar || `images/faces/${mssv}.png`,
+      is_active: s.is_active !== false
+    };
+  });
   const navBadge = document.getElementById('navStudentsBadge');
   if (navBadge) navBadge.textContent = students.length;
   return true;
@@ -3037,7 +3058,7 @@ async function loadTodaySchoolSchedule(){
 
     const items = data || [];
     const allStudents = (students && students.length > 0) ? students : [
-      { mssv: '123000555', name: 'Nguyễn Văn A' }, { mssv: '123000078', name: 'Huỳnh Tuấn Tú' },
+      { mssv: '123000555', name: 'Nguyễn Lê Vũ Duy' }, { mssv: '123000078', name: 'Huỳnh Tuấn Tú' },
       { mssv: '125001343', name: 'Dương Công Mạnh' }, { mssv: '123001058', name: 'Võ Duy Khang' },
       { mssv: '123000651', name: 'Nguyễn Văn Trung' }
     ];
