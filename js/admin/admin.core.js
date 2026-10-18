@@ -247,6 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ==========================================================
    QUẢN LÝ AVATAR (ẢNH ĐẠI DIỆN) ADMIN (THỰC TẾ 100%)
    ========================================================== */
+// Chống lỗi HTML lồng modal sai: nếu một modal nằm bên trong modal khác
+// (cha đang display:none) thì nó sẽ vô hình dù đã "mở" -> tự kéo ra body.
+function repairNestedModals() {
+  document.querySelectorAll('.modal-bg .modal-bg').forEach(m => document.body.appendChild(m));
+}
+document.addEventListener('DOMContentLoaded', repairNestedModals);
+
 let adminCurrentUserId = null;
 let adminCurrentMssv = '123001058';
 let adminCurrentName = 'Nguyễn Khánh Hoà';
