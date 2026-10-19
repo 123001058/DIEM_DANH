@@ -437,19 +437,99 @@ body.student-menu-open { overflow: hidden; }
   border-radius: 6px;
   font-family: inherit;
 }
-#qrReader {
+.scanner-viewport-wrap {
+  position: relative;
   width: 100%;
   max-width: 320px;
   margin: 0 auto;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   background: #000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+#qrReader {
+  width: 100%;
+  margin: 0 auto;
 }
 #qrReader video {
   width: 100% !important;
   height: auto !important;
-  border-radius: 10px;
+  display: block;
   object-fit: cover;
+}
+.ios-scanner-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.ios-reticle {
+  width: 72%;
+  aspect-ratio: 1;
+  position: relative;
+  box-sizing: border-box;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* 4 goc bo dac trung khung camera iOS */
+.ios-reticle .corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: #facc15;
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.7));
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.ios-reticle .corner.tl { top: 0; left: 0; border-top-width: 3.5px; border-left-width: 3.5px; border-top-left-radius: 10px; }
+.ios-reticle .corner.tr { top: 0; right: 0; border-top-width: 3.5px; border-right-width: 3.5px; border-top-right-radius: 10px; }
+.ios-reticle .corner.bl { bottom: 0; left: 0; border-bottom-width: 3.5px; border-left-width: 3.5px; border-bottom-left-radius: 10px; }
+.ios-reticle .corner.br { bottom: 0; right: 0; border-bottom-width: 3.5px; border-right-width: 3.5px; border-bottom-right-radius: 10px; }
+
+/* Tia laser quet song dong */
+.scan-laser {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(250,204,21,0) 0%, #facc15 50%, rgba(250,204,21,0) 100%);
+  box-shadow: 0 0 10px 2px rgba(250, 204, 21, 0.75);
+  animation: laserSweep 2s ease-in-out infinite;
+  border-radius: 2px;
+}
+@keyframes laserSweep {
+  0% { top: 8%; opacity: 0.3; }
+  50% { top: 92%; opacity: 1; }
+  100% { top: 8%; opacity: 0.3; }
+}
+
+/* Khi bat duoc ma QR - chop xanh bao thanh cong chuan iOS */
+.ios-reticle.detected .corner {
+  border-color: #22c55e !important;
+  filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.9)) !important;
+  transform: scale(0.97);
+}
+.ios-reticle.detected .scan-laser {
+  background: #22c55e !important;
+  box-shadow: 0 0 14px #22c55e !important;
+}
+
+.ios-scan-tip {
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
 }
 
 .field {
@@ -810,10 +890,22 @@ body.student-menu-open { overflow: hidden; }
 
       <div class="scanner" id="scannerWrapper" style="display:none">
         <div class="scanner-head">
-          <span>🎥 Đưa camera vào mã QR trên màn hình Admin</span>
+          <span>🎥 Hướng camera vào mã QR để quét</span>
           <button onclick="stopCameraScanner()">✕ Đóng</button>
         </div>
-        <div id="qrReader"></div>
+        <div class="scanner-viewport-wrap">
+          <div id="qrReader"></div>
+          <div class="ios-scanner-overlay" id="scannerOverlay">
+            <div class="ios-reticle" id="scannerReticle">
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+              <div class="scan-laser"></div>
+            </div>
+            <div class="ios-scan-tip" id="scannerTip">Đưa mã QR vào khung hình</div>
+          </div>
+        </div>
       </div>
 
       <div class="field">
@@ -969,22 +1061,67 @@ async function startCameraScanner(){
   if (!window.Html5Qrcode) return showResult('error', 'Không tải được thư viện quét QR.');
   document.getElementById('scannerWrapper').style.display = 'block';
   document.getElementById('scanBtn').style.display = 'none';
-  if (!scanner) scanner = new Html5Qrcode('qrReader');
-  const cfg = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+  const reticle = document.getElementById('scannerReticle');
+  if (reticle) reticle.classList.remove('detected');
+  const tip = document.getElementById('scannerTip');
+  if (tip) tip.textContent = 'Đưa mã QR vào khung hình';
+
+  if (!scanner) {
+    scanner = new Html5Qrcode('qrReader', {
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true // Tận dụng BarcodeDetector phần cứng của iOS Safari & Android Chrome (siêu mượt, 0ms lag)
+      },
+      verbose: false
+    });
+  }
+
+  // Khung quét responsive tự co giãn theo tỷ lệ màn hình (chuẩn iOS Camera)
+  const cfg = {
+    fps: 24, // 24 FPS mượt như camera native, bắt mã tức thì
+    qrbox: (viewWidth, viewHeight) => {
+      const minEdge = Math.min(viewWidth, viewHeight);
+      const edge = Math.floor(minEdge * 0.78);
+      return { width: edge, height: edge };
+    },
+    aspectRatio: 1.0
+  };
+
+  const cameraConstraints = {
+    facingMode: 'environment',
+    width: { ideal: 1280 },
+    height: { ideal: 720 }
+  };
+
   try {
     isScanning = true;
-    await scanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => {});
+    await scanner.start(cameraConstraints, cfg, onScanSuccess, () => {});
   } catch(e){
-    try { await scanner.start({ facingMode: 'user' }, cfg, onScanSuccess, () => {}); }
-    catch(e2){ isScanning = false; stopCameraScanner(); showResult('error', 'Không mở được camera. Vui lòng cấp quyền.'); }
+    try {
+      await scanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => {});
+    } catch(e2){
+      try {
+        await scanner.start({ facingMode: 'user' }, cfg, onScanSuccess, () => {});
+      } catch(e3){
+        isScanning = false;
+        stopCameraScanner();
+        showResult('error', 'Không mở được camera. Vui lòng cấp quyền truy cập camera.');
+      }
+    }
   }
 }
+
 async function stopCameraScanner(){
   document.getElementById('scannerWrapper').style.display = 'none';
   document.getElementById('scanBtn').style.display = 'flex';
-  if (scanner && isScanning){ try { await scanner.stop(); } catch(e){} isScanning = false; }
+  const reticle = document.getElementById('scannerReticle');
+  if (reticle) reticle.classList.remove('detected');
+  if (scanner && isScanning){
+    try { await scanner.stop(); } catch(e){}
+    isScanning = false;
+  }
   updateScanBtn();
 }
+
 function updateScanBtn(){
   const btn = document.getElementById('scanBtn');
   const st = document.getElementById('qrStatus');
@@ -1000,6 +1137,7 @@ function updateScanBtn(){
     st.innerHTML = '⚠️ Chưa có mã QR — Hãy quét mã từ màn hình';
   }
 }
+
 function parseQr(text){
   let s = null, t = null;
   try { if (text.startsWith('http')){ const u = new URL(text); s = u.searchParams.get('s'); t = u.searchParams.get('t'); } } catch(e){}
@@ -1007,14 +1145,25 @@ function parseQr(text){
   if (!t && /^[0-9a-f]{20,}$/i.test(text.trim())) t = text.trim();
   return { s, t };
 }
+
 async function onScanSuccess(decodedText){
   const { s, t } = parseQr(decodedText);
   if (!t) return showResult('warning', 'Mã QR không đúng định dạng điểm danh.');
+
+  // Hiệu ứng bắt khung chớp xanh chuẩn iOS Camera
+  const reticle = document.getElementById('scannerReticle');
+  if (reticle) reticle.classList.add('detected');
+  const tip = document.getElementById('scannerTip');
+  if (tip) tip.textContent = '✓ Bắt được mã QR!';
+
   sessionToken = t;
   if (s) currentSession = { ...(currentSession || {}), id: s };
-  await stopCameraScanner();
+
   playChime();
-  showResult('success', '✓ Đã nhận mã QR — Bấm "Xác nhận điểm danh" để hoàn tất.');
+  setTimeout(async () => {
+    await stopCameraScanner();
+    showResult('success', '✓ Đã nhận mã QR — Bấm "Xác nhận điểm danh" để hoàn tất.');
+  }, 320);
 }
 function playChime(){
   try {

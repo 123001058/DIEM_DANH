@@ -75,6 +75,7 @@ void setup() {
   
   tft.init();
   tft.setRotation(1);
+  tft.invertDisplay(true); // Chuyen tu am ban (nen den) sang duong ban (NEN SANG TRANG, MA DEN)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE);
   tft.drawString("Ket noi WiFi...", 10, 10, 2);
