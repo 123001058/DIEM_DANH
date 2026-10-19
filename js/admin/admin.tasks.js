@@ -2052,7 +2052,9 @@ function renderFeed(){
     return '<div class="feed-item"><div class="feed-avt">' + name.trim().slice(-1) + '</div><div class="feed-name">' + escapeHtml(name) + '</div><div class="feed-time">' + (a.time || '—') + '</div></div>';
   }).join('');
 }
+let _openingSession = false; // chặn bấm nút "Mở phiên" nhiều lần tạo phiên rác
 async function openSession(){
+  if (_openingSession) return;
   const name = document.getElementById('quickName').value.trim();
   const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
   if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
@@ -2062,14 +2064,39 @@ async function openSession(){
   const lateMin = lateInput ? (parseInt(lateInput.value, 10) || 15) : 15;
   localStorage.setItem('admin_late_minutes', String(lateMin));
 
-  const { data, error } = await supabase.rpc('admin_open_session', {
-    p_name: name,
-    p_duration_min: dur,
-    p_warn_before_min: lateMin
-  });
-  if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
-  toast('ok', 'Đã mở phiên', `"${name}" — ${dur} phút (Tính đi muộn sau ${lateMin} phút)`);
-  await refreshAll();
+  const openBtn = document.querySelector('.btn-open-session');
+  _openingSession = true;
+  if (openBtn) openBtn.disabled = true;
+  try {
+    // Cảnh báo nếu chưa có lịch học trường trùng thời gian phiên (lịch ME chưa đồng bộ)
+    // -> tránh việc SV đi học ở trường bị tính "Vắng không phép" khi đóng phiên.
+    try {
+      const start = new Date();
+      const end = new Date(start.getTime() + dur * 60000);
+      const { count } = await supabase.from('student_schedules')
+        .select('mssv', { count: 'exact', head: true })
+        .lt('start_time', end.toISOString())
+        .gt('end_time', start.toISOString());
+      if (!count) {
+        const stillOpen = confirm('⚠️ Chưa có dữ liệu lịch học trường nào trùng thời gian phiên này.\n\nNếu lịch ME chưa được đồng bộ, sinh viên đang học ở trường sẽ bị tính "Vắng không phép" khi đóng phiên.\n\nNên bấm "🔄 Đồng bộ từ ME" trước khi mở phiên.\n\nVẫn mở phiên?');
+        if (!stillOpen) { toast('warn', 'Đã huỷ mở phiên', 'Hãy đồng bộ lịch học từ ME trước khi mở phiên.'); return; }
+      }
+    } catch (e) {
+      console.warn('Không kiểm tra được lịch học trường trước khi mở phiên:', e);
+    }
+
+    const { data, error } = await supabase.rpc('admin_open_session', {
+      p_name: name,
+      p_duration_min: dur,
+      p_warn_before_min: lateMin
+    });
+    if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
+    toast('ok', 'Đã mở phiên', `"${name}" — ${dur} phút (Tính đi muộn sau ${lateMin} phút)`);
+    await refreshAll();
+  } finally {
+    _openingSession = false;
+    if (openBtn) openBtn.disabled = false;
+  }
 }
 
 // Chỉnh sửa trạng thái kèm Lý do & ghi Audit Log

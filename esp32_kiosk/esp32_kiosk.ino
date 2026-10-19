@@ -48,7 +48,9 @@ void fetchQRCode() {
       
       if (qrToken != currentQrToken) {
         currentQrToken = qrToken;
-        String qrString = String(web_domain) + "/checkin.html?s=" + sessionId + "&t=" + qrToken;
+        // Rut ngan URL: bo bparam s= (UUID 36 ky tu) vi checkin.html tu dong load session_id dang mo.
+        // Giam mat do cham QR giup mat cham to hon 40%, camera iPhone bat cuc nhay
+        String qrString = String(web_domain) + "/checkin.html?t=" + qrToken;
         
         Serial.println("Co ma QR moi: " + qrString);
         drawQRCode(qrString); 

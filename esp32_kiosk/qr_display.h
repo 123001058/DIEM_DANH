@@ -5,28 +5,28 @@
 
 extern TFT_eSPI tft;
 
-// Callback ve QR phong to 100% kịch trần chieu cao man hinh (240px)
+// Callback ve QR dung ti le nguyen (Integer Scaling) cho camera iOS/Android
 inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
   int size = esp_qrcode_get_size(qrcode);
-  int screenH = tft.height(); // Chieu cao man hinh (240px)
-  int screenW = tft.width();  // Chieu rong man hinh (320px)
+  int screenH = tft.height(); // 240px
+  int screenW = tft.width();  // 320px
   
-  int targetDim = screenH; // Chiem tron 100% chieu cao (240px)
-  int offsetX = (screenW - targetDim) / 2; // Can giua theo chieu ngang
+  // Tinh scale nguyen (Integer Scaling) de moi module luon vuong vuc
+  // Khong bi lech ti le chuan 1:1:3:1:1 cua 3 goc dinh vi (Finder Patterns) tren iOS
+  int scale = (screenH - 16) / size;
+  if (scale < 1) scale = 1;
+  
+  int qrPixelSize = size * scale;
+  int offsetX = (screenW - qrPixelSize) / 2;
+  int offsetY = (screenH - qrPixelSize) / 2;
 
-  tft.fillScreen(TFT_WHITE); // Nen trang toan man hinh tao vien Quiet Zone
+  tft.fillScreen(TFT_WHITE); // Nen trang toan man hinh tao Quiet Zone
 
   for (int y = 0; y < size; y++) {
-    int y0 = (y * targetDim) / size;
-    int y1 = ((y + 1) * targetDim) / size;
-    int h = y1 - y0;
-
+    int py = offsetY + y * scale;
     for (int x = 0; x < size; x++) {
       if (esp_qrcode_get_module(qrcode, x, y)) {
-        int x0 = offsetX + (x * targetDim) / size;
-        int x1 = offsetX + ((x + 1) * targetDim) / size;
-        int w = x1 - x0;
-        tft.fillRect(x0, y0, w, h, TFT_BLACK);
+        tft.fillRect(offsetX + x * scale, py, scale, scale, TFT_BLACK);
       }
     }
   }
@@ -36,7 +36,7 @@ inline void drawQRCode(String text) {
   esp_qrcode_config_t cfg = {
     .display_func = displayQrCallback,
     .max_qrcode_version = 10,
-    .qrcode_ecc_level = ESP_QRCODE_ECC_LOW
+    .qrcode_ecc_level = ESP_QRCODE_ECC_MED // Tang sua loi len MED chong loa mat kinh TFT
   };
   esp_qrcode_generate(&cfg, text.c_str());
 }
