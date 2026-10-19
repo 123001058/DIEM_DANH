@@ -441,6 +441,7 @@ body.student-menu-open { overflow: hidden; }
   position: relative;
   width: 100%;
   max-width: 320px;
+  min-height: 280px;
   margin: 0 auto;
   border-radius: 14px;
   overflow: hidden;
@@ -449,6 +450,7 @@ body.student-menu-open { overflow: hidden; }
 }
 #qrReader {
   width: 100%;
+  min-height: 280px;
   margin: 0 auto;
 }
 #qrReader video {
@@ -1067,45 +1069,29 @@ async function startCameraScanner(){
   if (tip) tip.textContent = 'Đưa mã QR vào khung hình';
 
   if (!scanner) {
-    scanner = new Html5Qrcode('qrReader', {
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true // Tận dụng BarcodeDetector phần cứng của iOS Safari & Android Chrome (siêu mượt, 0ms lag)
-      },
-      verbose: false
-    });
+    try {
+      scanner = new Html5Qrcode('qrReader', {
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        verbose: false
+      });
+    } catch(e){
+      scanner = new Html5Qrcode('qrReader');
+    }
   }
 
-  // Khung quét responsive tự co giãn theo tỷ lệ màn hình (chuẩn iOS Camera)
-  const cfg = {
-    fps: 24, // 24 FPS mượt như camera native, bắt mã tức thì
-    qrbox: (viewWidth, viewHeight) => {
-      const minEdge = Math.min(viewWidth, viewHeight);
-      const edge = Math.floor(minEdge * 0.78);
-      return { width: edge, height: edge };
-    },
-    aspectRatio: 1.0
-  };
-
-  const cameraConstraints = {
-    facingMode: 'environment',
-    width: { ideal: 1280 },
-    height: { ideal: 720 }
-  };
+  // Quet toan bo khung hinh 20 FPS (khong crop cung qrbox de bat ma o bat ky goc do nao nhu iOS)
+  const cfg = { fps: 20, aspectRatio: 1.0 };
 
   try {
     isScanning = true;
-    await scanner.start(cameraConstraints, cfg, onScanSuccess, () => {});
+    await scanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => {});
   } catch(e){
     try {
-      await scanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => {});
+      await scanner.start({ facingMode: 'user' }, cfg, onScanSuccess, () => {});
     } catch(e2){
-      try {
-        await scanner.start({ facingMode: 'user' }, cfg, onScanSuccess, () => {});
-      } catch(e3){
-        isScanning = false;
-        stopCameraScanner();
-        showResult('error', 'Không mở được camera. Vui lòng cấp quyền truy cập camera.');
-      }
+      isScanning = false;
+      stopCameraScanner();
+      showResult('error', 'Không mở được camera: ' + (e2?.message || e2 || 'Vui lòng cấp quyền truy cập camera.'));
     }
   }
 }
