@@ -747,6 +747,7 @@ body.student-menu-open { overflow: hidden; }
 .history-name { font-size: 13px; font-weight: 700; margin-top: 2px; }
 .history-status { flex: none; font-size: 12px; font-weight: 800; }
 .history-status.ok { color: var(--ok); }
+.history-status.late { color: #b45309; }
 .history-status.absent { color: var(--err); }
 .history-empty { padding: 20px 14px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
@@ -1012,36 +1013,6 @@ body.student-menu-open { overflow: hidden; }
   </div>
 </div>
 
-<!-- Modal Gửi Phản Hồi Ẩn Danh -->
-<div id="fbModal" style="position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;z-index:9999" onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:#fff;border-radius:16px;padding:22px;max-width:420px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,.3)">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <div style="width:36px;height:36px;border-radius:10px;background:#e0f2fe;color:#0369a1;display:grid;place-items:center;font-size:16px">💬</div>
-      <div>
-        <b style="font-size:15px;display:block">Phản hồi ẩn danh</b>
-        <span style="font-size:11.5px;color:var(--muted)">Không lưu tên hay MSSV của bạn</span>
-      </div>
-    </div>
-    <div style="margin-bottom:10px">
-      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Loại góp ý:</label>
-      <select id="fbTypeInput" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px">
-        <option value="gopy">💡 Góp ý xưởng</option>
-        <option value="suco">⚠️ Báo cáo hỏng hóc thiết bị</option>
-        <option value="muasam">🛠 Đề xuất mua linh kiện</option>
-        <option value="khac">💬 Ý kiến khác</option>
-      </select>
-    </div>
-    <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Nội dung:</label>
-      <textarea id="fbContentInput" rows="4" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="Ý kiến góp ý hoặc thông tin sự cố..."></textarea>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button type="button" style="flex:1;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:600;font-family:inherit;cursor:pointer" onclick="document.getElementById('fbModal').style.display='none'">Huỷ</button>
-      <button type="button" id="fbSubmitButton" style="flex:1.2;padding:10px;border-radius:8px;border:none;background:#15171c;color:#fff;font-weight:700;font-family:inherit;cursor:pointer" onclick="submitStudentFeedbackFromCheckin()">🔒 Gửi ẩn danh</button>
-    </div>
-  </div>
-</div>
-
 <script>
 let currentUser = null, currentProfile = null;
 let currentSession = null, sessionToken = null;
@@ -1195,6 +1166,7 @@ async function loadProfile(){
 }
 async function loadSession(){
   const box = document.getElementById('sessionBox');
+  const previousSession = currentSession;
   const { data, error } = await supabase.rpc('get_open_session');
   if (error || !data){
     box.className = 'session state-closed';
@@ -1203,6 +1175,7 @@ async function loadSession(){
     document.getElementById('sessionMeta').innerHTML = '';
     document.getElementById('sessionCountdown').textContent = '';
     currentSession = null;
+    if (sessionToken) { sessionToken = null; updateScanBtn(); }
     updateScanBtn();
     return;
   }
@@ -1215,7 +1188,9 @@ async function loadSession(){
   document.getElementById('sessionMeta').innerHTML =
     '<span>🔑 ID: <code>' + String(id).slice(0,8) + '</code></span>' +
     (duration_min ? '<span>⏱ ' + duration_min + ' phút</span>' : '<span>⏱ Không giới hạn</span>');
-  if (sessionToken && sessionToken !== data.qr_token){
+  if (sessionToken && previousSession &&
+      (previousSession.id !== data.id ||
+       (previousSession.qr_born_at && data.qr_born_at && previousSession.qr_born_at !== data.qr_born_at))){
     sessionToken = null; updateScanBtn();
     showResult('warning', '⚠️ Mã QR đã được đổi. Vui lòng quét lại mã mới.');
   }
@@ -1384,13 +1359,16 @@ async function loadHistory(){
   }
   const records = data?.records || [];
   if (!records.length){ list.innerHTML = '<div class="history-empty">Bạn chưa điểm danh phiên nào.</div>'; return; }
-  list.innerHTML = records.slice(0, 30).map(r =>
-    '<div class="history-item">' +
+  list.innerHTML = records.slice(0, 30).map(r => {
+    const status = String(r.status || '');
+    const isLate = status === 'đi muộn';
+    const isPresent = status === 'có mặt' || isLate;
+    return '<div class="history-item">' +
       '<div><div class="history-date">' + new Date(r.checked_at).toLocaleString('vi-VN') + '</div>' +
       '<div class="history-name">' + escapeHtml(r.session_name || '—') + '</div></div>' +
-      '<div class="history-status ' + (r.status === 'có mặt' ? 'ok' : 'absent') + '">' +
-      (r.status === 'có mặt' ? '✓ Có mặt' : '✕ ' + r.status) + '</div></div>'
-  ).join('');
+      '<div class="history-status ' + (isLate ? 'late' : (isPresent ? 'ok' : 'absent')) + '">' +
+      (isLate ? '🟡 Đi muộn' : (isPresent ? '✓ Có mặt' : '✕ ' + escapeHtml(status || 'Vắng'))) + '</div></div>';
+  }).join('');
 }
 const leaveTypeLabels={full_session:'Nghỉ cả buổi',late:'Đi muộn',early:'Về sớm',partial:'Vắng một phần'};
 const leaveStatusLabels={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Từ chối',cancelled:'Đã hủy'};
@@ -1419,6 +1397,9 @@ async function submitLeaveRequest(){
   const leaveDate=document.getElementById('leaveDate').value,leavePeriod=document.getElementById('leavePeriod').value;
   const reason=document.getElementById('leaveReason').value.trim(),file=document.getElementById('leaveEvidence').files?.[0];
   if(!leaveDate)return showResult('warning','Chọn ngày nghỉ.');
+  const today=new Date();today.setHours(0,0,0,0);
+  const selectedDate=new Date(leaveDate+'T00:00:00');
+  if(selectedDate<today)return showResult('warning','Không thể xin nghỉ cho ngày đã qua.');
   if(!reason)return showResult('warning','Nhập lý do xin nghỉ.');
   const id=document.getElementById('editingLeaveId').value;
   const btn=document.getElementById('leaveSubmitButton');btn.disabled=true;
@@ -1495,6 +1476,11 @@ async function sendStudentLeaveComment(leaveId){
 }
 async function loadMyLeaveRequests(){
   const box=document.getElementById('myLeaveRequests');if(!box)return;
+  const activeEl=document.activeElement;
+  const activeId=activeEl?.id||'';
+  const activeSelection=activeEl&&typeof activeEl.selectionStart==='number'?{start:activeEl.selectionStart,end:activeEl.selectionEnd}:null;
+  const drafts={};
+  box.querySelectorAll('input[id^="leaveChatInput_"]').forEach(inp=>{if(inp.value)drafts[inp.id]=inp.value;});
   if(!currentProfile?.mssv){box.innerHTML='<div class="history-empty">Tài khoản chưa liên kết MSSV nên chưa xem được đơn nghỉ.</div>';return;}
   const {data,error}=await supabase.from('leave_requests').select('*,sessions(session_name,started_at),students(name),leave_request_history(id,changed_at,new_record)').eq('mssv',currentProfile.mssv).order('created_at',{ascending:false});
   if(error){box.innerHTML='<div class="history-empty">Không tải được đơn nghỉ.</div>';return;}
@@ -1506,6 +1492,8 @@ async function loadMyLeaveRequests(){
     return `<div class="leave-card"><div style="display:flex;justify-content:space-between;gap:8px"><strong>${escapeHtml(r.students?.name||r.mssv)} ${r.requested_by===currentUser.id?'(Bạn)':''}</strong><span class="leave-chip">${leaveStatusLabels[r.status]||r.status}</span></div><div style="margin-top:4px;color:var(--muted)">${time}</div><div style="margin-top:5px">${escapeHtml(r.reason)}</div><div style="margin-top:5px">${evidence}</div>${renderStudentLeaveChatHtml(parseStudentLeaveNotes(r.reviewer_note), r.id)}${edits?`<details style="margin-top:6px"><summary>Lịch sử đơn</summary>${edits}</details>`:''}${r.status==='pending'&&r.requested_by===currentUser.id?`<div style="display:flex;gap:8px;margin-top:8px"><button type="button" onclick="editLeaveRequest('${r.id}')">Sửa</button><button type="button" onclick="cancelLeaveRequest('${r.id}')">Hủy đơn</button></div>`:''}</div>`;
   }));
   box.innerHTML=items.join('');
+  Object.entries(drafts).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
+  if(activeId){const el=document.getElementById(activeId);if(el){try{el.focus({preventScroll:true});if(activeSelection&&typeof el.setSelectionRange==='function')el.setSelectionRange(activeSelection.start,activeSelection.end);}catch(_){}}}
 }
 async function loadStudentLeaveNotifications(){
   const box=document.getElementById('studentLeaveNotifications');if(!box)return;const {data,error}=await supabase.from('in_app_notifications').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false}).limit(10);
@@ -1587,9 +1575,11 @@ async function completeMyTask(id){const {data,error}=await supabase.rpc('update_
 async function claimGlobalTask(id){const {data,error}=await supabase.rpc('claim_my_global_task',{p_task_id:id});if(error||!data?.ok){showResult('warning',escapeHtml(error?.message||data?.message||'Không nhận được nhiệm vụ.'));await loadMyTasks();return;}await loadMyTasks();showResult('success',data.already_claimed?'Bạn đang nhận nhiệm vụ này.':'Đã nhận nhiệm vụ.');}
 async function releaseGlobalTask(id){const {data,error}=await supabase.rpc('release_my_global_task',{p_task_id:id});if(error||!data?.ok){showResult('warning',escapeHtml(error?.message||data?.message||'Không hủy nhận được nhiệm vụ.'));await loadMyTasks();return;}await loadMyTasks();showResult('success','Đã hủy nhận nhiệm vụ. Sinh viên khác có thể nhận làm.');}
 async function createLeaderTask(){const title=document.getElementById('leaderTaskTitle').value.trim(),team=document.getElementById('leaderTaskTeam').value;if(!title)return showResult('warning','Nhập tên nhiệm vụ trước.');const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('leaderTaskDesc').value,p_scope:'group',p_team_id:team,p_assignee_mssv:null,p_priority:'med',p_due_date:null});if(error||!data?.ok)return showResult('error',escapeHtml(error?.message||data?.message||'Không giao được nhiệm vụ.'));document.getElementById('leaderTaskTitle').value='';document.getElementById('leaderTaskDesc').value='';await loadMyTasks();showResult('success','Đã giao nhiệm vụ chung cho cả nhóm.');}
-async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';document.getElementById('fbModal').style.display='none';showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
+async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';{const modal=document.getElementById('fbModal');if(modal)modal.style.display='none';}showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
 async function init(){
   deviceId = getDeviceId();
+  const leaveDateInput=document.getElementById('leaveDate');
+  if(leaveDateInput){const d=new Date();const pad=n=>String(n).padStart(2,'0');leaveDateInput.min=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
   const catSel = document.getElementById('category');
   (CONFIG.CATEGORIES || []).forEach(c => {
     const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o);
@@ -1611,8 +1601,8 @@ async function init(){
   supabase.channel('session_changes')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions' }, payload => {
       if (currentSession && payload.new.id === currentSession.id){
-        if (payload.new.qr_token !== currentSession.qr_token){
-          currentSession.qr_token = payload.new.qr_token;
+        if (payload.new.qr_born_at !== currentSession.qr_born_at){
+          currentSession.qr_born_at = payload.new.qr_born_at;
           if (sessionToken){ sessionToken = null; updateScanBtn(); showResult('warning', '⚠️ Mã QR đã được đổi. Vui lòng quét lại.'); }
         }
         if (payload.new.is_open === false){ currentSession = null; loadSession(); }

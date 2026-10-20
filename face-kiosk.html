@@ -536,6 +536,84 @@ body {
   font-size: 12px;
 }
 
+.kiosk-auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(circle at top, #172554 0%, #0b0f19 65%);
+}
+.kiosk-auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+.kiosk-auth-card h2 {
+  margin: 0 0 8px;
+  font-size: 21px;
+  color: #f8fafc;
+}
+.kiosk-auth-card p {
+  margin: 0 0 18px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.kiosk-auth-card label {
+  display: block;
+  margin: 12px 0 5px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+}
+.kiosk-auth-card input {
+  width: 100%;
+  padding: 11px 12px;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 14px;
+}
+.kiosk-auth-card input:focus {
+  outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+}
+.kiosk-auth-card button {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.kiosk-auth-card button:disabled { opacity: 0.6; cursor: wait; }
+.kiosk-auth-error {
+  display: none;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .kiosk-grid { grid-template-columns: 1fr; }
   .video-container { min-height: 320px; }
@@ -543,6 +621,20 @@ body {
 </style>
 </head>
 <body>
+
+<!-- CHỈ ADMIN ĐÃ ĐĂNG NHẬP MỚI ĐƯỢC DÙNG KIOSK -->
+<div id="kioskAuthGate" class="kiosk-auth-gate">
+  <div class="kiosk-auth-card">
+    <h2>🔐 Đăng nhập Kiosk</h2>
+    <p>Kiosk chứa dữ liệu khuôn mặt và quyền điểm danh, nên chỉ tài khoản quản trị đã đăng nhập mới được sử dụng. Đăng nhập một lần trên thiết bị camera.</p>
+    <label for="kioskLoginUser">Tên đăng nhập / MSSV</label>
+    <input id="kioskLoginUser" type="text" autocomplete="username" placeholder="Ví dụ: 123000555">
+    <label for="kioskLoginPass">Mật khẩu</label>
+    <input id="kioskLoginPass" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button type="button" id="kioskLoginBtn" onclick="kioskLogin()">Đăng nhập</button>
+    <div class="kiosk-auth-error" id="kioskLoginError"></div>
+  </div>
+</div>
 
 <!-- TOP NAV -->
 <header class="kiosk-nav">
@@ -1079,48 +1171,135 @@ const videoStage = document.getElementById('videoStage');
 // ==========================================
 // 1. KHỞI TẠO HỆ THỐNG
 // ==========================================
-window.addEventListener('DOMContentLoaded', async () => {
-  await loadStudentsMapping();
-  loadEnrolledFromStorage();
-  await loadFaceModels();
-  await syncFaceDataFromServer();
-  await checkActiveSession();
-  setInterval(checkActiveSession, 8000);
-  
-  let savedIp = localStorage.getItem('esp_cam_ip');
-  if (!savedIp || savedIp === '192.168.1.104') savedIp = '192.168.2.168';
-  const ipInput = document.getElementById('espIpInput');
-  if (ipInput) ipInput.value = savedIp;
-  localStorage.setItem('esp_cam_ip', savedIp);
-  connectEspCamera();
-  
-  // Lắng nghe BroadcastChannel để nhận diện và cập nhật thời gian thực
-  try {
-    const bc = new BroadcastChannel('lh_attendance_sync');
-    bc.onmessage = async (ev) => {
-      if (ev.data?.type === 'face_enrolled' || ev.data?.type === 'face_checkin' || ev.data?.type === 'face_descriptors_updated') {
-        console.log('[Kiosk Sync] Broadcast message:', ev.data?.type);
-        await syncFaceDataFromServer();
-        await checkActiveSession();
-        renderStudentRoster();
-      }
-    };
-  } catch(e) {}
+let kioskAppStarted = false;
 
-  // Lắng nghe Supabase Realtime khi Admin hoặc SV cập nhật mẫu mặt hoặc điểm danh
+function showKioskAuthError(message) {
+  const box = document.getElementById('kioskLoginError');
+  if (!box) return;
+  box.textContent = message || '';
+  box.style.display = message ? 'block' : 'none';
+}
+
+async function kioskIsAdmin() {
   try {
-    window.supabase.channel('kiosk-realtime-faces')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'student_face_data' }, async () => {
-        console.log('[Kiosk Realtime] student_face_data updated on Supabase');
-        await syncFaceDataFromServer();
-        renderStudentRoster();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
-        await checkActiveSession();
-      })
-      .subscribe();
-  } catch(e) {
-    console.warn('[Kiosk Realtime] subscribe error:', e);
+    const { data } = await window.supabase.auth.getSession();
+    if (!data?.session) return false;
+    const { data: isAdm, error } = await window.supabase.rpc('is_admin');
+    return !error && isAdm === true;
+  } catch (e) {
+    console.warn('[Kiosk Auth]', e);
+    return false;
+  }
+}
+
+async function kioskLogin() {
+  const userInput = document.getElementById('kioskLoginUser');
+  const passInput = document.getElementById('kioskLoginPass');
+  const btn = document.getElementById('kioskLoginBtn');
+  const gate = document.getElementById('kioskAuthGate');
+  const username = (userInput?.value || '').trim();
+  const password = passInput?.value || '';
+
+  showKioskAuthError('');
+  if (!username || !password) {
+    showKioskAuthError('Vui lòng nhập tên đăng nhập và mật khẩu.');
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang đăng nhập...'; }
+  try {
+    const suffix = (typeof CONFIG !== 'undefined' && CONFIG.AUTH_EMAIL_SUFFIX) || '@sv.local';
+    const account = username.toLowerCase();
+    const email = account.includes('@') ? account : account + suffix;
+    const { error } = await window.supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error('Sai tên đăng nhập hoặc mật khẩu.');
+
+    if (!(await kioskIsAdmin())) {
+      await window.supabase.auth.signOut();
+      throw new Error('Tài khoản này không có quyền quản trị. Kiosk chỉ dành cho Admin.');
+    }
+
+    await startKioskApp();
+    if (gate) gate.style.display = 'none';
+  } catch (e) {
+    showKioskAuthError(e.message || 'Không đăng nhập được.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Đăng nhập'; }
+  }
+}
+
+async function startKioskApp() {
+  if (kioskAppStarted) return;
+  kioskAppStarted = true;
+  try {
+    await loadStudentsMapping();
+    loadEnrolledFromStorage();
+    await loadFaceModels();
+    await syncFaceDataFromServer();
+    await checkActiveSession();
+    setInterval(checkActiveSession, 8000);
+
+    let savedIp = localStorage.getItem('esp_cam_ip');
+    if (!savedIp || savedIp === '192.168.1.104') savedIp = '192.168.2.168';
+    const ipInput = document.getElementById('espIpInput');
+    if (ipInput) ipInput.value = savedIp;
+    localStorage.setItem('esp_cam_ip', savedIp);
+    connectEspCamera();
+
+    // Lắng nghe BroadcastChannel để nhận diện và cập nhật thời gian thực
+    try {
+      const bc = new BroadcastChannel('lh_attendance_sync');
+      bc.onmessage = async (ev) => {
+        if (ev.data?.type === 'face_enrolled' || ev.data?.type === 'face_checkin' || ev.data?.type === 'face_descriptors_updated') {
+          console.log('[Kiosk Sync] Broadcast message:', ev.data?.type);
+          await syncFaceDataFromServer();
+          await checkActiveSession();
+          renderStudentRoster();
+        }
+      };
+    } catch(e) {}
+
+    // Lắng nghe Supabase Realtime khi Admin hoặc SV cập nhật mẫu mặt hoặc điểm danh
+    try {
+      window.supabase.channel('kiosk-realtime-faces')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'student_face_data' }, async () => {
+          console.log('[Kiosk Realtime] student_face_data updated on Supabase');
+          await syncFaceDataFromServer();
+          renderStudentRoster();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
+          await checkActiveSession();
+        })
+        .subscribe();
+    } catch(e) {
+      console.warn('[Kiosk Realtime] subscribe error:', e);
+    }
+  } catch (e) {
+    kioskAppStarted = false;
+    throw e;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const gate = document.getElementById('kioskAuthGate');
+  const userInput = document.getElementById('kioskLoginUser');
+  const passInput = document.getElementById('kioskLoginPass');
+  userInput?.addEventListener('keydown', e => { if (e.key === 'Enter') passInput?.focus(); });
+  passInput?.addEventListener('keydown', e => { if (e.key === 'Enter') kioskLogin(); });
+
+  if (await kioskIsAdmin()) {
+    if (gate) gate.style.display = 'none';
+    try {
+      await startKioskApp();
+    } catch (e) {
+      console.error('[Kiosk Init]', e);
+      if (gate) gate.style.display = 'flex';
+      showKioskAuthError('Không khởi động được kiosk: ' + (e.message || 'Lỗi không xác định'));
+    }
+  } else {
+    if (gate) gate.style.display = 'flex';
+    showKioskAuthError('');
+    userInput?.focus();
   }
 });
 

@@ -2026,7 +2026,7 @@ function renderTable(){
         '<td>' + schedColHtml + '</td>' +
         '<td><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
           '<div style="flex:1;min-width:0">' + noteHtml + '</div>' +
-          '<button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:10.5px;flex:none;border-radius:4px" onclick="openEditNoteModal(\'' + s.mssv + '\', \'' + escapeHtml(s.name) + '\')" title="Chỉnh sửa ghi chú">✏️</button>' +
+          '<button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:10.5px;flex:none;border-radius:4px" onclick="openEditNoteModal(\'' + escapeJsAttr(s.mssv) + '\', \'' + escapeJsAttr(s.name) + '\')" title="Chỉnh sửa ghi chú">✏️</button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -2189,7 +2189,7 @@ function renderPasswordResetStudents() {
   }
   tbody.innerHTML = filtered.map(s => {
     const req = window._pendingResetRequestsByMssv?.[s.mssv];
-    return `<tr><td><b>${escapeHtml(s.name || '')}</b>${resetRequestBadge(req)}</td><td class="td-mono">${escapeHtml(s.mssv)}${resetRequestBadge(req)}</td><td style="text-align:right"><button class="btn btn-primary" style="padding:6px 10px;font-size:12px" onclick="resetStudentPassword('${escapeHtml(s.mssv)}', ${req ? `'${req.id}'` : 'null'}, '${escapeHtml(s.name || s.mssv)}')">🔑 Reset Pass</button></td></tr>`;
+    return `<tr><td><b>${escapeHtml(s.name || '')}</b>${resetRequestBadge(req)}</td><td class="td-mono">${escapeHtml(s.mssv)}${resetRequestBadge(req)}</td><td style="text-align:right"><button class="btn btn-primary" style="padding:6px 10px;font-size:12px" onclick="resetStudentPassword('${escapeJsAttr(s.mssv)}', ${req ? `'${escapeJsAttr(req.id)}'` : 'null'}, '${escapeJsAttr(s.name || s.mssv)}')">🔑 Reset Pass</button></td></tr>`;
   }).join('');
 }
 
@@ -2214,7 +2214,7 @@ async function loadPasswordResetHistory() {
     tbody.innerHTML = '<tr><td colspan="5"><div class="tbl-empty">Chưa có lịch sử reset.</div></td></tr>';
     return;
   }
-  tbody.innerHTML = data.map(row => `<tr><td><b>${escapeHtml(row.student_name || '')}</b></td><td class="td-mono">${escapeHtml(row.mssv || '')}</td><td class="td-mono">${row.temp_password ? `<button class="btn btn-secondary" style="padding:4px 7px;font-family:monospace" onclick="navigator.clipboard.writeText('${escapeHtml(row.temp_password)}').then(()=>toast('ok','Đã copy','Mật khẩu đã được copy'))">${escapeHtml(row.temp_password)} · Copy</button>` : '—'}</td><td>${escapeHtml(row.reset_by_name || 'Admin')}</td><td>${new Date(row.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</td></tr>`).join('');
+  tbody.innerHTML = data.map(row => `<tr><td><b>${escapeHtml(row.student_name || '')}</b></td><td class="td-mono">${escapeHtml(row.mssv || '')}</td><td class="td-mono">${row.temp_password ? `<button class="btn btn-secondary" style="padding:4px 7px;font-family:monospace" onclick="navigator.clipboard.writeText('${escapeJsAttr(row.temp_password)}').then(()=>toast('ok','Đã copy','Mật khẩu đã được copy'))">${escapeHtml(row.temp_password)} · Copy</button>` : '—'}</td><td>${escapeHtml(row.reset_by_name || 'Admin')}</td><td>${new Date(row.created_at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</td></tr>`).join('');
 }
 
 async function clearPasswordResetHistory() {
@@ -2669,7 +2669,7 @@ async function loadTeamGroups(){
     const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
     const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
     const fieldText = team.field && team.field !== team.name ? escapeHtml(team.field) + ' · ' : '';
-    return '<button class="team-accordion" onclick="openTeamGroup(\'' + team.id + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
+    return '<button class="team-accordion" onclick="openTeamGroup(\'' + escapeJsAttr(team.id) + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
       '<span class="team-accordion-main"><span class="team-accordion-name">' + escapeHtml(team.name) + '</span><span class="team-accordion-meta">' + fieldText + 'Đội trưởng: ' + escapeHtml(leader) + ' · ' + ids.length + ' thành viên</span></span>' +
       '<span class="team-accordion-counts"><span class="team-count-pill free">' + (ids.length - busy.size) + ' rảnh</span><span class="team-count-pill busy">' + busy.size + ' bận</span><span aria-hidden="true">›</span></span></button>';
   }).join('');
@@ -2786,7 +2786,7 @@ async function loadTeamAvailability(){
     }).join('') : '<div class="team-class">'+(hasCalendar?'Hôm nay không có tiết học.':'⚪ Chưa có dữ liệu lịch; vẫn xem xét đơn xin nghỉ.')+'</div>';
     const leaveHtml=(leaveByMember.get(mssv)||[]).map(r=>'<div class="team-class" style="background:#eaf7ef;color:#176b43">✅ Đã duyệt nghỉ · '+escapeHtml(r.period)+' · '+escapeHtml(r.reason)+'</div>').join('');
     const state = !hasCalendar?'<span class="team-availability" style="color:var(--muted)">⚪ Chưa có dữ liệu</span>':activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
-    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeHtml(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + leaveHtml + '</div>';
+    return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeJsAttr(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + leaveHtml + '</div>';
   }).join('');
 }
 

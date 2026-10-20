@@ -370,7 +370,7 @@ function renderLeaveRequests(){
                 <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11.5px" onclick="toggleLeaveCardEdit('${r.id}')" title="Chỉnh sửa ngày/buổi/ghi chú">✏️ Sửa chi tiết</button>
               </div>
               <div style="display:flex;align-items:center;gap:6px">
-                <button type="button" class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:3px 8px;font-size:11px" onclick="deleteLeaveRequest('${r.id}','${escapeHtml(r.students?.name||r.mssv)}')">🗑️ Xóa</button>
+                <button type="button" class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);padding:3px 8px;font-size:11px" onclick="deleteLeaveRequest('${r.id}','${escapeJsAttr(r.students?.name||r.mssv)}')">🗑️ Xóa</button>
               </div>
             </div>
 

@@ -2061,7 +2061,7 @@ CREATE OR REPLACE FUNCTION public.get_open_session()
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
- select jsonb_build_object('id',s.id,'session_name',s.session_name,'duration_min',s.duration_min,'warn_before_min',s.warn_before_min,'started_at',s.started_at,'qr_token',s.qr_token,'qr_born_at',s.qr_born_at)
+ select jsonb_build_object('id',s.id,'session_name',s.session_name,'duration_min',s.duration_min,'warn_before_min',s.warn_before_min,'started_at',s.started_at,'qr_token',case when public.is_admin() then s.qr_token else null end,'qr_born_at',s.qr_born_at)
  from public.sessions s where s.is_open and (s.duration_min is null or s.started_at+s.duration_min*interval '1 minute'>now()) order by s.started_at desc limit 1
 $function$;
 
@@ -2072,15 +2072,16 @@ CREATE OR REPLACE FUNCTION public.get_session_summary(p_session_id text)
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
-declare v_sid uuid; v_total int; v_present int; v_absent int; v_unmarked int;
+declare v_sid uuid; v_total int; v_present int; v_late int; v_absent int; v_unmarked int;
 begin
  select id into v_sid from public.sessions where id::text=btrim(p_session_id);
  if v_sid is null then return jsonb_build_object('ok',false,'message','Không tìm thấy phiên.'); end if;
- select count(*) into v_total from public.students;
- select count(*) into v_present from public.attendance where session_id=v_sid and status='có mặt';
- select count(*) into v_absent from public.attendance where session_id=v_sid and status in ('vắng có phép','vắng không phép');
- v_unmarked:=v_total-v_present-v_absent;
- return jsonb_build_object('ok',true,'total',v_total,'present',v_present,'absent',v_absent,'unmarked',v_unmarked);
+ select count(*) into v_total from public.students where coalesce(is_active,true);
+ select count(*) into v_present from public.attendance a join public.students st on st.mssv=a.mssv and coalesce(st.is_active,true) where a.session_id=v_sid and a.status in ('có mặt','đi muộn');
+ select count(*) into v_late from public.attendance a join public.students st on st.mssv=a.mssv and coalesce(st.is_active,true) where a.session_id=v_sid and a.status='đi muộn';
+ select count(*) into v_absent from public.attendance a join public.students st on st.mssv=a.mssv and coalesce(st.is_active,true) where a.session_id=v_sid and a.status in ('vắng có phép','vắng không phép');
+ v_unmarked:=greatest(v_total-v_present-v_absent,0);
+ return jsonb_build_object('ok',true,'total',v_total,'present',v_present,'late',v_late,'absent',v_absent,'unmarked',v_unmarked);
 end $function$;
 
 -- Function: handle_new_user()
@@ -2923,14 +2924,16 @@ create table if not exists public.student_face_data (
 );
 
 grant select, insert, update, delete on table public.student_face_data to authenticated;
-grant select on table public.student_face_data to anon;
 
 alter table public.student_face_data enable row level security;
 
 drop policy if exists "student_face_data_select" on public.student_face_data;
 create policy "student_face_data_select" on public.student_face_data
-  for select to anon, authenticated
-  using (true);
+  for select to authenticated
+  using (
+    public.is_admin()
+    or mssv = (select p.mssv from public.profiles p where p.user_id = auth.uid())
+  );
 
 drop policy if exists "student_face_data_upsert" on public.student_face_data;
 create policy "student_face_data_upsert" on public.student_face_data
@@ -2976,6 +2979,14 @@ declare
   v_warn int;
   v_note text;
 begin
+  if not public.is_admin() then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'FORBIDDEN',
+      'message', 'Chỉ quản trị viên đã đăng nhập mới được điểm danh bằng khuôn mặt.'
+    );
+  end if;
+
   if v_mssv = '' then
     return jsonb_build_object('ok', false, 'code', 'INVALID_MSSV', 'message', 'MSSV không hợp lệ.');
   end if;
@@ -2999,6 +3010,11 @@ begin
     return jsonb_build_object('ok', false, 'code', 'SESSION_CLOSED', 'message', 'Phiên điểm danh đã đóng.');
   end if;
 
+  if v_session.duration_min is not null
+     and coalesce(v_session.started_at, now()) + v_session.duration_min * interval '1 minute' <= now() then
+    return jsonb_build_object('ok', false, 'code', 'SESSION_CLOSED', 'message', 'Phiên điểm danh đã hết thời gian.');
+  end if;
+
   v_sid := v_session.id;
 
   select status into v_old_status from public.attendance where session_id = v_sid and mssv = v_mssv;
@@ -3016,7 +3032,7 @@ begin
 
   v_elapsed_min := extract(epoch from (now() - coalesce(v_session.started_at, now()))) / 60.0;
   v_warn := coalesce(v_session.warn_before_min, 15);
-  if v_warn <= 5 then
+  if v_warn <= 0 then
     v_warn := 15;
   end if;
 
@@ -3056,14 +3072,64 @@ begin
 end;
 $function$;
 
-grant execute on function public.kiosk_record_face_checkin(text, text, text) to anon, authenticated, service_role;
+grant execute on function public.kiosk_record_face_checkin(text, text, text) to authenticated, service_role;
+
+create or replace function public.kiosk_upsert_face_data(
+  p_mssv text,
+  p_descriptors jsonb,
+  p_thumbnails jsonb default '[]'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $function$
+declare
+  v_mssv text := btrim(coalesce(p_mssv, ''));
+begin
+  if not public.is_admin() then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'FORBIDDEN',
+      'message', 'Chỉ quản trị viên mới được cập nhật dữ liệu khuôn mặt.'
+    );
+  end if;
+
+  if v_mssv = '' then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_MSSV', 'message', 'MSSV không hợp lệ.');
+  end if;
+
+  if p_descriptors is null or jsonb_typeof(p_descriptors) <> 'array' then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_DATA', 'message', 'Dữ liệu khuôn mặt không hợp lệ.');
+  end if;
+
+  if p_thumbnails is not null and jsonb_typeof(p_thumbnails) <> 'array' then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_DATA', 'message', 'Dữ liệu ảnh mẫu không hợp lệ.');
+  end if;
+
+  if not exists (select 1 from public.students where mssv = v_mssv) then
+    return jsonb_build_object('ok', false, 'code', 'NOT_FOUND', 'message', 'MSSV không tồn tại trong danh sách sinh viên.');
+  end if;
+
+  insert into public.student_face_data (mssv, descriptors, thumbnails, updated_at)
+  values (v_mssv, p_descriptors, coalesce(p_thumbnails, '[]'::jsonb), now())
+  on conflict (mssv) do update
+  set descriptors = excluded.descriptors,
+      thumbnails = excluded.thumbnails,
+      updated_at = now();
+
+  return jsonb_build_object('ok', true, 'mssv', v_mssv);
+end;
+$function$;
+
+grant execute on function public.kiosk_upsert_face_data(text, jsonb, jsonb) to authenticated;
 
 -- Table students
 alter table if exists public.students add column if not exists avatar text;
 alter table if exists public.students add column if not exists class text;
 alter table if exists public.students add column if not exists phone text;
 
-grant select on public.students to anon, authenticated;
+grant select on public.students to authenticated;
 grant all on public.students to authenticated, service_role;
 
 -- =====================================================================
@@ -3147,6 +3213,84 @@ $function$;
 
 grant execute on function public.student_set_my_avatar(text) to authenticated;
 
+create or replace function public.admin_update_avatar(
+  p_mssv text,
+  p_avatar text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public', 'extensions', 'pg_temp'
+as $function$
+declare
+  v_target_mssv text := btrim(coalesce(p_mssv, ''));
+  v_avatar text := nullif(btrim(coalesce(p_avatar, '')), '');
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ quản trị viên mới có quyền thực hiện.');
+  end if;
+
+  if v_target_mssv = '' then
+    select p.mssv into v_target_mssv from public.profiles p where p.user_id = auth.uid();
+  end if;
+
+  if v_target_mssv is null or v_target_mssv = '' then
+    return jsonb_build_object('ok', false, 'message', 'Tài khoản chưa liên kết MSSV.');
+  end if;
+
+  if v_avatar is not null and char_length(v_avatar) > 2000000 then
+    return jsonb_build_object('ok', false, 'message', 'Ảnh đại diện quá lớn.');
+  end if;
+
+  update public.students set avatar = v_avatar where mssv = v_target_mssv;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên có MSSV: ' || v_target_mssv);
+  end if;
+
+  update public.profiles set avatar_url = v_avatar where mssv = v_target_mssv;
+
+  return jsonb_build_object('ok', true, 'mssv', v_target_mssv, 'avatar', v_avatar);
+end;
+$function$;
+
+grant execute on function public.admin_update_avatar(text, text) to authenticated;
+
+create or replace function public.admin_set_my_avatar(p_avatar text)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public', 'extensions', 'pg_temp'
+as $function$
+declare
+  v_mssv text;
+  v_avatar text := nullif(btrim(coalesce(p_avatar, '')), '');
+begin
+  if not public.is_admin() then
+    return jsonb_build_object('ok', false, 'message', 'Chỉ quản trị viên mới có quyền thực hiện.');
+  end if;
+
+  select p.mssv into v_mssv from public.profiles p where p.user_id = auth.uid();
+  if v_mssv is null or v_mssv = '' then
+    return jsonb_build_object('ok', false, 'message', 'Tài khoản chưa liên kết MSSV.');
+  end if;
+
+  if v_avatar is not null and char_length(v_avatar) > 2000000 then
+    return jsonb_build_object('ok', false, 'message', 'Ảnh đại diện quá lớn.');
+  end if;
+
+  update public.students set avatar = v_avatar where mssv = v_mssv;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'Không tìm thấy sinh viên có MSSV: ' || v_mssv);
+  end if;
+
+  update public.profiles set avatar_url = v_avatar where mssv = v_mssv;
+
+  return jsonb_build_object('ok', true, 'avatar', v_avatar, 'mssv', v_mssv);
+end;
+$function$;
+
+grant execute on function public.admin_set_my_avatar(text) to authenticated;
+
 create or replace function public.admin_export_face_data()
 returns jsonb
 language plpgsql
@@ -3194,5 +3338,68 @@ drop policy if exists "students_write_all" on public.students;
 
 revoke all on table public.students from anon;
 revoke all on table public.students from authenticated;
-grant select on table public.students to anon, authenticated;
+grant select on table public.students to authenticated;
 grant all on table public.students to service_role;
+
+-- =====================================================================
+-- 12. YÊU CẦU ĐẶT LẠI MẬT KHẨU (RPC có giới hạn tần suất)
+-- =====================================================================
+create or replace function public.request_password_reset(p_mssv text)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $function$
+declare
+  v_mssv text := upper(btrim(coalesce(p_mssv, '')));
+begin
+  if v_mssv = '' then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_MSSV', 'message', 'Vui lòng nhập MSSV.');
+  end if;
+
+  if not exists (select 1 from public.students where mssv = v_mssv) then
+    return jsonb_build_object('ok', false, 'code', 'NOT_FOUND', 'message', 'MSSV không tồn tại trong hệ thống.');
+  end if;
+
+  if exists (
+    select 1 from public.password_reset_requests
+    where mssv = v_mssv and status = 'pending'
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'PENDING',
+      'message', 'Yêu cầu của bạn đang chờ Admin xử lý. Không thể gửi thêm.'
+    );
+  end if;
+
+  if exists (
+    select 1 from public.password_reset_requests
+    where mssv = v_mssv and created_at > now() - interval '5 minutes'
+  ) then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'COOLDOWN',
+      'message', 'Bạn vừa gửi yêu cầu. Vui lòng thử lại sau ít phút.'
+    );
+  end if;
+
+  insert into public.password_reset_requests (mssv) values (v_mssv);
+
+  return jsonb_build_object(
+    'ok', true,
+    'message', 'Đã gửi yêu cầu đến Admin. Vui lòng nhận mật khẩu tạm từ Admin.'
+  );
+exception
+  when unique_violation then
+    return jsonb_build_object(
+      'ok', false,
+      'code', 'PENDING',
+      'message', 'Yêu cầu của bạn đang chờ Admin xử lý. Không thể gửi thêm.'
+    );
+end;
+$function$;
+
+grant execute on function public.request_password_reset(text) to anon, authenticated;
+
+drop policy if exists "Anon can insert requests" on public.password_reset_requests;
+revoke insert, update, delete on table public.password_reset_requests from anon;

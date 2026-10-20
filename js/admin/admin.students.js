@@ -397,10 +397,10 @@ async function renderStudentsTable() {
           </td>
           <td style="text-align:right;width:260px">
             <div style="display:inline-flex;gap:5px;align-items:center">
-              <button class="btn btn-secondary btn-sm" onclick="openAdminFaceEnrollModal('${escapeHtml(s.mssv)}')" title="Chụp & huấn luyện khuôn mặt AI cho sinh viên này" style="font-size:11px;padding:3px 7px">
+              <button class="btn btn-secondary btn-sm" onclick="openAdminFaceEnrollModal('${escapeJsAttr(s.mssv)}')" title="Chụp & huấn luyện khuôn mặt AI cho sinh viên này" style="font-size:11px;padding:3px 7px">
                 📷 Mẫu mặt
               </button>
-              <button class="btn btn-secondary btn-sm" onclick="openAssignTeamModal('${escapeHtml(s.mssv)}')" title="Đổi hoặc gán nhóm cho sinh viên" style="font-size:11px;padding:3px 7px">
+              <button class="btn btn-secondary btn-sm" onclick="openAssignTeamModal('${escapeJsAttr(s.mssv)}')" title="Đổi hoặc gán nhóm cho sinh viên" style="font-size:11px;padding:3px 7px">
                 👥 Nhóm
               </button>
               <button class="btn btn-secondary btn-sm" onclick="syncStudentScheduleSingle('${s.mssv}')" title="Đồng bộ lịch ME riêng" style="font-size:11px;padding:3px 7px">
@@ -1538,7 +1538,7 @@ function renderGroupsTable(){
     const rate = total ? Math.round(((present + late) / total) * 100) : 0;
     const rateColor = rate >= 80 ? 'var(--ok)' : (rate >= 50 ? 'var(--warn)' : 'var(--err)');
     
-    return '<tr style="cursor:pointer" onclick="openGroupDetail(\'' + escapeHtml(team.id) + '\')">' +
+    return '<tr style="cursor:pointer" onclick="openGroupDetail(\'' + escapeJsAttr(team.id) + '\')">' +
       '<td>' +
         '<div style="font-weight:700">' + escapeHtml(team.name) + '</div>' +
         '<div style="font-size:11px;color:var(--muted)">' + escapeHtml(team.field) + ' · ĐT: ' + escapeHtml(leaderName) + '</div>' +

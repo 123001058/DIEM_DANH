@@ -335,8 +335,9 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.42 (khoảng cách càng nhỏ càng chính xác)
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.42);
+    // Ngưỡng so khớp Euclidean distance: 0.38 (chặt hơn để tránh nhận nhầm người)
+    // Mặc định thư viện là 0.6 (rất lỏng), 0.42 vẫn còn lỏng → hạ xuống 0.38
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.38);
   } else {
     adminFaceMatcher = null;
   }
@@ -1315,7 +1316,7 @@ function renderFaceStudentTable() {
         <td>${statusBadge}</td>
         <td style="color:var(--muted);font-size:11.5px;">${updatedTime}</td>
         <td style="text-align:right;">
-          <button class="btn btn-secondary btn-sm" onclick="openAdminFaceEnrollModal('${escapeHtml(s.mssv)}')" style="font-size:11.5px;padding:4px 9px;">
+          <button class="btn btn-secondary btn-sm" onclick="openAdminFaceEnrollModal('${escapeJsAttr(s.mssv)}')" style="font-size:11.5px;padding:4px 9px;">
             📁 Quản lý ảnh khuôn mặt
           </button>
         </td>
@@ -1458,7 +1459,7 @@ function renderEnrollPhotoGrid() {
   container.innerHTML = enrollPhotos.map((p, idx) => {
     return `
       <div style="position:relative;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all 0.15s ease;">
-        <div style="position:relative;width:100%;height:110px;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;" onclick="openPhotoLightbox('${escapeHtml(p.url)}', '${escapeHtml(p.label)}')">
+        <div style="position:relative;width:100%;height:110px;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;" onclick="openPhotoLightbox('${escapeJsAttr(p.url)}', '${escapeJsAttr(p.label)}')">
           <img src="${escapeHtml(p.url)}" style="width:100%;height:100%;object-fit:cover;" alt="${escapeHtml(p.label)}">
           <span style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 5px;border-radius:4px;font-size:10px;">🔍 Xem to</span>
         </div>

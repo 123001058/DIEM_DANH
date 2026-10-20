@@ -36,21 +36,13 @@ async function submitForgotPassword() {
   if (btn) { btn.disabled = true; btn.innerText = 'Đang gửi...'; }
   
   try {
-    const { error } = await supabase
-      .from('password_reset_requests')
-      .insert({ mssv: mssv.toUpperCase() });
-      
-    if (error) {
-      if (error.code === '23505') { // unique violation
-        throw new Error('Yêu cầu của bạn đang chờ Admin xử lý. Không thể gửi thêm.');
-      }
-      if (error.code === '23503') { // foreign key violation
-        throw new Error('MSSV không tồn tại trong hệ thống.');
-      }
-      throw error;
-    }
-    
-    alert('✅ Yêu cầu đã được gửi đến Admin.\nVui lòng nhận mật khẩu tạm từ Admin.');
+    const { data, error } = await supabase.rpc('request_password_reset', {
+      p_mssv: mssv.toUpperCase()
+    });
+    if (error) throw error;
+    if (!data?.ok) throw new Error(data?.message || 'Không gửi được yêu cầu.');
+
+    alert('✅ ' + (data.message || 'Yêu cầu đã được gửi đến Admin.'));
     closeForgotPassword();
   } catch (e) {
     if (errBox) { errBox.innerText = e.message; errBox.style.display = 'block'; }

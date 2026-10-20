@@ -166,6 +166,19 @@ async function extractAugmentedDescriptors(img, detection) {
 
 async function startSync() {
   btnStart.disabled = true;
+  statusTxt.textContent = '⏳ Đang kiểm tra quyền...';
+  try {
+    const { data } = await window.supabase.auth.getSession();
+    if (!data?.session) throw new Error('Bạn chưa đăng nhập.');
+    const { data: isAdm, error } = await window.supabase.rpc('is_admin');
+    if (error || isAdm !== true) throw new Error('Tài khoản không có quyền quản trị.');
+  } catch (e) {
+    log('❌ ' + e.message + ' Trang này chỉ dành cho Admin đã đăng nhập.', 'err');
+    statusTxt.textContent = '🔒 Cần đăng nhập Admin';
+    btnStart.disabled = false;
+    return;
+  }
+
   statusTxt.textContent = '⏳ Đang tải AI models...';
   log('Đang tải mô hình Face-API từ CDN...', 'info');
 
@@ -259,6 +272,20 @@ async function startSync() {
   btnStart.disabled = false;
   btnStart.textContent = '✓ Đã đồng bộ xong';
 }
+
+(async function guardAdminOnly() {
+  try {
+    const { data } = await window.supabase.auth.getSession();
+    if (!data?.session) throw new Error('Chưa đăng nhập');
+    const { data: isAdm, error } = await window.supabase.rpc('is_admin');
+    if (error || isAdm !== true) throw new Error('Không phải Admin');
+  } catch (e) {
+    btnStart.disabled = true;
+    btnStart.textContent = '🔒 Cần đăng nhập Admin';
+    statusTxt.textContent = 'Trang này chỉ dùng cho tài khoản quản trị.';
+    log('🔒 ' + e.message + '. Vui lòng đăng nhập bằng tài khoản Admin.', 'warn');
+  }
+})();
 </script>
 
 </body>

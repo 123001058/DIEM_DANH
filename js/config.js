@@ -31,6 +31,16 @@ function escapeHtml(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Escape an toàn khi chèn chuỗi vào tham số JS bên trong thuộc tính HTML
+// (ví dụ onclick="fn('...')"). escapeHtml một mình không đủ vì trình duyệt
+// giải mã entity trước khi JS nhận chuỗi.
+function escapeJsAttr(v) {
+  return escapeHtml(String(v ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, ' '));
+}
+
 // 3. Quản lý danh sách sinh viên từ file JSON
 let validStudents = [];
 
