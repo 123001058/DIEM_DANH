@@ -2061,7 +2061,7 @@ CREATE OR REPLACE FUNCTION public.get_open_session()
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
- select jsonb_build_object('id',s.id,'session_name',s.session_name,'duration_min',s.duration_min,'warn_before_min',s.warn_before_min,'started_at',s.started_at,'qr_token',case when public.is_admin() then s.qr_token else null end,'qr_born_at',s.qr_born_at)
+ select jsonb_build_object('id',s.id,'session_name',s.session_name,'duration_min',s.duration_min,'warn_before_min',s.warn_before_min,'started_at',s.started_at,'qr_token',s.qr_token,'qr_born_at',s.qr_born_at)
  from public.sessions s where s.is_open and (s.duration_min is null or s.started_at+s.duration_min*interval '1 minute'>now()) order by s.started_at desc limit 1
 $function$;
 
