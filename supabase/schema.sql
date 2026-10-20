@@ -515,7 +515,23 @@ drop policy if exists "leave_request_history_read" on public.leave_request_histo
 create policy "leave_request_history_read" on public.leave_request_history
   for select
   to authenticated
-  using (true);
+  using (
+    is_admin()
+    or exists (
+      select 1
+      from public.leave_requests r
+      where r.id = leave_request_history.leave_request_id
+        and (
+          r.requested_by = (select auth.uid())
+          or r.mssv = (
+            select p.mssv
+            from public.profiles p
+            where p.user_id = (select auth.uid())
+            limit 1
+          )
+        )
+    )
+  );
 
 drop policy if exists "leave_requests_delete" on public.leave_requests;
 create policy "leave_requests_delete" on public.leave_requests
@@ -527,7 +543,16 @@ drop policy if exists "leave_requests_read" on public.leave_requests;
 create policy "leave_requests_read" on public.leave_requests
   for select
   to authenticated
-  using (true);
+  using (
+    is_admin()
+    or requested_by = (select auth.uid())
+    or mssv = (
+      select p.mssv
+      from public.profiles p
+      where p.user_id = (select auth.uid())
+      limit 1
+    )
+  );
 
 drop policy if exists "leave_requests_submit" on public.leave_requests;
 create policy "leave_requests_submit" on public.leave_requests
@@ -2106,6 +2131,13 @@ CREATE OR REPLACE FUNCTION public.record_leave_request_event()
 AS $function$
 declare v_name text;
 begin
+  -- Chỉ thay đổi reviewer_note/updated_at (gửi chat) thì không tạo lịch sử sửa đơn.
+  if tg_op = 'UPDATE'
+     and (to_jsonb(old) - 'reviewer_note' - 'updated_at')
+         is not distinct from (to_jsonb(new) - 'reviewer_note' - 'updated_at') then
+    return new;
+  end if;
+
   insert into public.leave_request_history(leave_request_id, changed_by, old_record, new_record)
   values (new.id, auth.uid(), case when tg_op='INSERT' then null else to_jsonb(old) end, to_jsonb(new));
   if tg_op='INSERT' then
@@ -2123,7 +2155,11 @@ begin
         when 'cancelled' then 'Đơn xin nghỉ đã được hủy' else 'Đơn xin nghỉ đã cập nhật' end,
       case new.status when 'approved' then 'Đơn xin nghỉ của bạn đã được duyệt.' when 'rejected' then 'Đơn xin nghỉ của bạn chưa được duyệt.'
         when 'cancelled' then 'Đơn xin nghỉ đã được hủy.' else 'Trạng thái đơn xin nghỉ đã thay đổi.' end
-        || coalesce(' Ghi chú: ' || nullif(btrim(new.reviewer_note), ''), ''),new.id);
+        || case
+             when new.reviewer_note is null or btrim(new.reviewer_note) = '' then ''
+             when left(btrim(new.reviewer_note), 1) in ('[', '{') then ''
+             else ' Ghi chú: ' || btrim(new.reviewer_note)
+           end,new.id);
     if new.status='cancelled' then
       select coalesce(nullif(btrim(p.full_name), ''),new.mssv) into v_name from public.profiles p where p.user_id=new.requested_by;
       insert into public.in_app_notifications(user_id,title,message,leave_request_id)

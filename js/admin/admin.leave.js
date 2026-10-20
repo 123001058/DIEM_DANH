@@ -129,6 +129,7 @@ function parseLeaveChatNotes(raw) {
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (Array.isArray(parsed)) return parsed;
+    if (parsed == null) return [];
     return [{ id: 'legacy', sender: 'admin', name: 'Quản lý', text: String(raw), time: '' }];
   } catch (_) {
     return [{ id: 'legacy', sender: 'admin', name: 'Quản lý', text: String(raw), time: '' }];
@@ -179,7 +180,6 @@ async function sendLeaveComment(leaveId) {
   if (!inp) return;
   const text = inp.value.trim();
   if (!text) return;
-  inp.value = '';
   inp.disabled = true;
 
   try {
@@ -188,30 +188,17 @@ async function sendLeaveComment(leaveId) {
       p_message: text
     });
 
-    if (error) {
-      const row = adminLeaveCache.find(r => r.id === leaveId);
-      const currentMsgs = parseLeaveChatNotes(row?.reviewer_note);
-      const newMsg = {
-        id: 'msg_' + Date.now(),
-        sender: 'admin',
-        name: (typeof adminCurrentName !== 'undefined' && adminCurrentName) || 'Quản lý',
-        text: text,
-        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
-      };
-      currentMsgs.push(newMsg);
-      const { error: upErr } = await supabase.from('leave_requests').update({
-        reviewer_note: JSON.stringify(currentMsgs),
-        updated_at: new Date().toISOString()
-      }).eq('id', leaveId);
-      if (upErr) throw upErr;
-      if (row) row.reviewer_note = JSON.stringify(currentMsgs);
-    } else if (data?.ok) {
-      const row = adminLeaveCache.find(r => r.id === leaveId);
-      if (row) row.reviewer_note = JSON.stringify(data.notes);
+    if (error) throw error;
+    if (!data?.ok || !Array.isArray(data.notes)) {
+      throw new Error(data?.message || 'Không lưu được phản hồi.');
     }
 
-    if (typeof toast === 'function') toast('ok', 'Đã gửi phản hồi', 'Tin nhắn đã được lưu vào đơn.');
+    const row = adminLeaveCache.find(r => r.id === leaveId);
+    if (row) row.reviewer_note = JSON.stringify(data.notes);
+    inp.value = '';
+    if (typeof toast === 'function') toast('ok', 'Đã gửi phản hồi', 'Tin nhắn đã được gửi tới sinh viên.');
     renderLeaveRequests();
+    await loadAdminLeaveNotifications();
   } catch (err) {
     console.error('Lỗi gửi phản hồi đơn:', err);
     if (typeof toast === 'function') toast('err', 'Không gửi được', err.message || 'Lỗi gửi tin nhắn');
@@ -410,8 +397,8 @@ function renderLeaveRequests(){
                 <textarea id="leaveReason_${r.id}" rows="2" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit">${escapeHtml(r.reason)}</textarea>
               </label>
 
-              <label style="display:block;font-size:11px;margin-top:6px">Ghi chú quản lý
-                <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit" placeholder="Nhập ghi chú phản hồi cho sinh viên...">${escapeHtml(r.reviewer_note||'')}</textarea>
+              <label style="display:block;font-size:11px;margin-top:6px">Gửi phản hồi thêm cho sinh viên
+                <textarea id="leaveNote_${r.id}" rows="1" style="display:block;width:100%;padding:6px;margin-top:3px;border:1px solid var(--border);border-radius:6px;font-family:inherit" placeholder="Nội dung sẽ được thêm vào phần trao đổi với sinh viên..."></textarea>
               </label>
 
               <div style="display:flex;justify-content:flex-end;margin-top:6px">
@@ -510,13 +497,22 @@ async function deleteLeaveRequest(id,studentName){
 async function saveLeaveReview(id){
   const row=adminLeaveCache.find(r=>r.id===id);if(!row)return;
   const leave_date=document.getElementById(`leaveDate_${id}`).value,leave_period=document.getElementById(`leavePeriod_${id}`).value,status=document.getElementById(`leaveStatus_${id}`).value,reason=document.getElementById(`leaveReason_${id}`).value.trim();
+  const noteText=(document.getElementById(`leaveNote_${id}`)?.value||'').trim();
   if(!leave_date)return toast('warn','Thiếu ngày','Chọn ngày nghỉ.');if(!reason)return toast('warn','Thiếu lý do','Lý do xin nghỉ là bắt buộc.');
-  const {error}=await supabase.from('leave_requests').update({session_id:null,leave_date,leave_period,leave_type:'full_session',status,reason,starts_at:null,ends_at:null,reviewer_note:document.getElementById(`leaveNote_${id}`).value.trim()||null}).eq('id',id);
+  // Không ghi đè reviewer_note trực tiếp nữa: cột này đang chứa toàn bộ lịch sử chat.
+  const {error}=await supabase.from('leave_requests').update({session_id:null,leave_date,leave_period,leave_type:'full_session',status,reason,starts_at:null,ends_at:null}).eq('id',id);
   if(error){toast('err','Chưa lưu được đơn',error.message);return;}
+  let noteWarning='';
+  if(noteText){
+    const {data:chat,error:chatError}=await supabase.rpc('submit_leave_comment',{p_leave_id:id,p_message:noteText});
+    if(chatError||!chat?.ok)noteWarning=chatError?.message||chat?.message||'Không gửi được phản hồi thêm.';
+  }
   if(status === 'approved') {
     await syncApprovedLeavesToSession(false);
   }
-  await loadLeaveManagement();toast('ok','Đã cập nhật','Trạng thái, ghi chú và lịch sử đã được lưu.');
+  await loadLeaveManagement();
+  if(noteWarning){toast('warn','Đã lưu đơn nhưng chưa gửi phản hồi',noteWarning);return;}
+  toast('ok','Đã cập nhật',noteText?'Trạng thái, lịch và phản hồi đã được lưu.':'Trạng thái và lịch đã được lưu.');
 }
 async function openLeaveEvidence(id){const row=adminLeaveCache.find(r=>r.id===id);if(!row?.evidence_path)return;const {data,error}=await supabase.storage.from('leave-evidence').createSignedUrl(row.evidence_path,300);if(error||!data?.signedUrl){toast('err','Không mở được ảnh',error?.message||'');return;}window.open(data.signedUrl,'_blank','noopener');}
 

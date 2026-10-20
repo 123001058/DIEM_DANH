@@ -1443,6 +1443,7 @@ function parseStudentLeaveNotes(raw){
   try{
     const parsed=typeof raw==='string'?JSON.parse(raw):raw;
     if(Array.isArray(parsed))return parsed;
+    if(parsed==null)return [];
     return [{id:'legacy',sender:'admin',name:'Quản lý',text:String(raw),time:''}];
   }catch(_){
     return [{id:'legacy',sender:'admin',name:'Quản lý',text:String(raw),time:''}];
@@ -1476,24 +1477,14 @@ async function sendStudentLeaveComment(leaveId){
   if(!inp)return;
   const text=inp.value.trim();
   if(!text)return;
-  inp.value='';
   inp.disabled=true;
   try{
     const {data,error}=await supabase.rpc('submit_leave_comment',{p_leave_id:leaveId,p_message:text});
-    if(error||!data?.ok){
-      const row=myLeaveCache.find(r=>r.id===leaveId);
-      const currentMsgs=parseStudentLeaveNotes(row?.reviewer_note);
-      currentMsgs.push({
-        id:'msg_'+Date.now(),
-        sender:'student',
-        name:(currentProfile?.name||currentProfile?.mssv||'Sinh viên'),
-        text:text,
-        time:new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+' '+new Date().toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})
-      });
-      const {error:upErr}=await supabase.from('leave_requests').update({reviewer_note:JSON.stringify(currentMsgs),updated_at:new Date().toISOString()}).eq('id',leaveId);
-      if(upErr)throw (error||upErr);
-      if(row)row.reviewer_note=JSON.stringify(currentMsgs);
-    }
+    if(error)throw error;
+    if(!data?.ok||!Array.isArray(data.notes))throw new Error(data?.message||'Không gửi được phản hồi.');
+    const row=myLeaveCache.find(r=>r.id===leaveId);
+    if(row)row.reviewer_note=JSON.stringify(data.notes);
+    inp.value='';
     showResult('success','Đã gửi trao đổi thành công.');
     await loadMyLeaveRequests();
   }catch(err){
@@ -1504,7 +1495,8 @@ async function sendStudentLeaveComment(leaveId){
 }
 async function loadMyLeaveRequests(){
   const box=document.getElementById('myLeaveRequests');if(!box)return;
-  const {data,error}=await supabase.from('leave_requests').select('*,sessions(session_name,started_at),students(name),leave_request_history(id,changed_at,new_record)').order('created_at',{ascending:false});
+  if(!currentProfile?.mssv){box.innerHTML='<div class="history-empty">Tài khoản chưa liên kết MSSV nên chưa xem được đơn nghỉ.</div>';return;}
+  const {data,error}=await supabase.from('leave_requests').select('*,sessions(session_name,started_at),students(name),leave_request_history(id,changed_at,new_record)').eq('mssv',currentProfile.mssv).order('created_at',{ascending:false});
   if(error){box.innerHTML='<div class="history-empty">Không tải được đơn nghỉ.</div>';return;}
   myLeaveCache=data||[];if(!myLeaveCache.length){box.innerHTML='<div class="history-empty">Bạn chưa gửi đơn nào.</div>';return;}
   const items=await Promise.all(myLeaveCache.map(async r=>{
