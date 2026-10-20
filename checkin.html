@@ -1437,17 +1437,83 @@ async function submitLeaveRequest(){
   finally{btn.disabled=false;}
 }
 async function cancelLeaveRequest(id){if(!confirm('Hủy đơn xin nghỉ đang chờ duyệt?'))return;const {error}=await supabase.from('leave_requests').update({status:'cancelled'}).eq('id',id).eq('status','pending');if(error){showResult('error',escapeHtml(error.message));return;}await loadMyLeaveRequests();showResult('success','Đã hủy đơn xin nghỉ.');}
+function parseStudentLeaveNotes(raw){
+  if(!raw)return [];
+  if(Array.isArray(raw))return raw;
+  try{
+    const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+    if(Array.isArray(parsed))return parsed;
+    return [{id:'legacy',sender:'admin',name:'Quản lý',text:String(raw),time:''}];
+  }catch(_){
+    return [{id:'legacy',sender:'admin',name:'Quản lý',text:String(raw),time:''}];
+  }
+}
+function renderStudentLeaveChatHtml(messages, leaveId){
+  const msgs=Array.isArray(messages)?messages:[];
+  let msgsHtml='';
+  if(msgs.length){
+    msgsHtml=msgs.map(m=>{
+      const isMe=(m.sender==='student');
+      const align=isMe?'flex-end':'flex-start';
+      const bg=isMe?'var(--surface-2)':'var(--surface)';
+      const color=isMe?'var(--text)':'var(--primary)';
+      const border=isMe?'1px solid var(--border)':'1px solid var(--primary)';
+      const senderLabel=isMe?'(Bạn)':(m.name||'Quản lý');
+      return `<div style="display:flex;flex-direction:column;align-items:${align};margin-bottom:6px"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px"><b>${escapeHtml(senderLabel)}</b> ${m.time?`· <span>${escapeHtml(m.time)}</span>`:''}</div><div style="max-width:85%;padding:6px 10px;border-radius:10px;background:${bg};color:${color};border:${border};font-size:12px;word-break:break-word;line-height:1.4">${escapeHtml(m.text||'')}</div></div>`;
+    }).join('');
+  }
+  return `<div class="leave-chat-box" style="margin:8px 0;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
+    <div style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:5px"><span>💬</span> Trao đổi với quản lý ${msgs.length?`(${msgs.length})`:''}</div>
+    <div id="leaveChatMsgs_${leaveId}" style="max-height:160px;overflow-y:auto;margin-bottom:6px">${msgsHtml||'<div style="font-size:11px;color:var(--muted);font-style:italic">Chưa có phản hồi nào.</div>'}</div>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="leaveChatInput_${leaveId}" placeholder="Nhập trao đổi / phản hồi..." style="flex:1;padding:5px 8px;font-size:11.5px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendStudentLeaveComment('${leaveId}');}">
+      <button type="button" style="padding:5px 12px;font-size:11.5px;font-weight:700;border:none;border-radius:6px;background:var(--primary);color:#fff;cursor:pointer" onclick="sendStudentLeaveComment('${leaveId}')">Gửi</button>
+    </div>
+  </div>`;
+}
+async function sendStudentLeaveComment(leaveId){
+  const inp=document.getElementById(`leaveChatInput_${leaveId}`);
+  if(!inp)return;
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  inp.disabled=true;
+  try{
+    const {data,error}=await supabase.rpc('submit_leave_comment',{p_leave_id:leaveId,p_message:text});
+    if(error||!data?.ok){
+      const row=myLeaveCache.find(r=>r.id===leaveId);
+      const currentMsgs=parseStudentLeaveNotes(row?.reviewer_note);
+      currentMsgs.push({
+        id:'msg_'+Date.now(),
+        sender:'student',
+        name:(currentProfile?.name||currentProfile?.mssv||'Sinh viên'),
+        text:text,
+        time:new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+' '+new Date().toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})
+      });
+      const {error:upErr}=await supabase.from('leave_requests').update({reviewer_note:JSON.stringify(currentMsgs),updated_at:new Date().toISOString()}).eq('id',leaveId);
+      if(upErr)throw (error||upErr);
+      if(row)row.reviewer_note=JSON.stringify(currentMsgs);
+    }
+    showResult('success','Đã gửi trao đổi thành công.');
+    await loadMyLeaveRequests();
+  }catch(err){
+    console.error('Lỗi gửi trao đổi:',err);
+    showResult('error','Không gửi được phản hồi: '+escapeHtml(err.message||'Lỗi không xác định'));
+    inp.disabled=false;
+  }
+}
 async function loadMyLeaveRequests(){
   const box=document.getElementById('myLeaveRequests');if(!box)return;
   const {data,error}=await supabase.from('leave_requests').select('*,sessions(session_name,started_at),students(name),leave_request_history(id,changed_at,new_record)').order('created_at',{ascending:false});
   if(error){box.innerHTML='<div class="history-empty">Không tải được đơn nghỉ.</div>';return;}
   myLeaveCache=data||[];if(!myLeaveCache.length){box.innerHTML='<div class="history-empty">Bạn chưa gửi đơn nào.</div>';return;}
-  box.innerHTML=await Promise.all(myLeaveCache.map(async r=>{
+  const items=await Promise.all(myLeaveCache.map(async r=>{
     let evidence='';if(r.evidence_path){const {data:signed}=await supabase.storage.from('leave-evidence').createSignedUrl(r.evidence_path,3600);if(signed?.signedUrl)evidence=`<a target="_blank" rel="noopener" href="${signed.signedUrl}">Xem ảnh minh chứng</a>`;}
     const time=r.leave_date?`${new Date(`${r.leave_date}T00:00:00`).toLocaleDateString('vi-VN')} · ${leavePeriodLabels[r.leave_period]||'Cả ngày'}`:`${escapeHtml(r.sessions?.session_name||'Phiên cũ')} · ${leaveTypeLabels[r.leave_type]||''}`;
     const edits=(r.leave_request_history||[]).map(h=>{const val=h.new_record||{};return `<div style="font-size:10.5px;color:var(--muted)">${new Date(h.changed_at).toLocaleString('vi-VN')} · ${leaveStatusLabels[val.status]||'Đã cập nhật'}</div>`;}).join('');
     return `<div class="leave-card"><div style="display:flex;justify-content:space-between;gap:8px"><strong>${escapeHtml(r.students?.name||r.mssv)} ${r.requested_by===currentUser.id?'(Bạn)':''}</strong><span class="leave-chip">${leaveStatusLabels[r.status]||r.status}</span></div><div style="margin-top:4px;color:var(--muted)">${time}</div><div style="margin-top:5px">${escapeHtml(r.reason)}</div><div style="margin-top:5px">${evidence}</div>${renderStudentLeaveChatHtml(parseStudentLeaveNotes(r.reviewer_note), r.id)}${edits?`<details style="margin-top:6px"><summary>Lịch sử đơn</summary>${edits}</details>`:''}${r.status==='pending'&&r.requested_by===currentUser.id?`<div style="display:flex;gap:8px;margin-top:8px"><button type="button" onclick="editLeaveRequest('${r.id}')">Sửa</button><button type="button" onclick="cancelLeaveRequest('${r.id}')">Hủy đơn</button></div>`:''}</div>`;
-  })).then(items=>{box.innerHTML=items.join('');});
+  }));
+  box.innerHTML=items.join('');
 }
 async function loadStudentLeaveNotifications(){
   const box=document.getElementById('studentLeaveNotifications');if(!box)return;const {data,error}=await supabase.from('in_app_notifications').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false}).limit(10);
