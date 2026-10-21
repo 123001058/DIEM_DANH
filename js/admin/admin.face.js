@@ -469,9 +469,17 @@ async function startAdminCamera() {
     };
     img.onerror = () => {
       if (hudStatus && adminCameraActive) {
-        hudStatus.innerHTML = `❌ Không tải được luồng từ <b>${streamUrl}</b>. Kiểm tra nguồn ESP32 hoặc cờ Insecure Content trên trình duyệt.`;
+        hudStatus.innerHTML = `⚠️ Luồng camera ESP32 gián đoạn. Đang kết nối lại...`;
       }
-      updateAttendanceCamStatusPill('error');
+      updateAttendanceCamStatusPill('loading');
+      if (adminCameraActive && !adminStreamReconnectTimer) {
+        adminStreamReconnectTimer = setTimeout(() => {
+          adminStreamReconnectTimer = null;
+          if (adminCameraActive && img) {
+            img.src = `${streamUrl}?t=${Date.now()}`;
+          }
+        }, 2000);
+      }
     };
     img.src = streamUrl;
   }
@@ -493,6 +501,10 @@ function stopAdminCamera() {
   // 1. Tắt cờ trạng thái ngay lập tức
   adminCameraActive = false;
   adminInferenceRunning = false;
+  if (adminStreamReconnectTimer) {
+    clearTimeout(adminStreamReconnectTimer);
+    adminStreamReconnectTimer = null;
+  }
 
   // 2. Hủy animation frame
   if (adminAnimFrameId) {
