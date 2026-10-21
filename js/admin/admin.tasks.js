@@ -1784,6 +1784,11 @@ function showEmpty(){
   clearInterval(countdownTimer);
   loadTodayHistory();
   loadTodaySchoolSchedule();
+
+  // Tự động ngắt camera AI khi đóng phiên điểm danh
+  if (typeof stopAdminCamera === 'function' && typeof adminCameraActive !== 'undefined' && adminCameraActive) {
+    stopAdminCamera();
+  }
 }
 function showDashboard(){
   document.getElementById('emptyState').style.display = 'none';
@@ -1802,6 +1807,11 @@ function showDashboard(){
   }
   const createBox = document.getElementById('overviewSessionCreateBox');
   if (createBox) createBox.style.display = 'none';
+
+  // Tự động kích hoạt camera AI đồng thời với mã QR nếu chưa bật
+  if (typeof autoStartAdminCameraOnSession === 'function' && typeof adminCameraActive !== 'undefined' && !adminCameraActive) {
+    autoStartAdminCameraOnSession();
+  }
 }
 function renderQR(){
   if (!currentSession || !currentSession.id || !currentSession.qr_token) return;
@@ -2093,6 +2103,11 @@ async function openSession(){
     if (error || !data?.ok) return toast('err', 'Không mở được phiên', data?.message || error?.message);
     toast('ok', 'Đã mở phiên', `"${name}" — ${dur} phút (Tính đi muộn sau ${lateMin} phút)`);
     await refreshAll();
+
+    // Tự động kích hoạt Camera AI ESP32 chạy đồng thời với Mã QR
+    if (typeof autoStartAdminCameraOnSession === 'function') {
+      autoStartAdminCameraOnSession();
+    }
   } finally {
     _openingSession = false;
     if (openBtn) openBtn.disabled = false;

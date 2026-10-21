@@ -89,7 +89,7 @@ function navTo(viewName) {
     if (typeof openHistoryAndReport === 'function') openHistoryAndReport();
   } else if (viewName === 'overview' && typeof loadOverviewGroupTasks === 'function') loadOverviewGroupTasks();
   else if (viewName === 'face-cam') {
-    if (typeof initFaceCamInAdmin === 'function') initFaceCamInAdmin();
+    if (typeof initFaceCamInAdmin === 'function') initFaceCamInAdmin(false);
     const stStatus = document.getElementById('faceCamSessionStatus');
     if (stStatus) {
       stStatus.textContent = currentSession?.id ? `Đang mở: "${currentSession.session_name}"` : '⚠️ Chưa có phiên mở';
@@ -317,66 +317,30 @@ async function loadAdminAvatar(userId, mssv, name) {
   }
 }
 
-function openAdminAvatarModal() {
+function triggerAdminAvatarChange() {
   if (typeof closeSidebar === 'function') closeSidebar();
-  const modal = document.getElementById('adminAvatarModal');
-  if (!modal) return;
-
-  const nameEl = document.getElementById('adminAvatarModalName');
-  const mssvEl = document.getElementById('adminAvatarModalMssv');
-  const previewImg = document.getElementById('adminAvatarPreview');
-  const fileInput = document.getElementById('adminAvatarFileInput');
-  const btnSave = document.getElementById('btnSaveAdminAvatar');
-
-  const curName = adminCurrentName 
-    || document.getElementById('sidebarAdminName')?.textContent?.trim()
-    || document.getElementById('adminName')?.textContent?.trim()
-    || 'Nguyễn Khánh Hoà';
-
-  const curMssv = (adminCurrentMssv && adminCurrentMssv !== '—') 
-    ? adminCurrentMssv 
-    : (document.getElementById('sidebarAdminMssv')?.textContent?.trim() || document.getElementById('adminMssv')?.textContent?.trim() || '123001058');
-
-  adminCurrentMssv = curMssv;
-  adminCurrentName = curName;
-
-  if (nameEl) nameEl.textContent = curName;
-  if (mssvEl) mssvEl.textContent = 'MSSV: ' + curMssv;
-  if (fileInput) fileInput.value = '';
-  if (btnSave) {
-    btnSave.disabled = true;
-    btnSave.textContent = '💾 Lưu ảnh đại diện';
+  let fileInput = document.getElementById('adminAvatarFileInput');
+  if (!fileInput) {
+    fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.id = 'adminAvatarFileInput';
+    fileInput.accept = 'image/jpeg,image/png,image/webp';
+    fileInput.style.display = 'none';
+    fileInput.onchange = handleAdminAvatarSelectedDirect;
+    document.body.appendChild(fileInput);
   }
-
-  // Lấy avatar hiện tại nếu có
-  const currentAvatar = localStorage.getItem('admin_custom_avatar') 
-    || (adminCurrentUserId ? localStorage.getItem('admin_custom_avatar_' + adminCurrentUserId) : null);
-
-  if (previewImg) {
-    previewImg.src = currentAvatar || ('images/faces/' + curMssv + '.png');
-  }
-
-  pendingAdminAvatarDataUrl = null;
-  modal.classList.add('show');
-  modal.style.display = 'flex';
+  fileInput.click();
 }
+// Alias để tương thích ngược mọi nơi gọi
+window.openAdminAvatarModal = triggerAdminAvatarChange;
+window.closeAdminAvatarModal = function() {};
 
-function closeAdminAvatarModal() {
-  const modal = document.getElementById('adminAvatarModal');
-  if (modal) {
-    modal.classList.remove('show');
-    modal.style.display = 'none';
-  }
-  pendingAdminAvatarDataUrl = null;
-  const fileInput = document.getElementById('adminAvatarFileInput');
-  if (fileInput) fileInput.value = '';
-}
-
-async function handleAdminAvatarSelected(event) {
+async function handleAdminAvatarSelectedDirect(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
   try {
+    if (typeof toast === 'function') toast('info', 'Đang cập nhật', 'Đang cắt và tối ưu hóa ảnh đại diện Admin...');
     const dataUrl = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = e => resolve(e.target.result);
@@ -403,61 +367,28 @@ async function handleAdminAvatarSelected(event) {
     ctx.drawImage(img, sx, sy, size, size, 0, 0, 256, 256);
     const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
-    pendingAdminAvatarDataUrl = croppedDataUrl;
+    const targetMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : '123001058';
 
-    const previewImg = document.getElementById('adminAvatarPreview');
-    if (previewImg) previewImg.src = croppedDataUrl;
-
-    const btnSave = document.getElementById('btnSaveAdminAvatar');
-    if (btnSave) btnSave.disabled = false;
-  } catch (err) {
-    console.error('Lỗi chọn ảnh avatar admin:', err);
-    if (typeof toast === 'function') toast('err', 'Lỗi xử lý ảnh', err.message);
-  }
-}
-
-async function saveAdminAvatar() {
-  if (!pendingAdminAvatarDataUrl) {
-    if (typeof toast === 'function') toast('err', 'Chưa chọn ảnh', 'Vui lòng chọn ảnh đại diện từ máy trước khi lưu.');
-    return;
-  }
-
-  const btnSave = document.getElementById('btnSaveAdminAvatar');
-  if (btnSave) {
-    btnSave.disabled = true;
-    btnSave.textContent = '⏳ Đang lưu...';
-  }
-
-  const avatarData = pendingAdminAvatarDataUrl;
-  const targetMssv = (adminCurrentMssv && adminCurrentMssv !== '—') ? adminCurrentMssv : '123001058';
-
-  try {
-    // ==============================================================
-    // BƯỚC 1: LƯU CỤC BỘ & CẬP NHẬT GIAO DIỆN TỨC THÌ
-    // ==============================================================
-    localStorage.setItem('admin_custom_avatar', avatarData);
+    // 1. Cập nhật ngay UI và LocalStorage
+    localStorage.setItem('admin_custom_avatar', croppedDataUrl);
     if (adminCurrentUserId) {
-      localStorage.setItem('admin_custom_avatar_' + adminCurrentUserId, avatarData);
+      localStorage.setItem('admin_custom_avatar_' + adminCurrentUserId, croppedDataUrl);
     }
+    applyAdminAvatar(croppedDataUrl, adminCurrentName);
 
-    applyAdminAvatar(avatarData, adminCurrentName);
-
-    // ==============================================================
-    // BƯỚC 2: LƯU VÀO DATABASE SUPABASE QUA RPC CHUYÊN DỤNG
-    // ==============================================================
+    // 2. Lưu vào Supabase qua RPC chuyên dụng
     let savedToCloud = false;
     if (typeof supabase !== 'undefined') {
       try {
         const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_update_avatar', {
           p_mssv: targetMssv,
-          p_avatar: avatarData
+          p_avatar: croppedDataUrl
         });
         if (!rpcErr && rpcRes?.ok) {
           savedToCloud = true;
-          console.log('[Admin Avatar] Đã lưu avatar vào Supabase qua admin_update_avatar:', rpcRes);
         } else {
-          console.warn('[Admin Avatar] Lỗi RPC admin_update_avatar, thử fallback:', rpcErr);
-          await supabase.rpc('admin_set_my_avatar', { p_avatar: avatarData });
+          await supabase.rpc('admin_set_my_avatar', { p_avatar: croppedDataUrl });
+          savedToCloud = true;
         }
       } catch (cloudErr) {
         console.warn('[Admin Avatar] Lỗi RPC Supabase:', cloudErr);
@@ -465,19 +396,14 @@ async function saveAdminAvatar() {
     }
 
     if (typeof toast === 'function') {
-      toast('ok', 'Đã đổi ảnh đại diện!', savedToCloud ? 'Đã lưu avatar vào Database Supabase thành công.' : 'Ảnh đại diện Admin đã được cập nhật.');
+      toast('ok', 'Đã đổi ảnh đại diện!', savedToCloud ? 'Đã lưu avatar vào Database thành công.' : 'Ảnh đại diện Admin đã được cập nhật.');
     }
 
-    closeAdminAvatarModal();
-
-    // ==============================================================
-    // BƯỚC 3: NỀN - TẢI LÊN STORAGE SUPABASE ĐỂ LƯU URL BỀN VỮNG
-    // ==============================================================
+    // 3. NỀN: Tải lên Storage Supabase để lưu URL bền vững
     setTimeout(async () => {
       try {
         if (typeof supabase === 'undefined') return;
-
-        const res = await fetch(avatarData);
+        const res = await fetch(croppedDataUrl);
         const blob = await res.blob();
         const path = targetMssv + '/avatar.jpg';
 
@@ -503,11 +429,17 @@ async function saveAdminAvatar() {
 
   } catch (err) {
     console.error('Lỗi lưu avatar admin:', err);
-    if (typeof toast === 'function') toast('err', 'Lỗi lưu avatar', err.message);
+    if (typeof toast === 'function') toast('err', 'Lỗi lưu avatar', err.message || 'Không thể cập nhật ảnh.');
   } finally {
-    if (btnSave) {
-      btnSave.disabled = false;
-      btnSave.textContent = '💾 Lưu ảnh đại diện';
-    }
+    event.target.value = '';
   }
 }
+
+// Tự động nạp trước mô hình Face AI ở nền để khi mở phiên điểm danh là camera sẵn sàng ngay
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof initFaceCamInAdmin === 'function' && typeof adminFaceModelsLoaded !== 'undefined' && !adminFaceModelsLoaded) {
+      initFaceCamInAdmin(true);
+    }
+  }, 2500);
+});

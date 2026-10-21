@@ -22,9 +22,13 @@
 
   /* Avatar card */
   .avatar-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 14px; flex-wrap: wrap; }
-  .avatar-preview { width: 76px; height: 76px; border-radius: 18px; object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-strong); display: grid; place-items: center; font-size: 26px; font-weight: 800; color: var(--primary); flex: none; overflow: hidden; }
+  .avatar-preview { width: 76px; height: 76px; border-radius: 18px; object-fit: cover; background: var(--surface-2); border: 2px solid var(--border-strong); display: grid; place-items: center; font-size: 26px; font-weight: 800; color: var(--primary); flex: none; overflow: hidden; cursor: pointer; position: relative; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+  .avatar-preview:hover { transform: scale(1.04); border-color: var(--primary); box-shadow: 0 4px 14px rgba(37,99,235,0.22); }
+  .avatar-preview::after { content: '📷'; position: absolute; inset: 0; background: rgba(15,23,42,0.55); backdrop-filter: blur(2px); color: #fff; font-size: 22px; display: grid; place-items: center; opacity: 0; transition: opacity 0.2s ease; }
+  .avatar-preview:hover::after { opacity: 1; }
+  .avatar-preview.loading::after { content: '⏳'; opacity: 1; background: rgba(15,23,42,0.7); }
   .avatar-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .avatar-meta { flex: 1; min-width: 160px; }
+  .avatar-meta { flex: 1; min-width: 160px; cursor: pointer; }
   .avatar-meta b { font-size: 15px; font-weight: 800; }
   .avatar-meta .sub2 { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
@@ -91,16 +95,13 @@
 
   <!-- ===================== AVATAR ===================== -->
   <div class="avatar-card">
-    <div class="avatar-preview" id="avatarPreview">?</div>
-    <div class="avatar-meta">
+    <div class="avatar-preview" id="avatarPreview" onclick="document.getElementById('avatarFileInput').click()" title="Nhấp vào ảnh để đổi ảnh đại diện">?</div>
+    <div class="avatar-meta" onclick="document.getElementById('avatarFileInput').click()" title="Nhấp vào để đổi ảnh đại diện">
       <b id="avatarName">Đang tải...</b>
       <div class="sub2" id="avatarMssv">MSSV: —</div>
-      <div class="sub2" id="avatarHint">Ảnh vuông, rõ mặt. Nên dùng ảnh chân dung chụp gần.</div>
+      <div class="sub2" id="avatarHint">💡 Nhấp vào ảnh để chọn và cập nhật ảnh đại diện (Ảnh chân dung vuông)</div>
     </div>
-    <div>
-      <button type="button" class="btn btn-primary" id="btnChangeAvatar" onclick="document.getElementById('avatarFileInput').click()">📷 Đổi ảnh đại diện</button>
-      <input type="file" id="avatarFileInput" class="hidden-input" accept="image/*">
-    </div>
+    <input type="file" id="avatarFileInput" class="hidden-input" accept="image/*">
   </div>
 
   <!-- ===================== CAMERA ===================== -->
@@ -399,8 +400,8 @@
     if (!file) return;
     if (!file.type || !file.type.startsWith('image/')) return toastErr('Vui lòng chọn tệp ảnh (JPG/PNG/WebP).');
     if (file.size > 8 * 1024 * 1024) return toastErr('Ảnh quá lớn (tối đa 8MB).');
-    const btn = $('btnChangeAvatar');
-    if (btn){ btn.disabled = true; btn.textContent = '⏳ Đang tải...'; }
+    const avPreview = $('avatarPreview');
+    if (avPreview) avPreview.classList.add('loading');
     try {
       const blob = await makeSquareAvatarBlob(file, 512);
       if (!blob) throw new Error('Không tạo được ảnh.');
@@ -412,11 +413,11 @@
       const { data: res, error: rpcErr } = await supabase.rpc('student_set_my_avatar', { p_avatar: finalUrl });
       if (rpcErr || res?.ok === false) throw new Error(rpcErr?.message || res?.message || 'Không lưu được ảnh đại diện.');
       renderAvatar(finalUrl);
-      toastOk('Đã cập nhật ảnh đại diện!');
+      toastOk('Đã cập nhật ảnh đại diện thành công!');
     } catch(e){
       toastErr('Đổi ảnh đại diện thất bại: ' + (e.message || e));
     } finally {
-      if (btn){ btn.disabled = false; btn.textContent = '📷 Đổi ảnh đại diện'; }
+      if (avPreview) avPreview.classList.remove('loading');
       const inp = $('avatarFileInput'); if (inp) inp.value = '';
     }
   }
