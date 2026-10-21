@@ -10,6 +10,293 @@ const leaveTypeNames={full_session:'Nghỉ theo ngày/buổi',late:'Đi muộn',
 const leaveStatusNames={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Từ chối',cancelled:'Đã hủy'};
 const adminLeavePeriodNames={full_day:'Cả ngày',morning:'Buổi sáng',afternoon:'Buổi chiều',evening:'Buổi tối'};
 let adminLeaveCache=[], adminLeaveUser=null, adminLeaveProfile=null, adminLeaveSchedules=[], expandedLeaveDays=null, leaveDayPeriods={};
+let leaveTrackerMode = 'week'; // 'week' | 'top'
+let leaveTrackerSelectedWeek = '';
+let leaveFilterByTrackerWeek = false;
+let leaveFilterStudentMssv = '';
+
+function getLeaveWeekMonday(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(d)) return '';
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function formatLeaveWeekShort(mondayKey) {
+  if (!mondayKey) return '';
+  const start = new Date(`${mondayKey}T00:00:00`);
+  if (isNaN(start)) return mondayKey;
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = dt => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+  return `${fmt(start)}–${fmt(end)}`;
+}
+
+function formatLeaveWeekLabel(mondayKey) {
+  if (!mondayKey) return '';
+  const start = new Date(`${mondayKey}T00:00:00`);
+  if (isNaN(start)) return mondayKey;
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const todayMonday = getLeaveWeekMonday(new Date().toLocaleDateString('sv-SE'));
+  const tag = (mondayKey === todayMonday) ? ' (Tuần này)' : '';
+  return `Tuần ${formatLeaveWeekShort(mondayKey)}/${end.getFullYear()}${tag}`;
+}
+
+function shortDayDateLabel(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(d)) return dateStr;
+  const names = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  return `${names[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function setLeaveTrackerMode(mode) {
+  leaveTrackerMode = (mode === 'top') ? 'top' : 'week';
+  const btnW = document.getElementById('btnTrackerModeWeek');
+  const btnT = document.getElementById('btnTrackerModeTop');
+  const navGrp = document.getElementById('leaveWeekNavGroup');
+  const btnFilterW = document.getElementById('btnFilterListByWeek');
+  if (btnW) {
+    btnW.style.background = leaveTrackerMode === 'week' ? 'var(--primary)' : 'transparent';
+    btnW.style.color = leaveTrackerMode === 'week' ? '#fff' : 'var(--muted)';
+  }
+  if (btnT) {
+    btnT.style.background = leaveTrackerMode === 'top' ? '#dc2626' : 'transparent';
+    btnT.style.color = leaveTrackerMode === 'top' ? '#fff' : 'var(--muted)';
+  }
+  if (navGrp) navGrp.style.display = leaveTrackerMode === 'week' ? 'inline-flex' : 'none';
+  if (btnFilterW) btnFilterW.style.display = leaveTrackerMode === 'week' ? 'inline-flex' : 'none';
+  renderLeaveWeeklyTracker();
+}
+
+function onLeaveTrackerWeekChange(weekKey) {
+  leaveTrackerSelectedWeek = weekKey;
+  renderLeaveWeeklyTracker();
+  if (leaveFilterByTrackerWeek) {
+    expandedLeaveDays = null;
+    renderLeaveRequests();
+  }
+}
+
+function stepLeaveTrackerWeek(dir) {
+  const sel = document.getElementById('leaveTrackerWeekSelect');
+  if (!sel || !sel.options.length) return;
+  const nextIdx = sel.selectedIndex + dir;
+  if (nextIdx >= 0 && nextIdx < sel.options.length) {
+    sel.selectedIndex = nextIdx;
+    onLeaveTrackerWeekChange(sel.value);
+  }
+}
+
+function toggleFilterListByTrackerWeek() {
+  leaveFilterByTrackerWeek = !leaveFilterByTrackerWeek;
+  expandedLeaveDays = null;
+  renderLeaveWeeklyTracker();
+  renderLeaveRequests();
+}
+
+function toggleFilterLeaveByStudent(mssv) {
+  if (leaveFilterStudentMssv === mssv) {
+    leaveFilterStudentMssv = '';
+  } else {
+    leaveFilterStudentMssv = mssv || '';
+    const days = [...new Set((adminLeaveCache || []).filter(r => r.mssv === leaveFilterStudentMssv).map(leaveRowDate))];
+    expandedLeaveDays = new Set(days);
+  }
+  renderLeaveWeeklyTracker();
+  renderLeaveRequests();
+}
+
+function clearAllLeaveCustomFilters() {
+  leaveFilterStudentMssv = '';
+  leaveFilterByTrackerWeek = false;
+  expandedLeaveDays = null;
+  renderLeaveWeeklyTracker();
+  renderLeaveRequests();
+}
+
+function renderLeaveWeeklyTracker() {
+  const body = document.getElementById('leaveWeeklyTrackerBody');
+  const summaryEl = document.getElementById('leaveWeeklyTrackerSummary');
+  const sel = document.getElementById('leaveTrackerWeekSelect');
+  const btnFilterW = document.getElementById('btnFilterListByWeek');
+  if (!body) return;
+
+  const todayMonday = getLeaveWeekMonday(new Date().toLocaleDateString('sv-SE'));
+  const weekSet = new Set([todayMonday]);
+  (adminLeaveCache || []).forEach(r => {
+    const wk = getLeaveWeekMonday(leaveRowDate(r));
+    if (wk) weekSet.add(wk);
+  });
+  const sortedWeeks = [...weekSet].filter(Boolean).sort().reverse();
+
+  if (!leaveTrackerSelectedWeek || !weekSet.has(leaveTrackerSelectedWeek)) {
+    const pendingRow = (adminLeaveCache || []).find(r => r.status === 'pending');
+    const pendingWeek = pendingRow ? getLeaveWeekMonday(leaveRowDate(pendingRow)) : '';
+    const hasTodayRows = (adminLeaveCache || []).some(r => getLeaveWeekMonday(leaveRowDate(r)) === todayMonday);
+    const firstWithData = sortedWeeks.find(w => (adminLeaveCache || []).some(r => getLeaveWeekMonday(leaveRowDate(r)) === w));
+    leaveTrackerSelectedWeek = pendingWeek || (hasTodayRows ? todayMonday : (firstWithData || todayMonday));
+  }
+
+  if (sel) {
+    sel.innerHTML = sortedWeeks.map(wk => {
+      const cnt = (adminLeaveCache || []).filter(r => getLeaveWeekMonday(leaveRowDate(r)) === wk && (r.status === 'approved' || r.status === 'pending')).length;
+      return `<option value="${wk}" ${wk === leaveTrackerSelectedWeek ? 'selected' : ''}>${formatLeaveWeekLabel(wk)} (${cnt} phép)</option>`;
+    }).join('');
+  }
+
+  if (btnFilterW) {
+    btnFilterW.className = leaveFilterByTrackerWeek ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+    btnFilterW.textContent = leaveFilterByTrackerWeek ? '✓ Đang lọc đơn theo tuần này' : '🔍 Lọc đơn theo tuần này';
+  }
+
+  // Tính tổng toàn kỳ cho từng sinh viên
+  const allTimeByStu = new Map();
+  (adminLeaveCache || []).forEach(r => {
+    if (r.status !== 'approved' && r.status !== 'pending') return;
+    if (!allTimeByStu.has(r.mssv)) {
+      allTimeByStu.set(r.mssv, { mssv: r.mssv, name: r.students?.name || r.mssv, approved: 0, pending: 0, total: 0, rows: [] });
+    }
+    const st = allTimeByStu.get(r.mssv);
+    if (r.status === 'approved') st.approved++;
+    else if (r.status === 'pending') st.pending++;
+    st.total++;
+    st.rows.push(r);
+  });
+
+  if (leaveTrackerMode === 'week') {
+    const weekRows = (adminLeaveCache || []).filter(r =>
+      getLeaveWeekMonday(leaveRowDate(r)) === leaveTrackerSelectedWeek &&
+      (r.status === 'approved' || r.status === 'pending')
+    );
+    const stuMap = new Map();
+    weekRows.forEach(r => {
+      if (!stuMap.has(r.mssv)) {
+        stuMap.set(r.mssv, { mssv: r.mssv, name: r.students?.name || r.mssv, weekApproved: 0, weekPending: 0, weekTotal: 0, rows: [] });
+      }
+      const st = stuMap.get(r.mssv);
+      if (r.status === 'approved') st.weekApproved++;
+      else if (r.status === 'pending') st.weekPending++;
+      st.weekTotal++;
+      st.rows.push(r);
+    });
+
+    const list = [...stuMap.values()].sort((a, b) => {
+      if (b.weekTotal !== a.weekTotal) return b.weekTotal - a.weekTotal;
+      if (b.weekPending !== a.weekPending) return b.weekPending - a.weekPending;
+      return (allTimeByStu.get(b.mssv)?.total || 0) - (allTimeByStu.get(a.mssv)?.total || 0);
+    });
+
+    const totalApprovedW = weekRows.filter(r => r.status === 'approved').length;
+    const totalPendingW = weekRows.filter(r => r.status === 'pending').length;
+    if (summaryEl) {
+      summaryEl.innerHTML = `${formatLeaveWeekShort(leaveTrackerSelectedWeek)}: <b>${weekRows.length} phép</b> (<span style="color:#15803d">${totalApprovedW} đã duyệt</span>, <span style="color:#b45309">${totalPendingW} chờ duyệt</span>) · <b>${list.length} SV</b>`;
+    }
+
+    if (!list.length) {
+      body.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--muted);font-size:12.5px">Không có sinh viên nào xin nghỉ (đã duyệt / chờ duyệt) trong ${formatLeaveWeekLabel(leaveTrackerSelectedWeek)}.</div>`;
+      return;
+    }
+
+    body.innerHTML = list.map(st => {
+      const allSt = allTimeByStu.get(st.mssv) || { approved: 0, pending: 0, total: 0 };
+      const isFrequent = st.weekTotal >= 2 || allSt.total >= 3;
+      const isSelected = (leaveFilterStudentMssv === st.mssv);
+      const sortedItems = [...st.rows].sort((a, b) => leaveRowDate(a).localeCompare(leaveRowDate(b)));
+      const chipsHtml = sortedItems.map(r => {
+        const isAp = r.status === 'approved';
+        const cBg = isAp ? '#dcfce7' : '#fef3c7';
+        const cTxt = isAp ? '#15803d' : '#b45309';
+        const pName = adminLeavePeriodNames[leaveRowPeriod(r)] || 'Cả ngày';
+        return `<span style="font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;background:${cBg};color:${cTxt};display:inline-flex;align-items:center;gap:3px">${isAp ? '🟢' : '⏳'} ${shortDayDateLabel(leaveRowDate(r))} (${pName})</span>`;
+      }).join('');
+
+      return `
+        <div onclick="toggleFilterLeaveByStudent('${escapeJsAttr(st.mssv)}')" title="Bấm để lọc riêng các đơn của ${escapeHtml(st.name)}" style="cursor:pointer;padding:10px 12px;border-radius:9px;background:var(--surface);border:${isSelected ? '2px solid var(--primary)' : (isFrequent ? '1.5px solid #fdba74' : '1px solid var(--border)')};box-shadow:${isSelected ? '0 0 0 2px rgba(37,99,235,0.15)' : '0 1px 2px rgba(0,0,0,0.03)'};transition:all .15s">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span>${escapeHtml(st.name)}</span>
+                ${isFrequent ? `<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:#ffedd5;color:#c2410c;font-weight:800">🔥 Hay nghỉ</span>` : ''}
+              </div>
+              <div style="font-size:11px;color:var(--muted);font-family:monospace">${escapeHtml(st.mssv)} · Tổng kỳ: <b>${allSt.approved}</b> duyệt${allSt.pending ? ` + <b>${allSt.pending}</b> chờ` : ''}</div>
+            </div>
+            <div style="text-align:right;flex:none">
+              <span style="font-size:12px;font-weight:800;padding:2px 8px;border-radius:99px;background:${st.weekTotal >= 2 ? '#fee2e2' : '#eff6ff'};color:${st.weekTotal >= 2 ? '#dc2626' : '#1d4ed8'}">
+                ${st.weekTotal} phép tuần này
+              </span>
+              <div style="font-size:10.5px;margin-top:3px;font-weight:700">
+                <span style="color:#15803d">${st.weekApproved} duyệt</span> · <span style="color:#d97706">${st.weekPending} chờ</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;padding-top:6px;border-top:1px dashed var(--border)">
+            ${chipsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    // Chế độ Top hay xin nghỉ toàn kỳ
+    const topList = [...allTimeByStu.values()].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return b.approved - a.approved;
+    });
+
+    if (summaryEl) {
+      summaryEl.innerHTML = `Toàn kỳ: <b>${topList.reduce((s, x) => s + x.total, 0)} phép</b> (đã duyệt & chờ duyệt) · <b>${topList.length} SV</b> từng xin nghỉ`;
+    }
+
+    if (!topList.length) {
+      body.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--muted);font-size:12.5px">Chưa có dữ liệu sinh viên xin nghỉ.</div>`;
+      return;
+    }
+
+    body.innerHTML = topList.map((st, idx) => {
+      const weekRows = st.rows.filter(r => getLeaveWeekMonday(leaveRowDate(r)) === leaveTrackerSelectedWeek);
+      const isSelected = (leaveFilterStudentMssv === st.mssv);
+      const isFrequent = st.total >= 2;
+      const recentItems = [...st.rows].sort((a, b) => leaveRowDate(b).localeCompare(leaveRowDate(a))).slice(0, 4);
+      const chipsHtml = recentItems.map(r => {
+        const isAp = r.status === 'approved';
+        const cBg = isAp ? '#dcfce7' : '#fef3c7';
+        const cTxt = isAp ? '#15803d' : '#b45309';
+        return `<span style="font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;background:${cBg};color:${cTxt}">${isAp ? '🟢' : '⏳'} ${shortDayDateLabel(leaveRowDate(r))}</span>`;
+      }).join('');
+
+      return `
+        <div onclick="toggleFilterLeaveByStudent('${escapeJsAttr(st.mssv)}')" title="Bấm để lọc riêng các đơn của ${escapeHtml(st.name)}" style="cursor:pointer;padding:10px 12px;border-radius:9px;background:var(--surface);border:${isSelected ? '2px solid var(--primary)' : (isFrequent ? '1.5px solid #fca5a5' : '1px solid var(--border)')};transition:all .15s">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span style="font-size:11px;font-weight:800;color:${idx < 3 ? '#dc2626' : 'var(--muted)'}">#${idx + 1}</span>
+                <span>${escapeHtml(st.name)}</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);font-family:monospace">${escapeHtml(st.mssv)} · Tuần đang chọn: <b>${weekRows.length} phép</b></div>
+            </div>
+            <div style="text-align:right;flex:none">
+              <span style="font-size:12px;font-weight:800;padding:2px 8px;border-radius:99px;background:${st.total >= 3 ? '#fee2e2' : '#ffedd5'};color:${st.total >= 3 ? '#dc2626' : '#c2410c'}">
+                Tổng: ${st.total} phép
+              </span>
+              <div style="font-size:10.5px;margin-top:3px;font-weight:700">
+                <span style="color:#15803d">${st.approved} duyệt</span> · <span style="color:#d97706">${st.pending} chờ</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:7px;padding-top:6px;border-top:1px dashed var(--border)">
+            ${chipsHtml}${st.rows.length > 4 ? `<span style="font-size:10.5px;color:var(--muted);align-self:center">+${st.rows.length - 4} đơn khác</span>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
 
 function toggleAdminSelfLeaveForm(forceState) {
   const card = document.getElementById('adminSelfLeaveCard');
@@ -53,6 +340,36 @@ function toggleLeaveCardEdit(id) {
   const box = document.getElementById(`leaveEditBox_${id}`);
   if (box) {
     box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+  }
+}
+
+function toggleLeaveCardChat(id) {
+  const wrap = document.getElementById(`leaveChatWrap_${id}`);
+  if (!wrap) return;
+  const willShow = (wrap.style.display === 'none' || !wrap.style.display);
+  wrap.style.display = willShow ? 'block' : 'none';
+  if (willShow) {
+    setTimeout(() => document.getElementById(`leaveChatInput_${id}`)?.focus(), 50);
+  }
+}
+
+async function approveAllPendingOnDay(day, event) {
+  if (event) event.stopPropagation();
+  const pendingRows = (adminLeaveCache || []).filter(r => leaveRowDate(r) === day && r.status === 'pending');
+  if (!pendingRows.length) return;
+  if (!confirm(`Duyệt tất cả ${pendingRows.length} đơn đang chờ trong ngày ${day}?`)) return;
+  try {
+    const ids = pendingRows.map(r => r.id);
+    const { error } = await supabase.from('leave_requests').update({
+      status: 'approved',
+      updated_at: new Date().toISOString()
+    }).in('id', ids);
+    if (error) throw error;
+    toast('ok', 'Đã duyệt hàng loạt', `Đã duyệt ${ids.length} đơn xin nghỉ trong ngày ${day}.`);
+    await syncApprovedLeavesToSession(false);
+    await loadLeaveManagement();
+  } catch (err) {
+    toast('err', 'Lỗi duyệt hàng loạt', err.message || 'Không thể duyệt các đơn này.');
   }
 }
 
@@ -117,7 +434,9 @@ async function loadLeaveManagement(){
   adminLeaveCache=data||[];await loadAdminLeaveNotifications();
   const memberIds=[...new Set(adminLeaveCache.map(r=>r.mssv))];let schedules=[];
   if(memberIds.length){const result=await supabase.from('student_schedules').select('mssv,subject_name,start_time,end_time').in('mssv',memberIds);schedules=result.data||[];}
-  adminLeaveSchedules=schedules;renderLeaveRequests();
+  adminLeaveSchedules=schedules;
+  renderLeaveWeeklyTracker();
+  renderLeaveRequests();
 }
 
 /* ==========================================================
@@ -138,8 +457,9 @@ function parseLeaveChatNotes(raw) {
 
 function renderLeaveChatHtml(messages, leaveId, isAdmin) {
   const msgs = Array.isArray(messages) ? messages : [];
+  const hasMsgs = msgs.length > 0;
   let msgsHtml = '';
-  if (msgs.length) {
+  if (hasMsgs) {
     msgsHtml = msgs.map(m => {
       const isFromAdmin = (m.sender === 'admin');
       const bubbleBg = isFromAdmin ? 'var(--surface, #fff)' : 'var(--surface-2, #f1f5f9)';
@@ -160,9 +480,9 @@ function renderLeaveChatHtml(messages, leaveId, isAdmin) {
   }
 
   return `
-    <div class="leave-chat-box" style="margin:8px 0;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
+    <div id="leaveChatWrap_${leaveId}" class="leave-chat-box" style="display:${hasMsgs ? 'block' : 'none'};margin:8px 0;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)">
       <div style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:5px">
-        <span>💬</span> Trao đổi & Ghi chú phản hồi ${msgs.length ? `(${msgs.length})` : ''}
+        <span>💬</span> Trao đổi &amp; Ghi chú phản hồi ${hasMsgs ? `(${msgs.length})` : ''}
       </div>
       <div id="leaveChatMsgs_${leaveId}" style="max-height:160px;overflow-y:auto;margin-bottom:6px;">
         ${msgsHtml || '<div style="font-size:11px;color:var(--muted);font-style:italic">Chưa có phản hồi hay trao đổi nào.</div>'}
@@ -234,13 +554,54 @@ function renderLeaveRequests(){
   const mapKpi = { pending: 'leaveKpiPending', approved: 'leaveKpiApproved', rejected: 'leaveKpiRejected', all: 'leaveKpiAll' };
   if (mapKpi[filterStatus]) document.getElementById(mapKpi[filterStatus])?.classList.add('active');
 
+  // Render banner báo đang lọc theo tuần hoặc theo sinh viên
+  const bannerEl = document.getElementById('leaveActiveFilterBanner');
+  if (bannerEl) {
+    const activeParts = [];
+    if (leaveFilterStudentMssv) {
+      const stName = (adminLeaveCache.find(r => r.mssv === leaveFilterStudentMssv)?.students?.name) || leaveFilterStudentMssv;
+      activeParts.push(`👤 Sinh viên: <b>${escapeHtml(stName)} (${escapeHtml(leaveFilterStudentMssv)})</b>`);
+    }
+    if (leaveFilterByTrackerWeek && leaveTrackerSelectedWeek) {
+      activeParts.push(`📅 ${escapeHtml(formatLeaveWeekLabel(leaveTrackerSelectedWeek))}`);
+    }
+    if (activeParts.length) {
+      bannerEl.style.display = 'flex';
+      bannerEl.innerHTML = `
+        <div>🔍 Đang lọc danh sách đơn theo: ${activeParts.join(' · ')}</div>
+        <button type="button" class="btn btn-secondary btn-sm" style="padding:3px 9px;font-size:11.5px;font-weight:700" onclick="clearAllLeaveCustomFilters()">✕ Bỏ lọc (Xem tất cả)</button>
+      `;
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  }
+
+  // Tiền tính toán thống kê phép theo tuần & toàn kỳ cho mỗi sinh viên để gắn lên từng thẻ đơn
+  const studentWeekMap = new Map(); // key: `${mssv}_${weekKey}` -> array of active rows (approved/pending)
+  const studentTotalMap = new Map(); // key: mssv -> { approved, pending, total }
+  adminLeaveCache.forEach(r => {
+    if (r.status !== 'approved' && r.status !== 'pending') return;
+    const wk = getLeaveWeekMonday(leaveRowDate(r));
+    const wkKey = `${r.mssv}_${wk}`;
+    if (!studentWeekMap.has(wkKey)) studentWeekMap.set(wkKey, []);
+    studentWeekMap.get(wkKey).push(r);
+
+    if (!studentTotalMap.has(r.mssv)) studentTotalMap.set(r.mssv, { approved: 0, pending: 0, total: 0 });
+    const stTot = studentTotalMap.get(r.mssv);
+    if (r.status === 'approved') stTot.approved++;
+    else if (r.status === 'pending') stTot.pending++;
+    stTot.total++;
+  });
+
   const rows=adminLeaveCache.filter(r=>{
     const matchStatus=(filterStatus==='all'||r.status===filterStatus);
+    const matchStu=!leaveFilterStudentMssv || r.mssv===leaveFilterStudentMssv;
+    const matchWeek=!leaveFilterByTrackerWeek || !leaveTrackerSelectedWeek || getLeaveWeekMonday(leaveRowDate(r))===leaveTrackerSelectedWeek;
     const name=(r.students?.name||'').toLowerCase();
     const mssv=(r.mssv||'').toLowerCase();
     const reason=(r.reason||'').toLowerCase();
     const matchSearch=!search || name.includes(search) || mssv.includes(search) || reason.includes(search);
-    return matchStatus && matchSearch;
+    return matchStatus && matchStu && matchWeek && matchSearch;
   });
 
   const count=document.getElementById('leaveRequestCount');if(count)count.textContent=`${rows.length} đơn`;
@@ -268,7 +629,9 @@ function renderLeaveRequests(){
   list.innerHTML=days.map(day=>{
     const dayRows=rows.filter(r=>leaveRowDate(r)===day);
     const dayPending=dayRows.filter(r=>r.status==='pending').length;
+    const dayApproved=dayRows.filter(r=>r.status==='approved').length;
     const isExpanded=expandedLeaveDays.has(day);
+    const dayWeekKey=getLeaveWeekMonday(day);
 
     const dayDateObj=new Date(`${day}T00:00:00`);
     const dayFormatted=isNaN(dayDateObj)?day:dayDateObj.toLocaleDateString('vi-VN',{
@@ -308,6 +671,32 @@ function renderLeaveRequests(){
             ?`⚠️ Bận học: ${matches.map(s=>escapeHtml(s.subject_name)).join(', ')}`
             : '🟢 Không thấy lịch học trùng';
 
+        // Thống kê số phép trong tuần của đơn này cho sinh viên r.mssv
+        const wkRows = studentWeekMap.get(`${r.mssv}_${dayWeekKey}`) || [];
+        const wkApproved = wkRows.filter(x => x.status === 'approved').length;
+        const wkPending = wkRows.filter(x => x.status === 'pending').length;
+        const wkTotal = wkRows.length;
+        const otherWkRows = wkRows.filter(x => x.id !== r.id).sort((a, b) => leaveRowDate(a).localeCompare(leaveRowDate(b)));
+        const stTot = studentTotalMap.get(r.mssv) || { approved: 0, pending: 0, total: 0 };
+
+        const isHeavyWeek = wkTotal >= 2;
+        const weekBadgeBg = isHeavyWeek ? '#fff7ed' : '#eff6ff';
+        const weekBadgeColor = isHeavyWeek ? '#c2410c' : '#1d4ed8';
+        const weekBadgeBorder = isHeavyWeek ? '#fed7aa' : '#bfdbfe';
+        const weekBadgeText = isHeavyWeek
+          ? `🔥 Tuần này: ${wkTotal} phép (${wkApproved} duyệt, ${wkPending} chờ)`
+          : `📅 Tuần này: ${wkTotal} phép (${wkApproved ? wkApproved + ' duyệt' : wkPending + ' chờ'})`;
+
+        const otherWeekHtml = otherWkRows.length ? `
+          <div style="margin:5px 0 6px;padding:5px 9px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:11.5px;color:#92400e;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <b>📌 Cùng tuần (${formatLeaveWeekShort(dayWeekKey)}) còn xin nghỉ:</b>
+            ${otherWkRows.map(ox => {
+              const isAp = ox.status === 'approved';
+              return `<span style="padding:1px 6px;border-radius:4px;background:${isAp ? '#dcfce7' : '#fef3c7'};color:${isAp ? '#15803d' : '#b45309'};font-weight:700">${isAp ? '🟢' : '⏳'} ${shortDayDateLabel(leaveRowDate(ox))} (${adminLeavePeriodNames[leaveRowPeriod(ox)] || 'Cả ngày'} · ${leaveStatusNames[ox.status]})</span>`;
+            }).join('')}
+          </div>
+        ` : '';
+
         const statusOptions=Object.entries(leaveStatusNames)
           .map(([v,n])=>`<option value="${v}" ${r.status===v?'selected':''}>${n}</option>`)
           .join('');
@@ -319,6 +708,8 @@ function renderLeaveRequests(){
 
         const statusBadgeBg=r.status==='approved'?'var(--ok-bg)':r.status==='rejected'?'var(--err-bg)':r.status==='pending'?'#fef3c7':'#f1f5f9';
         const statusBadgeColor=r.status==='approved'?'var(--ok)':r.status==='rejected'?'var(--err)':r.status==='pending'?'#b45309':'var(--muted)';
+
+        const chatNotes = parseLeaveChatNotes(r.reviewer_note);
 
         const quickActionButtons = r.status === 'pending'
           ? `<div class="leave-quick-actions" style="display:flex;gap:6px">
@@ -338,11 +729,17 @@ function renderLeaveRequests(){
         return `
           <article class="leave-card-compact" style="border-left: 4px solid ${r.status==='approved'?'#10b981':r.status==='rejected'?'#ef4444':r.status==='pending'?'#f59e0b':'#94a3b8'}">
             <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <strong style="font-size:13.5px;color:var(--text)">${escapeHtml(r.students?.name||r.mssv)}</strong>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <strong style="font-size:13.5px;color:var(--text);cursor:pointer" onclick="toggleFilterLeaveByStudent('${escapeJsAttr(r.mssv)}')" title="Bấm để lọc xem tất cả đơn của sinh viên này">${escapeHtml(r.students?.name||r.mssv)}</strong>
                 <span style="font-size:11.5px;color:var(--muted);font-family:monospace">${escapeHtml(r.mssv)}</span>
                 <span style="font-size:11px;padding:2px 8px;border-radius:6px;background:var(--surface-2);font-weight:600;color:var(--text)">
                   ${adminLeavePeriodNames[leaveRowPeriod(r)]||'Cả ngày'}
+                </span>
+                <span onclick="toggleFilterLeaveByStudent('${escapeJsAttr(r.mssv)}')" title="Số phép của sinh viên này trong tuần ${formatLeaveWeekShort(dayWeekKey)} (Bấm để xem tất cả đơn của SV này)" style="cursor:pointer;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;background:${weekBadgeBg};color:${weekBadgeColor};border:1px solid ${weekBadgeBorder}">
+                  ${weekBadgeText}
+                </span>
+                <span onclick="toggleFilterLeaveByStudent('${escapeJsAttr(r.mssv)}')" title="Tổng số phép lũy kế toàn kỳ của sinh viên này" style="cursor:pointer;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border)">
+                  Σ Kỳ: ${stTot.approved} duyệt${stTot.pending ? ` + ${stTot.pending} chờ` : ''}
                 </span>
                 <span style="font-size:11px;color:var(--muted)">🕒 ${new Date(r.created_at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</span>
               </div>
@@ -351,22 +748,26 @@ function renderLeaveRequests(){
               </span>
             </div>
 
-            <div style="font-size:11.5px;margin:6px 0 4px;color:${matches.length?'var(--warn)':'var(--ok)'}">
-              ${availability}
-            </div>
+            ${otherWeekHtml}
 
-            <div style="font-size:12px;margin-bottom:6px;line-height:1.45;color:var(--text)">
-              <b style="color:var(--muted)">Lý do:</b> ${escapeHtml(r.reason)}
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 4px">
+              <div style="font-size:12px;line-height:1.45;color:var(--text);flex:1;min-width:200px">
+                <b style="color:var(--muted)">Lý do:</b> ${escapeHtml(r.reason)}
+              </div>
+              <div style="font-size:11.5px;color:${matches.length?'var(--warn)':'var(--ok)'}">
+                ${availability}
+              </div>
             </div>
 
             ${r.evidence_path?`<div style="margin-bottom:6px"><button type="button" class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 8px" onclick="openLeaveEvidence('${r.id}')">📎 Xem ảnh minh chứng</button></div>`:''}
-            ${renderLeaveChatHtml(parseLeaveChatNotes(r.reviewer_note), r.id, true)}
+            ${renderLeaveChatHtml(chatNotes, r.id, true)}
             ${historyHtml?`<details style="margin:4px 0 6px;font-size:11px"><summary style="cursor:pointer;color:var(--muted)">Lịch sử sửa (${(r.leave_request_history||[]).length})</summary><div style="margin-top:3px;padding:5px;background:var(--surface-2);border-radius:5px">${historyHtml}</div></details>`:''}
 
             <!-- Hàng hành động 1-chạm -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);flex-wrap:wrap;gap:6px">
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 ${quickActionButtons}
+                <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11.5px" onclick="toggleLeaveCardChat('${r.id}')" title="Mở/đóng khung nhắn phản hồi cho sinh viên">💬 Phản hồi${chatNotes.length ? ` (${chatNotes.length})` : ''}</button>
                 <button type="button" class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11.5px" onclick="toggleLeaveCardEdit('${r.id}')" title="Chỉnh sửa ngày/buổi/ghi chú">✏️ Sửa chi tiết</button>
               </div>
               <div style="display:flex;align-items:center;gap:6px">
@@ -423,13 +824,18 @@ function renderLeaveRequests(){
     return `
       <div class="leave-day-accordion ${isExpanded?'open':''}">
         <div class="leave-day-head" onclick="toggleLeaveDay('${day}')">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:15px">${isExpanded?'📂':'📁'}</span>
             <strong style="font-size:13.5px">${dayFormatted}</strong>
+            <span style="font-size:11px;padding:2px 7px;border-radius:6px;background:var(--surface-2);color:var(--muted);font-weight:600">Tuần ${formatLeaveWeekShort(dayWeekKey)}</span>
             <span style="font-size:11.5px;padding:2px 8px;border-radius:99px;background:#f1f5f9;color:var(--text)">${dayRows.length} đơn</span>
+            ${dayApproved?`<span style="font-size:11.5px;padding:2px 8px;border-radius:99px;background:#dcfce7;color:#15803d;font-weight:700">🟢 ${dayApproved} đã duyệt</span>`:''}
             ${dayPending?`<span style="font-size:11.5px;padding:2px 8px;border-radius:99px;background:#fef3c7;color:#b45309;font-weight:700">⏳ ${dayPending} chờ duyệt</span>`:''}
           </div>
-          <span style="font-size:12px;color:var(--muted);font-weight:600">${isExpanded?'Thu gọn ▲':'Bấm xem đơn ▼'}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${dayPending > 1 ? `<button type="button" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;padding:3px 9px;font-size:11px;font-weight:700" onclick="approveAllPendingOnDay('${day}',event)">✓ Duyệt hết (${dayPending})</button>` : ''}
+            <span style="font-size:12px;color:var(--muted);font-weight:600">${isExpanded?'Thu gọn ▲':'Bấm xem đơn ▼'}</span>
+          </div>
         </div>
         ${bodyHtml}
       </div>
