@@ -6,7 +6,7 @@
 <title>LH-NaviX — Điểm danh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/theme.css?v=7">
 <style>
 body {
   display: flex;
@@ -867,7 +867,10 @@ body.student-menu-open { overflow: hidden; }
         <div class="user-name" id="userName">Đang tải...</div>
         <div class="user-id" id="userId">—</div>
       </div>
-      <a href="change-password.html" class="logout" style="text-decoration:none; color:var(--text); background:rgba(0,0,0,0.05); margin-right:4px;">🔒 Đổi pass</a>
+      <a href="change-password.html" class="logout" style="text-decoration:none; color:var(--text); background:var(--surface-2); margin-right:4px; display:inline-flex; align-items:center; gap:5px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Đổi mật khẩu
+      </a>
       <button class="logout" onclick="logoutStudent()">Đăng xuất</button>
     </section>
 
@@ -887,13 +890,16 @@ body.student-menu-open { overflow: hidden; }
       </section>
 
       <div class="qr-zone">
-        <button class="scan-btn" id="scanBtn" onclick="toggleCameraScanner()">📷 Bật camera quét mã QR</button>
-        <div class="qr-status no-token" id="qrStatus">⚠️ Chưa có mã QR</div>
+        <button class="scan-btn" id="scanBtn" onclick="toggleCameraScanner()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          Bật camera quét mã QR
+        </button>
+        <div class="qr-status no-token" id="qrStatus">Chưa có mã QR — Hãy quét mã từ màn hình</div>
       </div>
 
       <div class="scanner" id="scannerWrapper" style="display:none">
         <div class="scanner-head">
-          <span>🎥 Hướng camera vào mã QR để quét</span>
+          <span>Hướng camera vào mã QR để quét</span>
           <button onclick="stopCameraScanner()">✕ Đóng</button>
         </div>
         <div class="scanner-viewport-wrap">
@@ -914,7 +920,7 @@ body.student-menu-open { overflow: hidden; }
       <div class="field">
         <label class="label">MSSV <span class="req">*</span></label>
         <input type="text" id="mssv" readonly>
-        <span class="hint">🔒 Tài khoản hiện tại</span>
+        <span class="hint">Tài khoản sinh viên hiện tại</span>
       </div>
 
       <div class="field">
@@ -927,11 +933,14 @@ body.student-menu-open { overflow: hidden; }
         <input type="text" id="note" placeholder="Không bắt buộc" maxlength="200">
       </div>
 
-      <button class="btn-main" id="btnCheckin" onclick="doCheckin()">✓ Xác nhận điểm danh</button>
+      <button class="btn-main" id="btnCheckin" onclick="doCheckin()">Xác nhận điểm danh</button>
 
       <div class="wake">
         <div>
-          <div class="wake-text">☀️ Giữ màn hình sáng</div>
+          <div class="wake-text" style="display:flex;align-items:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            Giữ màn hình sáng
+          </div>
           <div class="wake-desc">Không tự tắt màn hình khi đang điểm danh</div>
         </div>
         <button class="switch" id="wakeSwitch" onclick="toggleWakeLock()"></button>
@@ -940,7 +949,7 @@ body.student-menu-open { overflow: hidden; }
 
     <!-- VIEW 2: LỊCH SỬ ĐIỂM DANH -->
     <section class="student-view" id="view-history">
-      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px">📋 Lịch sử điểm danh</div>
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:6px">Lịch sử điểm danh</div>
       <div class="history-list open" id="historyList"></div>
     </section>
 
@@ -1084,14 +1093,14 @@ function updateScanBtn(){
   const st = document.getElementById('qrStatus');
   if (sessionToken){
     btn.classList.add('scanned');
-    btn.innerHTML = '✓ Đã có mã QR (Bấm để quét lại)';
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Đã có mã QR (Bấm để quét lại)`;
     st.className = 'qr-status has-token';
-    st.innerHTML = '✓ Đã nhận mã QR — Sẵn sàng điểm danh';
+    st.innerHTML = 'Đã nhận mã QR — Sẵn sàng điểm danh';
   } else {
     btn.classList.remove('scanned');
-    btn.innerHTML = '📷 Bật camera quét mã QR';
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg> Bật camera quét mã QR`;
     st.className = 'qr-status no-token';
-    st.innerHTML = '⚠️ Chưa có mã QR — Hãy quét mã từ màn hình';
+    st.innerHTML = 'Chưa có mã QR — Hãy quét mã từ màn hình';
   }
 }
 

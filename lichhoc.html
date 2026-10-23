@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/theme.css">
-<link rel="stylesheet" href="css/lichhoc.css">
+<link rel="stylesheet" href="css/theme.css?v=7">
+<link rel="stylesheet" href="css/lichhoc.css?v=7">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script>
@@ -84,7 +84,7 @@
           </button>
           <button class="tab-btn" id="tabFreeTime" title="Tìm những bạn rảnh theo Thứ và Buổi">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            ⚡ Lọc người rảnh
+            Lọc người rảnh
           </button>
           <button class="tab-btn" id="tabList" title="Xem danh sách chi tiết">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -95,30 +95,34 @@
 
       <div class="controls-row-bottom">
         <div class="week-nav">
-          <button class="week-btn" id="btnPrevWeek" title="Tuần trước">◀</button>
+          <button class="week-btn" id="btnPrevWeek" title="Tuần trước" aria-label="Tuần trước">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
           <div class="week-display">
             <span class="week-label" id="weekLabel">Tuần 1</span>
             <span class="week-dates" id="weekDates">28/09/2026 – 04/10/2026</span>
           </div>
-          <button class="week-btn" id="btnNextWeek" title="Tuần sau">▶</button>
+          <button class="week-btn" id="btnNextWeek" title="Tuần sau" aria-label="Tuần sau">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
           <button class="btn-action" id="btnCurrentWeek" style="padding:6px 12px;font-size:12px;margin-left:6px;">Tuần này</button>
         </div>
 
-          <button class="btn-action btn-action-primary" id="btnAddExternalSchedule" style="background:#4f46e5;color:#fff;border-color:transparent;font-weight:600" title="Thêm lịch khóa học ngoài (TOEIC, IELTS, thực tập...)">
+          <button class="btn-action btn-action-primary" id="btnAddExternalSchedule" style="background:var(--primary);color:#fff;border-color:transparent;font-weight:600" title="Thêm lịch khóa học ngoài (TOEIC, IELTS, thực tập...)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            ＋ Thêm lịch ngoài
+            Thêm lịch ngoài
           </button>
           <button class="btn-action" id="btnExportICal" title="Thêm lịch vào Google Calendar / Apple Calendar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
-            📲 Thêm vào Lịch (.ics)
+            Thêm vào Lịch (.ics)
           </button>
           <button class="btn-action" id="btnExportExcel" title="Xuất file Excel bảng ma trận tuần đẹp mắt">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            📊 Xuất Excel ma trận
+            Xuất Excel ma trận
           </button>
           <button class="btn-action" id="btnPrintTKB" title="In hoặc Lưu PDF theo chuẩn khổ A4">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            🖨️ In / Lưu PDF (A4)
+            In / Lưu PDF (A4)
           </button>
         </div>
       </div>

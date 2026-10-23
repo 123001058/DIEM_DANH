@@ -110,11 +110,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .divider {
-  width: 40px;
-  height: 3px;
-  border-radius: var(--radius-pill);
-  margin: 0 auto 20px;
-  background: var(--text);
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  margin: 20px 0;
 }
 
 /* Form inputs & controls */
