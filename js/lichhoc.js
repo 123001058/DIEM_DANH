@@ -328,11 +328,6 @@
         schedule: schedMap[st.mssv] || []
       }));
 
-      window._currentSemesterEnd = semEnd;
-      window._isAdminUser = isAdmin;
-      window._ownMssv = ownMssv;
-      window._activeStudents = activeStudents;
-
       initExternalScheduleHandlers(isAdmin, ownMssv, activeStudents, semEnd);
 
       buildSemesterWeeks(semStart, semEnd);

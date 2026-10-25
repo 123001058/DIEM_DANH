@@ -1245,17 +1245,6 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
   }
 };
 
-window.filterPastSessionTable = function(sid, query) {
-  const q = (query || '').trim().toLowerCase();
-  const tables = document.querySelectorAll(`table[data-session-table="${sid}"]`);
-  tables.forEach(tbl => {
-    const rows = tbl.querySelectorAll('.past-session-row');
-    rows.forEach(r => {
-      const text = r.dataset.search || '';
-      r.style.display = !q || text.includes(q) ? '' : 'none';
-    });
-  });
-};
 function formatPastSessionDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -1266,49 +1255,6 @@ function formatPastSessionDateTime(value) {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   }).format(date);
 }
-window.loadPastSessionAudit = async function(sid, button) {
-  const host = button?.closest('.past-session-detail')?.querySelector('.past-session-audit');
-  if (!host) return;
-  if (host.dataset.loaded === 'true') {
-    host.hidden = !host.hidden;
-    button.textContent = host.hidden ? '🕒 Lịch sử chỉnh sửa' : 'Ẩn lịch sử';
-    return;
-  }
-  const oldText = button.textContent;
-  button.disabled = true;
-  button.textContent = 'Đang tải...';
-  host.innerHTML = '<div style="padding:12px;color:var(--muted)">Đang tải lịch sử chỉnh sửa...</div>';
-  try {
-    const { data, error } = await supabase.rpc('admin_get_attendance_record_history', { p_session_id: String(sid) });
-    if (error || !data?.ok) throw new Error(error?.message || data?.message || 'Không tải được lịch sử chỉnh sửa.');
-    const records = data.records || [];
-    if (!records.length) {
-      host.innerHTML = '<div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--muted);font-size:12px">Phiên này chưa có lịch sử chỉnh sửa được lưu. Hệ thống chỉ ghi nhận thay đổi từ khi tính năng lịch sử được bật.</div>';
-    } else {
-      host.innerHTML = '<div style="display:grid;gap:8px">' + records.map(record => {
-        const oldRecord = record.old_record || {};
-        const newRecord = record.new_record || {};
-        const field = (label, value) => '<div style="margin-top:4px;font-size:11.5px;color:var(--muted)">' + label + ': <b style="color:var(--text)">' + escapeHtml(value || '—') + '</b></div>';
-        const snapshot = (heading, row) => '<div style="min-width:0;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface)"><b>' + heading + '</b>' +
-          field('Trạng thái', row.status) +
-          field('Thời gian điểm danh', formatPastSessionDateTime(row.checked_at)) +
-          field('Phân loại', row.category) +
-          field('Ghi chú', row.note) + '</div>';
-        return '<article style="padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2)">' +
-          '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px"><b>' + escapeHtml(record.student_name || record.mssv) + ' · ' + escapeHtml(record.mssv || '') + '</b><span style="color:var(--muted)">Sửa lúc ' + formatPastSessionDateTime(record.changed_at) + ' · ' + escapeHtml(record.changed_by || 'Admin') + '</span></div>' +
-          '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:8px">' +
-          snapshot('Trước khi sửa', oldRecord) + snapshot('Sau khi sửa', newRecord) + '</div></article>';
-      }).join('') + '</div>';
-    }
-    host.dataset.loaded = 'true';
-    host.hidden = false;
-  } catch (error) {
-    host.innerHTML = '<div style="padding:12px;color:var(--err)">' + escapeHtml(error.message || 'Không tải được lịch sử chỉnh sửa.') + '</div>';
-  } finally {
-    button.disabled = false;
-    button.textContent = oldText;
-  }
-};
 window.exportPastSessionExcel = async function(sid, button) {
   const oldText = button?.innerHTML || '';
   if (button) { button.disabled = true; button.textContent = 'Đang xuất...'; }

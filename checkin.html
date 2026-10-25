@@ -1274,12 +1274,6 @@ async function doCheckin(){
   } catch(e){ showResult('error', 'Lỗi kết nối: ' + e.message); }
   finally { btn.disabled = false; btn.innerHTML = oldHTML; }
 }
-async function toggleHistory(btn){
-  btn.classList.toggle('open');
-  const list = document.getElementById('historyList');
-  list.classList.toggle('open');
-  if (list.classList.contains('open')) await loadHistory();
-}
 function setStudentSidebarOpen(open,restoreFocus=true){
   const drawer=document.getElementById('studentSidebar');
   const overlay=document.getElementById('studentMenuOverlay');
@@ -1328,21 +1322,6 @@ function switchStudentView(viewName) {
 
   closeStudentSidebar();
   window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function navigateStudentSection(sectionId) {
-  const map = {
-    sessionBox: 'checkin',
-    studentHistorySection: 'history',
-    studentLeavePanel: 'leave',
-    studentTasksSection: 'tasks',
-    studentRulesSection: 'rules'
-  };
-  switchStudentView(map[sectionId] || 'checkin');
-}
-
-function openStudentFeedbackFromMenu() {
-  switchStudentView('feedback');
 }
 
 document.addEventListener('keydown', event => {
@@ -1529,8 +1508,6 @@ function logoutStudent(){
   localStorage.removeItem('saved_creds');
   supabase.auth.signOut().then(() => location.href = 'index.html');
 }
-function toggleTasksPanel(btn){btn.classList.toggle('open');document.getElementById('myTasksList')?.classList.toggle('open');}
-function toggleRulesPanel(btn){btn.classList.toggle('open');document.getElementById('studentRulesList')?.classList.toggle('open');}
 async function loadStudentRules(){
   const box=document.getElementById('studentRulesList');if(!box)return;
   const {data,error}=await supabase.from('workshop_rules').select('id,title,content').order('created_at',{ascending:true});

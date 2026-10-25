@@ -39,13 +39,6 @@ const viewTitlesMap = {
   zalo: 'Lịch rảnh / bận'
 };
 
-/* Ngăn trượt (accordion): bấm tiêu đề để mở/đóng, onOpen = hàm nạp dữ liệu khi vừa mở */
-function toggleAcc(head, onOpen) {
-  const open = head.parentElement.classList.toggle('open');
-  head.setAttribute('aria-expanded', open);
-  if (open && typeof onOpen === 'function') onOpen();
-}
-function openAttendanceReportPanel() { initializeAttendanceReportDates(); loadAttendanceReport(); }
 function openHistoryAndReport() { initializeAttendanceReportDates(); loadAttendanceReport(); }
 /* Khung TKB ME: chỉ nạp lichhoc.html lần đầu vào màn hình này (?embed=1 ẩn header của trang đó) */
 function initMeTimetableFrame() {
@@ -257,7 +250,6 @@ document.addEventListener('DOMContentLoaded', repairNestedModals);
 let adminCurrentUserId = null;
 let adminCurrentMssv = '123001058';
 let adminCurrentName = 'Nguyễn Khánh Hoà';
-let pendingAdminAvatarDataUrl = null;
 
 function applyAdminAvatar(avatarUrl, name) {
   const topEl = document.getElementById('topbarAvatar');
@@ -331,9 +323,6 @@ function triggerAdminAvatarChange() {
   }
   fileInput.click();
 }
-// Alias để tương thích ngược mọi nơi gọi
-window.openAdminAvatarModal = triggerAdminAvatarChange;
-window.closeAdminAvatarModal = function() {};
 
 async function handleAdminAvatarSelectedDirect(event) {
   const file = event.target.files?.[0];

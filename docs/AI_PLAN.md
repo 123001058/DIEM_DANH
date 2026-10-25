@@ -86,3 +86,38 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
 - **Phạm vi tác động:** `supabase/schema.sql`, `supabase/migrations/*`.
 - **Tiêu chí nghiệm thu (DoD):**
   - [ ] Báo cáo kiểm toán RLS được ghi vào Test Log khi có yêu cầu kiểm tra.
+
+---
+
+### [TASK-004] Xóa bỏ Dead Code, Orphan Components và Biến không dùng trên toàn bộ Frontend
+
+- **Ngày tạo:** 2026-10-25
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Loại bỏ triệt để các hàm mồ côi (dead functions), biến toàn cục dư thừa, modal mồ côi và file backup không còn sử dụng, đảm bảo tính gọn gàng và không làm ảnh hưởng các luồng hoạt động hiện tại.
+- **Phạm vi tác động:**
+  - `admin.html`, `checkin.html`
+  - `js/admin/admin.core.js`, `js/admin/admin.face.js`, `js/admin/admin.students.js`, `js/admin/admin.tasks.js`, `js/admin/admin.leave.js`
+  - `js/config.js`, `js/lichhoc.js`
+  - `js/admin/admin.face.legacy.js.bak` (xóa file)
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Qua rà soát tĩnh, có 23 hàm dead code, 12 biến/window props dư thừa, 3 phần tử/modal mồ côi trong admin.html/checkin.html.
+  - Dự án không dùng `package.json` (dùng CDN thuần), không có file CSS/SCSS riêng của các component mồ côi này.
+  - Rủi ro tiềm ẩn: Cú pháp JS sau khi xóa khối code bị thiếu dấu ngoặc hoặc break các hàm phụ thuộc.
+- **Các bước triển khai:**
+  1. Xóa các hàm và biến dead code trong `js/admin/admin.core.js`.
+  2. Xóa các hàm và biến dead code trong `js/admin/admin.face.js`.
+  3. Xóa các hàm dead code trong `js/admin/admin.students.js`.
+  4. Xóa các hàm và biến dead code trong `js/admin/admin.tasks.js`.
+  5. Xóa biến `totalRate` trong `js/admin/admin.leave.js`.
+  6. Xóa các window props dư thừa trong `js/config.js` và `js/lichhoc.js`.
+  7. Xóa các hàm dead code trong `checkin.html`.
+  8. Xóa các modal/button mồ côi trong `admin.html` (`#studentFeedbackModal`, `#reopenModal`, `#filterUnmarked`).
+  9. Xóa file backup `js/admin/admin.face.legacy.js.bak`.
+  10. Kiểm tra cú pháp toàn bộ file JS/HTML bằng Node.js script.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Toàn bộ các hàm, biến và component mục tiêu được loại bỏ sạch sẽ khỏi codebase.
+  - [ ] Tất cả các file JS và HTML qua kiểm tra syntax không có lỗi parse (SyntaxError = 0).
+  - [ ] Không có tham chiếu bị gãy (broken reference).
+  - [ ] Kết quả kiểm thử được ghi nhận vào `docs/AI_TEST_LOG.md` (TLOG-002).
+- **Phương án kiểm thử:** Chạy script Node.js kiểm tra cú pháp và rà soát regex không còn khai báo dead code.
+

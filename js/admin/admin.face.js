@@ -16,7 +16,6 @@ let adminFaceMatcher = null;
 let adminCameraSource = 'esp32';
 let adminCameraActive = false;
 let adminEspMirrored = false;
-let adminWebcamStream = null;
 let adminInferenceRunning = false;
 let adminAntiSpoofEnabled = true; // Luôn bật sẵn khi quét, không cần nút bật tắt thủ công
 let adminAnimFrameId = null; // Quản lý requestAnimationFrame để hủy dứt khoát khi tắt cam
@@ -27,7 +26,6 @@ let adminFpsCounter = 0;
 let adminLastFpsTime = performance.now();
 let adminConsecutiveLiveHits = {}; // mssv/trackId -> số frame liên tiếp đạt LIVE
 let adminConsecutiveSpoofHits = 0;
-let adminRecentScans = []; // Lịch sử quét trong phiên
 let adminLastCheckinTime = {}; // Chống spam điểm danh cùng 1 sinh viên trong thời gian ngắn
 
 // Bộ đệm Tensor & Canvas ẩn cho MiniFASNet chuẩn FaceX
@@ -46,8 +44,6 @@ let enrollPhotos = []; // [{ id, url, descriptor, label, created_at }]
 let enrollCameraMode = 'upload'; // 'upload' | 'camera'
 let enrollWebcamStream = null;
 let enrollPendingPhoto = null; // { dataUrl, descriptor, detection }
-let enrollCameraDetecting = false;
-
 // =====================================================================
 // 2. KHỞI TẠO MÔ HÌNH AI (ONNX MiniFASNet-V2 & Face-API)
 // =====================================================================
@@ -401,10 +397,6 @@ async function updateAdminCamSessionStatus() {
   }
 }
 
-function setAdminCameraSource(src) {
-  adminCameraSource = 'esp32';
-}
-
 function toggleAdminCamera() {
   if (adminCameraActive) {
     stopAdminCamera();
@@ -632,11 +624,6 @@ function toggleAdminCamFlip() {
   const img = document.getElementById('adminEspImg');
   const transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
   if (img) img.style.transform = transform;
-}
-
-function toggleAdminAntiSpoof() {
-  // Tính năng chống ảnh 2D luôn bật mặc định
-  adminAntiSpoofEnabled = true;
 }
 
 function formatEspStreamUrl(raw) {
@@ -1297,25 +1284,6 @@ function playAdminSuccessBeep() {
   } catch (e) {}
 }
 
-// Âm thanh cảnh báo lỗi / giả mạo trên máy tính (2 tiếng tít-tít ngắt quãng)
-function playAdminWarningBeep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.15].forEach(delay => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(440, ctx.currentTime + delay);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime + delay);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + delay + 0.1);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.1);
-    });
-  } catch (e) {}
-}
-
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
 async function triggerEspBuzzer(type = 'success') {
   const ipInput = document.getElementById('adminEspIpInput');
@@ -1330,20 +1298,6 @@ async function triggerEspBuzzer(type = 'success') {
     fetch(url80, { mode: 'no-cors' }).catch(() => {});
     fetch(url81, { mode: 'no-cors' }).catch(() => {});
   } catch (e) {}
-}
-
-// Nút kiểm tra còi Buzzer trên giao diện Admin
-async function testAdminEspBuzzer() {
-  const btn = document.getElementById('btnAdminTestBuzzer');
-  if (btn) btn.textContent = '🔊 Đang kêu...';
-  toast('info', 'Thử còi ESP32', 'Đang gửi lệnh kích hoạt còi Buzzer tới ESP32...');
-
-  await triggerEspBuzzer('success');
-  playAdminSuccessBeep();
-
-  setTimeout(() => {
-    if (btn) btn.textContent = '🔔 Thử còi';
-  }, 1000);
 }
 
 // Biến lưu ảnh khuôn mặt chưa nhận diện để đăng ký nhanh
@@ -2295,29 +2249,6 @@ function openPhotoLightbox(url, title) {
   modal.style.display = 'flex';
 }
 
-// Xuất dữ liệu khuôn mặt
-async function exportAllFaceData() {
-  try {
-    const { data, error } = await supabase.rpc('admin_export_face_data');
-    if (error) throw error;
-    if (!data || data.ok === false) throw new Error((data && data.message) || 'Không xuất được dữ liệu.');
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `LH-NaviX_face-data_${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast('ok', 'Đã xuất dữ liệu', `${data.count || 0} sinh viên có dữ liệu nhận diện.`);
-  } catch (err) {
-    toast('err', 'Lỗi xuất dữ liệu', err.message);
-  }
-}
-
 // Bật/tắt toàn màn hình
 function toggleAdminFaceFullscreen() {
   const target = document.getElementById('view-face-cam');
@@ -2330,7 +2261,3 @@ function toggleAdminFaceFullscreen() {
   }
 }
 
-function saveAdminLateMinutes(val) {
-  const v = Math.max(1, parseInt(val, 10) || 15);
-  localStorage.setItem('admin_late_minutes', v);
-}

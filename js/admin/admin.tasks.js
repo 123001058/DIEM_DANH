@@ -117,8 +117,6 @@ async function loadAdminTasks() {
 
   const all = data.tasks || [];
   window.adminTaskRows = all;
-  window.adminTaskGroups = groups || [];
-
   const groupCount = all.filter(t => t.scope === 'group' || t.scope === 'global').length;
   const personalCount = all.filter(t => t.scope === 'personal').length;
 
@@ -458,10 +456,6 @@ function closeTaskDetailModal() {
 
 let adminFeedbackCache = [];
 
-function openStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.add('show');}
-function closeStudentFeedbackModal(){document.getElementById('studentFeedbackModal')?.classList.remove('show');}
-async function submitStudentFeedback(){toast('warn','Gửi từ tài khoản sinh viên','Mở checkin.html để gửi phản hồi ẩn danh.');}
-
 function setFeedbackFilter(kind, val) {
   if (kind === 'type') {
     const tSel = document.getElementById('fbFilterType');
@@ -588,10 +582,6 @@ async function deleteFeedbackItem(id){
   }
   toast('ok', 'Đã xóa phản hồi', 'Phản hồi ẩn danh đã được xóa thành công.');
   await loadAdminFeedback();
-}
-
-async function markFeedbackResolved(id){
-  return updateFeedbackStatus(id, 'resolved');
 }
 
 function applyFeedbackFilters(){
@@ -1020,20 +1010,6 @@ function setMatrixStatusFilter(status) {
   }
 
   filterZaloMatrix();
-}
-
-// Proxy tương thích ngược với các lệnh gọi cũ
-function setMatrixFilter(filterType) {
-  _matrixCurrentFilter = filterType;
-  if (filterType === 'free_morning') setMatrixShiftFilter('morning', 'free');
-  else if (filterType === 'busy_morning') setMatrixShiftFilter('morning', 'busy');
-  else if (filterType === 'free_afternoon') setMatrixShiftFilter('afternoon', 'free');
-  else if (filterType === 'busy_afternoon') setMatrixShiftFilter('afternoon', 'busy');
-  else if (filterType === 'free_evening') setMatrixShiftFilter('evening', 'free');
-  else if (filterType === 'busy_evening') setMatrixShiftFilter('evening', 'busy');
-  else if (filterType === 'free_all_day') setMatrixShiftFilter('all', 'free_all_day');
-  else if (filterType === 'busy_any') setMatrixShiftFilter('all', 'busy');
-  else setMatrixShiftFilter('all', 'all');
 }
 
 function filterZaloMatrix(){
@@ -2428,8 +2404,6 @@ async function executeStatusChange(){
   if (btn) { btn.disabled = false; btn.innerHTML = 'Lưu thay đổi'; }
 }
 window.executeStatusChange = executeStatusChange;
-window.confirmStatusChange = executeStatusChange;
-
 document.getElementById('reasonConfirmBtn')?.addEventListener('click', executeStatusChange);
 document.getElementById('reasonInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') executeStatusChange();
@@ -2643,9 +2617,6 @@ function vietnamDayBounds(day = vietnamToday()){
 function vietnamTime(value){
   return new Date(value).toLocaleTimeString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit' });
 }
-function vietnamDateTime(value){
-  return new Date(value).toLocaleString('vi-VN', { timeZone: TEAM_TIME_ZONE, hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
-}
 function teamStudentOptions(selected = '', includeEmpty = false){
   return (includeEmpty ? '<option value="">Chọn đội trưởng</option>' : '') + students.map(s =>
     '<option value="' + escapeHtml(s.mssv) + '" ' + (s.mssv === selected ? 'selected' : '') + '>' + escapeHtml(s.name) + ' · ' + escapeHtml(s.mssv) + '</option>'
@@ -2803,33 +2774,6 @@ async function loadTeamAvailability(){
     const state = !hasCalendar?'<span class="team-availability" style="color:var(--muted)">⚪ Chưa có dữ liệu</span>':activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
     return '<div class="team-member"><div class="team-member-top"><span class="team-member-name">' + escapeHtml(member?.name || mssv) + (isLeader ? ' · 👑 Đội trưởng' : '') + ' <span style="font-weight:500;color:var(--muted)">' + escapeHtml(mssv) + '</span></span><span style="display:flex;align-items:center;gap:8px">' + state + '<button class="btn btn-danger" style="padding:4px 8px;font-size:10.5px" onclick="removeTeamMember(\'' + escapeJsAttr(mssv) + '\')">Xóa</button></span></div>' + scheduleHtml + leaveHtml + '</div>';
   }).join('');
-}
-
-// Mở lại phiên đã đóng (closed -> active)
-function openReopenModal(){
-  const modal = document.getElementById('reopenModal');
-  if (modal) modal.classList.add('show');
-}
-function closeReopenModal(){
-  const modal = document.getElementById('reopenModal');
-  if (modal) modal.classList.remove('show');
-}
-async function executeReopenSession(){
-  if (!currentSession?.id) return;
-  const btn = document.getElementById('reopenConfirmBtn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang mở lại...'; }
-  try {
-    const { data, error } = await supabase.rpc('admin_reopen_session', { p_session_id: String(currentSession.id) });
-    if (error || !data?.ok) throw new Error(data?.message || error?.message || 'Không thể mở lại phiên');
-    closeReopenModal();
-    toast('ok', 'Đã mở lại phiên', 'Phiên điểm danh hiện đã hoạt động trở lại.');
-    await refreshAll();
-    await loadTodayHistory();
-  } catch(e){
-    toast('err', 'Mở lại thất bại', e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Xác nhận mở lại'; }
-  }
 }
 
 let _bulkCb = null;

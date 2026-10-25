@@ -1073,8 +1073,6 @@ async function loadAttendanceReport(){
   const totalExcused = decoratedSessions.reduce((acc, s) => acc + (s.excused || 0), 0);
   const totalUnexcused = decoratedSessions.reduce((acc, s) => acc + (s.unexcused || 0), 0);
   const totalExpected = totalSessions * (totalStudentsCount || 30);
-  const totalRate = totalExpected ? Math.round((totalPresent + totalLate) * 100 / totalExpected) : 0;
-
   const tile = (label, value, color) => `
     <div style="padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
       <small style="color:var(--muted);font-size:11px">${label}</small>

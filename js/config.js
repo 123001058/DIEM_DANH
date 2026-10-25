@@ -1,10 +1,3 @@
-(function(){
-  if (typeof window === 'undefined') return;
-  const loc = window.location;
-  const path = loc.pathname.substring(0, loc.pathname.lastIndexOf('/'));
-  window.__DETECTED_BASE_URL__ = loc.origin + path;
-})();
-
 // 1. Cấu hình Supabase
 const CONFIG = {
     SUPABASE_URL: 'https://nhjkpknhybenkxwadvzv.supabase.co',
@@ -20,7 +13,6 @@ const _supabaseLib = window.supabase;
 const supabaseClient = _supabaseLib.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 // Gán lại biến toàn cục để các file khác gọi là 'supabase' cho tiện
 window.supabase = supabaseClient;
-window.supabaseSDK = _supabaseLib;
 // Đảm bảo gọi window.supabase.createClient(...) không bị lỗi is not a function
 window.supabase.createClient = function(...args) {
   return _supabaseLib.createClient(...args);
