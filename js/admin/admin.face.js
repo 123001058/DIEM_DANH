@@ -60,6 +60,48 @@ function cleanEspCamIp(raw) {
   return s || DEFAULT_ESP_CAM_IP;
 }
 
+// Quản lý âm thanh thông báo và còi ESP32
+let adminSoundMuted = localStorage.getItem('admin_sound_muted') === 'true';
+let adminLastGlobalBeepTime = 0;
+
+function updateAdminSoundBtn() {
+  const btn = document.getElementById('btnAdminSoundToggle');
+  if (!btn) return;
+  if (adminSoundMuted) {
+    btn.innerHTML = '🔇 Đã tắt âm';
+    btn.style.color = '#ef4444';
+    btn.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+  } else {
+    btn.innerHTML = '🔊 Âm thanh';
+    btn.style.color = 'var(--text)';
+    btn.style.borderColor = 'var(--border)';
+  }
+}
+
+async function silenceEspBuzzerNow() {
+  const ipInput = document.getElementById('adminEspIpInput');
+  let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
+  if (ip.includes(':')) ip = ip.split(':')[0];
+  try {
+    fetch(`http://${ip}/test_pin?pin=14&val=0`, { mode: 'no-cors' }).catch(() => {});
+    fetch(`http://${ip}:81/test_pin?pin=14&val=0`, { mode: 'no-cors' }).catch(() => {});
+  } catch (e) {}
+}
+window.silenceEspBuzzerNow = silenceEspBuzzerNow;
+
+function toggleAdminSound() {
+  adminSoundMuted = !adminSoundMuted;
+  localStorage.setItem('admin_sound_muted', adminSoundMuted ? 'true' : 'false');
+  updateAdminSoundBtn();
+  if (adminSoundMuted) {
+    silenceEspBuzzerNow();
+    toast('info', 'Đã tắt âm thanh', 'Đã tắt âm thanh loa máy tính và còi ESP32.');
+  } else {
+    toast('success', 'Đã bật âm thanh', 'Đã bật lại âm thanh thông báo khi điểm danh.');
+  }
+}
+window.toggleAdminSound = toggleAdminSound;
+
 let adminFaceModelsLoading = false;
 async function initFaceCamInAdmin(isBackground = false) {
   const ipInput = document.getElementById('adminEspIpInput');
@@ -81,6 +123,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     };
   }
   localStorage.setItem('esp_cam_ip', savedIp);
+  updateAdminSoundBtn();
 
   // Khởi tạo Lịch sử quét gom nhóm theo ngày từ bộ nhớ
   renderAdminRecentScansGrouped();
@@ -860,6 +903,8 @@ async function processAdminCameraFrame(media) {
 
         // Kích hoạt điểm danh hợp lệ
         executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFaceDataUrl);
+        // Reset tracking frames sau khi chốt điểm danh để không kích hoạt lặp lại ở frame kế tiếp
+        adminTrackingFrames = 0;
       } else {
         boxColor = '#2563eb';
         const pct = Math.round(progressRatio * 100);
@@ -950,9 +995,13 @@ async function executeFaceCheckin(mssv, name, distance, antiSpoofResult, capture
   const confidencePct = Math.max(0, Math.min(100, Math.round((1 - distance / 0.6) * 100)));
   const livePct = antiSpoofResult?.ok ? (antiSpoofResult.pLive * 100).toFixed(1) : '98.5';
 
-  // 1. KÍCH HOẠT CÒI ESP32 (1 tiếng bíp) & LOA WEB & HIỂN THỊ THẺ NỔI BẬT NGAY LẬP TỨC
-  triggerEspBuzzer('success');
-  playAdminSuccessBeep();
+  // 1. KÍCH HOẠT CÒI ESP32 (1 tiếng bíp) & LOA WEB (Có khóa cooldown 4 giây chống kêu liên hồi)
+  const canPlayBeep = !adminSoundMuted && (now - adminLastGlobalBeepTime >= 4000);
+  if (canPlayBeep) {
+    adminLastGlobalBeepTime = now;
+    triggerEspBuzzer('success');
+    playAdminSuccessBeep();
+  }
   renderRecognizedStudentCard(st, mssv, name, avatar, timeFormatted, distance, antiSpoofResult);
 
   // 2. KIỂM TRA PHIÊN MỞ: Tự động lấy session từ bộ nhớ hoặc Supabase
@@ -1290,6 +1339,7 @@ function clearAdminRecentScans() {
 }
 
 function playAdminSuccessBeep() {
+  if (adminSoundMuted) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -1308,6 +1358,7 @@ function playAdminSuccessBeep() {
 
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
 async function triggerEspBuzzer(type = 'success') {
+  if (adminSoundMuted) return;
   const ipInput = document.getElementById('adminEspIpInput');
   let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
   if (ip.includes(':')) {

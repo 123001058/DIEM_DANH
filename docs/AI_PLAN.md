@@ -172,11 +172,32 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   3. Sửa `app_httpd.cpp`: `beep_handler` đổi sang HIGH để kêu, LOW để ngắt.
   4. Đổi `DEFAULT_ESP_CAM_IP = '192.168.2.169'` và cập nhật `admin.html`, `test_facex_raw.html`, tăng cache-buster lên `v=4`.
   5. Kiểm tra kết nối TCP và lấy frame `/capture` từ IP mới.
+---
+
+### [TASK-007] Chống phát âm thanh liên tục (Global Debounce) và bổ sung nút Bật/Tắt âm thanh Loa & Còi
+
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Khắc phục triệt để tình trạng loa máy tính / còi ESP32 phát âm thanh liên tục khi AI nhận diện khuôn mặt; bổ sung cooldown toàn cục và nút toggle tắt âm thanh trực tiếp trên giao diện.
+- **Phạm vi tác động:**
+  - `js/admin/admin.face.js`
+  - `admin.html`
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - `adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES` không được reset về 0 sau khi gọi `executeFaceCheckin`, dẫn đến frame tiếp theo vẫn tiếp tục kích hoạt logic điểm danh.
+  - Bộ đệm `adminLastCheckinTime[mssv]` chỉ kiểm tra theo từng MSSV. Khi khoảng cách AI dao động giữa 2 người khác nhau ở các frame liên tiếp, loa sẽ phát bíp liên hồi.
+  - Giao diện chưa có nút Bật/Tắt âm thanh để người dùng chủ động tắt loa khi kiểm thử.
+- **Các bước triển khai:**
+  1. Thêm `adminLastGlobalBeepTime` với cooldown tối thiểu 4000ms cho mọi âm thanh phát ra.
+  2. Reset `adminTrackingFrames = 0` sau khi chốt nhận diện.
+  3. Thêm biến `adminSoundMuted` và hàm `toggleAdminSound()`, tự động ngắt còi ESP32 khi bấm tắt âm.
+  4. Thêm nút `btnAdminSoundToggle` trên thanh điều khiển camera trong `admin.html`.
+  5. Tăng version script lên `admin.face.js?v=5`.
 - **Tiêu chí nghiệm thu (DoD):**
-  - [x] Còi câm/tắt thành công khi chân 14 về mức LOW.
-  - [x] Board phản hồi HTTP 200 tại `http://192.168.2.169/capture` với ảnh JPEG hợp lệ.
-  - [x] Mã nguồn frontend và firmware được đồng bộ chuẩn xác.
-- **Phương án kiểm thử:** Dùng lệnh PowerShell gửi lệnh tắt còi qua `/test_pin` và tải frame qua `/capture`.
+  - [ ] Khoảng cách giữa 2 lần phát âm thanh bất kỳ tối thiểu 4 giây (không còn tình trạng kêu liên hồi).
+  - [ ] Nút Mute trên giao diện hoạt động mượt mà, lưu trạng thái vào localStorage.
+  - [ ] Cú pháp file JS hợp lệ 100% (`node -c`).
+- **Phương án kiểm thử:** Dùng Node.js kiểm tra cú pháp và assertion test.
+
 
 
 
