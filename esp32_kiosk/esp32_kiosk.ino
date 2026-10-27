@@ -19,6 +19,19 @@ TFT_eSPI tft = TFT_eSPI();
 WiFiClientSecure client;
 HTTPClient http;
 String currentQrToken = "";
+String currentSessionId = "";
+String currentQrText = "";
+String lastCheckinId = "";
+bool checkinNameVisible = false;
+bool noOpenSessionVisible = false;
+uint32_t checkinNameUntil = 0;
+
+void drawNoOpenSession() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawCentreString("CHUA MO PHIEN", tft.width() / 2, 90, 2);
+  tft.drawCentreString("DIEM DANH", tft.width() / 2, 118, 2);
+}
 
 void fetchQRCode() {
   if (WiFi.status() != WL_CONNECTED) return;
@@ -45,23 +58,52 @@ void fetchQRCode() {
     if (doc["id"].is<String>() && doc["qr_token"].is<String>()) {
       String sessionId = doc["id"].as<String>();
       String qrToken = doc["qr_token"].as<String>();
-      
+
+      String latestCheckinId = "";
+      String latestCheckinName = "";
+      if (doc["last_checkin"].is<JsonObjectConst>()) {
+        JsonObjectConst latestCheckin = doc["last_checkin"];
+        if (latestCheckin["id"].is<String>()) latestCheckinId = latestCheckin["id"].as<String>();
+        if (latestCheckin["name"].is<String>()) latestCheckinName = latestCheckin["name"].as<String>();
+      }
+
+      bool newSession = (sessionId != currentSessionId);
+      if (newSession) {
+        currentSessionId = sessionId;
+        currentQrToken = "";
+        lastCheckinId = latestCheckinId; // Bỏ qua lượt cũ lúc kiosk mới khởi động/mở phiên.
+        checkinNameVisible = false;
+        noOpenSessionVisible = false;
+      }
+
+      if (!newSession && latestCheckinId.length() > 0 && latestCheckinId != lastCheckinId) {
+        lastCheckinId = latestCheckinId;
+        if (latestCheckinName.length() > 0) {
+          Serial.println("Vua diem danh: " + latestCheckinName);
+          drawCheckinName(latestCheckinName);
+          checkinNameVisible = true;
+          checkinNameUntil = millis() + 3000;
+        }
+      }
+
       if (qrToken != currentQrToken) {
         currentQrToken = qrToken;
-        // Rut ngan URL: bo bparam s= (UUID 36 ky tu) vi checkin.html tu dong load session_id dang mo.
-        // Giam mat do cham QR giup mat cham to hon 40%, camera iPhone bat cuc nhay
-        String qrString = String(web_domain) + "/checkin.html?t=" + qrToken;
-        
-        Serial.println("Co ma QR moi: " + qrString);
-        drawQRCode(qrString); 
+        // Rut ngan URL: bo tham so s= (UUID 36 ky tu) vi checkin.html tu dong load session_id dang mo.
+        // Giu nguyen kich thuoc QR de camera dien thoai quet nhanh.
+        currentQrText = String(web_domain) + "/checkin.html?t=" + qrToken;
+        Serial.println("Co ma QR moi: " + currentQrText);
+        if (!checkinNameVisible) drawQRCode(currentQrText);
       }
     } else {
-      if (currentQrToken != "") {
+      if (currentSessionId != "" || currentQrToken != "" || !noOpenSessionVisible) {
         Serial.println("Chua mo phien diem danh");
-        tft.fillScreen(TFT_BLACK);
-        tft.setTextColor(TFT_WHITE);
-        tft.drawString("CHUA MO PHIEN DIEM DANH", 10, 50, 2);
-        currentQrToken = ""; 
+        currentSessionId = "";
+        currentQrToken = "";
+        currentQrText = "";
+        lastCheckinId = "";
+        checkinNameVisible = false;
+        noOpenSessionVisible = true;
+        drawNoOpenSession();
       }
     }
   } else if (httpCode < 0) {
@@ -95,5 +137,9 @@ void setup() {
 
 void loop() {
   fetchQRCode();
-  delay(1000); // 1 giay kiem tra 1 lan
+  if (checkinNameVisible && static_cast<int32_t>(millis() - checkinNameUntil) >= 0) {
+    checkinNameVisible = false;
+    if (currentQrText.length() > 0) drawQRCode(currentQrText);
+  }
+  delay(200); // Poll nhanh 200ms giup Kiosk bat su kien va hien thi ten ngay lap tuc
 }

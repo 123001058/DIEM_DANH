@@ -273,3 +273,26 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Vuốt dọc trên thiết bị cảm ứng cuộn danh sách, không chỉ cuộn trang.
   - [ ] Không làm thay đổi thao tác mở nhóm ngày hoặc xem chi tiết lượt quét.
 - **Phương án kiểm thử:** Kiểm tra markup/CSS và thử cuộn trong trình duyệt; ghi lại bằng chứng thực tế vào Test Log.
+
+---
+
+### [TASK-011] Hiển thị tên sinh viên vừa quét QR trên LCD ESP32 Kiosk
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Sau khi QR điểm danh thành công, LCD kiosk tạm hiện họ tên sinh viên rồi tự trở lại mã QR.
+- **Phạm vi tác động:** `esp32_kiosk/esp32_kiosk.ino`, `esp32_kiosk/qr_display.h`, migration Supabase mới và `supabase/schema.sql`.
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - ESP32 hiện gọi `get_open_session()` mỗi giây nhưng chỉ đọc `id` và `qr_token`; thiết bị chưa nhận được sự kiện điểm danh.
+  - `attendance` lưu `full_name`, `session_id`, `status`, `created_at`. RPC công khai hiện tại đã phục vụ QR kiosk, nên phản hồi mở rộng chỉ trả tên của lượt hợp lệ mới nhất trong khoảng thời gian ngắn, không trả MSSV hay danh sách lịch sử.
+  - LCD vẽ QR phủ toàn màn hình; sau lượt mới sẽ thay tạm bằng thông báo tên trong 3 giây rồi vẽ lại QR để kiosk tiếp tục nhận quét.
+- **Các bước triển khai:**
+  1. Mở rộng `get_open_session()` để trả `last_checkin` tối giản, giới hạn lượt điểm danh thành công trong 20 giây gần nhất.
+  2. Cập nhật firmware nhận diện `attendance.id` mới, tạm hiển thị tên và tự khôi phục QR.
+  3. Chuẩn hóa dấu tiếng Việt về ký tự Latin để tương thích font mặc định TFT_eSPI.
+  4. Kiểm tra cú pháp/build firmware và SQL migration; ghi bằng chứng thật vào Test Log.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] QR tiếp tục hiển thị bình thường khi chưa có lượt quét mới.
+  - [ ] Lượt điểm danh hợp lệ mới nhất làm LCD hiện họ tên trong 3 giây, sau đó QR trở lại.
+  - [ ] Payload kiosk không trả MSSV hoặc danh sách attendance.
+  - [ ] Firmware biên dịch được và SQL migration hợp lệ.
+- **Phương án kiểm thử:** Build sketch ESP32 nếu toolchain có sẵn; kiểm tra JSON/RPC và SQL migration bằng script cục bộ. Không deploy migration hay nạp firmware trong task này.

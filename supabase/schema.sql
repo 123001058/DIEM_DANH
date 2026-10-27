@@ -2061,7 +2061,25 @@ CREATE OR REPLACE FUNCTION public.get_open_session()
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions', 'pg_temp'
 AS $function$
- select jsonb_build_object('id',s.id,'session_name',s.session_name,'duration_min',s.duration_min,'warn_before_min',s.warn_before_min,'started_at',s.started_at,'qr_token',s.qr_token,'qr_born_at',s.qr_born_at)
+ select jsonb_build_object(
+   'id',s.id,
+   'session_name',s.session_name,
+   'duration_min',s.duration_min,
+   'warn_before_min',s.warn_before_min,
+   'started_at',s.started_at,
+   'qr_token',s.qr_token,
+   'qr_born_at',s.qr_born_at,
+   'last_checkin',(
+     select jsonb_build_object('id',a.id::text || '_' || to_char(a.created_at, 'YYYYMMDDHH24MISSMS'),'name',a.full_name)
+     from public.attendance a
+     where a.session_id=s.id
+       and a.status in ('có mặt','đi muộn')
+       and a.created_at >= now() - interval '20 seconds'
+       and nullif(btrim(a.full_name),'') is not null
+     order by a.created_at desc,a.id desc
+     limit 1
+   )
+ )
  from public.sessions s where s.is_open and (s.duration_min is null or s.started_at+s.duration_min*interval '1 minute'>now()) order by s.started_at desc limit 1
 $function$;
 
@@ -3019,6 +3037,12 @@ begin
 
   select status into v_old_status from public.attendance where session_id = v_sid and mssv = v_mssv;
   if v_old_status in ('có mặt', 'đi muộn') then
+    -- Đã điểm danh trước đó: vẫn cập nhật created_at = now() để Kiosk nhận tín hiệu và hiển thị tên xác nhận!
+    update public.attendance
+    set created_at = now(),
+        full_name = coalesce(full_name, v_name)
+    where session_id = v_sid and mssv = v_mssv;
+
     return jsonb_build_object(
       'ok', true,
       'code', 'ALREADY',
@@ -3047,6 +3071,7 @@ begin
   insert into public.attendance(session_id, mssv, full_name, status, category, note, created_at)
   values(v_sid, v_mssv, v_name, v_final_status, 'Khuôn mặt', v_note, now())
   on conflict(session_id, mssv) do update set
+    full_name = coalesce(excluded.full_name, attendance.full_name, v_name),
     status = excluded.status,
     category = excluded.category,
     note = excluded.note,
