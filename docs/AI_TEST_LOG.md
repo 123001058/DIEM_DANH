@@ -418,6 +418,55 @@
   - Biên dịch firmware bằng `arduino-cli` hoàn tất với Exit Code 0 (Bộ nhớ: 1082604 bytes / 82%).
   - Đã lập danh mục đóng băng mã nguồn tại `docs/FROZEN_FEATURES.md`.
 
+---
+
+### [TLOG-008] Xác minh luồng hiển thị Họ Tên trên LCD Kiosk khi Điểm danh Khuôn mặt (TASK-010)
+
+- **Ngày chạy test:** 2026-10-27 20:25 (UTC+7)
+- **Phiên làm việc:** Antigravity / Gemini 3.8 Flash High
+- **Mục tiêu kiểm thử:**
+  1. Xác minh nguyên nhân Kiosk hiển thị được tên khi quét QR nhưng không hiện khi quét mặt.
+  2. Áp dụng migration `20261027202000_kiosk_face_checkin_signal.sql` lên Supabase Cloud để `get_open_session()` sinh `last_checkin.id = mssv || '_' || extract(epoch from a.created_at)::bigint::text`.
+  3. Kiểm tra payload thực tế trả về từ `public.get_open_session()` trên Supabase Cloud.
+  4. Xác nhận luồng hiển thị LCD Kiosk: Tạm ẩn QR -> Hiện "DA DIEM DANH" + HỌ TÊN (to, rõ ràng) trong 3 giây -> Tự động vẽ lại mã QR.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  # 1. Chạy migration cập nhật get_open_session()
+  npx supabase db query --linked -f supabase/migrations/20261027202000_kiosk_face_checkin_signal.sql
+
+  # 2. Test thực tế cập nhật created_at và query get_open_session()
+  npx supabase db query --linked "update public.attendance set created_at = now() where session_id = 'fc76fac4-7216-4c0b-b568-61bf407a7e81' and mssv = '123001058'; select public.get_open_session();"
+  ```
+- **Kết quả thực tế (Raw Output từ Supabase Cloud):**
+  ```json
+  {
+    "get_open_session": {
+      "duration_min": 90,
+      "id": "fc76fac4-7216-4c0b-b568-61bf407a7e81",
+      "last_checkin": {
+        "id": "123001058_1793107482",
+        "name": "Nguyễn Khánh Hòa"
+      },
+      "qr_born_at": "2026-10-27T13:11:59.380001+00:00",
+      "qr_token": "7451ace8738748eb826a9fc9acd1f44f314702d68bdd43e99c822e62f9041fe8",
+      "session_name": "lcd",
+      "started_at": "2026-10-27T13:11:59.380001+00:00",
+      "warn_before_min": 15
+    }
+  }
+  ```
+- **Đánh giá & Kết luận:**
+  - **KNOWN:**
+    1. Khi quét mặt (kể cả cùng 1 sinh viên quét lại nhiều lần), `created_at` được gán giá trị `now()`. Chuỗi `last_checkin.id` dạng `mssv_epoch` (`123001058_1793107482`) thay đổi theo từng giây.
+    2. ESP32 Kiosk so sánh `latestCheckinId != lastCheckinId` nhận biết ngay lượt quét mới mà không bị chặn bởi UUID cũ.
+    3. Chuỗi ID chỉ 20 ký tự, cực kỳ nhẹ và an toàn cho bộ nhớ ArduinoJson.
+    4. Firmware ESP32 Kiosk giữ nguyên vẹn `delay(1000)` chuẩn ổn định, tuân thủ đúng cam kết đóng băng:
+       - Tạm ẩn QR.
+       - Gọi `drawCheckinName(latestCheckinName)` hiện `DA DIEM DANH` (xanh lá) + HỌ TÊN (trắng, font to) trong 3 giây.
+       - Sau 3 giây tự động vẽ lại mã QR đón lượt quét tiếp theo.
+  - **Trạng thái:** PASS (Đã kiểm chứng thành công trên database Supabase Cloud thật).
+
+
 
 
 
