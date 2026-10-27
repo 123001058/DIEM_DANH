@@ -524,6 +524,12 @@ body {
 
 .count-badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: rgba(0,0,0,0.06); }
 .schedule-list-wrap, .history-list-wrap { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.admin-face-history-list {
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
 .detail-list { max-height: min(62vh, 560px); min-height: 160px; }
 .detail-list .today-history-item { margin-bottom: 0; }
 .schedule-loading { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }

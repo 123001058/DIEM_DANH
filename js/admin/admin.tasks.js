@@ -2117,12 +2117,15 @@ async function resetStudentPassword(mssv, requestId = null, studentName = null) 
     });
     
     if (error) {
-      let extra = '';
+      let detail = '';
       if (error.context && typeof error.context.text === 'function') {
-        const bodyText = await error.context.text();
-        extra = '\\n' + bodyText;
+        try {
+          const bodyText = await error.context.text();
+          const parsed = JSON.parse(bodyText);
+          detail = parsed.error || parsed.message || bodyText;
+        } catch (_) {}
       }
-      throw new Error(error.message + extra);
+      throw new Error(detail || error.message || 'Lỗi xử lý reset mật khẩu.');
     }
     if (data?.error) throw new Error(data.error);
     

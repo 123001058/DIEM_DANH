@@ -222,3 +222,54 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Khi có sự kiện nhận diện người thật, còi chỉ kêu đúng 1 tiếng tít ngắn (120ms) rồi ngắt dứt khoát.
   - [ ] Cú pháp JS hợp lệ 100% (`node -c`).
 - **Phương án kiểm thử:** Dùng Node.js kiểm tra cú pháp JS, review diff mã nguồn C++ firmware.
+
+---
+
+### [TASK-010] Khắc phục triệt để lỗi không reset được mật khẩu sinh viên (Edge Function admin-reset-password)
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** Sửa tận gốc nguyên nhân Admin không reset được mật khẩu cho sinh viên (cụ thể là yêu cầu vừa phát sinh của MSSV 123000432 và lỗi chung của Edge Function `admin-reset-password`).
+- **Phạm vi tác động:**
+  - `supabase/functions/admin-reset-password/index.ts`
+  - `js/admin/admin.tasks.js`
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - **Nguyên nhân 1 (Chặn nhầm Admin con):** MSSV 123000432 (Trần Thành Long) vừa gửi yêu cầu lúc 18:14 UTC+7. Do MSSV này có trong bảng `admin_mssv`, Edge Function chặn cứng bằng kiểm tra `if (targetAdmin)` trả về 403 `Cannot reset another Admin's password`. Admin chính (`123001058`) phải có quyền cấp lại mật khẩu cho sinh viên/tài khoản này.
+  - **Nguyên nhân 2 (Lệch schema DB trên cloud):** Bản Edge Function version 8 đang chạy trên Supabase Cloud chưa được deploy bản mới, vẫn cố ghi cột `is_admin: false` vào bảng `profiles` (cột này đã bị xóa khỏi `profiles` và chuyển sang bảng `admin_mssv`), khiến mọi sinh viên chưa có profile bị lỗi 500 `column "is_admin" of relation "profiles" does not exist`.
+  - **Nguyên nhân 3 (Phân trang và chuẩn hóa email):** Hàm `listUsers()` trong Edge Function chỉ lấy mặc định 50 users và so sánh chuỗi email phân biệt hoa-thường, gây miss user khi MSSV có chữ in hoa hoặc danh sách Auth vượt quá 50 người.
+  - **Nguyên nhân 4 (Bắt lỗi client):** `admin.tasks.js` khi nhận lỗi từ Edge Function chưa parse JSON body, dẫn đến thông điệp lỗi chung chung dạng `Edge Function returned a non-2xx status code`.
+- **Các bước triển khai:**
+  1. Cập nhật logic `supabase/functions/admin-reset-password/index.ts`:
+     - Kiểm tra quyền Admin của caller trực tiếp qua `supabaseAdmin` từ bảng `admin_mssv`.
+     - Cho phép reset mật khẩu cho sinh viên dù có tên trong `admin_mssv` (chỉ chặn nếu cố tình reset Admin chính `123001058` khi không phải chính họ).
+     - Loại bỏ hoàn toàn trường `is_admin` khi upsert profile.
+     - Chuẩn hóa email `${target_mssv.toLowerCase()}@sv.local`, so sánh case-insensitive, tăng `perPage: 1000`.
+     - Bổ sung fallback tự tạo auth nếu profile có `user_id` nhưng trong `auth.users` đã bị xóa.
+  2. Deploy Edge Function mới lên Supabase Cloud: `supabase functions deploy --project-ref nhjkpknhybenkxwadvzv --use-api admin-reset-password`.
+  3. Cập nhật `js/admin/admin.tasks.js` để parse chi tiết thông điệp lỗi JSON từ Edge Function trả về.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Edge Function `admin-reset-password` deploy thành công lên Supabase Cloud (version mới > 8).
+  - [ ] Gọi thử nghiệm API hoặc reset mật khẩu cho MSSV `123000432` thành công, không còn bị lỗi 403 `Cannot reset another Admin's password` hay lỗi 500 `is_admin`.
+  - [ ] Toàn bộ file JS frontend hợp lệ cú pháp (`node -c`).
+- **Phương án kiểm thử:** Dùng `supabase functions deploy`, curl kiểm tra endpoint và kiểm tra cú pháp bằng Node.js.
+
+
+---
+
+### [TASK-009] Khắc phục vuốt/cuộn danh sách lịch sử quét trên màn hình cảm ứng
+
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Đảm bảo người dùng vuốt hoặc cuộn được danh sách lịch sử quét trong khung camera, kể cả khi danh sách dài hơn chiều cao hiển thị.
+- **Phạm vi tác động:** `admin.html`, `css/admin.css`.
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Danh sách `#adminRecentScansList` có `overflow-y:auto` và `max-height:300px`, nhưng nằm trong các flex container lồng nhau, thiếu `min-height:0` và cấu hình cuộn cảm ứng.
+  - Khi chiều cao bị giới hạn, mục lịch sử phía dưới bị cắt; trên màn hình cảm ứng thao tác vuốt có thể không cuộn trong vùng danh sách.
+- **Các bước triển khai:**
+  1. Cho phép card lịch sử và vùng danh sách co đúng trong flex layout.
+  2. Bổ sung cuộn dọc native cho cảm ứng, giới hạn overscroll trong danh sách.
+  3. Kiểm tra markup/CSS và tương tác cuộn trong trình duyệt nếu có thể.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Danh sách vượt quá 300px có thể cuộn tới các lượt quét phía dưới.
+  - [ ] Vuốt dọc trên thiết bị cảm ứng cuộn danh sách, không chỉ cuộn trang.
+  - [ ] Không làm thay đổi thao tác mở nhóm ngày hoặc xem chi tiết lượt quét.
+- **Phương án kiểm thử:** Kiểm tra markup/CSS và thử cuộn trong trình duyệt; ghi lại bằng chứng thực tế vào Test Log.
