@@ -83,8 +83,7 @@ async function silenceEspBuzzerNow() {
   let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
   if (ip.includes(':')) ip = ip.split(':')[0];
   try {
-    fetch(`http://${ip}/test_pin?pin=14&val=0`, { mode: 'no-cors' }).catch(() => {});
-    fetch(`http://${ip}:81/test_pin?pin=14&val=0`, { mode: 'no-cors' }).catch(() => {});
+    fetch(`http://${ip}/test_pin?pin=14&val=0&_=${Date.now()}`, { mode: 'no-cors' }).catch(() => {});
   } catch (e) {}
 }
 window.silenceEspBuzzerNow = silenceEspBuzzerNow;
@@ -1366,13 +1365,10 @@ async function triggerEspBuzzer(type = 'success') {
   }
   if (!ip) return;
 
-  // Gửi lệnh đồng thời tới port 80 và port 81 của ESP32
+  // Cổng 80 xử lý API HTTP, cổng 81 dành riêng cho luồng stream video
   const url80 = `http://${ip}/beep?type=${encodeURIComponent(type)}&_=${Date.now()}`;
-  const url81 = `http://${ip}:81/beep?type=${encodeURIComponent(type)}&_=${Date.now()}`;
-
   try {
     fetch(url80, { mode: 'no-cors' }).catch(() => {});
-    fetch(url81, { mode: 'no-cors' }).catch(() => {});
   } catch (e) {}
 }
 

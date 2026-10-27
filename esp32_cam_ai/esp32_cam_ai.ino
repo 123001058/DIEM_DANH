@@ -11,9 +11,9 @@ WiFiMulti wifiMulti;
 void startCameraServer();
 
 void setup() {
-  // Buzzer Active High: Mặc định LOW là tắt còi
+  // Buzzer: Mặc định tắt còi hoàn toàn khi khởi động (an toàn 100%)
   pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(BUZZER_PIN, BUZZER_OFF);
 
   // Flash LED Active High: Mặc định tắt đèn
   #ifdef FLASH_LED_PIN

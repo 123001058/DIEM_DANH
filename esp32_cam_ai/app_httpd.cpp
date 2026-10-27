@@ -96,6 +96,16 @@ static void setFlashLedState(bool on) {
 }
 
 static esp_err_t beep_handler(httpd_req_t *req) {
+  // Chống dồn dập request kích còi liên tục: Debounce tối thiểu 1200ms
+  static unsigned long lastBeepMs = 0;
+  unsigned long nowMs = millis();
+  if (nowMs - lastBeepMs < 1200) {
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    return httpd_resp_send(req, "{\"ok\":true,\"debounced\":true}", -1);
+  }
+  lastBeepMs = nowMs;
+
   char query[64] = {0};
   int duration = 120; // Người thật thành công: Kêu đúng 1 tiếng 'tít' (120ms)
   int repeats = 1;
@@ -107,16 +117,20 @@ static esp_err_t beep_handler(httpd_req_t *req) {
     }
   }
 
-  // Active High với Buzzer: HIGH = kêu, LOW = ngắt
+  // Kêu theo định nghĩa BUZZER_ON / BUZZER_OFF trong board_config.h
   for (int i = 0; i < repeats; i++) {
     setFlashLedState(true);
-    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, BUZZER_ON);
 
     vTaskDelay(pdMS_TO_TICKS(duration));
 
-    digitalWrite(BUZZER_PIN, LOW);
+    digitalWrite(BUZZER_PIN, BUZZER_OFF);
     setFlashLedState(false);
   }
+
+  // Đảm bảo tuyệt đối còi luôn ở trạng thái NGẮT sau khi xử lý
+  digitalWrite(BUZZER_PIN, BUZZER_OFF);
+  setFlashLedState(false);
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -228,15 +242,15 @@ static esp_err_t test_pin_handler(httpd_req_t *req) {
 
       if (turnOff) {
         Serial.printf(">> [TEST] Tat GPIO %d\n", targetPin);
-        digitalWrite(targetPin, LOW);
+        digitalWrite(targetPin, (targetPin == BUZZER_PIN) ? BUZZER_OFF : LOW);
       } else if (holdOn) {
         Serial.printf(">> [TEST] Bat giu sang lien tuc GPIO %d\n", targetPin);
-        digitalWrite(targetPin, HIGH);
+        digitalWrite(targetPin, (targetPin == BUZZER_PIN) ? BUZZER_ON : HIGH);
       } else {
-        Serial.printf(">> [TEST] Bat sang GPIO %d trong 5 giay de quan sat...\n", targetPin);
-        digitalWrite(targetPin, HIGH);
+        Serial.printf(">> [TEST] Bat GPIO %d trong 5 giay de quan sat...\n", targetPin);
+        digitalWrite(targetPin, (targetPin == BUZZER_PIN) ? BUZZER_ON : HIGH);
         vTaskDelay(pdMS_TO_TICKS(5000));
-        digitalWrite(targetPin, LOW);
+        digitalWrite(targetPin, (targetPin == BUZZER_PIN) ? BUZZER_OFF : LOW);
       }
 
       char res[96];

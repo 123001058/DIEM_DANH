@@ -196,8 +196,29 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Khoảng cách giữa 2 lần phát âm thanh bất kỳ tối thiểu 4 giây (không còn tình trạng kêu liên hồi).
   - [ ] Nút Mute trên giao diện hoạt động mượt mà, lưu trạng thái vào localStorage.
   - [ ] Cú pháp file JS hợp lệ 100% (`node -c`).
-- **Phương án kiểm thử:** Dùng Node.js kiểm tra cú pháp và assertion test.
+---
 
-
-
-
+### [TASK-008] Khắc phục triệt để lỗi còi Buzzer chân G14 (GPIO 14) kêu liên tục bằng chuẩn hóa Active Level
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** Sửa tận gốc nguyên nhân còi gắn ở chân G14 (GPIO 14) kêu liên tục sau khi khởi động. Chuẩn hóa mức kích hoạt còi (Active LOW / Active HIGH) trong cấu hình phần cứng và bổ sung cơ chế bảo vệ ngắt còi dứt khoát.
+- **Phạm vi tác động:**
+  - `esp32_cam_ai/board_config.h`
+  - `esp32_cam_ai/esp32_cam_ai.ino`
+  - `esp32_cam_ai/app_httpd.cpp`
+  - `js/admin/admin.face.js`
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Đa số module còi Buzzer 3 chân cho ESP32/Arduino trên thị trường là loại **Active LOW** (kích mức LOW 0V thì còi kêu; kích mức HIGH 3.3V thì còi tắt).
+  - Trước đó, code đã ngộ nhận còi là Active HIGH và set `digitalWrite(BUZZER_PIN, LOW)` trong `setup()` cũng như sau khi beep. Hậu quả: còi bị dính ở mức LOW và hú liên tục không ngắt.
+  - Khi có lệnh điều khiển mức 1 hoặc lúc nạp code, chân 14 lên HIGH nên còi "có tắt thật", nhưng sau đó lại bị kéo về LOW nên "lại kêu liên tục".
+  - Ngoài ra, frontend gửi đồng thời lệnh `/beep` tới cả port 80 và port 81 (đang kẹt stream MJPEG) gây tắc nghẽn hàng đợi socket.
+- **Các bước triển khai:**
+  1. Thêm macro định nghĩa `BUZZER_ACTIVE_LOW 1` cùng `BUZZER_ON` / `BUZZER_OFF` vào `esp32_cam_ai/board_config.h`.
+  2. Cập nhật `setup()` trong `esp32_cam_ai.ino` dùng `digitalWrite(BUZZER_PIN, BUZZER_OFF)` đảm bảo còi tắt hoàn toàn khi khởi động.
+  3. Cập nhật `beep_handler()` trong `esp32_cam_ai/app_httpd.cpp` dùng `BUZZER_ON` / `BUZZER_OFF`, bổ sung debounce 1200ms và đảm bảo chốt ngắt `BUZZER_OFF`.
+  4. Tối ưu `triggerEspBuzzer` trong `js/admin/admin.face.js`: chỉ gửi tới port 80, loại bỏ gửi port 81 để tránh nghẽn luồng stream.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Khởi động ESP32 còi hoàn toàn im lặng (`BUZZER_OFF = HIGH`).
+  - [ ] Khi có sự kiện nhận diện người thật, còi chỉ kêu đúng 1 tiếng tít ngắn (120ms) rồi ngắt dứt khoát.
+  - [ ] Cú pháp JS hợp lệ 100% (`node -c`).
+- **Phương án kiểm thử:** Dùng Node.js kiểm tra cú pháp JS, review diff mã nguồn C++ firmware.
