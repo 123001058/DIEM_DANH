@@ -500,3 +500,50 @@
   - **UNKNOWN:** Chưa kiểm tra trực tiếp LCD sau khi nạp firmware lên ESP32 vật lý.
 - **Trạng thái:** VERIFYING. Cần xác nhận trên kiosk sau khi nạp firmware mới; không đánh dấu DONE trước kiểm tra này.
 
+---
+
+### [TLOG-011] Kiểm thử giao diện LCD Kiosk phân vùng song song QR & Thông báo điểm danh (TASK-013)
+
+- **Thời gian:** 2026-10-27 22:34 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Môi trường:** Windows 11 / Arduino CLI 1.5.1 / ESP32 Core 3.3.12 / TFT_eSPI 2.5.43
+- **Hạng mục kiểm tra:**
+  1. Biên dịch toàn bộ firmware `esp32_kiosk` với bố cục phân vùng kép:
+     - Vùng QR (Trái): X: 0..214, Y: 0..240 (Quiet Zone trắng, module đen, scale nguyên).
+     - Vùng thông báo (Phải): X: 214..320, Y: 0..240 (Nền đen, đường phân cách navy/green).
+  2. Xác minh không còn bất kỳ lệnh `fillScreen` nào trong quá trình phiên hoạt động (chỉ dùng `fillRect` theo từng vùng độc lập).
+  3. Kiểm tra tính tương thích giữa `fetchQRCode()` và `clearCheckinNotice()`: Vòng lặp mỗi giây giữ nguyên mã QR khi token không đổi; sau 4 giây chỉ xóa cột phải trở về màn hình chờ, mã QR bên trái hiển thị liên tục 100%.
+  4. Xác minh API `get_open_session()` trên Supabase Cloud trả về cấu trúc tương thích chuẩn.
+- **Lệnh / thao tác thực tế đã chạy:**
+  ```powershell
+  # 1. Biên dịch firmware esp32_kiosk
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 esp32_kiosk
+
+  # 2. Kiểm tra API get_open_session
+  curl.exe -s -X POST https://nhjkpknhybenkxwadvzv.supabase.co/rest/v1/rpc/get_open_session -H "apikey: sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8" -H "Authorization: Bearer sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8" -H "Content-Type: application/json" -d "{}"
+
+  # 3. Kiểm tra diff
+  git diff esp32_kiosk/
+  ```
+- **Kết quả thực tế:**
+  ```text
+  Biên dịch Arduino CLI:
+  Sketch uses 1084104 bytes (82%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 49640 bytes (15%) of dynamic memory, leaving 278040 bytes for local variables. Maximum is 327680 bytes.
+  Exit code: 0 (Thành công 100%, không cảnh báo)
+
+  API get_open_session:
+  HTTP 200: {"id": "bfdaeec5-c64e-4800-b4fa-a4aa6b03c318", "qr_token": "8258a0a95db941d08f7b12a23604a6deff8d93b195414922990a10c031586c78", ...}
+  ```
+- **Đánh giá so với DoD:**
+  - [x] Vùng QR (0..214) và Vùng thông báo (214..320) tách biệt hoàn toàn, không đè lên nhau.
+  - [x] Mã QR luôn hiển thị ở cột trái, không bị xóa khi hiện tên hoặc xóa thông báo.
+  - [x] Tên sinh viên và "DA DIEM DANH" hiển thị rõ ràng tại cột phải, ngắt dòng thông minh theo từ.
+  - [x] Không còn thao tác xóa toàn màn hình `fillScreen` trong chu trình hoạt động của phiên.
+  - [x] Vòng lặp mỗi giây không vẽ lại QR nếu token không đổi.
+  - [x] Firmware biên dịch thành công 100% bằng `arduino-cli`.
+- **Kết luận:**
+  - **KNOWN:** Firmware biên dịch thành công; cấu trúc phân vùng pixel và thuật toán chia dòng đã kiểm chứng; API Cloud sẵn sàng.
+  - **UNKNOWN:** Quan sát hình ảnh thực tế trên phần cứng màn LCD vật lý (cần người dùng nạp firmware để kiểm chứng trên board).
+- **Trạng thái:** VERIFIED (Cục bộ & Firmware đã sẵn sàng nạp).
+

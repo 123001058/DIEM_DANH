@@ -5,22 +5,36 @@
 
 extern TFT_eSPI tft;
 
-// Callback ve QR dung ti le nguyen (Integer Scaling) cho camera iOS/Android
+// Phan vung man hinh LCD 320x240:
+// Vung QR (Ben trai): X = 0..213, Y = 0..239 (rong 214px, cao 240px)
+// Vung thong bao (Ben phai): X = 214..319, Y = 0..239 (rong 106px, cao 240px)
+#define QR_ZONE_X 0
+#define QR_ZONE_Y 0
+#define QR_ZONE_W 214
+#define QR_ZONE_H 240
+
+#define NOTICE_ZONE_X 214
+#define NOTICE_ZONE_Y 0
+#define NOTICE_ZONE_W (320 - NOTICE_ZONE_X) // 106 px
+#define NOTICE_ZONE_H 240
+
+// Callback ve QR dung ti le nguyen (Integer Scaling) ben trong vung QR
+// TUYET DOI KHONG xoa toan man hinh (fillScreen) de tranh lam mat thong bao
 inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
   int size = esp_qrcode_get_size(qrcode);
-  int screenH = tft.height(); // 240px
-  int screenW = tft.width();  // 320px
   
-  // Tinh scale nguyen (Integer Scaling) de moi module luon vuong vuc
-  // Khong bi lech ti le chuan 1:1:3:1:1 cua 3 goc dinh vi (Finder Patterns) tren iOS
-  int scale = (screenH - 16) / size;
+  // Tinh scale nguyen de moi module luon vuong vuc va nam gon trong QR_ZONE
+  int scale = (QR_ZONE_W - 14) / size;
+  int scaleH = (QR_ZONE_H - 14) / size;
+  if (scaleH < scale) scale = scaleH;
   if (scale < 1) scale = 1;
   
   int qrPixelSize = size * scale;
-  int offsetX = (screenW - qrPixelSize) / 2;
-  int offsetY = (screenH - qrPixelSize) / 2;
+  int offsetX = QR_ZONE_X + (QR_ZONE_W - qrPixelSize) / 2;
+  int offsetY = QR_ZONE_Y + (QR_ZONE_H - qrPixelSize) / 2;
 
-  tft.fillScreen(TFT_WHITE); // Nen trang toan man hinh tao Quiet Zone
+  // Chi to trang vung QR de tao Quiet Zone, giu nguyen 100% vung thong bao ben phai
+  tft.fillRect(QR_ZONE_X, QR_ZONE_Y, QR_ZONE_W, QR_ZONE_H, TFT_WHITE);
 
   for (int y = 0; y < size; y++) {
     int py = offsetY + y * scale;
@@ -30,6 +44,9 @@ inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
       }
     }
   }
+
+  // Duong phan cach giua vung QR va vung thong bao
+  tft.drawFastVLine(QR_ZONE_W - 1, 0, 240, TFT_NAVY);
 }
 
 inline void drawQRCode(String text) {
@@ -99,32 +116,106 @@ inline String nameForTft(String utf8Name) {
   return result;
 }
 
-inline void drawCheckinName(String studentName) {
-  studentName = nameForTft(studentName);
-  const int centerX = tft.width() / 2;
-  const int maxWidth = tft.width() - 20;
+// Xoa thong bao diem danh ben phai, dua ve man hinh cho mac dinh
+// MA QR BEN TRAI NGUYEN VEN 100%, KHONG BI XOA, KHONG BI VE LAI
+inline void clearCheckinNotice() {
+  tft.fillRect(NOTICE_ZONE_X, NOTICE_ZONE_Y, NOTICE_ZONE_W, NOTICE_ZONE_H, TFT_BLACK);
+  tft.drawFastVLine(NOTICE_ZONE_X - 1, 0, 240, TFT_NAVY);
 
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawCentreString("DA DIEM DANH", centerX, 34, 2);
+  int centerX = NOTICE_ZONE_X + NOTICE_ZONE_W / 2;
+
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawCentreString("LH-NaviX", centerX, 18, 2);
+  
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("KIOSK", centerX, 40, 2);
 
-  int font = tft.textWidth(studentName, 4) <= maxWidth ? 4 : 2;
-  if (tft.textWidth(studentName, font) <= maxWidth) {
-    tft.drawCentreString(studentName, centerX, 96, font);
-  } else {
-    int splitAt = studentName.lastIndexOf(' ', studentName.length() / 2);
-    if (splitAt < 0) splitAt = studentName.indexOf(' ', studentName.length() / 2);
-    if (splitAt > 0) {
-      String firstLine = studentName.substring(0, splitAt);
-      String secondLine = studentName.substring(splitAt + 1);
-      tft.drawCentreString(firstLine, centerX, 82, 2);
-      tft.drawCentreString(secondLine, centerX, 116, 2);
+  tft.drawFastHLine(NOTICE_ZONE_X + 8, 65, NOTICE_ZONE_W - 16, TFT_DARKGREY);
+
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawCentreString("SAN SANG", centerX, 82, 2);
+
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("QUET QR", centerX, 118, 2);
+  tft.drawCentreString("HOAC", centerX, 142, 1);
+  tft.drawCentreString("FACE AI", centerX, 158, 2);
+
+  tft.drawFastHLine(NOTICE_ZONE_X + 8, 190, NOTICE_ZONE_W - 16, TFT_DARKGREY);
+
+  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.drawCentreString("Camera/Kiosk", centerX, 210, 1);
+}
+
+// Hien thi "DA DIEM DANH" cung Ho Ten o cot phai (khong che cac o cua QR)
+// QR ben trai van tiep tuc hien thi de sinh vien tiep theo quet ngay lap tuc
+inline void drawCheckinNotice(String studentName) {
+  studentName = nameForTft(studentName);
+  
+  // Chi xoa rieng vung thong bao ben phai
+  tft.fillRect(NOTICE_ZONE_X, NOTICE_ZONE_Y, NOTICE_ZONE_W, NOTICE_ZONE_H, TFT_BLACK);
+  tft.drawFastVLine(NOTICE_ZONE_X - 1, 0, 240, TFT_GREEN);
+
+  int centerX = NOTICE_ZONE_X + NOTICE_ZONE_W / 2;
+
+  // Header hop xanh la thong bao diem danh
+  tft.fillRoundRect(NOTICE_ZONE_X + 4, 8, NOTICE_ZONE_W - 8, 38, 4, TFT_DARKGREEN);
+  tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
+  tft.drawCentreString("DA DIEM", centerX, 12, 2);
+  tft.drawCentreString("DANH", centerX, 28, 2);
+
+  // Tach ten thanh cac tu de ngat dong vua van trong cot 106px
+  int font = 2;
+  int maxLineW = NOTICE_ZONE_W - 8;
+  int wordCount = 0;
+  String words[6];
+  int startIdx = 0;
+  while (startIdx < studentName.length() && wordCount < 6) {
+    int spaceIdx = studentName.indexOf(' ', startIdx);
+    if (spaceIdx == -1) {
+      words[wordCount++] = studentName.substring(startIdx);
+      break;
     } else {
-      tft.drawCentreString(studentName, centerX, 96, 1);
+      words[wordCount++] = studentName.substring(startIdx, spaceIdx);
+      startIdx = spaceIdx + 1;
     }
   }
 
+  // Gom tu thanh cac dong (toi da 4 dong)
+  String lines[4];
+  int lineCount = 0;
+  for (int i = 0; i < wordCount; i++) {
+    if (lineCount == 0 && lines[lineCount].length() == 0) {
+      lines[lineCount] = words[i];
+    } else if (lineCount < 4) {
+      String testLine = lines[lineCount] + " " + words[i];
+      if (tft.textWidth(testLine, font) <= maxLineW) {
+        lines[lineCount] = testLine;
+      } else {
+        lineCount++;
+        if (lineCount < 4) lines[lineCount] = words[i];
+      }
+    }
+  }
+  if (lineCount < 4 && lines[lineCount].length() > 0) lineCount++;
+
+  // Can giua cac dong ten theo chieu doc
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  int startY = 58 + (82 - lineCount * 22) / 2;
+  if (startY < 52) startY = 52;
+  for (int i = 0; i < lineCount; i++) {
+    tft.drawCentreString(lines[i], centerX, startY + i * 22, font);
+  }
+
+  // Ghi chu trang thai ben duoi
+  tft.drawFastHLine(NOTICE_ZONE_X + 8, 156, NOTICE_ZONE_W - 16, TFT_DARKGREY);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawCentreString("THANH CONG", centerX, 168, 2);
+
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawCentreString("DANG QUAY LAI MA QR...", centerX, 192, 2);
+  tft.drawCentreString("Quet tiep...", centerX, 205, 1);
+}
+
+// Alias de tuong thich nguoc neu co cho nao goi drawCheckinName
+inline void drawCheckinName(String studentName) {
+  drawCheckinNotice(studentName);
 }

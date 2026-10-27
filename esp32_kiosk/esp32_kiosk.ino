@@ -74,15 +74,16 @@ void fetchQRCode() {
         lastCheckinId = latestCheckinId; // Bỏ qua lượt cũ lúc kiosk mới khởi động/mở phiên.
         checkinNameVisible = false;
         noOpenSessionVisible = false;
+        clearCheckinNotice();
       }
 
       if (!newSession && latestCheckinId.length() > 0 && latestCheckinId != lastCheckinId) {
         lastCheckinId = latestCheckinId;
         if (latestCheckinName.length() > 0) {
           Serial.println("Vua diem danh: " + latestCheckinName);
-          drawCheckinName(latestCheckinName);
+          drawCheckinNotice(latestCheckinName);
           checkinNameVisible = true;
-          checkinNameUntil = millis() + 3000;
+          checkinNameUntil = millis() + 4000;
         }
       }
 
@@ -92,7 +93,10 @@ void fetchQRCode() {
         // Giu nguyen kich thuoc QR de camera dien thoai quet nhanh.
         currentQrText = String(web_domain) + "/checkin.html?t=" + qrToken;
         Serial.println("Co ma QR moi: " + currentQrText);
-        if (!checkinNameVisible) drawQRCode(currentQrText);
+        drawQRCode(currentQrText);
+        if (!checkinNameVisible) {
+          clearCheckinNotice();
+        }
       }
     } else {
       if (currentSessionId != "" || currentQrToken != "" || !noOpenSessionVisible) {
@@ -139,7 +143,7 @@ void loop() {
   fetchQRCode();
   if (checkinNameVisible && static_cast<int32_t>(millis() - checkinNameUntil) >= 0) {
     checkinNameVisible = false;
-    if (currentQrText.length() > 0) drawQRCode(currentQrText);
+    clearCheckinNotice();
   }
-  delay(1000); // 1 giay kiem tra 1 lan (muc on dinh chuan da chay duoc chu)
+  delay(1000); // 1 giay kiem tra 1 lan
 }

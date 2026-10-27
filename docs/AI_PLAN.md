@@ -320,3 +320,39 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [x] Firmware build thành công và không đổi tham số/luồng QR đã đóng băng.
   - [x] Tương thích tĩnh với QR và Face AI; màn LCD vật lý chưa xác minh do COM10 được nhận diện là `Unknown`.
 - **Phương án kiểm thử:** Build bằng `arduino-cli`; kiểm tra định nghĩa migration và diff; truy vấn read-only `pg_get_functiondef`/RPC nếu Supabase CLI đã liên kết. Không ghi attendance giả vào dữ liệu thật.
+
+---
+
+### [TASK-013] Bố trí lại giao diện LCD Kiosk: Hiển thị đồng thời mã QR và thông báo điểm danh trên cùng khung hình
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:**
+  1. Hiển thị mã QR và thông báo điểm danh đồng thời trong một khung hình 320x240, không che các ô của QR.
+  2. Mã QR luôn nhìn thấy và tiếp tục quét được ngay cả khi thông báo điểm danh đang hiện.
+  3. Khi có lượt điểm danh thành công (quét QR hoặc Face AI), hiện "ĐÃ ĐIỂM DANH" cùng họ tên ở vùng riêng trên màn hình.
+  4. Hết thời gian (3 giây), chỉ xóa thông báo trở về trạng thái chờ, mã QR vẫn giữ nguyên liên tục.
+  5. Tuyệt đối không dùng thao tác xóa toàn màn hình (`fillScreen`) để tráo đổi giữa QR và thông báo.
+  6. Vòng lặp kiểm tra Supabase mỗi giây không vẽ lại QR nếu token không đổi và việc cập nhật QR không xóa thông báo.
+- **Phạm vi tác động:**
+  - `esp32_kiosk/qr_display.h`
+  - `esp32_kiosk/esp32_kiosk.ino`
+- **Các bước triển khai:**
+  1. Thiết kế lại layout 320x240 trong `qr_display.h`:
+     - Vùng QR (bên trái): X: 0..210, Y: 0..240, nền trắng Quiet Zone, module đen, scale nguyên, căn giữa vùng.
+     - Vùng thông báo (bên phải): X: 210..320, Y: 0..240, nền đen, đường phân cách màu tối.
+     - Hàm `drawQRCode(String text)` chỉ vẽ trong vùng QR, không đụng tới vùng thông báo.
+     - Hàm `drawCheckinNotice(String name)` chỉ cập nhật vùng thông báo bên phải ("DA DIEM DANH", họ tên ngắt dòng chuẩn).
+     - Hàm `clearCheckinNotice()` chỉ xóa vùng thông báo bên phải về màn hình chờ ("LH-NaviX KIOSK / SAN SANG / QUET QR HOAC MAT").
+  2. Cập nhật `esp32_kiosk.ino`:
+     - Khi mở phiên / có QR: Vẽ QR bên trái và vẽ trạng thái chờ bên phải.
+     - Khi có lượt điểm danh mới: Gọi `drawCheckinNotice(...)` (QR bên trái giữ nguyên 100%).
+     - Khi hết 3 giây: Gọi `clearCheckinNotice()` (QR bên trái giữ nguyên 100%, không vẽ lại QR).
+     - Khi vòng lặp polling mỗi 1s chạy: Nếu `qrToken == currentQrToken`, không vẽ lại QR.
+  3. Biên dịch firmware bằng `arduino-cli` và kiểm tra tĩnh tính toàn vẹn.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Vùng QR và Vùng thông báo tách biệt, không chồng lấn.
+  - [ ] QR luôn nhìn thấy liên tục, không bị xóa khi hiện tên hoặc xóa tên.
+  - [ ] Tên sinh viên và "DA DIEM DANH" hiện rõ ràng ở vùng thông báo.
+  - [ ] Không có lệnh xóa toàn màn hình `fillScreen` trong chu trình hiển thị điểm danh.
+  - [ ] Firmware biên dịch thành công 100% bằng `arduino-cli`.
+- **Phương án kiểm thử:** Biên dịch firmware bằng Arduino CLI; kiểm tra phân vùng tọa độ bằng script Node.js; review diff C++.
