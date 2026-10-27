@@ -231,7 +231,7 @@
       </select>
 
       <span id="espControls" style="display:inline-flex;gap:6px;align-items:center;">
-        <input type="text" id="espIpInput" value="10.96.38.99" style="width:130px;" placeholder="IP ESP32">
+        <input type="text" id="espIpInput" value="192.168.2.168" style="width:130px;" placeholder="192.168.2.168">
         <button class="primary" onclick="startEspStream()">📡 Kết nối ESP32</button>
       </span>
 
@@ -488,10 +488,18 @@ function startEspStream() {
   if (!isModelsReady) return alert('Mô hình AI chưa nạp xong, vui lòng đợi vài giây!');
   stopAllStreams();
 
-  const ip = document.getElementById('espIpInput').value.trim();
-  if (!ip) return alert('Vui lòng nhập IP ESP32!');
-
-  const url = `http://${ip}:81/stream`;
+  let raw = document.getElementById('espIpInput').value.trim();
+  if (!raw) return alert('Vui lòng nhập IP ESP32!');
+  raw = raw.replace(/^h?ttps?:\/\//i, '').replace(/\/.*$/, '');
+  let host = raw;
+  let port = '81';
+  if (raw.includes(':')) {
+    const parts = raw.split(':');
+    host = parts[0];
+    port = parts[1] || '81';
+  }
+  document.getElementById('espIpInput').value = host + (port !== '81' ? `:${port}` : '');
+  const url = `http://${host}:${port}/stream`;
   const vImg = document.getElementById('viewImg');
   document.getElementById('camPlaceholder').style.display = 'none';
   vImg.style.display = 'block';

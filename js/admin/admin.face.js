@@ -47,16 +47,34 @@ let enrollPendingPhoto = null; // { dataUrl, descriptor, detection }
 // =====================================================================
 // 2. KHỞI TẠO MÔ HÌNH AI (ONNX MiniFASNet-V2 & Face-API)
 // =====================================================================
+function cleanEspCamIp(raw) {
+  let s = (raw || '').trim();
+  if (!s) return '192.168.2.168';
+  // Hỗ trợ cả trường hợp user nhập hoặc copy dính prefix http://, https:// hoặc ttp://
+  s = s.replace(/^h?ttps?:\/\//i, '');
+  s = s.replace(/\/.*$/, '');
+  return s || '192.168.2.168';
+}
+
 let adminFaceModelsLoading = false;
 async function initFaceCamInAdmin(isBackground = false) {
   const ipInput = document.getElementById('adminEspIpInput');
   let savedIp = localStorage.getItem('esp_cam_ip');
-  if (!savedIp) {
+  // Nếu chưa lưu hoặc còn lưu IP cũ trước đây (ví dụ 10.96.38.99 hoặc dính prefix) -> reset về 192.168.2.168
+  if (!savedIp || savedIp === '10.96.38.99' || savedIp === '192.168.1.1' || savedIp.startsWith('ttp://')) {
     savedIp = '192.168.2.168';
   }
+  savedIp = cleanEspCamIp(savedIp);
   if (ipInput) {
     ipInput.value = savedIp;
-    ipInput.oninput = () => localStorage.setItem('esp_cam_ip', ipInput.value.trim());
+    ipInput.oninput = () => {
+      const v = cleanEspCamIp(ipInput.value);
+      localStorage.setItem('esp_cam_ip', v);
+    };
+    ipInput.onchange = () => {
+      ipInput.value = cleanEspCamIp(ipInput.value);
+      localStorage.setItem('esp_cam_ip', ipInput.value);
+    };
   }
   localStorage.setItem('esp_cam_ip', savedIp);
 
@@ -448,7 +466,8 @@ async function startAdminCamera() {
 
   // Lấy IP ESP32 từ input
   const ipInput = document.getElementById('adminEspIpInput');
-  const rawIp = (ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || '192.168.2.168';
+  const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || '192.168.2.168');
+  if (ipInput && ipInput.value !== rawIp) ipInput.value = rawIp;
   localStorage.setItem('esp_cam_ip', rawIp);
 
   const streamUrl = formatEspStreamUrl(rawIp);
@@ -461,16 +480,16 @@ async function startAdminCamera() {
     };
     img.onerror = () => {
       if (hudStatus && adminCameraActive) {
-        hudStatus.innerHTML = `⚠️ Luồng camera ESP32 gián đoạn. Đang kết nối lại...`;
+        hudStatus.innerHTML = `⚠️ Không tải được luồng từ <b>${streamUrl}</b>. Hãy kiểm tra nguồn ESP32, kết nối Wi-Fi hoặc IP camera.`;
       }
-      updateAttendanceCamStatusPill('loading');
+      updateAttendanceCamStatusPill('error');
       if (adminCameraActive && !adminStreamReconnectTimer) {
         adminStreamReconnectTimer = setTimeout(() => {
           adminStreamReconnectTimer = null;
           if (adminCameraActive && img) {
             img.src = `${streamUrl}?t=${Date.now()}`;
           }
-        }, 2000);
+        }, 3000);
       }
     };
     img.src = streamUrl;
@@ -627,10 +646,7 @@ function toggleAdminCamFlip() {
 }
 
 function formatEspStreamUrl(raw) {
-  let s = (raw || '').trim();
-  if (!s) return '';
-  s = s.replace(/^https?:\/\//i, '');
-  s = s.replace(/\/.*$/, '');
+  const s = cleanEspCamIp(raw);
   let host = s;
   let port = '81';
   if (s.includes(':')) {
@@ -648,7 +664,9 @@ async function runAdminDetectionLoop() {
   if (!adminCameraActive || !adminInferenceRunning) return;
 
   const media = document.getElementById('adminEspImg');
-  const hasFrame = media && (media.naturalWidth > 0 || media.width > 0);
+  const isVideo = media instanceof HTMLVideoElement;
+  // CHỈ coi là có frame khi hình ảnh thực sự đã tải thành công (naturalWidth > 0)
+  const hasFrame = media && (isVideo ? (media.videoWidth > 0 && !media.paused) : (media.naturalWidth > 0));
 
   if (hasFrame && adminFaceModelsLoaded) {
     await processAdminCameraFrame(media);
@@ -1287,7 +1305,10 @@ function playAdminSuccessBeep() {
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
 async function triggerEspBuzzer(type = 'success') {
   const ipInput = document.getElementById('adminEspIpInput');
-  const ip = (ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '192.168.2.168';
+  let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '192.168.2.168');
+  if (ip.includes(':')) {
+    ip = ip.split(':')[0];
+  }
   if (!ip) return;
 
   // Gửi lệnh đồng thời tới port 80 và port 81 của ESP32
