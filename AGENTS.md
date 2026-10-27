@@ -92,6 +92,10 @@ Mọi vi phạm 3 quy tắc sau đây đều bị coi là lỗi nghiêm trọng 
 - Nghiêm cấm bịa đặt logs, giả lập output test giả vờ là đã chạy thành công.
 - Lệnh chạy ra lỗi gì phải ghi trung thực lỗi đó vào `AI_TEST_LOG.md`. Thất bại trong kiểm thử là thông tin quý giá để sửa đúng trọng tâm.
 
+### 🚫 Điều 4: TUYỆT ĐỐI KHÔNG SỬA ĐỔI TÍNH NĂNG ĐÃ ĐÓNG BĂNG (FROZEN CODE IS SACRED)
+- Khi một tính năng đã được người dùng kiểm chứng chạy tốt và ghi nhận trong [`docs/FROZEN_FEATURES.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/FROZEN_FEATURES.md), AI **NGHIÊM CẤM TỰ Ý SỬA ĐỔI, TỐI ƯU HÓA HOẶC THAY THẾ**.
+- Mọi can thiệp vào các tham số nhạy cảm (như timing, delay polling, định dạng chuỗi, cấu trúc socket) mà không có yêu cầu cụ thể từ người dùng đều bị coi là phá hỏng tính năng (regression).
+
 ---
 
 ## 4. TÀI LIỆU QUẢN TRỊ TRONG HỆ THỐNG
@@ -99,6 +103,7 @@ Mọi vi phạm 3 quy tắc sau đây đều bị coi là lỗi nghiêm trọng 
 | File | Đường dẫn | Mục đích sử dụng |
 |---|---|---|
 | **AGENTS.md** | [`AGENTS.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/AGENTS.md) | Hiến chương & quy chuẩn hoạt động bắt buộc cho mọi Agent. |
+| **FROZEN_FEATURES.md** | [`docs/FROZEN_FEATURES.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/FROZEN_FEATURES.md) | Bảng danh mục các tính năng đã kiểm chứng chạy tốt, đóng băng cấm sửa đổi. |
 | **AI_PLAN.md** | [`docs/AI_PLAN.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md) | Phân tích yêu cầu, danh sách task, tiêu chí nghiệm thu và thiết kế chi tiết. |
 | **AI_PROGRESS.md** | [`docs/AI_PROGRESS.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PROGRESS.md) | Bảng theo dõi tiến độ tổng thể, trạng thái công việc và lịch sử các phiên làm việc. |
 | **AI_TEST_LOG.md** | [`docs/AI_TEST_LOG.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md) | Nhật ký chạy test thực tế, lưu trữ output, lỗi phát sinh và bằng chứng nghiệm thu. |

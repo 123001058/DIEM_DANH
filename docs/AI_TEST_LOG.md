@@ -413,6 +413,12 @@
   - **LIKELY:** Sau khi nạp firmware mới vào mạch ESP32 Kiosk, màn hình LCD sẽ chuyển sang hiển thị tên sinh viên ngay trong vòng ~0.3-0.5s sau khi quét QR hoặc quét mặt.
 - **Trạng thái:** PASS (Sẵn sàng nạp firmware vào thiết bị thực tế).
 
+- **Cập nhật khôi phục ổn định (2026-10-27 20:08 UTC+7):**
+  - Đã khôi phục `delay(1000)` trong `esp32_kiosk.ino` và cấu trúc `get_open_session()` nguyên bản qua migration `20261027200500_restore_stable_kiosk_display.sql`.
+  - Biên dịch firmware bằng `arduino-cli` hoàn tất với Exit Code 0 (Bộ nhớ: 1082604 bytes / 82%).
+  - Đã lập danh mục đóng băng mã nguồn tại `docs/FROZEN_FEATURES.md`.
+
+
 
 
 

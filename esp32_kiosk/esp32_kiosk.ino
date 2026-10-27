@@ -141,5 +141,5 @@ void loop() {
     checkinNameVisible = false;
     if (currentQrText.length() > 0) drawQRCode(currentQrText);
   }
-  delay(200); // Poll nhanh 200ms giup Kiosk bat su kien va hien thi ten ngay lap tuc
+  delay(1000); // 1 giay kiem tra 1 lan (muc on dinh chuan da chay duoc chu)
 }
