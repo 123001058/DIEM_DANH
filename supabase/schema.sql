@@ -2070,10 +2070,14 @@ AS $function$
    'qr_token',s.qr_token,
    'qr_born_at',s.qr_born_at,
    'last_checkin',(
-     select jsonb_build_object('id',a.id::text,'name',a.full_name)
+     select jsonb_build_object(
+       'id',a.id::text || '_' || (extract(epoch from a.created_at)*1000)::bigint::text,
+       'name',a.full_name
+     )
      from public.attendance a
      where a.session_id=s.id
        and a.status in ('có mặt','đi muộn')
+       and a.created_at >= now() - interval '20 seconds'
        and nullif(btrim(a.full_name),'') is not null
      order by a.created_at desc,a.id desc
      limit 1

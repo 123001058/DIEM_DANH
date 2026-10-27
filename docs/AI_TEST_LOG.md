@@ -473,3 +473,30 @@
 
 
 
+### [TLOG-010] Sửa tín hiệu lượt điểm danh mới cho LCD Kiosk (TASK-012)
+
+- **Thời gian:** 2026-10-27 21:04 (UTC+7)
+- **Người/Agent thực hiện:** Codex
+- **Môi trường:** Windows 11 / Arduino CLI / ESP32 core 3.3.12 / Supabase CLI 2.120.0 / Supabase Cloud
+- **Nguyên nhân đã xác minh:** `get_open_session()` trên Supabase Cloud trước sửa trả `attendance.id` nguyên bản. Firmware dùng giá trị này để nhận diện lượt mới. Khi cùng hàng attendance được cập nhật thời gian điểm danh, UUID không đổi nên LCD không nhận ra sự kiện cập nhật. Hàm live trước sửa cũng không giới hạn `last_checkin` theo cửa sổ gần đây.
+- **Lệnh / thao tác thực tế đã chạy:**
+  ```powershell
+  supabase db query --linked -f supabase/migrations/20261027213000_kiosk_checkin_event_identity.sql
+  supabase db query --linked "select pg_get_functiondef('public.get_open_session()'::regprocedure), public.get_open_session() as payload;"
+  supabase db query --linked "with sample as (select '00000000-0000-0000-0000-000000000001'::text as attendance_id, now() as t) select attendance_id || '_' || (extract(epoch from t) * 1000)::bigint::text as event_1, attendance_id || '_' || (extract(epoch from t + interval '1 millisecond') * 1000)::bigint::text as event_2 from sample;"
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 esp32_kiosk
+  git diff --check
+  ```
+- **Kết quả thực tế:**
+  - Migration chạy thành công trên Supabase Cloud (exit code 0).
+  - Đọc lại `pg_get_functiondef()` xác nhận cloud đã dùng ID dạng `attendance_uuid_epoch_milliseconds`, lọc `created_at` trong 20 giây và chỉ trả `id` + `name` ở `last_checkin`.
+  - RPC `get_open_session()` trả payload phiên mở và `last_checkin: null` tại thời điểm kiểm tra (không có lượt mới trong cửa sổ 20 giây); không ghi attendance giả vào dữ liệu thật.
+  - Truy vấn expression trả hai ID khác nhau cho cùng UUID với thời điểm cách nhau 1 mili giây: `..._1793109839995`, `..._1793109839996`.
+  - Firmware build thành công: 1,082,604 bytes (82% flash), 49,640 bytes RAM (15%).
+  - `git diff --check` thành công.
+  - `arduino-cli board list` nhận thấy COM10 là `Unknown`; chưa nạp firmware và chưa quan sát LCD thực tế.
+- **Đánh giá:**
+  - **KNOWN:** Hàm SQL mới đã chạy trên cloud; payload tương thích với firmware; firmware biên dịch thành công; code luồng web QR/Face AI không cần đổi vì các RPC ghi nhận và giao diện kết quả giữ nguyên.
+  - **UNKNOWN:** Chưa kiểm tra trực tiếp LCD sau khi nạp firmware lên ESP32 vật lý.
+- **Trạng thái:** VERIFYING. Cần xác nhận trên kiosk sau khi nạp firmware mới; không đánh dấu DONE trước kiểm tra này.
+

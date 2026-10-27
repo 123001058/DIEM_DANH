@@ -296,3 +296,27 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Payload kiosk không trả MSSV hoặc danh sách attendance.
   - [ ] Firmware biên dịch được và SQL migration hợp lệ.
 - **Phương án kiểm thử:** Build sketch ESP32 nếu toolchain có sẵn; kiểm tra JSON/RPC và SQL migration bằng script cục bộ. Không deploy migration hay nạp firmware trong task này.
+
+---
+
+### [TASK-012] Sửa tín hiệu lượt điểm danh mới cho LCD Kiosk (QR và nhận diện mặt)
+
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Đảm bảo LCD nhận ra lượt điểm danh vừa cập nhật và hiện đúng họ tên cho các luồng QR và nhận diện mặt.
+- **Phạm vi tác động:** `supabase/migrations/` và `supabase/schema.sql` (định nghĩa `get_open_session`); kiểm tra tương thích với `esp32_kiosk/esp32_kiosk.ino`, `esp32_kiosk/qr_display.h`, `checkin.html`, `js/admin/admin.face.js`.
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Firmware đang so sánh `last_checkin.id` với mã trước đó để phát hiện lượt mới.
+  - Migration hiện hành trả về `attendance.id` làm mã sự kiện. UUID giữ nguyên khi dòng attendance được cập nhật, nên lượt cập nhật lại cùng dòng có thể không tạo tín hiệu mới cho LCD.
+  - Luồng web QR gọi `submit_attendance`; luồng nhận diện mặt gọi `kiosk_record_face_checkin`. Hai luồng vẫn giữ nguyên kết quả nghiệp vụ và thông báo hiện có.
+  - FRZ-001 khóa chu kỳ polling 1000ms, URL QR và cách hiển thị hiện tại; yêu cầu sửa lỗi này cho phép sửa tương thích tối thiểu nhưng không đổi các chi tiết đó.
+- **Các bước triển khai:**
+  1. Tạo migration cập nhật `get_open_session` để mã sự kiện kết hợp ID attendance và thời điểm `created_at` mili giây; chỉ trả tên cùng mã sự kiện gần nhất, không trả MSSV/danh sách.
+  2. Giữ nguyên polling, thời lượng hiển thị LCD, URL QR và các RPC ghi nhận hiện hữu.
+  3. Đồng bộ định nghĩa schema chuẩn, build firmware, kiểm tra migration và rà soát tương thích với hai luồng giao diện; ghi log kết quả thật.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] `last_checkin.id` đổi khi cùng dòng attendance được cập nhật thời điểm ghi nhận (kiểm tra bằng truy vấn SQL trên cloud).
+  - [x] Payload chỉ chứa ID sự kiện nội bộ, tên và thông tin phiên hiện hữu; không trả MSSV hoặc danh sách attendance.
+  - [x] Firmware build thành công và không đổi tham số/luồng QR đã đóng băng.
+  - [x] Tương thích tĩnh với QR và Face AI; màn LCD vật lý chưa xác minh do COM10 được nhận diện là `Unknown`.
+- **Phương án kiểm thử:** Build bằng `arduino-cli`; kiểm tra định nghĩa migration và diff; truy vấn read-only `pg_get_functiondef`/RPC nếu Supabase CLI đã liên kết. Không ghi attendance giả vào dữ liệu thật.
