@@ -148,6 +148,35 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Nhập `ttp://192.168.2.168` hoặc `http://192.168.2.168` tự động chuyển đổi thành luồng chuẩn `http://192.168.2.168:81/stream`.
   - [ ] Khi camera offline (naturalWidth = 0), HUD hiển thị cảnh báo kết nối thay vì báo ảo "Đang quan sát...".
   - [ ] Script kiểm tra cú pháp JS/HTML chạy thành công 100% không có lỗi.
-- **Phương án kiểm thử:** Dùng Node.js chạy cú pháp và assertion test với các trường hợp URL đầu vào (`ttp://...`, `http://...`, IP thuần).
+---
+
+### [TASK-006] Cập nhật IP Camera sang 192.168.2.169 và khắc phục triệt để lỗi còi Buzzer kêu liên tục
+
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:**
+  1. Đồng bộ IP camera mặc định mới `192.168.2.169` (theo router thực tế cấp cho ESP32-S3), gom về hằng số `DEFAULT_ESP_CAM_IP` và tự động migrate các IP cũ (`10.96.38.99`, `192.168.2.168`).
+  2. Khắc phục nguyên nhân gốc rễ còi Buzzer GPIO 14 kêu liên tục không ngừng: chuyển logic điều khiển từ Active LOW sang Active HIGH (LOW = Tắt, HIGH = Kêu).
+- **Phạm vi tác động:**
+  - `js/admin/admin.face.js`
+  - `admin.html`
+  - `test_facex_raw.html`
+  - `esp32_cam_ai/esp32_cam_ai.ino`
+  - `esp32_cam_ai/app_httpd.cpp`
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Board ESP32-S3 kết nối Wi-Fi "Robocon Sinh Vien" nhận IP `192.168.2.169`. Cổng 80 và 81 đều mở và phản hồi.
+  - Còi buzzer gắn trên chân GPIO 14 là loại Active HIGH (cần 3.3V/HIGH để kêu, 0V/LOW để tắt). Code cũ viết theo Active LOW và set `digitalWrite(BUZZER_PIN, HIGH)` ngay trong `setup()`, khiến còi bị kích hoạt kêu liên tục từ lúc cấp nguồn.
+- **Các bước triển khai:**
+  1. Gửi lệnh HTTP `http://192.168.2.169/test_pin?pin=14&val=0` để tắt còi tức thì từ xa.
+  2. Sửa `esp32_cam_ai.ino`: `digitalWrite(BUZZER_PIN, LOW)` trong `setup()`.
+  3. Sửa `app_httpd.cpp`: `beep_handler` đổi sang HIGH để kêu, LOW để ngắt.
+  4. Đổi `DEFAULT_ESP_CAM_IP = '192.168.2.169'` và cập nhật `admin.html`, `test_facex_raw.html`, tăng cache-buster lên `v=4`.
+  5. Kiểm tra kết nối TCP và lấy frame `/capture` từ IP mới.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Còi câm/tắt thành công khi chân 14 về mức LOW.
+  - [x] Board phản hồi HTTP 200 tại `http://192.168.2.169/capture` với ảnh JPEG hợp lệ.
+  - [x] Mã nguồn frontend và firmware được đồng bộ chuẩn xác.
+- **Phương án kiểm thử:** Dùng lệnh PowerShell gửi lệnh tắt còi qua `/test_pin` và tải frame qua `/capture`.
+
 
 

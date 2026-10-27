@@ -107,14 +107,14 @@ static esp_err_t beep_handler(httpd_req_t *req) {
     }
   }
 
-  // Active Low với Buzzer: LOW = kêu, HIGH = ngắt
+  // Active High với Buzzer: HIGH = kêu, LOW = ngắt
   for (int i = 0; i < repeats; i++) {
     setFlashLedState(true);
-    digitalWrite(BUZZER_PIN, LOW);
+    digitalWrite(BUZZER_PIN, HIGH);
 
     vTaskDelay(pdMS_TO_TICKS(duration));
 
-    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, LOW);
     setFlashLedState(false);
   }
 

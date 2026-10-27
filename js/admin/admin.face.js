@@ -47,22 +47,26 @@ let enrollPendingPhoto = null; // { dataUrl, descriptor, detection }
 // =====================================================================
 // 2. KHỞI TẠO MÔ HÌNH AI (ONNX MiniFASNet-V2 & Face-API)
 // =====================================================================
+// IP mặc định của ESP32-CAM (đổi ở đây khi router cấp IP khác)
+const DEFAULT_ESP_CAM_IP = '192.168.2.169';
+const LEGACY_ESP_CAM_IPS = ['10.96.38.99', '192.168.1.1', '192.168.2.168'];
+
 function cleanEspCamIp(raw) {
   let s = (raw || '').trim();
-  if (!s) return '192.168.2.168';
+  if (!s) return DEFAULT_ESP_CAM_IP;
   // Hỗ trợ cả trường hợp user nhập hoặc copy dính prefix http://, https:// hoặc ttp://
   s = s.replace(/^h?ttps?:\/\//i, '');
   s = s.replace(/\/.*$/, '');
-  return s || '192.168.2.168';
+  return s || DEFAULT_ESP_CAM_IP;
 }
 
 let adminFaceModelsLoading = false;
 async function initFaceCamInAdmin(isBackground = false) {
   const ipInput = document.getElementById('adminEspIpInput');
   let savedIp = localStorage.getItem('esp_cam_ip');
-  // Nếu chưa lưu hoặc còn lưu IP cũ trước đây (ví dụ 10.96.38.99 hoặc dính prefix) -> reset về 192.168.2.168
-  if (!savedIp || savedIp === '10.96.38.99' || savedIp === '192.168.1.1' || savedIp.startsWith('ttp://')) {
-    savedIp = '192.168.2.168';
+  // Chưa lưu, hoặc còn lưu IP cũ / dính prefix -> reset về IP mặc định
+  if (!savedIp || LEGACY_ESP_CAM_IPS.includes(savedIp) || savedIp.startsWith('ttp://')) {
+    savedIp = DEFAULT_ESP_CAM_IP;
   }
   savedIp = cleanEspCamIp(savedIp);
   if (ipInput) {
@@ -466,7 +470,7 @@ async function startAdminCamera() {
 
   // Lấy IP ESP32 từ input
   const ipInput = document.getElementById('adminEspIpInput');
-  const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || '192.168.2.168');
+  const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
   if (ipInput && ipInput.value !== rawIp) ipInput.value = rawIp;
   localStorage.setItem('esp_cam_ip', rawIp);
 
@@ -1305,7 +1309,7 @@ function playAdminSuccessBeep() {
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
 async function triggerEspBuzzer(type = 'success') {
   const ipInput = document.getElementById('adminEspIpInput');
-  let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || '192.168.2.168');
+  let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
   if (ip.includes(':')) {
     ip = ip.split(':')[0];
   }
