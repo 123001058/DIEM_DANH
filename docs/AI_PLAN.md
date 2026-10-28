@@ -509,3 +509,22 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [x] Giao diện responsive trên mobile và desktop, không vỡ khung.
   - [x] Toàn bộ cú pháp file JS hợp lệ 100% (`node -c`).
 - **Phương án kiểm thử:** Đã kiểm thử tự động với suite script Chromium CDP ghi nhận tại [TLOG-017](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-017-bật-tắt-camera-tùy-ý-độc-lập-và-phân-tách-chế-độ-giám-sát-vs-điểm-danh-ai-task-018).
+
+---
+
+### [TASK-019] Loại bỏ nút mở luồng camera trong tab mới và làm gọn giao diện quản trị
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** Medium
+- **Mục tiêu:**
+  1. Loại bỏ hoàn toàn nút "↗ Tab mới" trên thanh công cụ camera và nút "↗️ Mở xem luồng trong Tab mới" trong banner cảnh báo Mixed Content của `admin.html`.
+  2. Dọn dẹp hàm `openEspCamInNewTab()` và các export thừa trong `js/admin/admin.face.js` nhằm giữ giao diện tối giản, sạch sẽ theo đúng tinh thần Ponytail (YAGNI & Deletion over addition).
+  3. Giữ nguyên hướng dẫn người dùng kích hoạt "Insecure content" trực tiếp trên trình duyệt di động qua icon ổ khóa/cài đặt trang (🎚️) để camera nhúng phát mượt mà nội bộ.
+- **Phạm vi tác động:** `admin.html`, `js/admin/admin.face.js`, `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Không còn nút `openEspCamInNewTab` trên toolbar hoặc alert banner trong `admin.html`.
+  - [x] Xóa hàm `openEspCamInNewTab()` và `window.openEspCamInNewTab` khỏi `js/admin/admin.face.js`.
+  - [x] Không có lỗi cú pháp JavaScript (`node -c js/admin/admin.face.js` exit code 0).
+  - [x] Các tính năng camera: bật/tắt camera, chuyển chế độ AI/Chỉ xem, lật gương, toàn màn hình, bật tắt âm thanh hoạt động bình thường, không vỡ layout.
+- **Phương án kiểm thử:** Script kiểm tra tính toàn vẹn UI (`scratch/check_ui_cleanup.js`), kiểm tra cú pháp node, ghi nhận tại [TLOG-018](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-018-loại-bỏ-nút-mở-luồng-camera-tab-mới-và-làm-gọn-giao-diện-quản-trị-task-019).
+
