@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <TJpg_Decoder.h>
 #include "qrcode.h"
 
 extern TFT_eSPI tft;
@@ -18,12 +19,30 @@ extern TFT_eSPI tft;
 #define NOTICE_ZONE_W (320 - NOTICE_ZONE_X) // 106 px
 #define NOTICE_ZONE_H 240
 
+// Toa do va kich thuoc khung Avatar tren man hinh thong bao toan man hinh (320x240)
+#define AVATAR_BOX_X 10
+#define AVATAR_BOX_Y 48
+#define AVATAR_BOX_W 100
+#define AVATAR_BOX_H 100
+
+// Callback ve khoi pixel JPEG len man hinh qua TFT_eSPI
+inline bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
+  if (y >= tft.height() || x >= tft.width()) return 0;
+  tft.pushImage(x, y, w, h, bitmap);
+  return 1;
+}
+
+// Khoi tao cau hinh cho bo giai ma anh TJpg_Decoder
+inline void initJpgDecoder() {
+  TJpgDec.setJpgScale(1);
+  TJpgDec.setSwapBytes(true); // Can thiet cho TFT_eSPI 16-bit RGB565 mau chuan
+  TJpgDec.setCallback(tft_output);
+}
+
 // Callback ve QR dung ti le nguyen (Integer Scaling) ben trong vung QR
-// TUYET DOI KHONG xoa toan man hinh (fillScreen) de tranh lam mat thong bao
 inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
   int size = esp_qrcode_get_size(qrcode);
   
-  // Tinh scale nguyen de moi module luon vuong vuc va nam gon trong QR_ZONE
   int scale = (QR_ZONE_W - 14) / size;
   int scaleH = (QR_ZONE_H - 14) / size;
   if (scaleH < scale) scale = scaleH;
@@ -33,7 +52,6 @@ inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
   int offsetX = QR_ZONE_X + (QR_ZONE_W - qrPixelSize) / 2;
   int offsetY = QR_ZONE_Y + (QR_ZONE_H - qrPixelSize) / 2;
 
-  // Chi to trang vung QR de tao Quiet Zone, giu nguyen 100% vung thong bao ben phai
   tft.fillRect(QR_ZONE_X, QR_ZONE_Y, QR_ZONE_W, QR_ZONE_H, TFT_WHITE);
 
   for (int y = 0; y < size; y++) {
@@ -45,7 +63,6 @@ inline void displayQrCallback(esp_qrcode_handle_t qrcode) {
     }
   }
 
-  // Duong phan cach giua vung QR va vung thong bao
   tft.drawFastVLine(QR_ZONE_W - 1, 0, 240, TFT_NAVY);
 }
 
@@ -53,7 +70,7 @@ inline void drawQRCode(String text) {
   esp_qrcode_config_t cfg = {
     .display_func = displayQrCallback,
     .max_qrcode_version = 10,
-    .qrcode_ecc_level = ESP_QRCODE_ECC_MED // Tang sua loi len MED chong loa mat kinh TFT
+    .qrcode_ecc_level = ESP_QRCODE_ECC_MED
   };
   esp_qrcode_generate(&cfg, text.c_str());
 }
@@ -116,8 +133,17 @@ inline String nameForTft(String utf8Name) {
   return result;
 }
 
-// Xoa thong bao diem danh ben phai, dua ve man hinh cho mac dinh
-// MA QR BEN TRAI NGUYEN VEN 100%, KHONG BI XOA, KHONG BI VE LAI
+inline char getInitialLetter(String normalizedName) {
+  int lastSpace = normalizedName.lastIndexOf(' ');
+  String lastName = (lastSpace >= 0) ? normalizedName.substring(lastSpace + 1) : normalizedName;
+  if (lastName.length() > 0) {
+    char c = lastName[0];
+    if (c >= 'A' && c <= 'Z') return c;
+    if (c >= 'a' && c <= 'z') return static_cast<char>(c - 32);
+  }
+  return 'U';
+}
+
 inline void clearCheckinNotice() {
   tft.fillRect(NOTICE_ZONE_X, NOTICE_ZONE_Y, NOTICE_ZONE_W, NOTICE_ZONE_H, TFT_BLACK);
   tft.drawFastVLine(NOTICE_ZONE_X - 1, 0, 240, TFT_NAVY);
@@ -146,24 +172,19 @@ inline void clearCheckinNotice() {
   tft.drawCentreString("Camera/Kiosk", centerX, 210, 1);
 }
 
-// Hien thi "DA DIEM DANH" cung Ho Ten o cot phai (khong che cac o cua QR)
-// QR ben trai van tiep tuc hien thi de sinh vien tiep theo quet ngay lap tuc
 inline void drawCheckinNotice(String studentName) {
   studentName = nameForTft(studentName);
   
-  // Chi xoa rieng vung thong bao ben phai
   tft.fillRect(NOTICE_ZONE_X, NOTICE_ZONE_Y, NOTICE_ZONE_W, NOTICE_ZONE_H, TFT_BLACK);
   tft.drawFastVLine(NOTICE_ZONE_X - 1, 0, 240, TFT_GREEN);
 
   int centerX = NOTICE_ZONE_X + NOTICE_ZONE_W / 2;
 
-  // Header hop xanh la thong bao diem danh
   tft.fillRoundRect(NOTICE_ZONE_X + 4, 8, NOTICE_ZONE_W - 8, 38, 4, TFT_DARKGREEN);
   tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
   tft.drawCentreString("DA DIEM", centerX, 12, 2);
   tft.drawCentreString("DANH", centerX, 28, 2);
 
-  // Tach ten thanh cac tu de ngat dong vua van trong cot 106px
   int font = 2;
   int maxLineW = NOTICE_ZONE_W - 8;
   int wordCount = 0;
@@ -180,7 +201,6 @@ inline void drawCheckinNotice(String studentName) {
     }
   }
 
-  // Gom tu thanh cac dong (toi da 4 dong)
   String lines[4];
   int lineCount = 0;
   for (int i = 0; i < wordCount; i++) {
@@ -198,7 +218,6 @@ inline void drawCheckinNotice(String studentName) {
   }
   if (lineCount < 4 && lines[lineCount].length() > 0) lineCount++;
 
-  // Can giua cac dong ten theo chieu doc
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   int startY = 58 + (82 - lineCount * 22) / 2;
   if (startY < 52) startY = 52;
@@ -206,7 +225,6 @@ inline void drawCheckinNotice(String studentName) {
     tft.drawCentreString(lines[i], centerX, startY + i * 22, font);
   }
 
-  // Ghi chu trang thai ben duoi
   tft.drawFastHLine(NOTICE_ZONE_X + 8, 156, NOTICE_ZONE_W - 16, TFT_DARKGREY);
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.drawCentreString("THANH CONG", centerX, 168, 2);
@@ -215,7 +233,96 @@ inline void drawCheckinNotice(String studentName) {
   tft.drawCentreString("Quet tiep...", centerX, 205, 1);
 }
 
-// Alias de tuong thich nguoc neu co cho nao goi drawCheckinName
 inline void drawCheckinName(String studentName) {
   drawCheckinNotice(studentName);
+}
+
+// -------------------------------------------------------------------------------------------------
+// GIAO DIEN DIEM DANH TOAN MAN HINH 320x240 (FULLSCREEN CHECKIN DISPLAY)
+// -------------------------------------------------------------------------------------------------
+
+inline void drawCheckinFullscreen(String studentName, String mssv) {
+  String asciiName = nameForTft(studentName);
+  char initialChar = getInitialLetter(asciiName);
+
+  // 1. Xoa toan man hinh ve mau den
+  tft.fillScreen(TFT_BLACK);
+
+  // 2. Header xanh la tren cung
+  tft.fillRect(0, 0, 320, 36, TFT_DARKGREEN);
+  tft.drawFastHLine(0, 36, 320, TFT_GREEN);
+  tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
+  tft.drawCentreString("DA DIEM DANH THANH CONG", 160, 8, 2);
+
+  // 3. Khung Avatar voi chu cai dau (Initials Badge fallback ngay lap tuc)
+  tft.fillRect(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, tft.color565(24, 32, 47));
+  tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
+  tft.setTextColor(TFT_WHITE, tft.color565(24, 32, 47));
+  tft.setTextSize(2);
+  tft.drawCentreString(String(initialChar), AVATAR_BOX_X + AVATAR_BOX_W / 2, AVATAR_BOX_Y + 26, 4);
+  tft.setTextSize(1);
+
+  // 4. Ho ten sinh vien ben phai
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  if (tft.textWidth(asciiName, 4) <= 190) {
+    tft.drawString(asciiName, 122, 58, 4);
+  } else {
+    int mid = asciiName.length() / 2;
+    int splitIdx = asciiName.indexOf(' ', mid);
+    if (splitIdx == -1) splitIdx = asciiName.lastIndexOf(' ', mid);
+    if (splitIdx > 0) {
+      String line1 = asciiName.substring(0, splitIdx);
+      String line2 = asciiName.substring(splitIdx + 1);
+      tft.drawString(line1, 122, 50, 4);
+      tft.drawString(line2, 122, 78, 4);
+    } else {
+      tft.drawString(asciiName, 122, 58, 4);
+    }
+  }
+
+  // 5. MSSV
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawString("MSSV: " + mssv, 122, 115, 2);
+
+  // 6. Duong ke phan cach ngang
+  tft.drawFastHLine(10, 160, 300, TFT_DARKGREY);
+
+  // 7. Footer trang thai
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawString("GHI NHAN: CO MAT HOP LE", 16, 172, 2);
+
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawString("He thong LH-NaviX Kiosk", 16, 202, 2);
+  tft.drawRightString("Tro lai QR...", 304, 202, 2);
+}
+
+// Ve de anh avatar that (JPEG) vao khung avatar khi tai xong
+// Su dung Hardware Viewport Clipping de dam bao cat got chinh xac 100% trong khung 100x100
+inline void drawCheckinAvatar(uint8_t* jpgData, size_t jpgLen) {
+  uint16_t w = 0, h = 0;
+  if (TJpgDec.getJpgSize(&w, &h, jpgData, jpgLen) == 0 && w >= 16 && h >= 16 && w <= 800 && h <= 800) {
+    uint8_t scale = 1;
+    while ((w / scale > AVATAR_BOX_W || h / scale > AVATAR_BOX_H) && scale < 8) {
+      scale *= 2;
+    }
+    TJpgDec.setJpgScale(scale);
+
+    int scaledW = w / scale;
+    int scaledH = h / scale;
+    int drawX = AVATAR_BOX_X + (AVATAR_BOX_W - scaledW) / 2;
+    int drawY = AVATAR_BOX_Y + (AVATAR_BOX_H - scaledH) / 2;
+    if (drawX < AVATAR_BOX_X) drawX = AVATAR_BOX_X;
+    if (drawY < AVATAR_BOX_Y) drawY = AVATAR_BOX_Y;
+
+    // Xoa den khung avatar
+    tft.fillRect(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, TFT_BLACK);
+
+    // Hardware Viewport Clipping: Khoa chat pham vi ve trong khung avatar, khong bao gio lan sang vung ten
+    tft.setViewport(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, false);
+    TJpgDec.drawJpg(drawX, drawY, jpgData, jpgLen);
+    tft.resetViewport();
+
+    // Ve lai vien bo khung avatar
+    tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
+  }
 }

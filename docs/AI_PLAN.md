@@ -556,4 +556,36 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Toàn bộ file JavaScript hợp lệ cú pháp (`node -c`).
 - **Phương án kiểm thử:** Script SQL đối chiếu test case thực tế và suite test Node.js ghi nhận tại [TLOG-019](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-019-đồng-bộ-lịch-ngoài-với-điểm-danh-và-giao-diện-quản-trị-task-020).
 
+---
+
+### [TASK-021] Hiển thị Avatar Sinh viên sau khi Điểm danh Thành công trên Màn hình Kiosk ESP32
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:**
+  1. Khi có lượt điểm danh thành công (QR hoặc Face AI), Kiosk ẩn mã QR trong 3.5 giây và hiển thị toàn màn hình (320x240): Họ tên lớn (viết hoa không dấu), MSSV, trạng thái "DA DIEM DANH", và ảnh đại diện thật từ hồ sơ web sinh viên.
+  2. Nếu sinh viên chưa có avatar hoặc ảnh tải lỗi/quá hạn: Hiển thị ngay lập tức huy hiệu chữ cái đầu (Initials Badge) cùng họ tên và MSSV (zero-latency fallback).
+  3. Tải avatar qua FreeRTOS background task trên Core 0 (timeout 1.0s, buffer 16KB, HTTP riêng). Luồng nền tuyệt đối không gọi `tft.*`; chỉ `loop()` ở Core 1 vẽ màn hình.
+  4. Giải mã JPEG bằng thư viện `TJpg_Decoder` (đã cài đặt). Kiểm tra header magic bytes `0xFF, 0xD8` trước khi giải mã.
+  5. Cập nhật RPC `get_open_session()` để `last_checkin` trả về thêm `mssv` và `avatar`.
+  6. Khôi phục tự động sau 3.5 giây: Vẽ lại mã QR mới nhất và giao diện chờ như cũ. Polling 1s vẫn duy trì không ngắt quãng.
+- **Phạm vi tác động:**
+  - `supabase/migrations/20261028183000_kiosk_last_checkin_avatar.sql`
+  - `esp32_kiosk/qr_display.h`
+  - `esp32_kiosk/esp32_kiosk.ino`
+  - `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`
+- **Rủi ro & Kiểm soát an toàn:**
+  - *Bộ nhớ ESP32:* `TJpg_Decoder` chỉ tốn ~3.1 KB RAM work area + buffer 16 KB + task stack 4 KB (< 25 KB). RAM còn trống trên ESP32 > 270 KB.
+  - *Thread-safety:* Tác vụ FreeRTOS nền (Core 0) tuyệt đối không chạm vào bus SPI hay gọi `tft.*`. Chỉ lưu byte vào RAM và bật cờ `avatarReady`. Chỉ `loop()` (Core 1) gọi hàm vẽ.
+  - *Đóng băng tính năng:* Giữ nguyên thuật toán tạo QR, polling 1s, và URL `checkin.html?t=`. Chưa sửa `FRZ-001` trong `FROZEN_FEATURES.md` cho đến khi nạp và kiểm chứng trên Kiosk thực tế.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Migration `get_open_session` cập nhật thành công, trả về đúng `id`, `name`, `mssv`, `avatar` của lượt điểm danh mới nhất.
+  - [ ] Code firmware `esp32_kiosk` biên dịch thành công 100% bằng `arduino-cli` không lỗi.
+  - [ ] Bộ giải mã JPEG `TJpg_Decoder` tích hợp chuẩn xác với SPI TFT_eSPI qua callback `tft_output`.
+  - [ ] Luồng tải avatar nền hoạt động độc lập, không làm đứng hoặc block polling 1 giây.
+  - [ ] Tự động chuyển đổi mượt mà giữa huy hiệu chữ cái đầu (fallback) và ảnh avatar thật khi tải xong.
+  - [ ] Hết 3.5 giây tự động khôi phục QR code mới nhất và bảng thông báo Kiosk mặc định.
+- **Phương án kiểm thử:** Kiểm tra REST endpoint Supabase qua curl/node, biên dịch firmware bằng Arduino CLI, kiểm tra heap & stack size, ghi nhận tại TLOG-020.
+
+
 
