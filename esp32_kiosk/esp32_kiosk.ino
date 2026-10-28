@@ -183,13 +183,11 @@ void fetchQRCode() {
       String latestCheckinId = "";
       String latestCheckinName = "";
       String latestCheckinMssv = "";
-      String latestCheckinAvatar = "";
       if (doc["last_checkin"].is<JsonObjectConst>()) {
         JsonObjectConst latestCheckin = doc["last_checkin"];
         if (latestCheckin["id"].is<String>()) latestCheckinId = latestCheckin["id"].as<String>();
         if (latestCheckin["name"].is<String>()) latestCheckinName = latestCheckin["name"].as<String>();
         if (latestCheckin["mssv"].is<String>()) latestCheckinMssv = latestCheckin["mssv"].as<String>();
-        if (latestCheckin["avatar"].is<String>()) latestCheckinAvatar = latestCheckin["avatar"].as<String>();
       }
 
       bool newSession = (sessionId != currentSessionId);
@@ -214,18 +212,9 @@ void fetchQRCode() {
           checkinFullscreenUntil = millis() + 3500; // Hien thi avatar 3.5 giay
           avatarDrawn = false;
           
-          // 2. Chuan hoa URL avatar: ho tro ca duong dan tuong doi lan tuyet doi
-          String avtUrl = latestCheckinAvatar;
-          avtUrl.trim();
-          if (avtUrl.length() > 0) {
-            if (!avtUrl.startsWith("http://") && !avtUrl.startsWith("https://")) {
-              if (avtUrl.startsWith("/")) {
-                avtUrl = String(web_domain) + avtUrl;
-              } else {
-                avtUrl = String(web_domain) + "/" + avtUrl;
-              }
-            }
-          }
+          // 2. Lay anh truc tiep tu thu muc images/faces trong web repo theo MSSV.
+          // Khong dung cot students.avatar; folder nay luu JPEG voi ten <MSSV>.jpg.
+          String avtUrl = String(web_domain) + "/images/faces/" + latestCheckinMssv + ".jpg";
 
           // 3. Reset co avatar san sang va gui tin nhan vao FreeRTOS Queue
           taskENTER_CRITICAL(&avatarMux);

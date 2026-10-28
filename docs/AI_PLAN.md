@@ -607,5 +607,21 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Kiosk hiện đúng avatar 3,5 giây mỗi lần, QR trở lại, không nhấp nháy lặp khi event không đổi.
 - **Phương án kiểm thử:** Kiểm tra SQL/RPC và build firmware; sau đó kiểm tra QR/Face AI trên Kiosk thật. Ghi trung thực kết quả và phân biệt build/API với nghiệm thu phần cứng trong TLOG.
 
+### [TASK-023] Kiosk lấy avatar từ thư mục `images/faces`
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Khi hiện tên sinh viên sau lượt quét, Kiosk tự lấy JPEG trong `images/faces/<MSSV>.jpg` trên web repo, không dùng đường dẫn `students.avatar`.
+- **Phạm vi tác động:** `esp32_kiosk/esp32_kiosk.ino`, tài liệu quản lý task và kiểm thử.
+- **Hiện trạng:** Firmware đang dùng URL avatar do RPC trả từ database. Repo có ảnh theo tên MSSV trong `images/faces`; Kiosk đã tải JPEG qua GitHub Pages và giải mã bằng `TJpg_Decoder`.
+- **Triển khai:** Dùng MSSV của `last_checkin` để ghép URL `web_domain + /images/faces/<MSSV>.jpg`; giữ nguyên event ID và tên từ RPC.
+- **Rủi ro:** Thư mục có cả PNG/WDP nhưng firmware hiện chỉ giải mã JPEG. Nếu không có file `.jpg` đúng MSSV, Kiosk sẽ dùng initials fallback.
+- **Tiêu chí nghiệm thu:**
+  - [x] Kiosk không còn sử dụng trường `last_checkin.avatar` để tạo URL.
+  - [x] URL ảnh theo MSSV từ `images/faces` trả JPEG hợp lệ.
+  - [x] Firmware build thành công.
+  - [ ] Xác nhận hiển thị trên LCD thật sau khi nạp.
+- **Phương án kiểm thử:** HEAD/GET ảnh GitHub Pages, kiểm tra firmware references và build Arduino CLI; LCD thật cần kiểm tra sau khi nạp.
+
 
 

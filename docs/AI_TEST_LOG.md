@@ -1015,3 +1015,14 @@
   - **KNOWN:** Migration chạy trên Cloud; các assertion lặp QR/Face AI, MSSV event, timestamp và audit đều PASS; firmware build thành công.
   - **UNKNOWN:** Chưa nạp Kiosk thật để xác nhận avatar đúng người, 3,5 giây rồi QR trở lại, không nháy lặp khi polling.
 - **Trạng thái:** VERIFYING.
+
+### [TLOG-022] Lấy avatar Kiosk từ `images/faces` (TASK-023)
+
+- **Thời gian:** 2026-10-28
+- **Thay đổi:** Firmware bỏ đọc `last_checkin.avatar`; URL được ghép thành `https://123001058.github.io/DIEM_DANH/images/faces/<MSSV>.jpg`.
+- **Kiểm tra ảnh thật:** `curl.exe -I --max-time 15 https://123001058.github.io/DIEM_DANH/images/faces/123000651.jpg` trả HTTP 200, `Content-Type: image/jpeg`, `Content-Length: 40990`.
+- **Kiểm tra firmware:** Soát mã nguồn xác nhận không còn `latestCheckinAvatar` và có mapping `images/faces/`; PASS.
+- **Arduino CLI:** `arduino-cli compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_avatar_task023 esp32_kiosk` — exit code 0. Flash 1.100.536 / 1.310.720 bytes (83%); global RAM 118.920 / 327.680 bytes (36%), còn 208.760 bytes.
+- **Giới hạn:** Thư mục có cả PNG/WDP; firmware hiện chỉ giải mã JPEG. Nếu không có JPEG cùng MSSV, Kiosk sẽ giữ initials fallback.
+- **UNKNOWN:** Chưa nạp lên LCD thật để xác nhận đúng người và hình ảnh hiển thị.
+- **Trạng thái:** VERIFYING.
