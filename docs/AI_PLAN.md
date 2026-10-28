@@ -587,5 +587,25 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Hết 3.5 giây tự động khôi phục QR code mới nhất và bảng thông báo Kiosk mặc định.
 - **Phương án kiểm thử:** Kiểm tra REST endpoint Supabase qua curl/node, biên dịch firmware bằng Arduino CLI, kiểm tra heap & stack size, ghi nhận tại TLOG-020.
 
+### [TASK-022] Tạo sự kiện riêng để Kiosk hiển thị lại sau mỗi lượt quét
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Mỗi lần QR hoặc Face AI điểm danh thành công, kể cả trả `ALREADY`, phát một `event_id` mới cho đúng MSSV để Kiosk hiển thị lại tên/avatar. Không tạo attendance/audit trùng và không sửa `attendance.created_at` trong nhánh `ALREADY`.
+- **Phạm vi tác động:** Migration Supabase mới; `get_open_session()`, `submit_attendance()`, `kiosk_record_face_checkin()`; firmware Kiosk chỉ khi định dạng API hiện tại chưa đủ; tài liệu quản lý kiểm thử.
+- **Phân tích kỹ thuật & Hiện trạng:** Kiosk chỉ nhận ID đổi; RPC hiện tạo ID từ `attendance.id + created_at`. Bản ghi cùng sinh viên không đổi khi quét lại `ALREADY`, vì vậy màn hình không chạy lại. Đổi `created_at` sẽ làm sai giờ điểm danh gốc. Một tín hiệu riêng theo phiên có UUID mới giữ nguyên dữ liệu attendance.
+- **Các bước triển khai:**
+  1. Tạo bảng tín hiệu hiển thị riêng, cập nhật UUID và MSSV trên mỗi lượt hợp lệ.
+  2. Phát tín hiệu từ cả nhánh mới và `ALREADY` của QR/Face AI; giữ nguyên guard `vắng có phép` và lịch sử audit.
+  3. Cho `get_open_session()` trả `event_id`, MSSV, tên và avatar của đúng lượt gần nhất.
+  4. Xác minh firmware nhận event UUID, hiển thị lại và không lặp mỗi lần polling.
+- **Rủi ro & kiểm soát:** Tín hiệu mới nhất theo phiên có thể bị thay thế nếu nhiều lượt xảy ra giữa hai lần polling. Kiểm tra các lượt liên tiếp thực tế; nếu có thể mất sự kiện cần chuyển API/Kiosk sang hàng đợi sự kiện có xác nhận.
+- **Tiêu chí nghiệm thu:**
+  - [ ] QR cùng sinh viên quét lần hai tạo UUID mới, không đổi attendance timestamp/log.
+  - [ ] QR hai sinh viên liên tiếp trả đúng dữ liệu từng event.
+  - [ ] Face AI lặp cùng sinh viên và hai sinh viên liên tiếp có cùng hành vi; giữ nguyên nhánh `EXCUSED`.
+  - [ ] Kiosk hiện đúng avatar 3,5 giây mỗi lần, QR trở lại, không nhấp nháy lặp khi event không đổi.
+- **Phương án kiểm thử:** Kiểm tra SQL/RPC và build firmware; sau đó kiểm tra QR/Face AI trên Kiosk thật. Ghi trung thực kết quả và phân biệt build/API với nghiệm thu phần cứng trong TLOG.
+
 
 

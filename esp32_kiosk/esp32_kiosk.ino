@@ -211,7 +211,7 @@ void fetchQRCode() {
           // 1. Ve ngay man hinh thong bao voi Initials Badge (zero latency fallback)
           drawCheckinFullscreen(latestCheckinName, latestCheckinMssv);
           checkinFullscreenVisible = true;
-          checkinFullscreenUntil = millis() + 4000; // Hien thi 4 giay de kip ve avatar
+          checkinFullscreenUntil = millis() + 3500; // Hien thi avatar 3.5 giay
           avatarDrawn = false;
           
           // 2. Chuan hoa URL avatar: ho tro ca duong dan tuong doi lan tuyet doi
@@ -330,10 +330,10 @@ void loop() {
     }
   }
 
-  // 3. Khi het thoi gian 4 giay: Tu dong ve lai QR moi nhat va khoi phuc man hinh
+  // 3. Khi het thoi gian 3.5 giay: Tu dong ve lai QR moi nhat va khoi phuc man hinh
   if (checkinFullscreenVisible && static_cast<int32_t>(now - checkinFullscreenUntil) >= 0) {
     checkinFullscreenVisible = false;
-    Serial.println("Het 4s: Khoi phuc ma QR");
+    Serial.println("Het 3.5s: Khoi phuc ma QR");
     if (currentQrText.length() > 0) {
       drawQRCode(currentQrText);
       clearCheckinNotice();

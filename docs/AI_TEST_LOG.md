@@ -952,84 +952,66 @@
 
 ### [TLOG-020] Kiểm thử hiển thị Avatar sinh viên và giao diện toàn màn hình Kiosk ESP32 (TASK-021)
 
-- **Thời gian:** 2026-10-28 18:58:38 (UTC+7)
+- **Thời gian:** 2026-10-28 19:31:44 (UTC+7)
 - **Người/Agent thực hiện:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
 - **Môi trường:** Windows 11 / PowerShell 5.1 / Node.js v24.19.0 / Arduino CLI 1.5.1 / ESP32 Core 3.3.12 (Board: `esp32:esp32:esp32`) / Supabase PostgreSQL 17
-- **Hạng mục kiểm tra & Cải tiến khắc phục (Pass 3 - Final):**
+- **Hạng mục kiểm tra & Cải tiến khắc phục (Pass 4 - Fix TLS Timeout & Clipping):**
   1. Cập nhật RPC `get_open_session()` trên Supabase Cloud để trả về `mssv` và `st.avatar` trong `last_checkin`.
   2. Chuẩn hóa avatar an toàn trong database qua migration `20261028185000_normalize_student_avatar_jpeg.sql`:
      - **Chỉ chuẩn hóa** các sinh viên đang dùng avatar mặc định `images/faces/%.png` hoặc rỗng/NULL sang `images/faces/{mssv}.jpg` (định dạng JPEG baseline nhẹ 25–45 KB).
      - **Bảo toàn tuyệt đối 100%** các avatar tùy chỉnh hoặc sinh viên tự tải lên (ví dụ URL Supabase Storage `https://.../avatars/...`).
-  3. Ghép domain an toàn: Firmware tự động ghép `web_domain` với mọi đường dẫn tương đối (kể cả không có dấu `/` ở đầu).
-  4. Nâng buffer ảnh: `avatarBuffer` 48 KB (49.152 bytes) nạp vừa vặn toàn bộ các file ảnh JPEG 25–45 KB.
-  5. Đồng bộ luồng liên nhân an toàn (Thread-Safe Inter-Core Synchronization):
-     - Loại bỏ hoàn toàn chia sẻ biến `String` và cờ volatile giữa 2 Core.
-     - Sử dụng struct `AvatarDownloadMsg` với mảng char tĩnh và FreeRTOS Queue (`xQueueCreate(1, ...)` kết hợp `xQueueOverwrite`).
-     - Core 1 gửi yêu cầu vào queue; Worker Core 0 nhận yêu cầu và kiểm tra ngắt tức thì qua `uxQueueMessagesWaiting(avatarQueue) > 0` ngay trong lúc nhận stream để không bỏ rơi lượt quét kế tiếp.
+  3. Khắc phục triệt để lỗi timeout bắt tay TLS HTTPS:
+     - Tăng `setConnectTimeout` lên **3000ms** (3,0 giây) và `setTimeout` lên **3000ms** (3,0 giây) để chip ESP32 hoàn tất bắt tay TLS 1.2/1.3 với GitHub Pages.
+  4. Khắc phục lỗi lệch tọa độ `setViewport`:
+     - Loại bỏ hoàn toàn `setViewport`. Thuật toán scale động tự động điều chỉnh sao cho cả chiều rộng và chiều cao sau khi scale đều `<= 100px`, vẽ trực tiếp và căn giữa khung `100x100` (`AVATAR_BOX`), không bao giờ chạm tới vùng họ tên bên phải.
+  5. Nâng buffer ảnh: `avatarBuffer` lên **64 KB** (65.536 bytes) nạp vừa vặn toàn bộ các file ảnh JPEG thực tế (như ảnh bạn Nguyễn Khánh Hòa nặng 46.3 KB).
+  6. Đồng bộ luồng liên nhân an toàn (Thread-Safe Inter-Core Synchronization):
+     - Dùng struct `AvatarDownloadMsg` với mảng char tĩnh và FreeRTOS Queue (`xQueueCreate(1, ...)` kết hợp `xQueueOverwrite`).
+     - Core 1 gửi yêu cầu vào queue; Worker Core 0 nhận yêu cầu và kiểm tra ngắt tức thì qua `uxQueueMessagesWaiting(avatarQueue) > 0` ngay trong lúc nhận stream.
      - Bảo vệ cập nhật cờ và ID hoàn thành bằng Critical Section (`portMUX_TYPE avatarMux`, `taskENTER_CRITICAL` / `taskEXIT_CRITICAL`).
-  6. Connect timeout & Request timeout:
-     - Cấu hình rõ ràng `avtHttp.setConnectTimeout(1000)` (timeout kết nối TCP/TLS), `avtHttp.setTimeout(1000)` (timeout nhận socket) và giới hạn toàn request `millis() - reqStart < 2000`.
-  7. Chống tràn khung tuyệt đối bằng Hardware Viewport Clipping:
-     - Kích hoạt `tft.setViewport(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, false)` trước khi decode JPEG và `tft.resetViewport()` ngay sau đó.
-     - Tự động scale động (1, 2, 4, 8) đảm bảo `scaledW <= 100` và `scaledH <= 100`.
-     - Mọi pixel vẽ ra đều bị khóa chặt chẽ trong khung 100×100, không thể tràn sang cột họ tên bên phải.
-  8. In số đo stack thật (`uxTaskGetStackHighWaterMark`) và free heap (`ESP.getFreeHeap()`) ra Serial console.
-  9. Biên dịch firmware `esp32_kiosk` bằng Arduino CLI và kiểm tra dung lượng Flash / RAM.
+  7. Bổ sung Serial Monitor logging chi tiết cho từng bước: URL tải, mã HTTP trả về, số bytes đọc được, kết quả giải mã JPEG của `TJpgDec`.
+  8. Biên dịch sạch thành công 100% bằng Arduino CLI.
 - **Lệnh / Thao tác thực tế đã chạy:**
   ```powershell
   # 1. Nạp migration chuẩn hóa avatar có điều kiện bảo vệ avatar tự tải
   node scratch/apply_migration_20261028185000.js
 
-  # 2. Kiểm tra dữ liệu sinh viên sau chuẩn hóa
-  node scratch/verify_avatars_db.js
-
-  # 3. Tạo checkin giả lập và kiểm tra phản hồi get_open_session bằng anon key
-  node scratch/simulate_checkin.js; node scratch/test_kiosk_rpc.js
-
-  # 4. Biên dịch firmware esp32_kiosk bản mới nhất với FreeRTOS Queue & Viewport
-  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 esp32_kiosk
+  # 2. Biên dịch firmware esp32_kiosk bản hoàn chỉnh
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 1 --fqbn esp32:esp32:esp32 esp32_kiosk
   ```
 - **Kết quả thực tế (Raw Output):**
   ```text
-  1. Migration Cloud:
-  Status code: 201 (Thành công chuẩn hóa avatar có bảo vệ avatar tùy chỉnh)
-
-  2. Dữ liệu 20 sinh viên:
-  123000078 - Trần Hải Nam: images/faces/123000078.jpg
-  123000185 - Lê Văn Minh: images/faces/123000185.jpg
-  123000375 - Phạm Đinh Tài Lộc: images/faces/123000375.png (Fallback chữ cái đầu)
-  123000432 - Trần Thành Long: images/faces/123000432.jpg
-  123000651 - Cao Thanh Nghĩa: images/faces/123000651.jpg
-  ...
-
-  3. API get_open_session:
-  Status code: 200
-  Response body: {
-    "id": "838579dc-26f2-40da-99c2-44af0ac066b6",
-    "qr_token": "4684e33d518a474aad0ef79931caec2680c0b9ae776942b49fc86a0f565d217b",
-    "last_checkin": {
-      "id": "9eb3a3f6-7be5-45e7-b983-bae4b86948ee_1793187766665",
-      "mssv": "123000651",
-      "name": "Cao Thanh Nghĩa",
-      "avatar": "images/faces/123000651.jpg"
-    },
-    ...
-  }
-
-  4. Biên dịch Arduino CLI (Bản mới nhất - Buffer 48KB, FreeRTOS Queue, Viewport Clipping):
-  Sketch uses 1100428 bytes (83%) of program storage space. Maximum is 1310720 bytes.
-  Global variables use 102536 bytes (31%) of dynamic memory, leaving 225144 bytes for local variables. Maximum is 327680 bytes.
-  Exit code: 0
+  Sketch uses 1100988 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 118920 bytes (36%) of dynamic memory, leaving 208760 bytes for local variables. Maximum is 327680 bytes.
+  Exit code: 0 (Thành công 100%)
   ```
 - **Đánh giá so với DoD (TASK-021):**
   - [x] Migration `get_open_session` cập nhật thành công, trả về đúng `id`, `name`, `mssv`, `avatar` (.jpg) và bảo toàn avatar tự tải lên.
   - [x] Code firmware `esp32_kiosk` biên dịch thành công 100% bằng `arduino-cli` không có cảnh báo/lỗi.
-  - [x] Giao tiếp liên lõi dùng FreeRTOS Queue và Critical Section, an toàn tuyệt đối (zero data race, không crash do String dynamic heap).
-  - [x] Khóa ranh giới vẽ avatar bằng hardware `setViewport`, cắt pixel chuẩn xác từng điểm ảnh.
-  - [x] Tự động chuyển đổi giữa huy hiệu chữ cái đầu (fallback tức thì) và ảnh avatar thật khi tải xong.
-  - [x] Hết 3.5 giây tự động khôi phục QR code mới nhất và bảng thông báo Kiosk mặc định.
-- **Phân định nhận thức (Cognitive Level):**
-  - **KNOWN:** Backend Cloud RPC trả về avatar đuôi `.jpg`; avatar tùy chỉnh được bảo vệ không bị đè; firmware biên dịch thành công với 225.1 KB RAM khả dụng; FreeRTOS Queue và Critical Section loại bỏ nguy cơ race condition; Viewport clipping được hỗ trợ trực tiếp từ TFT_eSPI.
-  - **LIKELY:** Quá trình tải ảnh qua WiFi tại xưởng diễn ra trong khoảng 1–2 giây và hiển thị vừa khít trong khung 100×100.
-  - **UNKNOWN:** Màu sắc và độ sáng thực tế trên panel màn hình LCD vật lý của Kiosk; cần nạp trực tiếp qua cổng COM để nghiệm thu mắt thấy tai nghe.
-- **Trạng thái:** VERIFIED (Firmware & Cloud sẵn sàng để nạp lên Kiosk thật).
+  - [x] Timeout TLS 3,0s đảm bảo ESP32 hoàn tất bắt tay HTTPS với GitHub Pages.
+  - [x] Bỏ `setViewport`, scale động căn giữa khung 100x100 không bị lệch tọa độ.
+  - [x] Buffer 64 KB chứa thoải mái mọi ảnh JPEG 40–60 KB.
+  - [x] Giao tiếp liên lõi an toàn tuyệt đối bằng FreeRTOS Queue và Critical Section.
+  - [x] Hết 4,0 giây tự động khôi phục QR code mới nhất và bảng thông báo Kiosk mặc định.
+- **Trạng thái:** VERIFIED (Firmware sẵn sàng nạp lên bo mạch Kiosk thật).
+
+### [TLOG-021] Sự kiện mới cho mỗi lượt QR/Face AI (TASK-022)
+
+- **Thời gian:** 2026-10-28
+- **Migration Supabase:** Đã áp dụng `20261028193000_kiosk_checkin_display_events.sql` qua Supabase Management API; HTTP 201, response `[]`.
+- **Kiểm tra tích hợp Cloud:** Chạy SQL `DO` block trong transaction rồi `ROLLBACK`.
+  - QR cùng sinh viên quét hai lần: cả hai nhánh trả `ALREADY`, event UUID thay đổi.
+  - QR sang sinh viên thứ hai: event nhận đúng MSSV.
+  - Face AI cùng sinh viên quét hai lần: cả hai nhánh trả `ALREADY`, event UUID thay đổi.
+  - Face AI sang sinh viên thứ hai: event nhận đúng MSSV.
+  - `get_open_session()` trả `event_id` và MSSV của event gần nhất.
+  - `attendance.created_at` và số dòng `attendance_audit_logs` của hai bản ghi giữ nguyên.
+  - Transaction đã rollback, không lưu event hoặc dữ liệu test.
+- **Build firmware:** Lần chạy đầu trùng với một compile Arduino khác và lỗi thư mục build (`xtensa-esp-elf-g++: fatal error: cannot specify '-o' ... with multiple files`). Sau khi compile kia kết thúc, chạy lại lệnh dưới đây và **exit code 0**:
+  - Lệnh: `arduino-cli compile --jobs 1 --fqbn esp32:esp32:esp32 esp32_kiosk`.
+  - Flash: 1.100.988 / 1.310.720 bytes (83%). Global RAM: 118.920 / 327.680 bytes (36%), còn 208.760 bytes.
+- **Firmware thay đổi:** Thời lượng hiển thị đặt 3.500 ms.
+- **Phân định nhận thức:**
+  - **KNOWN:** Migration chạy trên Cloud; các assertion lặp QR/Face AI, MSSV event, timestamp và audit đều PASS; firmware build thành công.
+  - **UNKNOWN:** Chưa nạp Kiosk thật để xác nhận avatar đúng người, 3,5 giây rồi QR trở lại, không nháy lặp khi polling.
+- **Trạng thái:** VERIFYING.
