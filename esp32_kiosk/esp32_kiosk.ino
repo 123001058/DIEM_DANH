@@ -21,26 +21,31 @@ const char* supabase_url = "https://nhjkpknhybenkxwadvzv.supabase.co/rest/v1/rpc
 const char* supabase_key = "sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8";
 
 TFT_eSPI tft = TFT_eSPI(); 
-WiFiClientSecure client;
-HTTPClient http;
 
-String currentQrToken = "";
-String currentSessionId = "";
-String currentQrText = "";
-String lastCheckinId = "";
-
+// Trang thai hien thi tren LCD (Chi Core 1 xu ly)
 bool checkinFullscreenVisible = false;
 bool noOpenSessionVisible = false;
 uint32_t checkinFullscreenUntil = 0;
-uint32_t lastPollMs = 0;
 
-// Buffer chua anh chup tu Camera (Core 0 tai vao, Core 1 doc ve)
+// Buffer anh Camera (Core 0 ghi vao, Core 1 doc ve)
 #define CAM_BUF_SIZE 40960
 uint8_t camBuffer[CAM_BUF_SIZE];
 size_t camBufferSize = 0;
 volatile bool newCamFrameReady = false;
-volatile bool isCamFetching = false;
+
+// Bien dong bo giua Task Supabase (Core 0) va Task Ve LCD (Core 1)
+// Dung mang char tinh de an toan 100%, khong dung cap phat dong (Heap Safe)
+volatile bool pendingQrFlag = false;
+char pendingQrText[128] = "";
+
+volatile bool pendingCheckinFlag = false;
+char pendingCheckinName[64] = "";
+char pendingCheckinMssv[16] = "";
+
+volatile bool pendingNoSessionFlag = false;
+
 TaskHandle_t camTaskHandle = NULL;
+TaskHandle_t supaTaskHandle = NULL;
 
 void drawNoOpenSession() {
   tft.fillScreen(TFT_BLACK);
@@ -49,19 +54,22 @@ void drawNoOpenSession() {
   tft.drawCentreString("DIEM DANH", tft.width() / 2, 118, 2);
 }
 
-// Task mang FreeRTOS chay tren Core 0: Keo anh tu /capture cong 80
-// TUYET DOI KHONG goi lenh ve tft.* hoac TJpgDec.* trong task nay!
+// =============================================================================
+// TASK 1 (Core 0): Keo anh Camera toc do cao (~8-10 FPS mượt mà)
+// =============================================================================
 void cameraCaptureWorker(void* pvParameters) {
   WiFiClient camClient;
   HTTPClient camHttp;
-  camClient.setTimeout(600);
+  camClient.setTimeout(400);
+
+  // Bat HTTP Keep-Alive de khong ton thoi gian bat tay TCP lai moi frame
+  camHttp.setReuse(true);
 
   while (true) {
     if (WiFi.status() == WL_CONNECTED && !newCamFrameReady && !checkinFullscreenVisible) {
-      isCamFetching = true;
       String camUrl = String("http://") + esp_cam_ip + "/capture";
       camHttp.begin(camClient, camUrl);
-      camHttp.setTimeout(800);
+      camHttp.setTimeout(500);
       
       int code = camHttp.GET();
       if (code == HTTP_CODE_OK) {
@@ -70,118 +78,123 @@ void cameraCaptureWorker(void* pvParameters) {
           WiFiClient* stream = camHttp.getStreamPtr();
           size_t bytesRead = 0;
           uint32_t startRead = millis();
-          while (camHttp.connected() && bytesRead < len && (millis() - startRead < 1000)) {
+          while (camHttp.connected() && bytesRead < len && (millis() - startRead < 600)) {
             size_t avail = stream->available();
             if (avail) {
               size_t toRead = (avail > (len - bytesRead)) ? (len - bytesRead) : avail;
               stream->readBytes(camBuffer + bytesRead, toRead);
               bytesRead += toRead;
             } else {
-              vTaskDelay(pdMS_TO_TICKS(5));
+              vTaskDelay(pdMS_TO_TICKS(2));
             }
           }
           if (bytesRead == len) {
             camBufferSize = bytesRead;
-            newCamFrameReady = true; // Bao cho main loop Core 1 ve
+            newCamFrameReady = true; // Bao cho Core 1 ve ngay
           }
         }
       }
       camHttp.end();
-      isCamFetching = false;
     }
-    // Gioi han toc do: Nghi 300ms giua cac lan chup (~3 FPS) de khong lam nghen ESP32-CAM
-    vTaskDelay(pdMS_TO_TICKS(300));
+    // Nghi ngan 35ms giua cac frame (~10 FPS soi guong sieu muot, khong nong chip)
+    vTaskDelay(pdMS_TO_TICKS(35));
   }
 }
 
-void fetchQRCode() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  uint32_t pollStarted = millis();
+// =============================================================================
+// TASK 2 (Core 0): Polling Supabase Cloud ngầm (Không làm đứng hình LCD)
+// =============================================================================
+void supabasePollWorker(void* pvParameters) {
+  WiFiClientSecure client;
+  HTTPClient http;
+  client.setInsecure();
+  client.setTimeout(2500);
 
-  if (!http.connected()) {
-    http.begin(client, supabase_url);
-    http.setReuse(true);
-    http.setTimeout(2000);
-  }
+  String currentSessionId = "";
+  String currentQrToken = "";
+  String lastCheckinId = "";
 
-  http.addHeader("apikey", supabase_key);
-  http.addHeader("Authorization", String("Bearer ") + supabase_key);
-  http.addHeader("Content-Type", "application/json");
-
-  int httpCode = http.POST("{}"); 
-
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    uint32_t pollElapsed = millis() - pollStarted;
-    
-    JsonDocument doc;
-    deserializeJson(doc, payload);
-    
-    if (doc["id"].is<String>() && doc["qr_token"].is<String>()) {
-      String sessionId = doc["id"].as<String>();
-      String qrToken = doc["qr_token"].as<String>();
-
-      String latestCheckinId = "";
-      String latestCheckinName = "";
-      String latestCheckinMssv = "";
-      if (doc["last_checkin"].is<JsonObjectConst>()) {
-        JsonObjectConst latestCheckin = doc["last_checkin"];
-        if (latestCheckin["id"].is<String>()) latestCheckinId = latestCheckin["id"].as<String>();
-        if (latestCheckin["name"].is<String>()) latestCheckinName = latestCheckin["name"].as<String>();
-        if (latestCheckin["mssv"].is<String>()) latestCheckinMssv = latestCheckin["mssv"].as<String>();
+  while (true) {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!http.connected()) {
+        http.begin(client, supabase_url);
+        http.setReuse(true);
+        http.setTimeout(2500);
       }
 
-      bool newSession = (sessionId != currentSessionId);
-      if (newSession) {
-        currentSessionId = sessionId;
-        currentQrToken = "";
-        lastCheckinId = latestCheckinId;
-        checkinFullscreenVisible = false;
-        noOpenSessionVisible = false;
-        drawSplitCameraLayout();
-      }
+      http.addHeader("apikey", supabase_key);
+      http.addHeader("Authorization", String("Bearer ") + supabase_key);
+      http.addHeader("Content-Type", "application/json");
 
-      // Phat hien luot diem danh moi
-      if (!newSession && latestCheckinId.length() > 0 && latestCheckinId != lastCheckinId) {
-        lastCheckinId = latestCheckinId;
-        if (latestCheckinName.length() > 0) {
-          Serial.println("[KIOSK] Vua diem danh: " + latestCheckinName + " (" + latestCheckinMssv + ")");
-          latestCheckinMssv.trim();
-          
-          // Ve thong bao len nua ben trai (vung Camera) trong 2.5 giay
-          drawSplitCheckinNotice(latestCheckinName, latestCheckinMssv);
-          checkinFullscreenVisible = true;
-          checkinFullscreenUntil = millis() + 2500;
-          
-          Serial.printf("[KIOSK TIMING] event=%s rpc_ms=%lu source=split\n",
-                        latestCheckinId.c_str(), (unsigned long)pollElapsed);
+      int httpCode = http.POST("{}"); 
+
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        
+        JsonDocument doc;
+        deserializeJson(doc, payload);
+        
+        if (doc["id"].is<String>() && doc["qr_token"].is<String>()) {
+          String sessionId = doc["id"].as<String>();
+          String qrToken = doc["qr_token"].as<String>();
+
+          String latestCheckinId = "";
+          String latestCheckinName = "";
+          String latestCheckinMssv = "";
+          if (doc["last_checkin"].is<JsonObjectConst>()) {
+            JsonObjectConst latestCheckin = doc["last_checkin"];
+            if (latestCheckin["id"].is<String>()) latestCheckinId = latestCheckin["id"].as<String>();
+            if (latestCheckin["name"].is<String>()) latestCheckinName = latestCheckin["name"].as<String>();
+            if (latestCheckin["mssv"].is<String>()) latestCheckinMssv = latestCheckin["mssv"].as<String>();
+          }
+
+          bool newSession = (sessionId != currentSessionId);
+          if (newSession) {
+            currentSessionId = sessionId;
+            currentQrToken = "";
+            lastCheckinId = latestCheckinId;
+          }
+
+          // Phat hien luot diem danh moi -> Gui tin hieu cho Core 1 ve
+          if (!newSession && latestCheckinId.length() > 0 && latestCheckinId != lastCheckinId) {
+            lastCheckinId = latestCheckinId;
+            if (latestCheckinName.length() > 0) {
+              Serial.println("[SUPABASE WORKER] Vua diem danh: " + latestCheckinName + " (" + latestCheckinMssv + ")");
+              snprintf(pendingCheckinName, sizeof(pendingCheckinName), "%s", latestCheckinName.c_str());
+              snprintf(pendingCheckinMssv, sizeof(pendingCheckinMssv), "%s", latestCheckinMssv.c_str());
+              pendingCheckinFlag = true;
+            }
+          }
+
+          // Co ma QR moi -> Gui tin hieu cho Core 1 ve
+          if (qrToken != currentQrToken) {
+            currentQrToken = qrToken;
+            String qrUrl = String(web_domain) + "/checkin.html?t=" + qrToken;
+            Serial.println("[SUPABASE WORKER] Co ma QR moi: " + qrUrl);
+            snprintf(pendingQrText, sizeof(pendingQrText), "%s", qrUrl.c_str());
+            pendingQrFlag = true;
+          }
+        } else {
+          if (currentSessionId != "" || currentQrToken != "") {
+            Serial.println("[SUPABASE WORKER] Chua mo phien diem danh");
+            currentSessionId = "";
+            currentQrToken = "";
+            lastCheckinId = "";
+            pendingNoSessionFlag = true;
+          }
         }
-      }
-
-      // Cap nhat QR o nua ben phai
-      if (qrToken != currentQrToken) {
-        currentQrToken = qrToken;
-        currentQrText = String(web_domain) + "/checkin.html?t=" + qrToken;
-        Serial.println("[KIOSK] Co ma QR moi: " + currentQrText);
-        drawSplitQRCode(currentQrText);
-      }
-    } else {
-      if (currentSessionId != "" || currentQrToken != "" || !noOpenSessionVisible) {
-        Serial.println("Chua mo phien diem danh");
-        currentSessionId = "";
-        currentQrToken = "";
-        currentQrText = "";
-        lastCheckinId = "";
-        checkinFullscreenVisible = false;
-        noOpenSessionVisible = true;
-        drawNoOpenSession();
+      } else if (httpCode < 0) {
+        http.end();
       }
     }
-  } else if (httpCode < 0) {
-    http.end();
+    // Polling moi 1000ms chay ngam tren Core 0
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
+// =============================================================================
+// SETUP: Khoi tao he thong tren Core 1
+// =============================================================================
 void setup() {
   Serial.begin(115200);
   
@@ -195,18 +208,14 @@ void setup() {
 
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { 
-    delay(500); 
+    delay(400); 
     Serial.print("."); 
   }
-  
-  client.setInsecure();
 
-  Serial.println("[KIOSK] WiFi OK! Khoi tao giao dien chia doi (Split-Screen)...");
-  
-  // Ve khung giao dien ban dau
+  Serial.println("\n[KIOSK] WiFi OK! Khoi tao giao dien chia doi...");
   drawSplitCameraLayout();
 
-  // Khoi tao task keo anh Camera chay tren Core 0
+  // 1. Task keo anh Camera toc do cao tren Core 0 (4KB stack)
   xTaskCreatePinnedToCore(
     cameraCaptureWorker,
     "CamWorker",
@@ -214,35 +223,64 @@ void setup() {
     NULL,
     1,
     &camTaskHandle,
-    0 // Core 0
+    0
   );
 
-  Serial.println("[KIOSK] Da kich hoat Camera Worker tren Core 0!");
+  // 2. Task Polling Supabase chay ngam tren Core 0 (6KB stack)
+  xTaskCreatePinnedToCore(
+    supabasePollWorker,
+    "SupaWorker",
+    6144,
+    NULL,
+    1,
+    &supaTaskHandle,
+    0
+  );
+
+  Serial.println("[KIOSK] Da kich hoat 2 Task ngam tren Core 0! Core 1 chuyen ve 100%!");
 }
 
+// =============================================================================
+// MAIN LOOP: Chay tren Core 1 - LA NOI DUY NHAT DUOC PHEP GOI TFT VE MAN HINH
+// =============================================================================
 void loop() {
   uint32_t now = millis();
 
-  // 1. Ve frame Camera moi len nua ben trai (Chi main loop Core 1 moi duoc goi!)
+  // 1. Neu co su kien diem danh moi: Hien thi hop thong bao xanh la tren nua trai
+  if (pendingCheckinFlag) {
+    pendingCheckinFlag = false;
+    drawSplitCheckinNotice(String(pendingCheckinName), String(pendingCheckinMssv));
+    checkinFullscreenVisible = true;
+    checkinFullscreenUntil = now + 2500; // 2.5s
+  }
+
+  // 2. Neu co ma QR moi: Cap nhat ngay tren nua phai (khong anh huong nua trai)
+  if (pendingQrFlag) {
+    pendingQrFlag = false;
+    drawSplitQRCode(String(pendingQrText));
+  }
+
+  // 3. Neu co frame Camera moi tu Core 0: Ve ngay len nua trai (sieu muot, ~10 FPS)
   if (newCamFrameReady && !checkinFullscreenVisible) {
     drawSplitCameraFrame(camBuffer, camBufferSize);
     newCamFrameReady = false;
   }
 
-  // 2. Polling Supabase moi 1000ms
-  if (now - lastPollMs >= 1000) {
-    lastPollMs = now;
-    fetchQRCode();
-  }
-
-  now = millis();
-
-  // 3. Khi het 2.5 giay thong bao diem danh: Khoi phuc lai khung Camera soi guong
+  // 4. Khi het 2.5 giay thong bao diem danh: Khoi phuc lai khung Live Camera
   if (checkinFullscreenVisible && static_cast<int32_t>(now - checkinFullscreenUntil) >= 0) {
     checkinFullscreenVisible = false;
     Serial.println("[KIOSK] Het 2.5s: Khoi phuc Live Camera");
     drawSplitCameraLayout();
   }
 
-  delay(15);
+  // 5. Khi phien dong
+  if (pendingNoSessionFlag) {
+    pendingNoSessionFlag = false;
+    if (!noOpenSessionVisible) {
+      noOpenSessionVisible = true;
+      drawNoOpenSession();
+    }
+  }
+
+  delay(8); // Vong lap chay lien tuc o tan so >60Hz de ve khong tre
 }

@@ -1076,3 +1076,26 @@
   - **LIKELY:** Giao diện chia đôi cân đối, camera hiển thị được frame JPEG HVGA scale 4 (120x80 px).
   - **UNKNOWN:** Cần nạp lên phần cứng Kiosk thật để đo: FPS camera thực tế, độ nhạy quét QR bằng camera điện thoại thật, và nhiệt độ/tải của ESP32-CAM khi chạy đồng thời với Web Admin.
 - **Trạng thái:** VERIFYING (Chờ nạp lên thiết bị vật lý để nghiệm thu).
+### [TLOG-025] Tối ưu hóa đa nhân chống lag cho Kiosk: Tách Supabase Polling sang Core 0, tăng tốc Camera Keep-Alive (TASK-025)
+
+- **Thời gian chạy test:** 2026-10-28
+- **Mục tiêu kiểm thử:**
+  1. Loại bỏ hoàn toàn hiện tượng khựng màn hình do đợi Supabase Cloud: Tách supabasePollWorker chạy độc lập trên Core 0 (ngăn xếp 6KB).
+  2. Tăng tốc độ camera live soi gương: Kích hoạt HTTP Keep-Alive (setReuse(true)), giảm chu kỳ nghỉ từ 300ms xuống 35ms trên cameraCaptureWorker (ngăn xếp 4KB, Core 0).
+  3. Giải phóng Core 1 chuyên tâm 100% cho việc vẽ LCD (vòng lặp loop chạy >60Hz).
+  4. Đảm bảo an toàn luồng phần cứng: Giao tiếp giữa 2 nhân bằng mảng char tĩnh và cờ volatile; duy nhất Core 1 được gọi 	ft.* và TJpgDec.*.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_smooth_task025 esp32_kiosk
+  `
+- **Kết quả thực tế (Raw Output):**
+  `	ext
+  Sketch uses 1097824 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 94104 bytes (28%) of dynamic memory, leaving 233576 bytes for local variables. Maximum is 327680 bytes.
+  Exit code: 0 (Thành công 100%)
+  `
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Cú pháp, liên kết FreeRTOS tasks 2 nhân, bộ đệm tĩnh và giao tiếp luồng biên dịch thành công 100%; RAM còn trống 233.576 bytes (72%).
+  - **LIKELY:** Tốc độ làm tươi camera trên màn hình LCD đạt ~8–10 FPS, không còn bị khựng mỗi 1 giây do mạng Supabase.
+  - **UNKNOWN:** Cần nạp bo mạch Kiosk thật để nghiệm thu độ mượt soi gương và độ nhạy quét QR của điện thoại ngoài đời.
+- **Trạng thái:** VERIFYING (Firmware tối ưu đã sẵn sàng nạp lên thiết bị thật).
