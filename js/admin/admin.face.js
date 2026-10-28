@@ -434,7 +434,7 @@ function reloadAdminFaceMatcher() {
   if (labeled.length > 0) {
     // Ngưỡng so khớp Euclidean distance: 0.38 (chặt hơn để tránh nhận nhầm người)
     // Mặc định thư viện là 0.6 (rất lỏng), 0.42 vẫn còn lỏng → hạ xuống 0.38
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.38);
   } else {
     adminFaceMatcher = null;
   }
