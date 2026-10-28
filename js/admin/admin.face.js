@@ -83,8 +83,8 @@ async function silenceEspBuzzerNow() {
   let ip = cleanEspCamIp((ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
   if (ip.includes(':')) ip = ip.split(':')[0];
   try {
-    fetch(`http://${ip}/test_pin?pin=14&val=0&_=${Date.now()}`, { mode: 'no-cors' }).catch(() => {});
-  } catch (e) {}
+    fetch(`http://${ip}/test_pin?pin=14&val=0&_=${Date.now()}`, { mode: 'no-cors' }).catch(() => { });
+  } catch (e) { }
 }
 window.silenceEspBuzzerNow = silenceEspBuzzerNow;
 
@@ -266,8 +266,8 @@ function fillSpoofTensorFaceX(srcCanvas, box, scale, dst) {
     const g = imgData[p++];
     const b = imgData[p++];
     p++; // bỏ qua alpha
-    dst[i]         = b; // Kênh Blue
-    dst[N + i]     = g; // Kênh Green
+    dst[i] = b; // Kênh Blue
+    dst[N + i] = g; // Kênh Green
     dst[2 * N + i] = r; // Kênh Red
   }
 }
@@ -412,7 +412,7 @@ function reloadAdminFaceMatcher() {
   if (labeled.length > 0) {
     // Ngưỡng so khớp Euclidean distance: 0.38 (chặt hơn để tránh nhận nhầm người)
     // Mặc định thư viện là 0.6 (rất lỏng), 0.42 vẫn còn lỏng → hạ xuống 0.38
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.37);
   } else {
     adminFaceMatcher = null;
   }
@@ -773,7 +773,7 @@ async function processAdminCameraFrame(media) {
       adminCaptureCanvas,
       new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 })
     ).withFaceLandmarks(true).withFaceDescriptor();
-  } catch (e) {}
+  } catch (e) { }
 
   // Guard check 2: Nếu camera đã tắt trong lúc chờ detectSingleFace -> xóa canvas và thoát ngay
   if (!adminCameraActive || !adminInferenceRunning) {
@@ -898,7 +898,7 @@ async function processAdminCameraFrame(media) {
           const cropCtx = cropCanvas.getContext('2d');
           cropCtx.drawImage(adminCaptureCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
           capturedFaceDataUrl = cropCanvas.toDataURL('image/jpeg', 0.85);
-        } catch (e) {}
+        } catch (e) { }
 
         // Kích hoạt điểm danh hợp lệ
         executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFaceDataUrl);
@@ -940,7 +940,7 @@ async function processAdminCameraFrame(media) {
 
         const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
         if (btnQuick) btnQuick.style.display = 'inline-flex';
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -1352,7 +1352,7 @@ function playAdminSuccessBeep() {
     gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.22);
     osc.start();
     osc.stop(ctx.currentTime + 0.22);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Phát còi Buzzer trực tiếp trên mạch ESP32-S3 (Chân 14)
@@ -1368,8 +1368,8 @@ async function triggerEspBuzzer(type = 'success') {
   // Cổng 80 xử lý API HTTP, cổng 81 dành riêng cho luồng stream video
   const url80 = `http://${ip}/beep?type=${encodeURIComponent(type)}&_=${Date.now()}`;
   try {
-    fetch(url80, { mode: 'no-cors' }).catch(() => {});
-  } catch (e) {}
+    fetch(url80, { mode: 'no-cors' }).catch(() => { });
+  } catch (e) { }
 }
 
 // Biến lưu ảnh khuôn mặt chưa nhận diện để đăng ký nhanh
