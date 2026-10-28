@@ -948,6 +948,14 @@ function formatEspStreamUrl(raw) {
   return `http://${host}:${port}/stream`;
 }
 
+function openEspCamInNewTab() {
+  const ipInput = document.getElementById('adminEspIpInput');
+  const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
+  const streamUrl = formatEspStreamUrl(rawIp);
+  window.open(streamUrl, '_blank');
+}
+window.openEspCamInNewTab = openEspCamInNewTab;
+
 // =====================================================================
 // 6. VÒNG LẶP NHẬN DIỆN & ĐIỂM DANH THỜI GIAN THỰC (PIPELINE CHÍNH)
 // =====================================================================
