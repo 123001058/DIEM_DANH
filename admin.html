@@ -2,17 +2,17 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, user-scalable=yes">
+<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <title>LH-NaviX — Quản Lý Điểm Danh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css?v=7">
-<link rel="stylesheet" href="css/admin.css?v=8">
+<link rel="stylesheet" href="css/admin.css?v=9">
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=6"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
 </head>
@@ -528,9 +528,17 @@
          ========================================================== -->
     <section class="app-view" id="view-face-cam">
       <!-- Card Quét Camera Chính Gọn Gàng -->
-      <div class="card" style="padding:16px 20px;margin-bottom:14px;">
+      <div class="card admin-face-cam-card" style="padding:16px 20px;margin-bottom:14px;">
+        <!-- Banner Cảnh báo Mixed Content khi mở qua HTTPS -->
+        <div id="adminCamHttpsAlert" style="display:none;padding:12px 14px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;margin-bottom:12px;font-size:12.5px;color:#991b1b;line-height:1.45;">
+          <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span>⚠️</span> Đang mở bằng HTTPS (Trình duyệt chặn Camera nội bộ HTTP)
+          </div>
+          <div>Trình duyệt di động tự động chặn luồng HTTP từ địa chỉ IP nội bộ (<code>192.168.2.169</code>) do chính sách bảo mật Mixed Content. Để xem được camera trên điện thoại, vui lòng mở trang qua mạng LAN HTTP (ví dụ qua IP máy tính) hoặc cho phép tải nội dung không an toàn.</div>
+        </div>
+
         <!-- Header tích hợp gọn 1 hàng -->
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        <div class="admin-cam-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <h2 style="font-size:16px;font-weight:800;margin:0;display:flex;align-items:center;gap:7px;color:var(--text);">
               <span>📷</span> Camera Điểm Danh ESP32
@@ -551,22 +559,22 @@
         </div>
 
         <!-- Toolbar Camera thao tác nhanh -->
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <label style="font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;">
+        <div class="admin-cam-toolbar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+          <div class="admin-cam-controls-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;">
+            <label class="admin-cam-ip-label" style="font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;">
               <span>IP Camera:</span>
-              <input type="text" id="adminEspIpInput" value="192.168.2.169" placeholder="192.168.2.169" style="padding:5px 9px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--surface);color:var(--text);width:130px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
+              <input type="text" id="adminEspIpInput" value="192.168.2.169" placeholder="192.168.2.169" style="padding:6px 9px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;background:var(--surface);color:var(--text);width:130px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
             </label>
-            <button type="button" class="btn btn-primary btn-sm" id="btnAdminCamToggle" onclick="toggleAdminCamera()" style="font-weight:800;">
+            <button type="button" class="btn btn-primary btn-sm btn-cam-toggle" id="btnAdminCamToggle" onclick="toggleAdminCamera()" style="font-weight:800;">
               📡 Bắt đầu quét
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminCamFlip()" title="Lật gương camera">
+            <button type="button" class="btn btn-secondary btn-sm btn-cam-opt" onclick="toggleAdminCamFlip()" title="Lật gương camera">
               🔄 Lật gương
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAdminFaceFullscreen()" title="Toàn màn hình">
+            <button type="button" class="btn btn-secondary btn-sm btn-cam-opt" onclick="toggleAdminFaceFullscreen()" title="Toàn màn hình">
               ⛶ Toàn màn hình
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnAdminSoundToggle" onclick="toggleAdminSound()" title="Bật/Tắt âm thanh Loa & Còi">
+            <button type="button" class="btn btn-secondary btn-sm btn-cam-opt" id="btnAdminSoundToggle" onclick="toggleAdminSound()" title="Bật/Tắt âm thanh Loa & Còi">
               🔊 Âm thanh
             </button>
           </div>
@@ -576,7 +584,7 @@
         <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px;" class="admin-face-grid">
           <!-- Cột Trái: Camera Feed -->
           <div>
-            <div style="position:relative;background:#0f172a;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:360px;display:flex;align-items:center;justify-content:center;">
+            <div class="admin-cam-box" style="position:relative;background:#0f172a;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:360px;display:flex;align-items:center;justify-content:center;">
               <!-- Luồng ảnh MJPEG từ ESP32 -->
               <img id="adminEspImg" crossorigin="anonymous" alt="" style="width:100%;height:100%;max-height:460px;object-fit:cover;display:none;background:#0f172a;">
               <!-- Video Webcam dự phòng ngầm -->
@@ -592,7 +600,7 @@
               </div>
 
               <!-- HUD Thanh trạng thái dưới khung camera -->
-              <div style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(15,23,42,0.85);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);padding:6px 12px;border-radius:8px;font-size:12px;color:#f8fafc;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+              <div class="admin-cam-hud" style="position:absolute;bottom:8px;left:8px;right:8px;background:rgba(15,23,42,0.85);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);padding:6px 12px;border-radius:8px;font-size:12px;color:#f8fafc;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
                 <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
                   <span id="adminCamHudStatus" style="font-weight:700;color:#38bdf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Sẵn sàng kết nối...</span>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnAdminQuickEnrollFromFeed" onclick="quickEnrollFromCurrentFeed()" style="display:none;padding:2px 8px;font-size:11px;font-weight:800;white-space:nowrap;background:#eff6ff;color:#2563eb;border-color:#bfdbfe;" title="Chụp ảnh khuôn mặt đang đứng trước camera gán vào hồ sơ sinh viên">📸 Đăng ký cho SV</button>
@@ -1409,8 +1417,8 @@
   <button type="button" class="mobile-nav-item" data-view="attendance" onclick="navTo('attendance')">
     <span class="mobile-nav-label">Điểm danh</span>
   </button>
-  <button type="button" class="mobile-nav-item" data-view="zalo" onclick="navTo('zalo')">
-    <span class="mobile-nav-label">Lịch rảnh</span>
+  <button type="button" class="mobile-nav-item" data-view="face-cam" onclick="navTo('face-cam')">
+    <span class="mobile-nav-label">📷 Camera</span>
   </button>
   <button type="button" class="mobile-nav-item" data-view="leave" onclick="navTo('leave')">
     <span class="mobile-nav-label">Đơn nghỉ</span>
@@ -2057,12 +2065,12 @@
 <input type="file" id="adminAvatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleAdminAvatarSelectedDirect(event)">
 
 <!-- Admin JS: tách theo tính năng, PHẢI nạp theo đúng thứ tự này -->
-<script src="js/admin/admin.core.js?v=5"></script>
+<script src="js/admin/admin.core.js?v=6"></script>
 <script src="js/admin/admin.leave.js?v=6"></script>
 <script src="js/admin/admin.schedules.js?v=2"></script>
 <script src="js/admin/admin.tasks.js?v=2"></script>
 <script src="js/admin/admin.students.js?v=2"></script>
 <script src="js/admin/admin.attendance.js?v=2"></script>
-<script src="js/admin/admin.face.js?v=6"></script>
+<script src="js/admin/admin.face.js?v=7"></script>
 </body>
 </html>

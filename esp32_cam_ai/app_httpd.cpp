@@ -23,6 +23,9 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
 
   esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
   esp_camera_fb_return(fb);
@@ -39,6 +42,9 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   if (res != ESP_OK) return res;
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
   httpd_resp_set_hdr(req, "X-Framerate", "30");
 
   while (true) {
@@ -266,15 +272,29 @@ static esp_err_t test_pin_handler(httpd_req_t *req) {
   return httpd_resp_send(req, "{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}", strlen("{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}"));
 }
 
+static esp_err_t options_handler(httpd_req_t *req) {
+  httpd_resp_set_status(req, "204 No Content");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+  httpd_resp_set_hdr(req, "Access-Control-Max-Age", "86400");
+  return httpd_resp_send(req, NULL, 0);
+}
+
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.max_uri_handlers = 12;
+  config.max_uri_handlers = 16;
+  config.lru_purge_enable = true;
   config.server_port = 80;
 
   httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler, .user_ctx = NULL };
   httpd_uri_t capture_uri = { .uri = "/capture", .method = HTTP_GET, .handler = capture_handler, .user_ctx = NULL };
+  httpd_uri_t capture_options_uri = { .uri = "/capture", .method = HTTP_OPTIONS, .handler = options_handler, .user_ctx = NULL };
   httpd_uri_t stream_uri = { .uri = "/stream", .method = HTTP_GET, .handler = stream_handler, .user_ctx = NULL };
+  httpd_uri_t stream_options_uri = { .uri = "/stream", .method = HTTP_OPTIONS, .handler = options_handler, .user_ctx = NULL };
   httpd_uri_t beep_uri = { .uri = "/beep", .method = HTTP_GET, .handler = beep_handler, .user_ctx = NULL };
+  httpd_uri_t beep_options_uri = { .uri = "/beep", .method = HTTP_OPTIONS, .handler = options_handler, .user_ctx = NULL };
   httpd_uri_t flash_uri = { .uri = "/flash", .method = HTTP_GET, .handler = flash_handler, .user_ctx = NULL };
   httpd_uri_t test_pin_uri = { .uri = "/test_pin", .method = HTTP_GET, .handler = test_pin_handler, .user_ctx = NULL };
   httpd_uri_t rgb_uri = { .uri = "/rgb", .method = HTTP_GET, .handler = rgb_handler, .user_ctx = NULL };
@@ -282,7 +302,9 @@ void startCameraServer() {
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
+    httpd_register_uri_handler(camera_httpd, &capture_options_uri);
     httpd_register_uri_handler(camera_httpd, &beep_uri);
+    httpd_register_uri_handler(camera_httpd, &beep_options_uri);
     httpd_register_uri_handler(camera_httpd, &flash_uri);
     httpd_register_uri_handler(camera_httpd, &test_pin_uri);
     httpd_register_uri_handler(camera_httpd, &rgb_uri);
@@ -292,7 +314,11 @@ void startCameraServer() {
   config.ctrl_port = 32769;
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &stream_uri);
+    httpd_register_uri_handler(stream_httpd, &stream_options_uri);
+    httpd_register_uri_handler(stream_httpd, &capture_uri);
+    httpd_register_uri_handler(stream_httpd, &capture_options_uri);
     httpd_register_uri_handler(stream_httpd, &beep_uri);
+    httpd_register_uri_handler(stream_httpd, &beep_options_uri);
     httpd_register_uri_handler(stream_httpd, &flash_uri);
     httpd_register_uri_handler(stream_httpd, &test_pin_uri);
     httpd_register_uri_handler(stream_httpd, &rgb_uri);

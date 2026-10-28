@@ -1255,6 +1255,27 @@ function formatPastSessionDateTime(value) {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   }).format(date);
 }
+
+function getAttendanceExportStatus(status, category) {
+  return status === 'vắng có phép' && category === 'Học trường' ? 'Đi học' : status;
+}
+
+function applyAttendanceExportRowFill(worksheet, rowIndex, status, category, columnCount) {
+  let rgb;
+  if (status === 'vắng không phép') rgb = 'F4CCCC';
+  else if (status === 'đi muộn') rgb = 'FFF2CC';
+  else if (category === 'Học trường') rgb = 'D9EAD3';
+  if (!rgb) return;
+
+  for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+    const address = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+    const cell = worksheet[address];
+    if (cell) {
+      cell.s = { ...(cell.s || {}), fill: { patternType: 'solid', fgColor: { rgb } } };
+    }
+  }
+}
+
 window.exportPastSessionExcel = async function(sid, button) {
   const oldText = button?.innerHTML || '';
   if (button) { button.disabled = true; button.textContent = 'Đang xuất...'; }
@@ -1300,7 +1321,7 @@ window.exportPastSessionExcel = async function(sid, button) {
         idx + 1,
         String(student.mssv || ''),
         String(student.name || row?.full_name || student.mssv || ''),
-        st,
+        getAttendanceExportStatus(st, row?.category),
         (st === 'có mặt' || st === 'đi muộn' || st === 'vắng có phép') && row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
         row?.category || '—',
         row?.note || '—'
@@ -1323,6 +1344,10 @@ window.exportPastSessionExcel = async function(sid, button) {
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
     worksheet['!cols'] = [{ wch: 6 }, { wch: 15 }, { wch: 28 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 30 }];
     worksheet['!autofilter'] = { ref: 'A5:G' + Math.max(5, sheetData.length) };
+    studentList.forEach((student, idx) => {
+      const row = rowsByMssv.get(String(student.mssv));
+      applyAttendanceExportRowFill(worksheet, 5 + idx, row?.status, row?.category, 7);
+    });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Điểm danh');
 

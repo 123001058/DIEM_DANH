@@ -100,19 +100,23 @@ async function exportAttendanceByGroups(){
         [''],
         ['STT', 'MSSV', 'Họ tên', 'Trạng thái', 'Lĩnh vực', 'Ghi chú', 'Thời gian']
       ];
+      const attendanceRows = [];
       
       memberMssvs.forEach((mssv, idx) => {
         const a = attendanceMap[mssv];
-        const status = a?.status || 'Chưa điểm danh';
+        const rawStatus = a?.status || 'Chưa điểm danh';
         const category = a?.category || '';
+        const status = getAttendanceExportStatus(rawStatus, category);
         const note = a?.note || '';
         const time = a?.time || '—';
         
         teamData.push([idx + 1, mssv, names[mssv] || mssv, status, category, note, time]);
+        attendanceRows.push({ status: rawStatus, category });
       });
       
       const ws = XLSX.utils.aoa_to_sheet(teamData);
       ws['!cols'] = [{wch:6}, {wch:12}, {wch:25}, {wch:18}, {wch:15}, {wch:30}, {wch:10}];
+      attendanceRows.forEach((row, idx) => applyAttendanceExportRowFill(ws, 5 + idx, row.status, row.category, 7));
       XLSX.utils.book_append_sheet(wb, ws, team.name.substring(0, 31));
     });
     
@@ -126,21 +130,25 @@ async function exportAttendanceByGroups(){
     ];
     
     let stt = 1;
+    const allAttendanceRows = [];
     teamGroups.forEach(team => {
       const memberMssvs = teamMembersCache.get(team.id) || [];
       memberMssvs.forEach(mssv => {
         const a = attendanceMap[mssv];
-        const status = a?.status || 'Chưa điểm danh';
+        const rawStatus = a?.status || 'Chưa điểm danh';
         const category = a?.category || '';
+        const status = getAttendanceExportStatus(rawStatus, category);
         const note = a?.note || '';
         const time = a?.time || '—';
         
         allData.push([stt++, team.name, mssv, names[mssv] || mssv, status, category, note, time]);
+        allAttendanceRows.push({ status: rawStatus, category });
       });
     });
     
     const wsAll = XLSX.utils.aoa_to_sheet(allData);
     wsAll['!cols'] = [{wch:6}, {wch:20}, {wch:12}, {wch:25}, {wch:18}, {wch:15}, {wch:30}, {wch:10}];
+    allAttendanceRows.forEach((row, idx) => applyAttendanceExportRowFill(wsAll, 5 + idx, row.status, row.category, 8));
     XLSX.utils.book_append_sheet(wb, wsAll, 'Tất cả SV');
     
     XLSX.writeFile(wb, 'DiemDanh_' + safeName + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
@@ -155,7 +163,7 @@ function loadSheetJS(){
   return new Promise((resolve, reject) => {
     if (typeof XLSX !== 'undefined') return resolve();
     const script = document.createElement('script');
-    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
     script.onload = resolve;
     script.onerror = () => reject(new Error('Không tải được SheetJS'));
     document.head.appendChild(script);

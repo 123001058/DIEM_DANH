@@ -64,6 +64,19 @@ function cleanEspCamIp(raw) {
 let adminSoundMuted = localStorage.getItem('admin_sound_muted') === 'true';
 let adminLastGlobalBeepTime = 0;
 
+// Quản lý trạng thái luồng stream và fallback thông minh trên Mobile
+let adminStreamMode = 'mjpeg'; // 'mjpeg' | 'fast_stream'
+let adminFastStreamLoopActive = false;
+let adminFastStreamTimer = null;
+let adminStreamReconnectTimer = null;
+
+function formatEspCaptureUrl(raw) {
+  const s = cleanEspCamIp(raw);
+  let host = s;
+  if (s.includes(':')) host = s.split(':')[0];
+  return `http://${host}/capture`;
+}
+
 function updateAdminSoundBtn() {
   const btn = document.getElementById('btnAdminSoundToggle');
   if (!btn) return;
@@ -123,6 +136,11 @@ async function initFaceCamInAdmin(isBackground = false) {
   }
   localStorage.setItem('esp_cam_ip', savedIp);
   updateAdminSoundBtn();
+
+  if (window.location.protocol === 'https:') {
+    const alertEl = document.getElementById('adminCamHttpsAlert');
+    if (alertEl) alertEl.style.display = 'block';
+  }
 
   // Khởi tạo Lịch sử quét gom nhóm theo ngày từ bộ nhớ
   renderAdminRecentScansGrouped();
@@ -469,6 +487,60 @@ function toggleAdminCamera() {
   }
 }
 
+function startFastFrameStream(captureUrl) {
+  if (!adminCameraActive) return;
+  adminFastStreamLoopActive = true;
+  const img = document.getElementById('adminEspImg');
+  const hudStatus = document.getElementById('adminCamHudStatus');
+
+  let isFetching = false;
+  const fetchNextFrame = () => {
+    if (!adminCameraActive || !adminFastStreamLoopActive) return;
+    if (isFetching) return;
+    isFetching = true;
+
+    const frameImg = new Image();
+    frameImg.crossOrigin = 'anonymous';
+    const timer = setTimeout(() => {
+      isFetching = false;
+      frameImg.onload = null;
+      frameImg.onerror = null;
+      if (adminCameraActive && adminFastStreamLoopActive) {
+        adminFastStreamTimer = setTimeout(fetchNextFrame, 800);
+      }
+    }, 3000);
+
+    frameImg.onload = () => {
+      clearTimeout(timer);
+      isFetching = false;
+      if (adminCameraActive && adminFastStreamLoopActive && img) {
+        img.src = frameImg.src;
+        if (hudStatus && adminCameraActive) {
+          hudStatus.textContent = `🟢 ESP32 đang phát luồng trực tiếp (${captureUrl})`;
+        }
+        updateAttendanceCamStatusPill('active');
+        adminFastStreamTimer = setTimeout(fetchNextFrame, 50); // ~20 FPS mượt mà
+      }
+    };
+
+    frameImg.onerror = () => {
+      clearTimeout(timer);
+      isFetching = false;
+      if (adminCameraActive && adminFastStreamLoopActive) {
+        if (hudStatus) {
+          hudStatus.innerHTML = `⚠️ Không thể tải luồng từ <b>${captureUrl}</b>. Hãy kiểm tra nguồn ESP32, Wi-Fi hoặc IP camera.`;
+        }
+        updateAttendanceCamStatusPill('error');
+        adminFastStreamTimer = setTimeout(fetchNextFrame, 1500);
+      }
+    };
+
+    frameImg.src = `${captureUrl}?t=${Date.now()}`;
+  };
+
+  fetchNextFrame();
+}
+
 async function startAdminCamera() {
   if (adminCameraActive) return;
 
@@ -517,14 +589,45 @@ async function startAdminCamera() {
   localStorage.setItem('esp_cam_ip', rawIp);
 
   const streamUrl = formatEspStreamUrl(rawIp);
+  const captureUrl = formatEspCaptureUrl(rawIp);
+  adminStreamMode = 'mjpeg';
+
+  const isHttps = window.location.protocol === 'https:';
+  const httpsAlert = document.getElementById('adminCamHttpsAlert');
+  if (isHttps && httpsAlert) {
+    httpsAlert.style.display = 'block';
+  }
+
   if (img) {
     img.style.display = 'block';
     img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
     img.onload = () => {
-      if (hudStatus && adminCameraActive) hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+      if (hudStatus && adminCameraActive && adminStreamMode === 'mjpeg') {
+        hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+      }
       updateAttendanceCamStatusPill('active');
     };
     img.onerror = () => {
+      if (!adminCameraActive) return;
+      if (isHttps) {
+        if (hudStatus) {
+          hudStatus.innerHTML = `⚠️ Trình duyệt chặn kết nối HTTP tới <b>${streamUrl}</b> do trang mở bằng HTTPS (Mixed Content). Vui lòng mở qua mạng LAN HTTP.`;
+        }
+        updateAttendanceCamStatusPill('error');
+        return;
+      }
+
+      // Tự động fallback sang Fast Frame Stream cổng 80 nếu luồng MJPEG cổng 81 bị nghẽn socket hoặc bị chặn trên mobile
+      if (adminStreamMode === 'mjpeg') {
+        console.warn(`[FaceCam] Luồng MJPEG (${streamUrl}) không tải được. Tự động chuyển đổi sang Fast Frame Stream trực tiếp qua cổng 80...`);
+        adminStreamMode = 'fast_stream';
+        if (hudStatus) {
+          hudStatus.textContent = `🔄 Đang chuyển sang luồng Fast Stream trực tiếp (${captureUrl})...`;
+        }
+        startFastFrameStream(captureUrl);
+        return;
+      }
+
       if (hudStatus && adminCameraActive) {
         hudStatus.innerHTML = `⚠️ Không tải được luồng từ <b>${streamUrl}</b>. Hãy kiểm tra nguồn ESP32, kết nối Wi-Fi hoặc IP camera.`;
       }
@@ -532,7 +635,7 @@ async function startAdminCamera() {
       if (adminCameraActive && !adminStreamReconnectTimer) {
         adminStreamReconnectTimer = setTimeout(() => {
           adminStreamReconnectTimer = null;
-          if (adminCameraActive && img) {
+          if (adminCameraActive && img && adminStreamMode === 'mjpeg') {
             img.src = `${streamUrl}?t=${Date.now()}`;
           }
         }, 3000);
@@ -558,6 +661,12 @@ function stopAdminCamera() {
   // 1. Tắt cờ trạng thái ngay lập tức
   adminCameraActive = false;
   adminInferenceRunning = false;
+  adminFastStreamLoopActive = false;
+  if (adminFastStreamTimer) {
+    clearTimeout(adminFastStreamTimer);
+    adminFastStreamTimer = null;
+  }
+  adminStreamMode = 'mjpeg';
   if (adminStreamReconnectTimer) {
     clearTimeout(adminStreamReconnectTimer);
     adminStreamReconnectTimer = null;

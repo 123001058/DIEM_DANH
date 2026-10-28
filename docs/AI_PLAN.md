@@ -379,3 +379,83 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [x] Quy định xử lý khi buộc phải chạm luồng đóng băng và yêu cầu kiểm thử hồi quy.
   - [x] Diff sạch và có bản ghi kiểm tra tài liệu trong Test Log.
 - **Phương án kiểm thử:** Kiểm tra diff tài liệu bằng `git diff --check` và chạy PowerShell assertions xác nhận các quy định bắt buộc hiện diện trong `docs/FROZEN_FEATURES.md`.
+
+---
+
+### [TASK-015] Tối ưu giao diện mobile-first responsive và khắc phục lỗi xem luồng Camera ESP32 trên điện thoại
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:**
+  1. Tối ưu giao diện mobile-first responsive thực sự trên điện thoại di động (không bị co cụm thu nhỏ như desktop thu nhỏ, không tràn ngang, touch targets chuẩn, thanh điều hướng dưới hỗ trợ trực tiếp Camera, bố cục cuộn trang mượt mà).
+  2. Sửa tận gốc nguyên nhân điện thoại không tải được luồng camera từ địa chỉ `192.168.2.169` trong khi laptop xem được: xử lý CORS/PNA preflight OPTIONS, Mixed Content (HTTPS vs HTTP), khả năng kết nối mạng di động/Wi-Fi LAN, giải phóng nghẽn socket server ESP32 và cơ chế fallback luồng trực tiếp linh hoạt.
+  3. Tuyệt đối tôn trọng các tính năng đóng băng trong `docs/FROZEN_FEATURES.md` (FRZ-004 còi Active LOW, FRZ-005 Debounce 4000ms & Mute).
+- **Phạm vi tác động:**
+  - `admin.html`
+  - `css/admin.css`
+  - `js/admin/admin.face.js`
+  - `js/admin/admin.core.js`
+  - `esp32_cam_ai/app_httpd.cpp`
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - **Về giao diện mobile:**
+    - Thẻ meta viewport có `minimum-scale=0.5`. Khi nội dung hoặc bảng có chiều ngang rộng hơn màn hình điện thoại, trình duyệt mobile sẽ auto-zoom-out xuống 0.5 khiến toàn bộ giao diện bị teo nhỏ như phiên bản laptop thu nhỏ.
+    - Thiếu kiểm soát tràn ngang (`overflow-x: hidden`) trên cấp độ app-wrapper / body, khiến một số bảng dữ liệu hoặc flex toolbar đẩy to bề ngang màn hình di động.
+    - Khung camera và toolbar camera (`#view-face-cam`): các nút bấm chưa được căn chỉnh tối ưu cho thao tác một tay bằng ngón cái, thanh trạng thái HUD bị phình to khi thông báo lỗi dài làm che khung hình.
+    - Thanh dock điều hướng đáy (`#mobileBottomNav`) chưa có nút truy cập nhanh đến tab Camera Điểm danh ESP32 (`face-cam`).
+  - **Về luồng xem Camera trên điện thoại:**
+    - **Nguyên nhân 1 (CORS & Private Network Access - PNA):** Trình duyệt Chrome Android và Safari iOS gửi preflight `OPTIONS` khi truy cập IP nội bộ `192.168.2.169` từ origin khác. Firmware ESP32 `app_httpd.cpp` không đăng ký handler `HTTP_OPTIONS` và thiếu các header PNA (`Access-Control-Allow-Private-Network: true`), dẫn đến request bị hủy ngay lập tức trên mobile.
+    - **Nguyên nhân 2 (Mixed Content HTTPS):** Nếu trang web được mở qua `https://` (GitHub Pages), trình duyệt mobile chặn cứng mọi kết nối `http://` đến camera nội bộ. Cần cơ chế phát hiện và cảnh báo thông minh, hướng dẫn người dùng kết nối qua HTTP nội bộ.
+    - **Nguyên nhân 3 (Nghẽn socket / Single client lock):** Cổng 81 của ESP32 phục vụ luồng `multipart/x-mixed-replace` bằng vòng lặp vô tận `while(true)`. Nếu laptop đang mở xem, socket bị chiếm giữ khiến điện thoại vào sau bị từ chối kết nối.
+    - **Nguyên nhân 4 (Cơ chế fallback trực tiếp):** Khi luồng stream cổng 81 bị nghẽn hoặc bị chặn trên một số trình duyệt di động, frontend chưa có cơ chế tự động fallback sang luồng snapshot trực tiếp cổng 80 (`/capture` polling ở tốc độ cao), vốn nhẹ hơn và không bị kẹt socket.
+- **Các bước triển khai:**
+  1. **Bước 1: Tối ưu thẻ Viewport và triệt tiêu tràn ngang:**
+     - Chuẩn hóa thẻ `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">` trong `admin.html`.
+     - Thêm `overflow-x: hidden` trên `html, body, .app-wrapper` và thiết lập cuộn ngang cảm ứng chuẩn cho toàn bộ bảng.
+  2. **Bước 2: Nâng cấp Mobile UI & Bottom Navigation:**
+     - Bổ sung nút **Camera ESP32** vào thanh `.mobile-bottom-nav` để người dùng chạm 1 chạm ngón cái truy cập ngay camera.
+     - Đồng bộ trạng thái active của bottom nav khi chuyển sang tab `face-cam`.
+     - Tối ưu toolbar camera trên mobile: bố cục gọn gàng, input IP co giãn linh hoạt, các nút hành động lớn dễ bấm ngón tay cái, khoảng cách và cỡ chữ chuẩn touch.
+     - Tối ưu thanh HUD dưới camera: co giãn tốt, không làm vỡ khung hình khi text dài.
+  3. **Bước 3: Sửa lỗi kết nối và nâng cấp server ESP32 (app_httpd.cpp):**
+     - Đăng ký handler `HTTP_OPTIONS` cho cả cổng 80 và 81, phản hồi mã 204 kèm đầy đủ header:
+       `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers: *`, `Access-Control-Allow-Private-Network: true`.
+     - Bổ sung `Access-Control-Allow-Private-Network: true` vào cả phản hồi của `/stream` và `/capture`.
+     - Nâng cấp cấu hình socket: `lru_purge_enable = true` giúp tự động đóng socket ngắt kết nối.
+  4. **Bước 4: Nâng cấp client frontend camera (admin.face.js):**
+     - Phát hiện Mixed Content khi chạy ở HTTPS và hiển thị hướng dẫn người dùng rõ ràng, dễ hiểu.
+     - Thêm cơ chế tự động kết nối luồng trực tiếp thông minh: Ưu tiên luồng `/stream` cổng 81; nếu gặp lỗi kết nối/từ chối trên mobile, tự động chuyển đổi mượt mà sang chế độ Fast Stream qua cổng 80 (`/capture`) để đảm bảo người dùng luôn xem được trực tiếp trên điện thoại mà không bị gián đoạn hay phải đổi sang ảnh tĩnh thủ công.
+     - Đảm bảo giữ nguyên vẹn 100% chức năng nhận diện AI, Debounce 4000ms và nút Mute còi (FRZ-004, FRZ-005).
+  5. **Bước 5: Kiểm thử và lập tài liệu:**
+     - Kiểm tra cú pháp JS (`node -c`), kiểm tra biên dịch ESP32 firmware nếu có toolchain, kiểm tra layout responsive bằng script kiểm tra kích thước/DOM.
+     - Ghi nhận đầy đủ vào `AI_TEST_LOG.md`.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Giao diện `admin.html` hiển thị tự nhiên trên điện thoại di động: không bị co cụm thu nhỏ như màn hình laptop, không tràn ngang, thanh điều hướng đáy có tab Camera ESP32 hoạt động tốt.
+  - [ ] Các nút bấm trên toolbar camera dễ thao tác bằng cảm ứng (min 38px), cuộn trang và cuộn danh sách lịch sử mượt mà.
+  - [ ] Luồng camera ESP32 hỗ trợ đầy đủ CORS, PNA preflight OPTIONS, có cơ chế live stream fallback cổng 80 chống kẹt socket.
+  - [ ] Có cảnh báo Mixed Content rõ ràng khi mở qua HTTPS.
+  - [ ] Tuyệt đối không ảnh hưởng đến tính năng đã đóng băng (FRZ-004, FRZ-005).
+  - [ ] Toàn bộ cú pháp file JS hợp lệ 100%.
+- **Phương án kiểm thử:** Dùng script Node.js kiểm tra cú pháp, DOM elements, CSS rules và curl/test server mô phỏng request OPTIONS/CORS.
+
+---
+
+### [TASK-016] Tô màu trạng thái điểm danh trong Excel và hiển thị lịch học trường là Đi học
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Trong các file Excel điểm danh chi tiết, tô đỏ sinh viên vắng không phép, tô vàng sinh viên đi muộn, tô xanh sinh viên có lịch học trường; trường hợp trạng thái `vắng có phép` với phân loại `Học trường` hiển thị là `Đi học`.
+- **Phạm vi tác động:** `admin.html` (thư viện xuất Excel có hỗ trợ style), `js/admin/admin.students.js` (xuất Excel phiên), `js/admin/admin.attendance.js` (xuất Excel theo nhóm), `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Phân tích kỹ thuật & Hiện trạng:** Các exporter dùng SheetJS CE, không ghi được fill màu từng ô. Dữ liệu lịch học trường được đánh dấu qua `category='Học trường'`; xin nghỉ có phép thông thường có category khác. Cần giữ nguyên dữ liệu trong database và chỉ đổi nhãn khi dựng file Excel.
+- **Quy tắc hiển thị:** `vắng không phép` ưu tiên đỏ; `đi muộn` ưu tiên vàng; `category='Học trường'` tô xanh. Khi trạng thái là `vắng có phép` và category là `Học trường`, xuất nhãn `Đi học`. Trạng thái có phép do xin nghỉ giữ nguyên.
+- **Các bước triển khai:**
+  1. Dùng thư viện tương thích SheetJS có hỗ trợ cell styles.
+  2. Áp dụng màu cho toàn dòng dữ liệu ở các sheet chi tiết xuất theo phiên và theo nhóm.
+  3. Chuẩn hóa nhãn `vắng có phép` + `Học trường` thành `Đi học` trong file xuất, không sửa dữ liệu gốc.
+  4. Kiểm tra cú pháp, kiểm thử quy tắc phân loại với bộ dữ liệu đại diện và xác minh style trong workbook XLSX được tạo.
+  5. Ghi bằng chứng vào `AI_TEST_LOG.md`; chưa đánh dấu DONE nếu chưa kiểm chứng việc tạo workbook styled.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Vắng không phép có dòng đỏ; đi muộn có dòng vàng; học trường có dòng xanh trong các sheet chi tiết.
+  - [x] `vắng có phép` phân loại `Học trường` hiển thị `Đi học`; xin nghỉ có phép vẫn là `vắng có phép`.
+  - [x] Workbook XLSX round-trip được và giữ nguyên header, ghi chú/chức năng dữ liệu đã kiểm tra.
+  - [x] Kết quả kiểm thử runtime với fixture được ghi vào test log.
+- **Phương án kiểm thử:** Chạy kiểm tra syntax JS; tạo workbook bằng thư viện dự án với các trạng thái đại diện; đọc lại workbook để xác nhận nhãn và fill màu từng dòng; chạy `git diff --check`.
