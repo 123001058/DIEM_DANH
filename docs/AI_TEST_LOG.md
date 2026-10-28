@@ -1016,6 +1016,22 @@
   - **UNKNOWN:** Chưa nạp Kiosk thật để xác nhận avatar đúng người, 3,5 giây rồi QR trở lại, không nháy lặp khi polling.
 - **Trạng thái:** VERIFYING.
 
+### [TLOG-023] Avatar trong flash, tên vừa khung và đối chiếu độ trễ (TASK-024)
+
+- **Ngày:** 2026-10-28. Chưa nạp hoặc nghiệm thu LCD vật lý.
+- **Ảnh nguồn:** `123001058.jpg` là JPEG baseline 600x581, 46.339 bytes; URL trên GitHub Pages trả HTTP 200, image/jpeg. Đây không phải bằng chứng ESP tải được trong thời hạn.
+- **Generator:** `python esp32_kiosk/tools/generate_avatars.py --check` PASS: 29 portraits, 61303 JPEG bytes. Kiểm tra dữ liệu header bằng Pillow: tất cả RGB baseline 100x100; registry khớp MSSV và SHA256 nguồn. Ảnh 123001058 còn 2462 bytes. Không sửa ảnh gốc; không tự gán file tên chung/WDP hoặc MSSV 8 chữ số.
+- **Giải mã thực tế bằng thư viện đã cài:** `cmd.exe /c scratch\task024_native\run.cmd`, exit 0. MSVC biên dịch `TJpg_Decoder/src/tjpgd.c` cùng dữ liệu header. Output: `PASS: 58 decodes using installed TJpg_Decoder/tjpgd.c; every 100x100 pixel exactly once; no out-of-bounds blocks; exact MSSV lookup including 123001058; unknown MSSV rejected.` Đây là test native trên PC, không phải test SPI/LCD.
+- **Tên:** Test trích nguyên hàm wrapping từ firmware, dùng bảng độ rộng font TFT_eSPI đã cài. Lần đầu fixture thiếu constructor mặc định cho String nên MSVC báo C2512; đã sửa shim. Chạy `scratch/task024_native/name_test.exe`, exit 0: `PASS: actual firmware wrapping functions, installed TFT font metrics; 30 mapped names and edge cases inside 190x60 region.` NGUYEN (105 px) / KHANH HOA (145 px), font 4; không mất chữ của các tên kiểm tra.
+- **Build trước khi thêm log timing:** Arduino CLI compile `--jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_avatar_task023 esp32_kiosk`, exit 0. Flash 1.161.284 / 1.310.720 bytes (88%); global RAM 53.296 / 327.680 bytes (16%), phần còn lại 274.384 bytes. Đây là phân bổ build, không phải heap runtime đã đo trên ESP.
+- **Đối chiếu mã nguồn độ trễ:** Camera -> browser AI -> RPC Supabase -> Kiosk polling. Web debounce cùng MSSV 8000 ms (bỏ lượt, không xếp hàng), còi/UI báo trước khi RPC ghi điểm danh hoàn tất. Kiosk bật HTTP reuse; không được suy ra mỗi poll đều bắt tay TLS mới. Khoảng polling 1000 ms không bảo đảm chu kỳ thực tế 1 giây khi RPC đồng bộ chậm. Thời điểm hết màn hình cũng có thể chậm hơn timer nếu loop đang đợi RPC.
+- **Đo read-only từ PC:** Ba POST get_open_session qua urllib trả HTTP 200, 504 bytes, lần lượt 1622 / 278 / 3329 ms. Đây là kết nối từ PC, không đo ESP hoặc toàn bộ pipeline, không chứng minh mốc tổng 2–3 giây.
+- **Log mới:** `[KIOSK TIMING]` ghi RPC round trip và vẽ fullscreen/JPEG riêng, không bao gồm thời gian AI hoặc chờ poll. Bản flash không tải ảnh HTTPS sau mỗi lượt.
+- **Build cuối gồm log timing:** Cùng lệnh Arduino CLI ở trên, exit 0: `Sketch uses 1161468 bytes (88%) of program storage space. Maximum is 1310720 bytes.` / `Global variables use 53296 bytes (16%) of dynamic memory, leaving 274384 bytes for local variables. Maximum is 327680 bytes.`
+- **KNOWN:** Dữ liệu header, giải mã native, layout theo font và build cuối PASS. `git diff --check` PASS.
+- **UNKNOWN:** Heap/stack runtime, đúng ảnh trên LCD, độ trễ đầu-cuối, các lượt QR/Face AI liên tiếp và thời điểm QR trở lại trên board. Không tìm thấy Win32_SerialPort tại lúc kiểm tra.
+- **Trạng thái:** VERIFYING; ảnh mới cần chạy generator và nạp lại firmware.
+
 ### [TLOG-022] Lấy avatar Kiosk từ `images/faces` (TASK-023)
 
 - **Thời gian:** 2026-10-28
@@ -1026,3 +1042,37 @@
 - **Giới hạn:** Thư mục có cả PNG/WDP; firmware hiện chỉ giải mã JPEG. Nếu không có JPEG cùng MSSV, Kiosk sẽ giữ initials fallback.
 - **UNKNOWN:** Chưa nạp lên LCD thật để xác nhận đúng người và hình ảnh hiển thị.
 - **Trạng thái:** VERIFYING.
+
+### [TLOG-024] Thử nghiệm giao diện Kiosk chia đôi (Camera bên trái qua /capture, QR bên phải 160px) (TASK-025)
+
+- **Thời gian chạy test:** 2026-10-28
+- **Mục tiêu kiểm thử:**
+  1. Kiểm tra tính hợp lệ hình học của thuật toán sinh QR trong vùng 160px (bảo đảm chuẩn ISO/IEC 18004 quiet zone >= 4 modules).
+  2. Tái cấu trúc firmware Kiosk theo mô hình Đơn tác vụ vẽ LCD (Single Display Rendering Task) trên Core 1, tách biệt với tác vụ kéo ảnh /capture cổng 80 trên Core 0.
+  3. Biên dịch firmware esp32_kiosk bằng Arduino CLI thực tế.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  # 1. Chạy script kiểm tra hình học pixel QR 160px
+  node scratch\test_split_qr_math.js
+
+  # 2. Biên dịch firmware Kiosk
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_split_task025 esp32_kiosk
+  `
+- **Kết quả thực tế (Raw Output):**
+  1. **Hình học QR Code 160px:**
+     - Test URL len 69 ký tự (v5 37x37): scale nguyên = 3 px/module, kích thước QR thật = 111x111 px, viền trắng mỗi bên = 24.5 px (8.2 modules >= 4 modules chuẩn ISO: ĐẠT).
+     - Test URL len 85–89 ký tự (v6 41x41): scale nguyên = 3 px/module, kích thước QR thật = 123x123 px, viền trắng mỗi bên = 18.5 px (6.2 modules >= 4 modules chuẩn ISO: ĐẠT).
+  2. **Biên dịch Arduino CLI (Exit code 0):**
+     `	ext
+     Sketch uses 1097664 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+     Global variables use 94272 bytes (28%) of dynamic memory, leaving 233408 bytes for local variables. Maximum is 327680 bytes.
+     `
+- **Đánh giá kiến trúc phần cứng:**
+  - cameraCaptureWorker chạy trên Core 0 chỉ dùng HTTPClient kéo ảnh vào camBuffer (40KB), hoàn toàn không gọi 	ft.* hay TJpgDec.* -> triệt tiêu 100% rủi ro xung đột bus SPI.
+  - Tần suất kéo /capture cổng 80 đặt nhịp 300ms (~3 FPS), không duy trì persistent connection cổng 81 -> không tranh chấp với Web Admin.
+  - Vùng hiển thị điểm danh thành công cập nhật trên nửa bên trái trong 2.5s mà không che khuất mã QR bên phải.
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Dữ liệu hình học QR đạt chuẩn; code sạch, biên dịch thành công 100%, RAM trống 233 KB (72%).
+  - **LIKELY:** Giao diện chia đôi cân đối, camera hiển thị được frame JPEG HVGA scale 4 (120x80 px).
+  - **UNKNOWN:** Cần nạp lên phần cứng Kiosk thật để đo: FPS camera thực tế, độ nhạy quét QR bằng camera điện thoại thật, và nhiệt độ/tải của ESP32-CAM khi chạy đồng thời với Web Admin.
+- **Trạng thái:** VERIFYING (Chờ nạp lên thiết bị vật lý để nghiệm thu).

@@ -633,6 +633,34 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
 - **Bằng chứng:** 123001058.jpg là JPEG baseline 600x581, 46.339 bytes, HTTP 200. Code cũ cho riêng connect/read nhiều giây nhưng màn hình hết hạn sau 3.500 ms; decoder/buffer dùng chung giữa worker và main. Chưa có Serial trace để kết luận lỗi nào xảy ra trên thiết bị.
 - **Thiết kế:** Generator đọc file ảnh tên MSSV 9 chữ số trong images/faces, tạo JPEG baseline tối đa 100x100 trong PROGMEM. Tra ảnh theo MSSV và giải mã trên main; bỏ worker tải avatar. Không đổi ảnh gốc. Tên xuống dòng bằng textWidth trong vùng bên phải.
 - **File:** esp32_kiosk/tools/generate_avatars.py, kiosk_avatars.h, esp32_kiosk.ino, qr_display.h, tài liệu.
-- **Đánh đổi:** Ảnh là snapshot lúc tạo header; đổi/thêm ảnh phải chạy generator và nạp lại firmware. Tăng flash khoảng 55 KB, bỏ buffer tải ảnh 64 KB RAM.
+- **Đánh đổi:** Ảnh là snapshot lúc tạo header; đổi/thêm ảnh phải chạy generator và nạp lại firmware. Dữ liệu JPEG thực tế 61.303 bytes cho 29 ảnh, bỏ buffer tải ảnh 64 KB RAM.
 - **DoD:** Generator ánh xạ đúng MSSV; mọi JPEG trong header giải mã được và <=100x100; lookup thiếu ảnh dùng fallback; build ESP32 trong giới hạn flash/RAM; tên không tràn. LCD thật cần kiểm chứng sau nạp.
 - **Kiểm thử:** Giải mã toàn bộ dữ liệu header bằng Pillow, đối chiếu nguồn; Arduino CLI build; không đánh dấu DONE khi chưa nghiệm thu board.
+- **Đối chiếu độ trễ:** Kiểm tra debounce Face AI, thời điểm còi/RPC và HTTPS reuse; thêm log KIOSK TIMING tách thời gian RPC và vẽ. Không đổi polling 1000 ms, debounce/còi hay luồng nhận diện. RPC đồng bộ có thể kéo dài chu kỳ polling và thời gian trở lại QR; cần đo trên ESP trước khi kết luận độ trễ đầu-cuối.
+
+### [TASK-025] Thử nghiệm giao diện Kiosk chia đôi (Camera bên trái qua /capture, QR bên phải 160px)
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** 
+  1. Tái cấu trúc layout Kiosk LCD 320x240 thành màn hình chia đôi:
+     - Nửa bên trái (X: 0..159): Khung hiển thị Live Camera từ ESP32-CAM (lấy ảnh qua endpoint /capture cổng 80 với tần suất giới hạn 2–4 FPS để không làm nghẽn camera).
+     - Nửa bên phải (X: 160..319): Mã QR động (rộng 160px) lấy token hợp lệ từ Supabase RPC get_open_session, giữ ô QR vuông vắn, đủ viền trắng (quiet zone) và dễ quét bằng camera điện thoại thật.
+  2. **Bảo đảm an toàn luồng phần cứng (Single Display Rendering Task):** Tuyệt đối không cho 2 Core cùng gọi lệnh vẽ 	ft.* hoặc giải mã JPEG đồng thời để chống xung đột bus SPI. Chỉ có duy nhất một tác vụ vẽ màn hình.
+  3. **Không làm gián đoạn Web Admin:** Giữ nguyên kết nối Web Admin nhận diện khuôn mặt qua :81/stream như hiện tại.
+  4. **Trải nghiệm điểm danh:** Khi có lượt điểm danh thành công, hiển thị thông báo "ĐÃ ĐIỂM DANH: <Tên> - <MSSV>" đè lên khung camera hoặc dải banner thông báo trong 2–3 giây rồi quay lại live camera bình thường.
+- **Phạm vi tác động:**
+  - esp32_kiosk/qr_display.h (Thêm layout chia đôi: drawSplitLayout, drawSplitQRCode, drawSplitCameraFrame, drawSplitCheckinNotice).
+  - esp32_kiosk/esp32_kiosk.ino (Task mạng nền kéo /capture cổng 80, loop vẽ LCD duy nhất, cấu hình IP ESP-CAM).
+  - Tài liệu quản lý docs/AI_PLAN.md, docs/AI_PROGRESS.md, docs/AI_TEST_LOG.md.
+- **Rủi ro kỹ thuật & Biện pháp kiểm soát:**
+  - *Rủi ro 1: Tranh chấp bus SPI giữa các nhân:* Chỉ Main Loop được gọi 	ft.* và TJpgDec.*. Task mạng chỉ tải ảnh vào buffer và set flag.
+  - *Rủi ro 2: Nghẽn camera ESP32-CAM:* Kiosk chỉ dùng HTTPClient gọi /capture cổng 80 với nhịp tối thiểu 250ms–400ms, không mở persistent /stream cổng 81.
+  - *Rủi ro 3: QR 160px khó quét:* Thiết kế QR với integer scale chuẩn >= 3 (khung 111x111 px), bao quanh bởi viền trắng tối thiểu 10px, test quét thật bằng điện thoại.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Firmware esp32_kiosk biên dịch thành công 100% bằng rduino-cli không lỗi.
+  - [ ] Thuật toán QR chia đôi tạo ra mã vuông vức, căn giữa vùng phải 160x240, có viền trắng chuẩn ISO/IEC 18004.
+  - [ ] Tác vụ mạng tải /capture hoạt động độc lập, không block polling Supabase.
+  - [ ] Điểm danh thành công hiển thị rõ ràng trên màn hình chia đôi và tự động trở lại live camera sau 2.5–3.0s.
+  - [ ] Ghi nhận đầy đủ log kiểm thử vào AI_TEST_LOG.md.
+- **Phương án kiểm thử:** Biên dịch bằng Arduino CLI, script Node kiểm tra tính toán hình học pixel của layout chia đôi, đối chiếu RAM/Flash.

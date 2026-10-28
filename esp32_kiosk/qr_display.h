@@ -345,3 +345,153 @@ inline bool drawCheckinAvatar(const uint8_t* jpgData, size_t jpgLen) {
   tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
   return decoded == JDR_OK;
 }
+
+// =================================================================================
+// BỐ CỤC CHIA ĐÔI MÀN HÌNH KIOSK LCD 320x240 (SPLIT-SCREEN: CAMERA TRÁI, QR PHẢI)
+// =================================================================================
+#define SPLIT_CAM_X 0
+#define SPLIT_CAM_Y 0
+#define SPLIT_CAM_W 160
+#define SPLIT_CAM_H 240
+
+#define SPLIT_QR_X 160
+#define SPLIT_QR_Y 0
+#define SPLIT_QR_W 160
+#define SPLIT_QR_H 240
+
+#define CAM_BOX_X 20
+#define CAM_BOX_Y 52
+#define CAM_BOX_W 120
+#define CAM_BOX_H 80
+
+// Callback ve QR vung ben phai 160px
+inline void displaySplitQrCallback(esp_qrcode_handle_t qrcode) {
+  int size = esp_qrcode_get_size(qrcode);
+  
+  int maxBox = 135;
+  int scale = maxBox / size;
+  if (scale < 1) scale = 1;
+  
+  int qrPixelSize = size * scale;
+  int offsetX = SPLIT_QR_X + (SPLIT_QR_W - qrPixelSize) / 2;
+  int offsetY = 46 + (130 - qrPixelSize) / 2;
+
+  // 1. To nen den nua ben phai
+  tft.fillRect(SPLIT_QR_X, SPLIT_QR_Y, SPLIT_QR_W, SPLIT_QR_H, TFT_BLACK);
+  
+  // 2. Tieu de nua ben phai
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("QUET MA QR", SPLIT_QR_X + SPLIT_QR_W / 2, 10, 2);
+
+  // 3. Vien trang bao quanh QR (Quiet Zone)
+  int pad = 8;
+  tft.fillRect(offsetX - pad, offsetY - pad, qrPixelSize + pad * 2, qrPixelSize + pad * 2, TFT_WHITE);
+
+  // 4. Ve tung module QR
+  for (int y = 0; y < size; y++) {
+    int py = offsetY + y * scale;
+    for (int x = 0; x < size; x++) {
+      if (esp_qrcode_get_module(qrcode, x, y)) {
+        tft.fillRect(offsetX + x * scale, py, scale, scale, TFT_BLACK);
+      }
+    }
+  }
+
+  // 5. Huong dan ben duoi QR
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawCentreString("Dung dien thoai", SPLIT_QR_X + SPLIT_QR_W / 2, 190, 2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("Doi ma: 15s", SPLIT_QR_X + SPLIT_QR_W / 2, 214, 1);
+
+  // 6. Duong phan cach doc giua 2 nua man hinh
+  tft.drawFastVLine(SPLIT_QR_X - 1, 0, 240, TFT_NAVY);
+}
+
+inline void drawSplitQRCode(String text) {
+  esp_qrcode_config_t cfg = {
+    .display_func = displaySplitQrCallback,
+    .max_qrcode_version = 10,
+    .qrcode_ecc_level = ESP_QRCODE_ECC_MED
+  };
+  esp_qrcode_generate(&cfg, text.c_str());
+}
+
+// Ve khung giao dien ban dau cua vung Camera ben trai
+inline void drawSplitCameraLayout() {
+  tft.fillRect(SPLIT_CAM_X, SPLIT_CAM_Y, SPLIT_CAM_W, SPLIT_CAM_H, TFT_BLACK);
+  
+  // Tieu de
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("CAMERA AI", SPLIT_CAM_X + SPLIT_CAM_W / 2, 10, 2);
+  
+  // Khung ngam cho camera (120x80)
+  tft.drawRect(CAM_BOX_X - 1, CAM_BOX_Y - 1, CAM_BOX_W + 2, CAM_BOX_H + 2, TFT_DARKGREY);
+  
+  // Huong dan ben duoi
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawCentreString("Nhin vao cam", SPLIT_CAM_X + SPLIT_CAM_W / 2, 190, 2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("Canh giua khuon mat", SPLIT_CAM_X + SPLIT_CAM_W / 2, 214, 1);
+  
+  // Duong ke doc phan cach
+  tft.drawFastVLine(159, 0, 240, TFT_NAVY);
+}
+
+// Ve frame JPEG tu camera len vung ben trai (chi goi tu main loop!)
+inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize) {
+  if (!jpgData || jpgSize == 0) return false;
+  
+  TJpgDec.setJpgScale(4);
+  TJpgDec.setSwapBytes(true);
+  TJpgDec.setCallback(tft_output);
+  
+  JRESULT res = TJpgDec.drawJpg(CAM_BOX_X, CAM_BOX_Y, jpgData, jpgSize);
+  
+  uint16_t cColor = (res == JDR_OK) ? TFT_CYAN : TFT_RED;
+  int bx = CAM_BOX_X, by = CAM_BOX_Y, bw = CAM_BOX_W, bh = CAM_BOX_H;
+  int blen = 8;
+  tft.drawFastHLine(bx, by, blen, cColor);
+  tft.drawFastVLine(bx, by, blen, cColor);
+  tft.drawFastHLine(bx + bw - blen, by, blen, cColor);
+  tft.drawFastVLine(bx + bw - 1, by, blen, cColor);
+  tft.drawFastHLine(bx, by + bh - 1, blen, cColor);
+  tft.drawFastVLine(bx, by + bh - blen, blen, cColor);
+  tft.drawFastHLine(bx + bw - blen, by + bh - 1, blen, cColor);
+  tft.drawFastVLine(bx + bw - 1, by + bh - blen, blen, cColor);
+  
+  return (res == JDR_OK);
+}
+
+// Ve thong bao diem danh thanh cong tren nua ben trai (thoi gian 2.5s)
+inline void drawSplitCheckinNotice(String name, String mssv) {
+  name = nameForTft(name);
+  mssv.trim();
+  
+  tft.fillRect(SPLIT_CAM_X, SPLIT_CAM_Y, SPLIT_CAM_W, SPLIT_CAM_H, TFT_BLACK);
+  
+  tft.fillRoundRect(SPLIT_CAM_X + 6, 8, SPLIT_CAM_W - 12, 34, 4, TFT_DARKGREEN);
+  tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
+  tft.drawCentreString("DA DIEM DANH", SPLIT_CAM_X + SPLIT_CAM_W / 2, 16, 2);
+  
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawCentreString("MSSV: " + mssv, SPLIT_CAM_X + SPLIT_CAM_W / 2, 54, 2);
+  
+  String lines[4];
+  int lineCount = 0;
+  wrapFullscreenName(name, 2, lines, 3, SPLIT_CAM_W - 16, lineCount);
+  
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  int startY = 86;
+  for (int i = 0; i < lineCount; i++) {
+    tft.drawCentreString(lines[i], SPLIT_CAM_X + SPLIT_CAM_W / 2, startY + i * 22, 2);
+  }
+  
+  tft.drawFastHLine(SPLIT_CAM_X + 10, 168, SPLIT_CAM_W - 20, TFT_DARKGREY);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawCentreString("THANH CONG", SPLIT_CAM_X + SPLIT_CAM_W / 2, 180, 2);
+  
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("Diem danh hop le", SPLIT_CAM_X + SPLIT_CAM_W / 2, 210, 1);
+  
+  tft.drawFastVLine(159, 0, 240, TFT_GREEN);
+}
