@@ -1335,8 +1335,8 @@ function renderAdminRecentScansGrouped() {
     }).join('');
 
     html += `
-      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface);margin-bottom:8px;">
-        <div onclick="toggleScanDateGroup('${dKey}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--surface-2);cursor:pointer;user-select:none;border-bottom:${isOpen ? '1px solid var(--border)' : 'none'};" title="Bấm để mở/đóng danh sách">
+      <div class="scan-date-group-card" style="border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px;flex-shrink:0;">
+        <div id="scanGroupHeader_${dKey}" onclick="toggleScanDateGroup('${dKey}')" style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--surface-2);cursor:pointer;user-select:none;border-bottom:${isOpen ? '1px solid var(--border)' : 'none'};border-top-left-radius:9px;border-top-right-radius:9px;border-bottom-left-radius:${isOpen ? '0px' : '9px'};border-bottom-right-radius:${isOpen ? '0px' : '9px'};" title="Bấm để mở/đóng danh sách">
           <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:var(--text);">
             <span>📁</span>
             <span>${escapeHtml(grp.dayOfWeekStr)}, ${escapeHtml(grp.dateFormatted)}</span>
@@ -1344,7 +1344,7 @@ function renderAdminRecentScansGrouped() {
           </div>
           <span id="scanGroupIcon_${dKey}" style="font-size:11px;color:var(--muted);font-weight:800;">${isOpen ? '▲' : '▼'}</span>
         </div>
-        <div id="scanGroupContent_${dKey}" style="display:${isOpen ? 'flex' : 'none'};flex-direction:column;gap:5px;padding:8px;background:var(--bg);">
+        <div id="scanGroupContent_${dKey}" style="display:${isOpen ? 'flex' : 'none'};flex-direction:column;gap:5px;padding:8px;background:var(--bg);border-bottom-left-radius:9px;border-bottom-right-radius:9px;">
           ${studentItemsHtml}
         </div>
       </div>
@@ -1357,11 +1357,17 @@ function renderAdminRecentScansGrouped() {
 function toggleScanDateGroup(dateKey) {
   const content = document.getElementById(`scanGroupContent_${dateKey}`);
   const icon = document.getElementById(`scanGroupIcon_${dateKey}`);
+  const header = document.getElementById(`scanGroupHeader_${dateKey}`);
   if (!content) return;
 
   const isVisible = (content.style.display === 'flex');
   content.style.display = isVisible ? 'none' : 'flex';
   if (icon) icon.textContent = isVisible ? '▼' : '▲';
+  if (header) {
+    header.style.borderBottom = isVisible ? 'none' : '1px solid var(--border)';
+    header.style.borderBottomLeftRadius = isVisible ? '9px' : '0px';
+    header.style.borderBottomRightRadius = isVisible ? '9px' : '0px';
+  }
   adminGroupOpenState[dateKey] = !isVisible;
 }
 

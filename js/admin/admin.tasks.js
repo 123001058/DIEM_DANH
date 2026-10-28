@@ -2451,14 +2451,16 @@ async function saveStudentNote() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Đang lưu...'; }
 
   try {
-    const { error } = await supabase.from('attendance')
-      .update({ note: newNote })
-      .eq('session_id', sessionId)
-      .eq('mssv', mssv);
+    const { data, error } = await supabase.rpc('admin_update_attendance_note', {
+      p_session_id: String(sessionId),
+      p_mssv: String(mssv),
+      p_note: newNote
+    });
     if (error) throw error;
+    if (!data?.ok) throw new Error(data?.message || 'Không có dòng điểm danh nào được cập nhật.');
 
     if (attendanceMap[mssv]) {
-      attendanceMap[mssv].note = newNote;
+      attendanceMap[mssv].note = data.note ?? newNote;
     }
     renderTable();
     toast('ok', 'Đã lưu ghi chú', `Cập nhật ghi chú cho ${studentName}`);

@@ -543,6 +543,13 @@ body {
   overscroll-behavior-y: contain;
   touch-action: pan-y;
 }
+.scan-date-group-card {
+  flex-shrink: 0 !important;
+  min-height: min-content;
+}
+.scan-date-group-card * {
+  touch-action: pan-y;
+}
 .detail-list { max-height: min(62vh, 560px); min-height: 160px; }
 .detail-list .today-history-item { margin-bottom: 0; }
 .schedule-loading { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }

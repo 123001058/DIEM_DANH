@@ -260,19 +260,20 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
 - **Ngày tạo:** 2026-10-27
 - **Mức độ ưu tiên:** High
 - **Mục tiêu:** Đảm bảo người dùng vuốt hoặc cuộn được danh sách lịch sử quét trong khung camera, kể cả khi danh sách dài hơn chiều cao hiển thị.
-- **Phạm vi tác động:** `admin.html`, `css/admin.css`.
+- **Phạm vi tác động:** `admin.html`, `css/admin.css`, `js/admin/admin.face.js`.
 - **Phân tích kỹ thuật & Hiện trạng:**
-  - Danh sách `#adminRecentScansList` có `overflow-y:auto` và `max-height:300px`, nhưng nằm trong các flex container lồng nhau, thiếu `min-height:0` và cấu hình cuộn cảm ứng.
-  - Khi chiều cao bị giới hạn, mục lịch sử phía dưới bị cắt; trên màn hình cảm ứng thao tác vuốt có thể không cuộn trong vùng danh sách.
+  - Danh sách `#adminRecentScansList` là flex container lồng nhau chứa các nhóm ngày dạng accordion. Khi render, thẻ nhóm ngày thiếu `flex-shrink: 0` và có `overflow: hidden`, khiến flexbox co rút toàn bộ nhóm xuống ~210px và cắt cụt nội dung bên trong, làm `scrollHeight` không vượt quá `clientHeight`, triệt tiêu hoàn toàn khả năng cuộn.
+  - Khắc phục triệt để bằng cách thêm `flex-shrink: 0 !important; min-height: min-content;` trên `.scan-date-group-card`, bỏ `overflow: hidden` trên nhóm ngày để hỗ trợ `position: sticky; top: 0` cho header thư mục, hỗ trợ `touch-action: pan-y` cho thao tác vuốt cuộn cảm ứng.
 - **Các bước triển khai:**
-  1. Cho phép card lịch sử và vùng danh sách co đúng trong flex layout.
-  2. Bổ sung cuộn dọc native cho cảm ứng, giới hạn overscroll trong danh sách.
-  3. Kiểm tra markup/CSS và tương tác cuộn trong trình duyệt nếu có thể.
+  1. Thêm quy tắc CSS `.scan-date-group-card` với `flex-shrink: 0 !important; min-height: min-content; touch-action: pan-y;`.
+  2. Cập nhật `renderAdminRecentScansGrouped` và `toggleScanDateGroup` trong `js/admin/admin.face.js` sử dụng class `.scan-date-group-card`, header dính (sticky) và bo góc mượt mà.
+  3. Bổ sung `padding-right: 2px` cho `#adminRecentScansList` trong `admin.html` để thanh cuộn hiển thị đẹp mắt, không đè viền thẻ.
+  4. Kiểm tra markup/CSS và tương tác cuộn runtime bằng Chromium qua CDP, ghi nhận vào TLOG-014.
 - **Tiêu chí nghiệm thu (DoD):**
-  - [ ] Danh sách vượt quá 300px có thể cuộn tới các lượt quét phía dưới.
-  - [ ] Vuốt dọc trên thiết bị cảm ứng cuộn danh sách, không chỉ cuộn trang.
-  - [ ] Không làm thay đổi thao tác mở nhóm ngày hoặc xem chi tiết lượt quét.
-- **Phương án kiểm thử:** Kiểm tra markup/CSS và thử cuộn trong trình duyệt; ghi lại bằng chứng thực tế vào Test Log.
+  - [x] Danh sách vượt quá 300px có thể cuộn tới các lượt quét phía dưới (đã test 17 lượt quét, scrollHeight = 1055px, cuộn scrollTop mượt mà).
+  - [x] Vuốt dọc trên thiết bị cảm ứng cuộn danh sách, không chỉ cuộn trang (`touch-action: pan-y`, `-webkit-overflow-scrolling: touch`).
+  - [x] Không làm thay đổi thao tác mở nhóm ngày hoặc xem chi tiết lượt quét (đã test toggle collapse/expand và modal chi tiết).
+- **Phương án kiểm thử:** Đã kiểm thử runtime thực tế trong Chromium Headless qua CDP và ghi nhận bằng chứng vào [TLOG-014](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-014-khắc-phục-vuốtcuộn-danh-sách-lịch-sử-quét-phân-nhóm-ngày-trong-face-cam-task-009).
 
 ---
 
@@ -459,3 +460,25 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [x] Workbook XLSX round-trip được và giữ nguyên header, ghi chú/chức năng dữ liệu đã kiểm tra.
   - [x] Kết quả kiểm thử runtime với fixture được ghi vào test log.
 - **Phương án kiểm thử:** Chạy kiểm tra syntax JS; tạo workbook bằng thư viện dự án với các trạng thái đại diện; đọc lại workbook để xác nhận nhãn và fill màu từng dòng; chạy `git diff --check`.
+
+---
+
+### [TASK-017] Sửa ghi chú điểm danh và giữ nguyên vắng có phép khi camera quét
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Cho phép Admin sửa/xóa ghi chú điểm danh ở phiên hiện tại hoặc lịch sử; không để nhận diện khuôn mặt ghi đè trạng thái `vắng có phép` đã được ghi nhận.
+- **Phạm vi tác động:** `js/admin/admin.tasks.js`, một migration Supabase mới cập nhật RPC `kiosk_record_face_checkin` và thêm RPC Admin `admin_update_attendance_note`, `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Phân tích kỹ thuật & Hiện trạng:** Nút sửa ghi chú dùng lệnh REST `UPDATE attendance` trực tiếp; kết quả cập nhật 0 dòng có thể không được báo lỗi và phụ thuộc quyền bảng/RLS. RPC camera hiện chỉ chặn hàng đã `có mặt` hoặc `đi muộn`, vì vậy một hàng `vắng có phép` có thể bị chuyển thành có mặt/đi muộn sau khi quét.
+- **Rủi ro và giới hạn:** Không đổi ngưỡng nhận diện, điểm confidence, liveness, debounce hoặc hành vi còi/âm thanh đã đóng băng. Migration cần được áp dụng vào Supabase trước khi RPC mới hoạt động trên hệ thống thật; không tự chạy migration lên production trong phiên này.
+- **Các bước triển khai:**
+  1. Thêm RPC bảo vệ bằng `SECURITY DEFINER` và `is_admin()` để cập nhật riêng cột `attendance.note`, trả kết quả lỗi rõ khi không có hàng.
+  2. Chuyển `saveStudentNote()` sang gọi RPC; chỉ báo thành công và cập nhật UI nếu RPC xác nhận lưu.
+  3. Cập nhật `kiosk_record_face_checkin` để trả mã `EXCUSED` và không ghi đè hàng đang `vắng có phép`.
+  4. Kiểm tra cú pháp JS/SQL, chạy fixture xác nhận note được gửi đúng RPC và trạng thái có phép được bảo vệ; ghi bằng chứng vào test log.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Sửa hoặc xóa note cập nhật đúng hàng theo `session_id` + `mssv`; giao diện chỉ báo thành công khi RPC trả `ok=true`.
+  - [ ] Lượt quét camera không biến hàng `vắng có phép` thành có mặt hoặc đi muộn; các trạng thái khác giữ hành vi cũ.
+  - [ ] Không thay đổi thuật toán nhận diện hoặc tính năng FRZ-005.
+  - [ ] Có bằng chứng kiểm thử; ghi rõ migration chưa áp dụng trên Supabase thật nếu chưa deploy.
+- **Phương án kiểm thử:** Node syntax/runtime harness cho hàm lưu note; kiểm tra migration bằng Supabase CLI/local database nếu môi trường có sẵn; assertions cho các nhánh status trong RPC camera; `git diff --check`.

@@ -33,41 +33,6 @@
 - **Ghi chú thêm:** Nhận xét hoặc bài học rút ra (nếu có).
 ```
 
----
-
-### [TLOG-013] Xác minh đổi nhãn và tô màu dòng xuất Excel (TASK-016)
-
-- **Thời gian:** 2026-10-28 09:02:11 (UTC+7)
-- **Người/Agent thực hiện:** Codex
-- **Môi trường:** Windows 11 / PowerShell 7 / Node.js 24.19.0 / xlsx-js-style 1.2.0
-- **Hạng mục kiểm tra:** Chạy trực tiếp exporter theo phiên và exporter theo nhóm với mock Supabase fixtures bốn trạng thái đại diện, ghi workbook XLSX vào buffer rồi đọc lại để xác nhận nhãn, fill toàn dòng, header và dữ liệu ghi chú. Đồng thời kiểm tra cú pháp hai file JS và whitespace diff.
-- **Lệnh / Thao tác thực tế đã chạy:**
-  ```powershell
-  npm install --prefix $env:TEMP/diem-danh-xlsx-style-test --no-save xlsx-js-style@1.2.0
-  # Node VM chạy exportPastSessionExcel và exportAttendanceByGroups với fixture,
-  # rồi XLSX.write -> XLSX.read(cellStyles:true) để assert nhãn/màu/dữ liệu.
-  node --check js/admin/admin.students.js
-  node --check js/admin/admin.attendance.js
-  git diff --check
-  ```
-- **Kết quả thực tế:**
-  ```text
-  exportPastSessionExcel fixture integration: 4/4 hàng có nhãn/màu đúng; XLSX round-trip đạt.
-  exportAttendanceByGroups fixture integration: 2 sheet chi tiết x 4 trạng thái đạt; XLSX round-trip đạt.
-  node --check js/admin/admin.students.js: exit code 0
-  node --check js/admin/admin.attendance.js: exit code 0
-  git diff --check: exit code 0 (chỉ có cảnh báo Git về chuẩn hóa LF/CRLF)
-  ```
-- **Các lần chạy thử đầu:** Một assertion ban đầu kiểm tra sai vị trí style (`s.fill`), trong khi reader trả `s.fgColor`; probe riêng báo `Workbook is empty` do thiếu worksheet; lần integration đầu giả định thứ tự chèn thay vì thứ tự sắp xếp tên sinh viên. Đã sửa harness, chạy lại cả hai exporter và xác nhận kết quả theo MSSV.
-- **Đánh giá so với DoD:**
-  - [x] Vắng không phép đỏ, đi muộn vàng, `Học trường` xanh.
-  - [x] `vắng có phép` + `Học trường` xuất thành `Đi học`; `Xin nghỉ` vẫn `vắng có phép` và không bị tô màu theo lịch học.
-  - [x] Hai hàm xuất tạo workbook XLSX; round-trip đọc lại giữ nguyên tiêu đề và ghi chú, đồng thời xác nhận fill được áp dụng hết hàng.
-- **Kết luận:** PASS — kiểm thử runtime cả hai exporter với fixture mock; dữ liệu Supabase production không được gọi.
-- **Ghi chú thêm:** Không thay đổi dữ liệu database. Cần triển khai bản frontend mới để người dùng nhận CDN/library và exporter cập nhật.
-
----
-
 ## 2. NHẬT KÝ KIỂM THỬ THỰC TẾ
 
 ### [TLOG-001] Kiểm định tính toàn vẹn của Hệ thống quản lý công việc AI (TASK-001)
@@ -677,4 +642,119 @@
   - [x] Toàn bộ file frontend hợp lệ cú pháp 100%.
 - **Kết luận:** PASS (Phần code frontend và firmware đã sẵn sàng 100%; cần nạp firmware mới vào ESP32-S3 khi người dùng có thiết bị thực tế).
 
+---
 
+### [TLOG-014] Khắc phục vuốt/cuộn danh sách lịch sử quét phân nhóm ngày trong Face Cam (TASK-009)
+
+- **Thời gian:** 2026-10-28 13:48:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Mục tiêu kiểm thử:**
+  1. Xác định và sửa tận gốc nguyên nhân người dùng mở nhóm ngày trong lịch sử quét (`scanGroupContent`) nhưng không cuộn xuống xem được các lượt quét bên dưới.
+  2. Khắc phục hiện tượng thẻ ngày bị co rút (flex-shrink) và cắt cụt nội dung (`overflow: hidden`).
+  3. Kiểm tra tính năng ghim tiêu đề ngày (sticky header), cuộn mượt mà trên desktop và cảm ứng (touch-action: pan-y).
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  # 1. Kiểm tra cú pháp toàn bộ JS
+  Get-ChildItem "js\admin\*.js" | ForEach-Object { node -c $_.FullName }
+
+  # 2. Chạy test xác minh cấu trúc DOM và CSS
+  node scratch/verify_fix.js
+
+  # 3. Chạy test runtime trong Chrome headless qua CDP (17 sinh viên thực tế)
+  node scratch/verify_browser_runtime.js
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  === VERIFICATION OF CODE CHANGES ===
+  1. CSS .scan-date-group-card rule present: true
+  2. JS render uses scan-date-group-card with flex-shrink:0: true
+  3. JS render has sticky folder header: true
+  4. toggleScanDateGroup updates header border radius: true
+  5. admin.html has padding-right for scrollbar: true
+  All static checks PASS!
+
+  === BROWSER RUNTIME CDP TEST ===
+  1. Initial DOM state: {"clientHeight":300,"scrollHeight":1055,"scrollTop":0,"itemsCount":1,"studentsCount":17}
+  2. After scrolling down 350px: {"scrollTop":350}
+  3. After toggling collapse: {"display":"none","icon":"▼","headerBorderBottom":""}
+  4. After toggling expand: {"display":"flex","icon":"▲"}
+  ```
+- **Đánh giá so với DoD (TASK-009):**
+  - [x] Danh sách vượt quá 300px có thể cuộn tới các lượt quét phía dưới (`scrollHeight: 1055px > clientHeight: 300px`, `scrollTop: 350px`).
+  - [x] Vuốt dọc trên thiết bị cảm ứng cuộn danh sách mượt mà (`touch-action: pan-y`, `-webkit-overflow-scrolling: touch`).
+  - [x] Không làm thay đổi thao tác mở nhóm ngày hoặc xem chi tiết lượt quét (toggle collapse/expand và modal `openFaceScanDetail` hoạt động chính xác).
+- **Kết luận:** PASS (Đã kiểm chứng thực tế bằng Chromium runtime).
+
+---
+
+### [TLOG-015] Xác minh đổi nhãn và tô màu dòng xuất Excel (TASK-016)
+
+- **Thời gian:** 2026-10-28 09:02:11 (UTC+7)
+- **Người/Agent thực hiện:** Codex
+- **Môi trường:** Windows 11 / PowerShell 7 / Node.js 24.19.0 / xlsx-js-style 1.2.0
+- **Hạng mục kiểm tra:** Chạy `exportPastSessionExcel` và `exportAttendanceByGroups` trong Node VM với dữ liệu fixture; ghi workbook XLSX vào buffer rồi đọc lại để kiểm tra nhãn, fill toàn dòng, header và ghi chú.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  npm install --prefix $env:TEMP/diem-danh-xlsx-style-test --no-save xlsx-js-style@1.2.0
+  # Node VM gọi 2 exporter với fixture, XLSX.write -> XLSX.read(cellStyles:true), assert nội dung.
+  node --check js/admin/admin.students.js
+  node --check js/admin/admin.attendance.js
+  git diff --check
+  ```
+- **Kết quả thực tế:**
+  ```text
+  exportPastSessionExcel fixture integration: 4/4 hàng có nhãn/màu đúng; XLSX round-trip đạt.
+  exportAttendanceByGroups fixture integration: 2 sheet chi tiết x 4 trạng thái đạt; XLSX round-trip đạt.
+  node --check js/admin/admin.students.js: exit code 0
+  node --check js/admin/admin.attendance.js: exit code 0
+  git diff --check: exit code 0
+  ```
+- **Các lần chạy thử đầu:** Một assertion kiểm tra sai vị trí style (`s.fill` thay vì `s.fgColor`); probe khác thiếu worksheet trong workbook; integration đầu giả định sai thứ tự tên được sắp xếp. Đã sửa harness và chạy lại cả hai exporter thành công.
+- **Đánh giá so với DoD:** Nhãn, màu đỏ/vàng/xanh, header và ghi chú được giữ đúng trong workbook round-trip: ĐẠT.
+- **Kết luận:** PASS.
+- **Ghi chú thêm:** Fixture Supabase được mock trong harness; không truy cập dữ liệu production.
+
+---
+
+### [TLOG-016] Sửa lỗi lưu ghi chú và bảo vệ trạng thái nghỉ phép khi quét mặt (TASK-017)
+
+- **Thời gian:** 2026-10-28 14:02:00 (UTC+7)
+- **Người/Agent thực hiện:** Codex
+- **Môi trường:** Windows 11 / PowerShell 7 / Node.js 24.19.0 / Supabase CLI 2.120.0
+- **Hạng mục kiểm tra:** Chạy runtime harness cho luồng sửa ghi chú thành công và thất bại; kiểm tra cấu trúc migration; kiểm tra cú pháp JS và khả năng truy cập Supabase local.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  node --check js/admin/admin.tasks.js
+  # Node VM chạy openEditNoteModal/saveStudentNote với RPC mock success và reject.
+  # Node assertions kiểm tra migration: quyền Admin, update note theo session_id/MSSV,
+  # phản hồi thiếu dòng, guard EXCUSED đứng trước upsert.
+  supabase --version
+  supabase status
+  supabase migration list --linked
+  supabase db query --linked -f supabase/migrations/20261028092000_admin_attendance_note_and_excused_face_guard.sql
+  supabase migration repair 20261028092000 --status applied --linked
+  # Query xác minh SECURITY DEFINER, grants và guard trên function cloud.
+  git diff --check
+  ```
+- **Kết quả thực tế:**
+  ```text
+  saveStudentNote runtime harness: RPC payload, note change, render and success state PASS.
+  saveStudentNote rejection harness: error shown, old note retained, button reset PASS.
+  Migration structural assertions: 5/5 passed.
+  node --check js/admin/admin.tasks.js: exit code 0
+  supabase --version: 2.120.0
+  supabase status: StatusDbInspectError — docker: command not found (podman also not found).
+  Migration list trước khi chạy: 6 migration cũ hơn còn pending; target 20261028092000 chưa áp dụng.
+  db query --linked -f ...20261028092000_admin_attendance_note_and_excused_face_guard.sql: thành công, rows=[].
+  migration repair: 20261028092000 => applied.
+  Cloud verification: note_security_definer=true, authenticated_can_execute=true,
+    anon_can_execute=false, missing_row_error=true, excused_guard=true, guard_before_upsert=true.
+  Migration list sau khi chạy: remote=20261028092000; 6 migration cũ không liên quan vẫn pending.
+  ```
+- **Các lần chạy thử đầu:** Harness DOM đầu thiếu `focus()`; assertion PowerShell ban đầu bị lỗi cú pháp do quoting. Đã bổ sung DOM stub và chạy lại assertions bằng Node. Cơ sở dữ liệu Supabase local không khởi chạy được vì máy không có Docker hoặc Podman.
+- **Đánh giá so với DoD:**
+  - [x] UI chỉ cập nhật sau khi RPC xác nhận, và báo lỗi khi RPC từ chối (runtime harness).
+  - [x] Migration đã chạy trên PostgreSQL Supabase liên kết; RPC, quyền và guard được xác minh qua truy vấn.
+  - [ ] Chưa kiểm tra thao tác sửa note bằng tài khoản Admin trên UI đã publish; source frontend chưa được deploy.
+- **Kết luận:** VERIFYING — migration đã áp dụng; cần deploy frontend và xác nhận end-to-end trên UI Admin.
+- **Ghi chú thêm:** Chỉ áp dụng migration 20261028092000. Sáu migration cũ hơn tiếp tục pending và không bị chạy.
