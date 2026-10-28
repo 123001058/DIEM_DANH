@@ -1956,7 +1956,9 @@ function renderAttendanceMethodBadge(a) {
     const catLabel = cat && cat !== 'Đi học' && cat !== 'Khuôn mặt' ? ` (${escapeHtml(cat)})` : '';
     methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0">📱 Quét QR' + catLabel + '</span>';
   } else if (rawStatus === 'vắng có phép') {
-    if (note.includes('Lịch học') || cat === 'Học trường') {
+    if (note.includes('Lịch ngoài') || cat === 'Lịch ngoài') {
+      methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#ffedd5;color:#c2410c;border:1px solid #fed7aa">📚 Lịch ngoài</span>';
+    } else if (note.includes('Lịch học') || cat === 'Học trường') {
       methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd">🏫 Học trường</span>';
     } else {
       methodBadge = '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe">📝 Đơn nghỉ</span>';
@@ -3014,19 +3016,31 @@ async function loadTodaySchoolSchedule(){
     const todayKey = getVietnamDateKey(0);
     const startStr = new Date(`${todayKey}T00:00:00+07:00`).toISOString();
     const endStr = new Date(new Date(startStr).getTime() + 86400000).toISOString();
+    const todayDateObj = new Date(`${todayKey}T00:00:00+07:00`);
+    const todayThu = todayDateObj.getDay() === 0 ? 8 : todayDateObj.getDay() + 1;
 
-    const { data, error } = await supabase
-      .from('student_schedules')
-      .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
-      .gte('start_time', startStr)
-      .lt('start_time', endStr)
-      .order('start_time', { ascending: true });
+    const [{ data, error }, { data: extData, error: extErr }] = await Promise.all([
+      supabase
+        .from('student_schedules')
+        .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
+        .gte('start_time', startStr)
+        .lt('start_time', endStr)
+        .order('start_time', { ascending: true }),
+      supabase
+        .from('student_external_schedules')
+        .select('mssv, subject_name, room_name, teacher_name, start_date, end_date, days_of_week, start_time, end_time, buoi, note')
+        .lte('start_date', todayKey)
+        .gte('end_date', todayKey)
+    ]);
 
     if (error) {
       console.error('Lỗi khi tải lịch học trường:', error);
       if (freeWrap) freeWrap.innerHTML = '<div class="schedule-loading">Không thể tải dữ liệu thời khóa biểu.</div>';
       if (busyWrap) busyWrap.innerHTML = '<div class="schedule-loading">Không thể tải dữ liệu thời khóa biểu.</div>';
       return;
+    }
+    if (extErr) {
+      console.warn('Lỗi khi tải lịch ngoài:', extErr);
     }
 
     const {data:approvedLeaveRows}=await supabase.from('leave_requests')
@@ -3044,8 +3058,14 @@ async function loadTodaySchoolSchedule(){
         });
       }
     });
-    const {data:knownSchedules}=await supabase.from('student_schedules').select('mssv');
-    const studentsWithCalendar=new Set((knownSchedules||[]).map(r=>r.mssv));
+    const [{data:knownSchedules}, {data:knownExtSchedules}] = await Promise.all([
+      supabase.from('student_schedules').select('mssv'),
+      supabase.from('student_external_schedules').select('mssv')
+    ]);
+    const studentsWithCalendar=new Set([
+      ...(knownSchedules||[]).map(r=>r.mssv),
+      ...(knownExtSchedules||[]).map(r=>r.mssv)
+    ]);
 
     const items = data || [];
     const allStudents = (students && students.length > 0) ? students : [
@@ -3057,11 +3077,27 @@ async function loadTodaySchoolSchedule(){
     const studentMap = {};
     allStudents.forEach(s => { studentMap[s.mssv] = s.name; });
 
-    // Group schedules by MSSV
+    // Group schedules by MSSV (kết hợp cả lịch trường ME và lịch ngoài)
     const scheduleByStudent = {};
     items.forEach(item => {
       if (!scheduleByStudent[item.mssv]) scheduleByStudent[item.mssv] = [];
       scheduleByStudent[item.mssv].push(item);
+    });
+
+    (extData || []).forEach(ext => {
+      const days = Array.isArray(ext.days_of_week) ? ext.days_of_week : [];
+      if (days.includes(todayThu)) {
+        if (!scheduleByStudent[ext.mssv]) scheduleByStudent[ext.mssv] = [];
+        scheduleByStudent[ext.mssv].push({
+          mssv: ext.mssv,
+          subject_name: ext.subject_name,
+          room_name: ext.room_name || 'Ngoài trường',
+          teacher_name: ext.teacher_name || '',
+          start_time: `${todayKey}T${ext.start_time}+07:00`,
+          end_time: `${todayKey}T${ext.end_time}+07:00`,
+          isExternal: true
+        });
+      }
     });
 
     const nowMs = now.getTime();
@@ -3073,7 +3109,9 @@ async function loadTodaySchoolSchedule(){
     allStudents.forEach(s => {
       const sMssv = s.mssv;
       const sName = s.name || studentMap[sMssv] || sMssv;
-      const sScheds = scheduleByStudent[sMssv] || [];
+      const sScheds = (scheduleByStudent[sMssv] || []).slice().sort((a, b) =>
+        new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+      );
       const leaves = todayLeaveByStudent[sMssv] || [];
       const leaveText = leaves.map(l => l.fullText).join('; ');
 
@@ -3129,15 +3167,18 @@ async function loadTodaySchoolSchedule(){
 
           const tStart = new Date(c.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
           const tEnd = new Date(c.end_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+          const isExt = Boolean(c.isExternal);
+          const subjPrefix = isExt ? '📚 ' : '';
 
           return {
-            subject: c.subject_name || 'Môn học',
+            subject: `${subjPrefix}${c.subject_name || 'Môn học'}`,
             room: c.room_name || 'Chưa xếp phòng',
             teacher: c.teacher_name || '',
             timeRange: `${tStart} – ${tEnd}`,
-            stateTag,
+            stateTag: isExt ? stateTag.replace('giờ học', 'giờ học ngoài').replace('Sắp học', 'Sắp học ngoài') : stateTag,
             stateClass,
-            isCurrent: (nowMs >= cStart && nowMs < cEnd)
+            isCurrent: (nowMs >= cStart && nowMs < cEnd),
+            isExternal: isExt
           };
         });
 

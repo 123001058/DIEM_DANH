@@ -528,3 +528,32 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [x] Các tính năng camera: bật/tắt camera, chuyển chế độ AI/Chỉ xem, lật gương, toàn màn hình, bật tắt âm thanh hoạt động bình thường, không vỡ layout.
 - **Phương án kiểm thử:** Script kiểm tra tính toàn vẹn UI (`scratch/check_ui_cleanup.js`), kiểm tra cú pháp node, ghi nhận tại [TLOG-018](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-018-loại-bỏ-nút-mở-luồng-camera-tab-mới-và-làm-gọn-giao-diện-quản-trị-task-019).
 
+---
+
+### [TASK-020] Đồng bộ Lịch ngoài (External Schedules) với Điểm danh và Giao diện Quản trị
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:**
+  1. Khắc phục triệt để lỗi sinh viên đăng ký Lịch ngoài (khóa học tiếng Nhật, IELTS, thực tập...) nhưng khi mở/đóng phiên điểm danh bị hệ thống bỏ qua và tự động đánh "vắng không phép".
+  2. Bổ sung hàm helper `external_schedule_covers_session(...)` để kiểm tra chính xác tính bao phủ của lịch ngoài theo ngày, thứ trong tuần (`days_of_week`) và khung giờ.
+  3. Cập nhật `admin_open_session` và `admin_close_session` để tự động ghi nhận `vắng có phép`, phân loại `Lịch ngoài`, ghi chú tên môn và địa điểm khi trùng ca học ngoài.
+  4. Tạo Trigger `reconcile_external_schedule_with_attendance` trên bảng `student_external_schedules` để tự động rà soát và lật các phiên điểm danh trong 7 ngày gần nhất từ "vắng không phép" sang "vắng có phép" khi sinh viên tạo/cập nhật lịch ngoài.
+  5. Đồng bộ giao diện Quản trị (`admin.tasks.js`): nạp lịch ngoài vào widget thời khóa biểu hôm nay và bảng danh sách, hiển thị badge `📚 Lịch ngoài`.
+  6. Đồng bộ xuất Excel (`admin.students.js`): phân loại `Lịch ngoài` được đánh dấu "Đi học" và tô màu xanh tương đương `Học trường`.
+- **Phạm vi tác động:** `supabase/migrations/20261028170000_sync_external_schedules_with_attendance.sql`, `js/admin/admin.tasks.js`, `js/admin/admin.students.js`, `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Rủi ro & Xung đột đã rà soát:**
+  - Thứ tự ưu tiên ghi nhận: Đơn nghỉ đã duyệt > Lịch học trường ME > Lịch ngoài (được bảo vệ nhờ `on conflict (session_id, mssv) do nothing` và thứ tự `case when`).
+  - Bảo vệ tính năng đóng băng (FRZ-001..FRZ-005): Không can thiệp bất kỳ tham số phần cứng Kiosk hay còi/camera.
+  - Bảo vệ trạng thái sinh viên đã quét (Face AI / QR): Trigger đối chiếu chỉ cập nhật các bản ghi đang ở trạng thái `vắng không phép` (Xưởng), tuyệt đối không đè lên sinh viên có mặt / đi muộn hay bản ghi Admin sửa thủ công.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Migration database tạo thành công và được thực thi trên Supabase Cloud.
+  - [ ] Hàm `external_schedule_covers_session` tính toán đúng thứ trong tuần (Monday=2..Sunday=8) và độ lệch múi giờ UTC+7.
+  - [ ] `admin_open_session` và `admin_close_session` tự động ghi nhận vắng có phép với phân loại `Lịch ngoài`.
+  - [ ] Trigger tự động rà soát 7 ngày gần nhất khi có lịch ngoài mới hoặc chỉnh sửa.
+  - [ ] Bản ghi của bạn Phạm Tuấn Phát trong phiên tối 27/10 được chuẩn hóa `category = 'Lịch ngoài'`, `note = 'Lịch ngoài: Tiếng nhật (Cơ sở 2)'`.
+  - [ ] Giao diện Admin hiển thị lịch ngoài trong cột Lịch học hôm nay, xuất Excel nhận diện đúng.
+  - [ ] Toàn bộ file JavaScript hợp lệ cú pháp (`node -c`).
+- **Phương án kiểm thử:** Script SQL đối chiếu test case thực tế và suite test Node.js ghi nhận tại [TLOG-019](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-019-đồng-bộ-lịch-ngoài-với-điểm-danh-và-giao-diện-quản-trị-task-020).
+
+

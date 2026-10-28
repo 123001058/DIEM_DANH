@@ -1257,14 +1257,14 @@ function formatPastSessionDateTime(value) {
 }
 
 function getAttendanceExportStatus(status, category) {
-  return status === 'vắng có phép' && category === 'Học trường' ? 'Đi học' : status;
+  return status === 'vắng có phép' && (category === 'Học trường' || category === 'Lịch ngoài') ? 'Đi học' : status;
 }
 
 function applyAttendanceExportRowFill(worksheet, rowIndex, status, category, columnCount) {
   let rgb;
   if (status === 'vắng không phép') rgb = 'F4CCCC';
   else if (status === 'đi muộn') rgb = 'FFF2CC';
-  else if (category === 'Học trường') rgb = 'D9EAD3';
+  else if (category === 'Học trường' || category === 'Lịch ngoài') rgb = 'D9EAD3';
   if (!rgb) return;
 
   for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
