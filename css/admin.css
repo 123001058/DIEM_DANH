@@ -550,6 +550,19 @@ body {
 .scan-date-group-card * {
   touch-action: pan-y;
 }
+.cam-mode-selector {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.btn-mode-toggle {
+  transition: all 0.15s ease;
+  user-select: none;
+}
 .detail-list { max-height: min(62vh, 560px); min-height: 160px; }
 .detail-list .today-history-item { margin-bottom: 0; }
 .schedule-loading { padding: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }
@@ -1916,6 +1929,20 @@ tbody tr:last-child td { border-bottom: none; }
     width: 140px !important;
     font-size: 14px !important;
     padding: 4px 8px !important;
+  }
+  .cam-mode-selector {
+    flex: 1 1 100% !important;
+    display: flex !important;
+    justify-content: stretch !important;
+  }
+  .cam-mode-selector .btn-mode-toggle {
+    flex: 1 1 50% !important;
+    text-align: center !important;
+    min-height: 38px !important;
+    font-size: 12.5px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
   .btn-cam-toggle {
     flex: 1 1 140px !important;

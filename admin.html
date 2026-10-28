@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css?v=7">
-<link rel="stylesheet" href="css/admin.css?v=9">
+<link rel="stylesheet" href="css/admin.css?v=10">
 <script src="js/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js?v=6"></script>
@@ -565,8 +565,16 @@
               <span>IP Camera:</span>
               <input type="text" id="adminEspIpInput" value="192.168.2.169" placeholder="192.168.2.169" style="padding:6px 9px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;background:var(--surface);color:var(--text);width:130px;font-weight:700;" title="Địa chỉ IP của ESP32-CAM">
             </label>
+            <div class="cam-mode-selector" id="camModeSelector" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px;">
+              <button type="button" class="btn btn-sm btn-mode-toggle active" id="btnCamModeAi" onclick="switchAdminCameraMode('ai')" style="padding:4px 9px;font-size:11.5px;font-weight:700;border-radius:6px;border:none;background:var(--primary);color:#fff;cursor:pointer;" title="Camera tự động quét khuôn mặt và điểm danh">
+                🎯 Điểm danh AI
+              </button>
+              <button type="button" class="btn btn-sm btn-mode-toggle" id="btnCamModeMonitor" onclick="switchAdminCameraMode('monitor')" style="padding:4px 9px;font-size:11.5px;font-weight:700;border-radius:6px;border:none;background:transparent;color:var(--muted);cursor:pointer;" title="Xem trực tiếp luồng camera, tắt AI nhận diện để nhẹ máy">
+                👁️ Chỉ xem
+              </button>
+            </div>
             <button type="button" class="btn btn-primary btn-sm btn-cam-toggle" id="btnAdminCamToggle" onclick="toggleAdminCamera()" style="font-weight:800;">
-              📡 Bắt đầu quét
+              📡 Bật Camera
             </button>
             <button type="button" class="btn btn-secondary btn-sm btn-cam-opt" onclick="toggleAdminCamFlip()" title="Lật gương camera">
               🔄 Lật gương
@@ -596,7 +604,7 @@
               <div id="adminCamPlaceholder" style="text-align:center;padding:36px 16px;color:#94a3b8;display:flex;flex-direction:column;align-items:center;">
                 <div style="font-size:40px;margin-bottom:8px;">📷</div>
                 <div style="font-size:14px;font-weight:700;color:#f8fafc;">Camera đang tắt</div>
-                <div style="font-size:12px;margin-top:4px;max-width:280px;line-height:1.4;color:#94a3b8;">Nhấn <b>"Bắt đầu quét"</b> để kết nối luồng camera ESP32 và điểm danh.</div>
+                <div style="font-size:12px;margin-top:4px;max-width:320px;line-height:1.4;color:#94a3b8;">Bấm <b>"Bật Camera"</b> phía trên để mở luồng trực tiếp (Chỉ xem) hoặc điểm danh AI.</div>
               </div>
 
               <!-- HUD Thanh trạng thái dưới khung camera -->
@@ -2071,6 +2079,6 @@
 <script src="js/admin/admin.tasks.js?v=2"></script>
 <script src="js/admin/admin.students.js?v=2"></script>
 <script src="js/admin/admin.attendance.js?v=2"></script>
-<script src="js/admin/admin.face.js?v=7"></script>
+<script src="js/admin/admin.face.js?v=8"></script>
 </body>
 </html>

@@ -20,6 +20,10 @@ let adminInferenceRunning = false;
 let adminAntiSpoofEnabled = true; // Luôn bật sẵn khi quét, không cần nút bật tắt thủ công
 let adminAnimFrameId = null; // Quản lý requestAnimationFrame để hủy dứt khoát khi tắt cam
 let adminGroupOpenState = {}; // Trạng thái mở/đóng các folder accordion ngày
+// Chế độ hoạt động camera: 'ai' (Điểm danh AI) | 'monitor' (Chỉ xem trực tiếp)
+let adminCameraMode = 'ai';
+// Cờ ghi nhớ người dùng đã chủ động tắt camera (chống tự bật lại khi chuyển tab)
+let adminUserManuallyStopped = false;
 
 // Bộ đệm hiệu năng & Temporal Smoothing chống giả mạo
 let adminFpsCounter = 0;
@@ -153,7 +157,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     reloadAdminFaceMatcher();
     renderFaceStudentTable();
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && (hasActiveSession || !isBackground)) {
+    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
       startAdminCamera();
     }
     return;
@@ -183,7 +187,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     }
 
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && (hasActiveSession || !isBackground)) {
+    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
       startAdminCamera();
     }
   } catch (err) {
@@ -479,6 +483,107 @@ async function updateAdminCamSessionStatus() {
   }
 }
 
+function updateAdminCameraModeUi() {
+  const btnAi = document.getElementById('btnCamModeAi');
+  const btnMon = document.getElementById('btnCamModeMonitor');
+  if (btnAi && btnMon) {
+    if (adminCameraMode === 'ai') {
+      btnAi.style.background = 'var(--primary)';
+      btnAi.style.color = '#fff';
+      btnMon.style.background = 'transparent';
+      btnMon.style.color = 'var(--muted)';
+    } else {
+      btnMon.style.background = '#0284c7';
+      btnMon.style.color = '#fff';
+      btnAi.style.background = 'transparent';
+      btnAi.style.color = 'var(--muted)';
+    }
+  }
+  updateAdminCamToggleButton();
+}
+
+function updateAdminCamToggleButton() {
+  const btn = document.getElementById('btnAdminCamToggle');
+  if (!btn) return;
+  if (adminCameraActive) {
+    btn.innerHTML = '⏹ Dừng camera';
+    btn.className = 'btn btn-danger btn-sm btn-cam-toggle';
+    btn.style.background = '';
+    btn.style.borderColor = '';
+  } else {
+    if (adminCameraMode === 'monitor') {
+      btn.innerHTML = '👁️ Bật Xem Trực Tiếp';
+      btn.className = 'btn btn-primary btn-sm btn-cam-toggle';
+      btn.style.background = '#0284c7';
+      btn.style.borderColor = '#0284c7';
+    } else {
+      btn.innerHTML = '📡 Bật Điểm Danh AI';
+      btn.className = 'btn btn-primary btn-sm btn-cam-toggle';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+    }
+  }
+}
+
+function switchAdminCameraMode(newMode) {
+  if (newMode !== 'ai' && newMode !== 'monitor') return;
+  adminCameraMode = newMode;
+  updateAdminCameraModeUi();
+
+  const hudStatus = document.getElementById('adminCamHudStatus');
+  const canvas = document.getElementById('adminCamOverlayCanvas');
+
+  if (adminCameraActive) {
+    if (newMode === 'monitor') {
+      adminInferenceRunning = false;
+      if (adminAnimFrameId) {
+        cancelAnimationFrame(adminAnimFrameId);
+        adminAnimFrameId = null;
+      }
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      if (hudStatus) {
+        hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng camera trực tiếp (AI quét mặt đã tắt).`;
+        hudStatus.style.color = '#38bdf8';
+      }
+      updateAttendanceCamStatusPill('monitor');
+    } else if (newMode === 'ai') {
+      if (!adminFaceModelsLoaded) {
+        if (hudStatus) {
+          hudStatus.innerHTML = `⏳ Đang nạp mô hình AI nhận diện...`;
+          hudStatus.style.color = 'var(--warn)';
+        }
+        initFaceCamInAdmin(true).then(() => {
+          if (adminCameraActive && adminCameraMode === 'ai') {
+            startAiInferenceLoop();
+          }
+        });
+      } else {
+        startAiInferenceLoop();
+      }
+      updateAttendanceCamStatusPill('active');
+    }
+  } else {
+    updateAdminCamToggleButton();
+  }
+}
+window.switchAdminCameraMode = switchAdminCameraMode;
+
+function startAiInferenceLoop() {
+  if (!adminCameraActive || adminCameraMode !== 'ai') return;
+  if (!adminInferenceRunning) {
+    adminInferenceRunning = true;
+    adminAnimFrameId = requestAnimationFrame(runAdminDetectionLoop);
+  }
+  const hudStatus = document.getElementById('adminCamHudStatus');
+  if (hudStatus) {
+    hudStatus.innerHTML = `🟢 <b>Chế độ Điểm danh AI</b>: Đang quét & nhận diện khuôn mặt...`;
+    hudStatus.style.color = 'var(--ok)';
+  }
+}
+
 function toggleAdminCamera() {
   if (adminCameraActive) {
     stopAdminCamera();
@@ -516,9 +621,11 @@ function startFastFrameStream(captureUrl) {
       if (adminCameraActive && adminFastStreamLoopActive && img) {
         img.src = frameImg.src;
         if (hudStatus && adminCameraActive) {
-          hudStatus.textContent = `🟢 ESP32 đang phát luồng trực tiếp (${captureUrl})`;
+          hudStatus.innerHTML = (adminCameraMode === 'monitor')
+            ? `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng Fast Stream (${captureUrl})`
+            : `🟢 <b>Chế độ Điểm danh AI</b>: Đang phát luồng Fast Stream (${captureUrl})`;
         }
-        updateAttendanceCamStatusPill('active');
+        updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
         adminFastStreamTimer = setTimeout(fetchNextFrame, 50); // ~20 FPS mượt mà
       }
     };
@@ -541,10 +648,17 @@ function startFastFrameStream(captureUrl) {
   fetchNextFrame();
 }
 
-async function startAdminCamera() {
+async function startAdminCamera(targetMode) {
   if (adminCameraActive) return;
+  if (targetMode && (targetMode === 'ai' || targetMode === 'monitor')) {
+    adminCameraMode = targetMode;
+  }
+  adminUserManuallyStopped = false; // Reset cờ thủ công khi Admin chủ động bấm bật
 
-  if (!adminFaceModelsLoaded) {
+  updateAdminCameraModeUi();
+
+  // Chỉ bắt buộc nạp mô hình AI nếu đang ở chế độ 'ai'
+  if (adminCameraMode === 'ai' && !adminFaceModelsLoaded) {
     if (!adminFaceModelsLoading) {
       initFaceCamInAdmin(true);
     }
@@ -563,12 +677,11 @@ async function startAdminCamera() {
   // Cập nhật trạng thái phiên nếu có, KHÔNG chặn camera hoạt động
   ensureOpenSession().then(sess => {
     updateAdminCamSessionStatus();
-    if (!sess) {
+    if (!sess && adminCameraMode === 'ai') {
       console.log('[FaceCam] Đang quét tự do (Chưa có phiên điểm danh mở).');
     }
   });
 
-  const btn = document.getElementById('btnAdminCamToggle');
   const img = document.getElementById('adminEspImg');
   const placeholder = document.getElementById('adminCamPlaceholder');
   const hudStatus = document.getElementById('adminCamHudStatus');
@@ -603,9 +716,15 @@ async function startAdminCamera() {
     img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
     img.onload = () => {
       if (hudStatus && adminCameraActive && adminStreamMode === 'mjpeg') {
-        hudStatus.textContent = `🟢 ESP32 đang phát luồng: ${streamUrl}`;
+        if (adminCameraMode === 'monitor') {
+          hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng trực tiếp (${streamUrl})`;
+          hudStatus.style.color = '#38bdf8';
+        } else {
+          hudStatus.innerHTML = `🟢 <b>Chế độ Điểm danh AI</b>: Đang quét luồng (${streamUrl})`;
+          hudStatus.style.color = 'var(--ok)';
+        }
       }
-      updateAttendanceCamStatusPill('active');
+      updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
     };
     img.onerror = () => {
       if (!adminCameraActive) return;
@@ -644,21 +763,24 @@ async function startAdminCamera() {
     img.src = streamUrl;
   }
 
-  if (btn) {
-    btn.innerHTML = '⏹ Dừng camera';
-    btn.className = 'btn btn-danger btn-sm';
-  }
+  updateAdminCamToggleButton();
+  updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
 
-  updateAttendanceCamStatusPill('active');
-
-  if (!adminInferenceRunning) {
-    adminInferenceRunning = true;
-    adminAnimFrameId = requestAnimationFrame(runAdminDetectionLoop);
+  // Khởi động AI inference loop CHỈ KHI ở chế độ 'ai'
+  if (adminCameraMode === 'ai') {
+    startAiInferenceLoop();
+  } else {
+    adminInferenceRunning = false;
+    const canvas = document.getElementById('adminCamOverlayCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }
 }
 
 function stopAdminCamera() {
-  // 1. Tắt cờ trạng thái ngay lập tức
+  adminUserManuallyStopped = true; // Ghi nhận Admin đã chủ động dừng
   adminCameraActive = false;
   adminInferenceRunning = false;
   adminFastStreamLoopActive = false;
@@ -672,19 +794,18 @@ function stopAdminCamera() {
     adminStreamReconnectTimer = null;
   }
 
-  // 2. Hủy animation frame
+  // Hủy animation frame
   if (adminAnimFrameId) {
     cancelAnimationFrame(adminAnimFrameId);
     adminAnimFrameId = null;
   }
 
-  // 3. Reset các bộ đệm tracking
+  // Reset các bộ đệm tracking
   adminTrackingMssv = null;
   adminTrackingFrames = 0;
   adminConsecutiveSpoofHits = 0;
   adminLastUnknownFaceDataUrl = null;
 
-  const btn = document.getElementById('btnAdminCamToggle');
   const img = document.getElementById('adminEspImg');
   const video = document.getElementById('adminWebcamVideo');
   const placeholder = document.getElementById('adminCamPlaceholder');
@@ -706,19 +827,17 @@ function stopAdminCamera() {
     video.style.display = 'none';
   }
 
-  // 4. XÓA SẠCH VÀ TRIỆT ĐỂ BOUNDING BOX TRÊN CANVAS
+  // XÓA SẠCH VÀ TRIỆT ĐỂ BOUNDING BOX TRÊN CANVAS
   if (canvas) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
   if (placeholder) placeholder.style.display = 'flex';
-  if (btn) {
-    btn.innerHTML = '📡 Bắt đầu quét';
-    btn.className = 'btn btn-primary btn-sm';
-  }
+  updateAdminCamToggleButton();
+
   if (hudStatus) {
-    hudStatus.textContent = 'Camera đã dừng. Bấm "Bắt đầu quét" để kích hoạt.';
+    hudStatus.textContent = 'Camera đã dừng. Bấm nút phía trên để kích hoạt lại.';
     hudStatus.style.color = 'var(--muted)';
   }
 
@@ -732,7 +851,18 @@ function updateAttendanceCamStatusPill(state) {
   const btn = document.getElementById('btnToggleFaceCam');
   if (!pill) return;
 
-  if (state === 'active' || (state !== 'off' && state !== 'error' && adminCameraActive)) {
+  if (state === 'monitor' || (adminCameraActive && adminCameraMode === 'monitor')) {
+    pill.style.display = 'inline-flex';
+    pill.style.background = 'rgba(2, 132, 199, 0.12)';
+    pill.style.borderColor = 'rgba(2, 132, 199, 0.3)';
+    pill.style.color = '#0284c7';
+    if (dot) {
+      dot.style.background = '#0284c7';
+      dot.style.boxShadow = '0 0 6px #0284c7';
+    }
+    if (text) text.textContent = 'Camera: Đang xem trực tiếp';
+    if (btn) btn.innerHTML = '<span>👁️</span> Xem Camera (Trực tiếp) →';
+  } else if (state === 'active' || (state !== 'off' && state !== 'error' && adminCameraActive)) {
     pill.style.display = 'inline-flex';
     pill.style.background = 'rgba(34, 197, 94, 0.12)';
     pill.style.borderColor = 'rgba(34, 197, 94, 0.3)';
@@ -781,11 +911,17 @@ function updateAttendanceCamStatusPill(state) {
 window.updateAttendanceCamStatusPill = updateAttendanceCamStatusPill;
 
 async function autoStartAdminCameraOnSession() {
-  if (adminCameraActive) return;
+  if (adminCameraActive && adminCameraMode === 'ai') return;
   console.log('[FaceCam] Tự động kích hoạt Camera AI ESP32 theo phiên điểm danh...');
+  adminUserManuallyStopped = false; // Phiên mới mở: reset cờ thủ công
+  adminCameraMode = 'ai'; // Phiên điểm danh luôn dùng chế độ AI
   updateAttendanceCamStatusPill('loading');
   try {
-    await startAdminCamera();
+    if (adminCameraActive) {
+      switchAdminCameraMode('ai');
+    } else {
+      await startAdminCamera('ai');
+    }
   } catch (e) {
     console.warn('[FaceCam] Không thể tự động bật camera:', e);
     updateAttendanceCamStatusPill('off');
@@ -816,7 +952,7 @@ function formatEspStreamUrl(raw) {
 // 6. VÒNG LẶP NHẬN DIỆN & ĐIỂM DANH THỜI GIAN THỰC (PIPELINE CHÍNH)
 // =====================================================================
 async function runAdminDetectionLoop() {
-  if (!adminCameraActive || !adminInferenceRunning) return;
+  if (!adminCameraActive || !adminInferenceRunning || adminCameraMode !== 'ai') return;
 
   const media = document.getElementById('adminEspImg');
   const isVideo = media instanceof HTMLVideoElement;
@@ -837,7 +973,7 @@ async function runAdminDetectionLoop() {
     adminLastFpsTime = now;
   }
 
-  if (adminCameraActive && adminInferenceRunning) {
+  if (adminCameraActive && adminInferenceRunning && adminCameraMode === 'ai') {
     adminAnimFrameId = requestAnimationFrame(runAdminDetectionLoop);
   }
 }

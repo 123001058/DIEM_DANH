@@ -482,3 +482,30 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Không thay đổi thuật toán nhận diện hoặc tính năng FRZ-005.
   - [ ] Có bằng chứng kiểm thử; ghi rõ migration chưa áp dụng trên Supabase thật nếu chưa deploy.
 - **Phương án kiểm thử:** Node syntax/runtime harness cho hàm lưu note; kiểm tra migration bằng Supabase CLI/local database nếu môi trường có sẵn; assertions cho các nhánh status trong RPC camera; `git diff --check`.
+
+---
+
+### [TASK-018] Bật/tắt camera tùy ý độc lập và phân tách chế độ Giám sát vs Điểm danh AI (Mức A)
+
+- **Ngày tạo:** 2026-10-28
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:**
+  1. Cho phép Admin chủ động bật/tắt camera ESP32 xem trực tiếp (Live View) mọi lúc độc lập với phiên điểm danh.
+  2. Phân tách rạch ròi 2 chế độ hoạt động:
+     - `Chế độ Điểm danh AI (Face Scan)`: Bật cam + nhận diện mặt + ghi điểm danh + còi báo khi khớp (tự động kích hoạt khi có phiên điểm danh, giữ nguyên 100% tính năng cũ).
+     - `Chế độ Giám sát (Chỉ xem)`: Bật cam xem luồng trực tiếp từ ESP32 mọi lúc tùy ý, không chạy nhận diện mặt, không kêu còi, không ghi điểm danh nhầm, nhẹ máy và tiết kiệm pin.
+  3. Tôn trọng thao tác Admin: Khi Admin bấm "Tắt camera", hệ thống ghi nhớ trạng thái dừng (`adminUserManuallyStopped = true`), không tự động bật lại đè lên ý Admin khi chuyển tab qua lại.
+  4. Đảm bảo giao diện responsive, không xung đột với các tính năng đóng băng (FRZ-004 còi Buzzer Active LOW, FRZ-005 Debounce & Mute).
+- **Phạm vi tác động:** `admin.html`, `js/admin/admin.face.js`, `css/admin.css`.
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Hiện tại, `startAdminCamera()` luôn kích hoạt luồng nhận diện AI Face-API/MiniFASNet, khiến người dùng muốn xem cam thông thường bị tiêu tốn CPU/GPU và có thể kích hoạt còi/lưu điểm danh nhầm.
+  - Mỗi khi chuyển sang tab `face-cam`, hàm `initFaceCamInAdmin(false)` tự ý gọi `startAdminCamera()` khiến Admin bấm tắt cam xong chuyển tab quay lại bị tự bật lại.
+  - Cần bổ sung biến trạng thái `adminCameraMode` ('ai' | 'monitor') và `adminUserManuallyStopped`, cùng bộ chọn chế độ trực quan trên toolbar.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Bật/tắt camera độc lập ở chế độ "Chỉ xem" (Monitor) thành công: luồng stream hiển thị bình thường, KHÔNG chạy loop nhận diện AI, KHÔNG kêu còi, canvas không vẽ bounding box (xác minh qua Chromium CDP).
+  - [x] Chuyển đổi qua lại giữa "Điểm danh AI" và "Chỉ xem" linh hoạt ngay khi camera đang phát luồng.
+  - [x] Khi Admin bấm "Dừng camera", camera tắt hoàn toàn; chuyển tab và quay lại KHÔNG bị tự động bật lại.
+  - [x] Khi có phiên điểm danh mở (`autoStartAdminCameraOnSession()`), camera tự động kích hoạt ở chế độ "Điểm danh AI" bảo toàn 100% luồng cũ.
+  - [x] Giao diện responsive trên mobile và desktop, không vỡ khung.
+  - [x] Toàn bộ cú pháp file JS hợp lệ 100% (`node -c`).
+- **Phương án kiểm thử:** Đã kiểm thử tự động với suite script Chromium CDP ghi nhận tại [TLOG-017](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-017-bật-tắt-camera-tùy-ý-độc-lập-và-phân-tách-chế-độ-giám-sát-vs-điểm-danh-ai-task-018).
