@@ -547,3 +547,30 @@
   - **UNKNOWN:** Quan sát hình ảnh thực tế trên phần cứng màn LCD vật lý (cần người dùng nạp firmware để kiểm chứng trên board).
 - **Trạng thái:** VERIFIED (Cục bộ & Firmware đã sẵn sàng nạp).
 
+---
+
+### [TLOG-012] Kiểm tra quy tắc bảo vệ luồng cốt lõi (TASK-014)
+
+- **Thời gian:** 2026-10-27 (UTC+7)
+- **Người/Agent thực hiện:** Codex
+- **Môi trường:** Windows 11 / PowerShell 7 / Git
+- **Hạng mục kiểm tra:** Xác minh quy tắc trong `docs/FROZEN_FEATURES.md` về phạm vi luồng cốt lõi, thay đổi tối thiểu, kiểm thử hồi quy và xử lý bằng chứng chưa đủ/mâu thuẫn.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  git diff --check
+  $f = Get-Content -Raw docs/FROZEN_FEATURES.md
+  # PowerShell assertions kiểm tra 6 cụm quy tắc bắt buộc trong file
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  git diff --check exit code: 0
+  Frozen policy assertions: 6/6 passed
+  ```
+- **Đánh giá so với DoD:**
+  - [x] Không sửa lan sang code cũ chỉ vì có liên quan; yêu cầu khoanh ranh giới và thay đổi tối thiểu.
+  - [x] Không tự đóng băng tính năng chỉ mới build hoặc còn đang xác minh.
+  - [x] Nếu buộc phải chạm luồng cũ, cần nêu nguyên nhân/phạm vi và kiểm thử hồi quy.
+  - [x] Diff sạch và các assertion tài liệu đều đạt.
+- **Kết luận:** PASS
+- **Ghi chú thêm:** Chỉ cập nhật quy tắc quản trị; không tự thêm mục tính năng mới khi chưa có xác nhận/bằng chứng chạy thực tế. `skills-lock.json` đã ở trạng thái modified trước phiên cập nhật này và không thuộc phạm vi chỉnh sửa.
+

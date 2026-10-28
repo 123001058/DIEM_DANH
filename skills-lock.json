@@ -7,6 +7,12 @@
       "skillPath": "skills/checklist-design/SKILL.md",
       "computedHash": "8b3b4f1e5b944db7d8f9227afe5b5d0fb5f0130597f0338e07323d7ea55e4163"
     },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "53590ee9325bee34d7888bf0d81bd3941a108b1e7850df46802d93104e3f2b90"
+    },
     "lucian-uxui": {
       "source": "Seokwoooo/lucian-uxui",
       "sourceType": "github",

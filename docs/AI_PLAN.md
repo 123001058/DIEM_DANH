@@ -356,3 +356,26 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Không có lệnh xóa toàn màn hình `fillScreen` trong chu trình hiển thị điểm danh.
   - [ ] Firmware biên dịch thành công 100% bằng `arduino-cli`.
 - **Phương án kiểm thử:** Biên dịch firmware bằng Arduino CLI; kiểm tra phân vùng tọa độ bằng script Node.js; review diff C++.
+
+---
+
+### [TASK-014] Chuẩn hóa quy tắc bảo vệ luồng cốt lõi đã kiểm chứng
+
+- **Ngày tạo:** 2026-10-27
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** Ghi rõ cách nhận diện và bảo vệ đúng luồng cốt lõi đã chạy tốt trong `FROZEN_FEATURES.md`, để khi thêm tính năng có liên quan code cũ, AI giới hạn thay đổi ở phạm vi cần thiết và không sửa lan man.
+- **Phạm vi tác động:** `docs/FROZEN_FEATURES.md`, `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - `FROZEN_FEATURES.md` đã cấm sửa tùy tiện và yêu cầu giữ luồng cũ, nhưng chưa nói rõ cách khoanh ranh giới khi code mới dùng chung file/module với luồng cũ.
+  - Một số task hiện còn `[IN_PROGRESS]` hoặc `[VERIFYING]`; không được suy diễn chúng đã chạy tốt hoặc tự thêm chúng vào danh sách đóng băng.
+  - Có mục đóng băng cần đối chiếu lại nếu bằng chứng mới trong code/test log mâu thuẫn; task này chỉ bổ sung quy tắc chung, không tự sửa nội dung tính năng đã có.
+- **Các bước triển khai:**
+  1. Bổ sung tiêu chí chỉ đóng băng luồng cốt lõi có bằng chứng và ghi rõ phạm vi hành vi.
+  2. Bổ sung quy trình khoanh vùng thay đổi, mở rộng tương thích, xử lý ngoại lệ và kiểm thử hồi quy.
+  3. Kiểm tra nội dung/diff tài liệu và ghi kết quả thật vào Test Log.
+- **Tiêu chí nghiệm thu (Acceptance Criteria / Definition of Done - DoD):**
+  - [x] Quy định nêu rõ không sửa lan sang code cũ chỉ vì có liên quan; phải khoanh phần dùng chung và thay đổi tối thiểu.
+  - [x] Chỉ thêm luồng đã có bằng chứng chạy tốt; không suy diễn từ build hoặc trạng thái đang xác minh.
+  - [x] Quy định xử lý khi buộc phải chạm luồng đóng băng và yêu cầu kiểm thử hồi quy.
+  - [x] Diff sạch và có bản ghi kiểm tra tài liệu trong Test Log.
+- **Phương án kiểm thử:** Kiểm tra diff tài liệu bằng `git diff --check` và chạy PowerShell assertions xác nhận các quy định bắt buộc hiện diện trong `docs/FROZEN_FEATURES.md`.
