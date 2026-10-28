@@ -625,3 +625,14 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
 
 
 
+
+### [TASK-024] Hiện avatar ngay từ bộ ảnh trong firmware và xuống dòng tên theo pixel
+
+- **Ngày tạo:** 2026-10-28
+- **Mục tiêu:** Khắc phục LCD chỉ hiện initials dù có ảnh; dùng ảnh từ thư mục hiện tại, đúng MSSV, hiện đủ 3,5 giây sau khi vẽ.
+- **Bằng chứng:** 123001058.jpg là JPEG baseline 600x581, 46.339 bytes, HTTP 200. Code cũ cho riêng connect/read nhiều giây nhưng màn hình hết hạn sau 3.500 ms; decoder/buffer dùng chung giữa worker và main. Chưa có Serial trace để kết luận lỗi nào xảy ra trên thiết bị.
+- **Thiết kế:** Generator đọc file ảnh tên MSSV 9 chữ số trong images/faces, tạo JPEG baseline tối đa 100x100 trong PROGMEM. Tra ảnh theo MSSV và giải mã trên main; bỏ worker tải avatar. Không đổi ảnh gốc. Tên xuống dòng bằng textWidth trong vùng bên phải.
+- **File:** esp32_kiosk/tools/generate_avatars.py, kiosk_avatars.h, esp32_kiosk.ino, qr_display.h, tài liệu.
+- **Đánh đổi:** Ảnh là snapshot lúc tạo header; đổi/thêm ảnh phải chạy generator và nạp lại firmware. Tăng flash khoảng 55 KB, bỏ buffer tải ảnh 64 KB RAM.
+- **DoD:** Generator ánh xạ đúng MSSV; mọi JPEG trong header giải mã được và <=100x100; lookup thiếu ảnh dùng fallback; build ESP32 trong giới hạn flash/RAM; tên không tràn. LCD thật cần kiểm chứng sau nạp.
+- **Kiểm thử:** Giải mã toàn bộ dữ liệu header bằng Pillow, đối chiếu nguồn; Arduino CLI build; không đánh dấu DONE khi chưa nghiệm thu board.

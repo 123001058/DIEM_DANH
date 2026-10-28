@@ -52,6 +52,8 @@ stateDiagram-v2
 | [TASK-022](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-022-tạo-sự-kiện-riêng-để-kiosk-hiển-thị-lại-sau-mỗi-lượt-quét) | Tạo sự kiện riêng cho mỗi lượt quét QR/Face AI | `[VERIFYING]` | High | [TLOG-021](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-021-sự-kiện-mới-cho-mỗi-lượt-qrface-ai-task-022) (Cloud & firmware build PASS; chờ LCD thật) | 2026-10-28 |
 | [TASK-023](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-023-kiosk-lấy-avatar-từ-thư-mục-imagesfaces) | Kiosk lấy avatar từ thư mục `images/faces` | `[VERIFYING]` | High | [TLOG-022](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-022-lấy-avatar-kiosk-từ-imagesfaces-task-023) (URL JPEG & firmware build PASS; chờ LCD thật) | 2026-10-28 |
 
+| TASK-024 | Avatar đóng gói từ images/faces, sửa xuống dòng tên | `[IN_PROGRESS]` | High | Chưa kiểm thử | 2026-10-28 |
+
 ---
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)

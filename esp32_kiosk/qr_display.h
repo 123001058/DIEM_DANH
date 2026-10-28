@@ -241,6 +241,51 @@ inline void drawCheckinName(String studentName) {
 // GIAO DIEN DIEM DANH TOAN MAN HINH 320x240 (FULLSCREEN CHECKIN DISPLAY)
 // -------------------------------------------------------------------------------------------------
 
+// Wrap by measured pixel width, rather than splitting the string at its midpoint.
+inline bool wrapFullscreenName(String name, uint8_t font, String* lines, int limit, int width, int& count) {
+  count = 0;
+  name.trim();
+  while (name.length() > 0 && count < limit) {
+    int fit = 0;
+    while (fit < int(name.length()) && tft.textWidth(name.substring(0, fit + 1), font) <= width) fit++;
+    if (fit == 0) return false;
+    int end = fit;
+    if (fit < int(name.length())) {
+      int space = name.lastIndexOf(' ', fit);
+      if (space > 0) end = space;
+    }
+    lines[count] = name.substring(0, end);
+    lines[count++].trim();
+    name = name.substring(end);
+    name.trim();
+  }
+  return name.length() == 0;
+}
+
+inline void drawFullscreenName(const String& name) {
+  const int x = 122, y = 48, width = tft.width() - x - 8, height = 60;
+  String lines[6];
+  int count = 0;
+  uint8_t font = 4;
+  bool fits = false;
+  const uint8_t fonts[] = {4, 2, 1};
+  for (uint8_t candidate : fonts) {
+    font = candidate;
+    int limit = height / tft.fontHeight(font);
+    if (limit > 6) limit = 6;
+    fits = wrapFullscreenName(name, font, lines, limit, width, count);
+    if (fits) break;
+  }
+  if (!fits && count > 0) {
+    String& last = lines[count - 1];
+    while (last.length() && tft.textWidth(last + "...", font) > width) last.remove(last.length() - 1);
+    last += "...";
+  }
+  int lineHeight = tft.fontHeight(font);
+  int top = y + (height - count * lineHeight) / 2;
+  for (int i = 0; i < count; i++) tft.drawString(lines[i], x, top + i * lineHeight, font);
+}
+
 inline void drawCheckinFullscreen(String studentName, String mssv) {
   String asciiName = nameForTft(studentName);
   char initialChar = getInitialLetter(asciiName);
@@ -264,21 +309,7 @@ inline void drawCheckinFullscreen(String studentName, String mssv) {
 
   // 4. Ho ten sinh vien ben phai
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  if (tft.textWidth(asciiName, 4) <= 190) {
-    tft.drawString(asciiName, 122, 58, 4);
-  } else {
-    int mid = asciiName.length() / 2;
-    int splitIdx = asciiName.indexOf(' ', mid);
-    if (splitIdx == -1) splitIdx = asciiName.lastIndexOf(' ', mid);
-    if (splitIdx > 0) {
-      String line1 = asciiName.substring(0, splitIdx);
-      String line2 = asciiName.substring(splitIdx + 1);
-      tft.drawString(line1, 122, 50, 4);
-      tft.drawString(line2, 122, 78, 4);
-    } else {
-      tft.drawString(asciiName, 122, 58, 4);
-    }
-  }
+  drawFullscreenName(asciiName);
 
   // 5. MSSV
   tft.setTextColor(TFT_CYAN, TFT_BLACK);
@@ -296,31 +327,21 @@ inline void drawCheckinFullscreen(String studentName, String mssv) {
   tft.drawRightString("Tro lai QR...", 304, 202, 2);
 }
 
-// Ve de anh avatar that (JPEG) vao khung avatar khi tai xong
-// Tinh scale dong sao cho ca width va height deu <= 100px va can giua khung 100x100
-inline void drawCheckinAvatar(uint8_t* jpgData, size_t jpgLen) {
+// Generated portraits are baseline JPEGs <=100x100 stored in flash.
+// Return the actual decoder result so the caller can restore initials on failure.
+inline bool drawCheckinAvatar(const uint8_t* jpgData, size_t jpgLen) {
   uint16_t w = 0, h = 0;
-  if (TJpgDec.getJpgSize(&w, &h, jpgData, jpgLen) == 0 && w >= 16 && h >= 16 && w <= 1200 && h <= 1200) {
-    uint8_t scale = 1;
-    while ((w / scale > AVATAR_BOX_W || h / scale > AVATAR_BOX_H) && scale < 8) {
-      scale *= 2;
-    }
-    TJpgDec.setJpgScale(scale);
-
-    int scaledW = w / scale;
-    int scaledH = h / scale;
-    int drawX = AVATAR_BOX_X + (AVATAR_BOX_W - scaledW) / 2;
-    int drawY = AVATAR_BOX_Y + (AVATAR_BOX_H - scaledH) / 2;
-    if (drawX < AVATAR_BOX_X) drawX = AVATAR_BOX_X;
-    if (drawY < AVATAR_BOX_Y) drawY = AVATAR_BOX_Y;
-
-    // Xoa den khung avatar
-    tft.fillRect(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, TFT_BLACK);
-
-    // Ve truc tiep anh vao toa do can giua (anh da duoc scale <= 100px nen khong bao gio vuot qua khung)
-    TJpgDec.drawJpg(drawX, drawY, jpgData, jpgLen);
-
-    // Ve vien bo khung avatar xanh
-    tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
+  JRESULT header = TJpgDec.getJpgSize(&w, &h, jpgData, jpgLen);
+  if (header != JDR_OK || w == 0 || h == 0 || w > AVATAR_BOX_W || h > AVATAR_BOX_H) {
+    Serial.printf("[AVT] Invalid thumbnail: result=%d w=%u h=%u\n", int(header), w, h);
+    return false;
   }
+  TJpgDec.setJpgScale(1);
+  int drawX = AVATAR_BOX_X + (AVATAR_BOX_W - w) / 2;
+  int drawY = AVATAR_BOX_Y + (AVATAR_BOX_H - h) / 2;
+  tft.fillRect(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, TFT_BLACK);
+  JRESULT decoded = TJpgDec.drawJpg(drawX, drawY, jpgData, jpgLen);
+  Serial.printf("[AVT] JPEG decode result=%d\n", int(decoded));
+  tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
+  return decoded == JDR_OK;
 }
