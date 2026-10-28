@@ -31,11 +31,11 @@ uint32_t checkinFullscreenUntil = 0;
 uint32_t lastPollMs = 0;
 bool avatarDrawn = false;
 
-// Buffer 48 KB chua anh JPEG avatar (anh tren web thuong tu 20KB den 45KB)
-uint8_t avatarBuffer[49152];
+// Buffer 64 KB chua anh JPEG avatar (an toan cho cac anh tu 20KB den 60KB)
+uint8_t avatarBuffer[65536];
 size_t avatarBufferSize = 0;
 
-// Struct yeu cau tai anh va FreeRTOS Queue de dong bo luong tuyet doi giua Core 1 va Core 0
+// Struct yeu cau tai anh va FreeRTOS Queue dong bo giua Core 1 va Core 0
 struct AvatarDownloadMsg {
   char checkinId[64];
   char url[256];
@@ -54,80 +54,103 @@ void drawNoOpenSession() {
   tft.drawCentreString("DIEM DANH", tft.width() / 2, 118, 2);
 }
 
-// Worker Task thuong truc tren Core 0: Dong bo bang FreeRTOS Queue va Critical Section
+// Worker Task thuong truc tren Core 0: Tai anh HTTPS va dong bo thread-safe
 void avatarWorkerTask(void* param) {
   AvatarDownloadMsg currentMsg;
 
   for (;;) {
-    // Cho yeu cau moi tu queue (cho vo han, zero CPU spinning)
+    // Cho yeu cau moi tu queue (cho vo han ma khong ton CPU)
     if (xQueueReceive(avatarQueue, &currentMsg, portMAX_DELAY) != pdTRUE) {
       continue;
     }
 
     if (strlen(currentMsg.url) == 0 ||
         (strncmp(currentMsg.url, "http://", 7) != 0 && strncmp(currentMsg.url, "https://", 8) != 0)) {
+      Serial.println("[AVT] URL khong hop le, bo qua");
       continue;
     }
 
+    Serial.printf("[AVT] Bat dau tai avatar: %s\n", currentMsg.url);
+
     WiFiClientSecure avtClient;
     avtClient.setInsecure();
-    avtClient.setTimeout(1000); // 1.0s read/write timeout
+    avtClient.setTimeout(3000); // 3s read timeout
 
     HTTPClient avtHttp;
-    avtHttp.setConnectTimeout(1000); // 1.0s TCP/TLS connection timeout
-    avtHttp.setTimeout(1000);        // 1.0s HTTP response timeout
+    // Cho phep 3.0s de ESP32 bat tay TLS HTTPS voi GitHub Pages / Supabase
+    avtHttp.setConnectTimeout(3000); 
+    avtHttp.setTimeout(3000);
 
     uint32_t reqStart = millis();
     if (avtHttp.begin(avtClient, currentMsg.url)) {
       int code = avtHttp.GET();
+      Serial.printf("[AVT] HTTP GET code: %d trong %u ms\n", code, millis() - reqStart);
 
       if (code == HTTP_CODE_OK) {
         int len = avtHttp.getSize();
-        if (len > 0 && len <= static_cast<int>(sizeof(avatarBuffer))) {
-          WiFiClient* stream = avtHttp.getStreamPtr();
-          size_t bytesRead = 0;
+        WiFiClient* stream = avtHttp.getStreamPtr();
+        size_t bytesRead = 0;
+        uint32_t readStart = millis();
 
-          // Doc du lieu va kiem tra ngat ngay neu co luot quet moi hon trong queue
-          while (avtHttp.connected() && bytesRead < static_cast<size_t>(len) && (millis() - reqStart < 2000)) {
-            // Neu co yeu cau moi hon vua den -> lap tuc bo anh cu de sang anh moi
-            if (uxQueueMessagesWaiting(avatarQueue) > 0) {
-              break;
-            }
-
-            size_t avail = stream->available();
-            if (avail) {
-              size_t toRead = ((static_cast<size_t>(len) - bytesRead) < avail) ? (static_cast<size_t>(len) - bytesRead) : avail;
-              int r = stream->readBytes(avatarBuffer + bytesRead, toRead);
-              if (r > 0) bytesRead += r;
-            } else {
-              vTaskDelay(5 / portTICK_PERIOD_MS);
-            }
+        // Doc stream linh hoat ca truong hop co lan khong co Content-Length
+        while ((avtHttp.connected() || stream->available()) &&
+               bytesRead < sizeof(avatarBuffer) &&
+               (millis() - readStart < 3500)) {
+          // Kiem tra neu co luot quet moi den -> lap tuc dung de sang luot moi
+          if (uxQueueMessagesWaiting(avatarQueue) > 0) {
+            Serial.println("[AVT] Co luot quet moi trong queue, ngat luot cu ngay!");
+            break;
           }
 
-          // Chi cap nhat ket qua neu doc tron ven va khong bi yeu cau moi chen ngang
-          if (uxQueueMessagesWaiting(avatarQueue) == 0 && bytesRead == static_cast<size_t>(len)) {
-            if (bytesRead >= 4 && avatarBuffer[0] == 0xFF && avatarBuffer[1] == 0xD8) {
-              uint16_t w = 0, h = 0;
-              if (TJpgDec.getJpgSize(&w, &h, avatarBuffer, bytesRead) == 0 &&
-                  w >= 16 && h >= 16 && w <= 800 && h <= 800) {
-                // Bao ve cap nhat du lieu bang Critical Section
-                taskENTER_CRITICAL(&avatarMux);
-                avatarBufferSize = bytesRead;
-                strncpy(sharedLoadedCheckinId, currentMsg.checkinId, sizeof(sharedLoadedCheckinId) - 1);
-                sharedLoadedCheckinId[sizeof(sharedLoadedCheckinId) - 1] = '\0';
-                sharedAvatarReady = true;
-                taskEXIT_CRITICAL(&avatarMux);
-              }
+          size_t avail = stream->available();
+          if (avail) {
+            size_t toRead = avail;
+            if (bytesRead + toRead > sizeof(avatarBuffer)) {
+              toRead = sizeof(avatarBuffer) - bytesRead;
             }
+            int r = stream->readBytes(avatarBuffer + bytesRead, toRead);
+            if (r > 0) bytesRead += r;
+            if (len > 0 && bytesRead >= static_cast<size_t>(len)) break;
+          } else {
+            vTaskDelay(5 / portTICK_PERIOD_MS);
           }
         }
+
+        Serial.printf("[AVT] Doc xong: %u bytes (Content-Length: %d)\n", bytesRead, len);
+
+        // Chi xu ly anh neu khong bi yeu cau moi ngat va da doc du lieu
+        if (uxQueueMessagesWaiting(avatarQueue) == 0 && bytesRead >= 4) {
+          // Kiem tra Magic bytes JPEG: 0xFF, 0xD8
+          if (avatarBuffer[0] == 0xFF && avatarBuffer[1] == 0xD8) {
+            uint16_t w = 0, h = 0;
+            int jerr = TJpgDec.getJpgSize(&w, &h, avatarBuffer, bytesRead);
+            Serial.printf("[AVT] TJpgDec size: w=%u, h=%u, err=%d\n", w, h, jerr);
+
+            if (jerr == 0 && w >= 16 && h >= 16 && w <= 1200 && h <= 1200) {
+              taskENTER_CRITICAL(&avatarMux);
+              avatarBufferSize = bytesRead;
+              strncpy(sharedLoadedCheckinId, currentMsg.checkinId, sizeof(sharedLoadedCheckinId) - 1);
+              sharedLoadedCheckinId[sizeof(sharedLoadedCheckinId) - 1] = '\0';
+              sharedAvatarReady = true;
+              taskEXIT_CRITICAL(&avatarMux);
+              Serial.printf("[AVT] SAN SANG VE ANH cho MSSV / ID: %s\n", currentMsg.checkinId);
+            } else {
+              Serial.printf("[AVT] Tu choi giai ma: w=%u, h=%u, err=%d\n", w, h, jerr);
+            }
+          } else {
+            Serial.printf("[AVT] File khong phai JPEG (Magic: 0x%02X 0x%02X)\n", avatarBuffer[0], avatarBuffer[1]);
+          }
+        }
+      } else {
+        Serial.printf("[AVT] Loi HTTP GET: %d\n", code);
       }
       avtHttp.end();
+    } else {
+      Serial.println("[AVT] Khong the begin ket noi HTTP");
     }
 
-    // Do dac bo nho stack va heap that sau moi request
     UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-    Serial.printf("[AVT] Stack free: %u words (%u bytes) | Heap: %u bytes\n",
+    Serial.printf("[AVT] Stack con du: %u words (%u bytes) | Heap: %u bytes\n",
                   stackHighWaterMark, stackHighWaterMark * sizeof(StackType_t), ESP.getFreeHeap());
   }
 }
@@ -188,7 +211,7 @@ void fetchQRCode() {
           // 1. Ve ngay man hinh thong bao voi Initials Badge (zero latency fallback)
           drawCheckinFullscreen(latestCheckinName, latestCheckinMssv);
           checkinFullscreenVisible = true;
-          checkinFullscreenUntil = millis() + 3500;
+          checkinFullscreenUntil = millis() + 4000; // Hien thi 4 giay de kip ve avatar
           avatarDrawn = false;
           
           // 2. Chuan hoa URL avatar: ho tro ca duong dan tuong doi lan tuyet doi
@@ -218,6 +241,7 @@ void fetchQRCode() {
           // xQueueOverwrite: Ghi de luon yeu cau moi nhat vao queue size 1
           if (avatarQueue != NULL) {
             xQueueOverwrite(avatarQueue, &msg);
+            Serial.printf("[MAIN] Da gui yeu cau avatar vao Queue: %s\n", msg.url);
           }
         }
       }
@@ -299,16 +323,17 @@ void loop() {
 
   if (checkinFullscreenVisible && isReady && !avatarDrawn) {
     if (lastCheckinId.equals(readyId) && now < checkinFullscreenUntil) {
+      Serial.printf("[LOOP] Tien hanh ve avatar %u bytes len LCD cho ID: %s...\n", avatarBufferSize, readyId);
       drawCheckinAvatar(avatarBuffer, avatarBufferSize);
       avatarDrawn = true;
-      Serial.println("Da ve anh avatar sinh vien thanh cong!");
+      Serial.println("[LOOP] Da ve avatar thanh cong!");
     }
   }
 
-  // 3. Khi het thoi gian 3.5 giay: Tu dong ve lai QR moi nhat va khoi phuc man hinh
+  // 3. Khi het thoi gian 4 giay: Tu dong ve lai QR moi nhat va khoi phuc man hinh
   if (checkinFullscreenVisible && static_cast<int32_t>(now - checkinFullscreenUntil) >= 0) {
     checkinFullscreenVisible = false;
-    Serial.println("Het 3.5s: Khoi phuc ma QR");
+    Serial.println("Het 4s: Khoi phuc ma QR");
     if (currentQrText.length() > 0) {
       drawQRCode(currentQrText);
       clearCheckinNotice();

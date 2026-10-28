@@ -297,10 +297,10 @@ inline void drawCheckinFullscreen(String studentName, String mssv) {
 }
 
 // Ve de anh avatar that (JPEG) vao khung avatar khi tai xong
-// Su dung Hardware Viewport Clipping de dam bao cat got chinh xac 100% trong khung 100x100
+// Tinh scale dong sao cho ca width va height deu <= 100px va can giua khung 100x100
 inline void drawCheckinAvatar(uint8_t* jpgData, size_t jpgLen) {
   uint16_t w = 0, h = 0;
-  if (TJpgDec.getJpgSize(&w, &h, jpgData, jpgLen) == 0 && w >= 16 && h >= 16 && w <= 800 && h <= 800) {
+  if (TJpgDec.getJpgSize(&w, &h, jpgData, jpgLen) == 0 && w >= 16 && h >= 16 && w <= 1200 && h <= 1200) {
     uint8_t scale = 1;
     while ((w / scale > AVATAR_BOX_W || h / scale > AVATAR_BOX_H) && scale < 8) {
       scale *= 2;
@@ -317,12 +317,10 @@ inline void drawCheckinAvatar(uint8_t* jpgData, size_t jpgLen) {
     // Xoa den khung avatar
     tft.fillRect(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, TFT_BLACK);
 
-    // Hardware Viewport Clipping: Khoa chat pham vi ve trong khung avatar, khong bao gio lan sang vung ten
-    tft.setViewport(AVATAR_BOX_X, AVATAR_BOX_Y, AVATAR_BOX_W, AVATAR_BOX_H, false);
+    // Ve truc tiep anh vao toa do can giua (anh da duoc scale <= 100px nen khong bao gio vuot qua khung)
     TJpgDec.drawJpg(drawX, drawY, jpgData, jpgLen);
-    tft.resetViewport();
 
-    // Ve lai vien bo khung avatar
+    // Ve vien bo khung avatar xanh
     tft.drawRoundRect(AVATAR_BOX_X - 1, AVATAR_BOX_Y - 1, AVATAR_BOX_W + 2, AVATAR_BOX_H + 2, 4, TFT_GREEN);
   }
 }
