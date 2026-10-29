@@ -702,3 +702,20 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Phạm vi: admin.html (ô nhập và nhãn ban đầu), js/admin/admin.tasks.js (fallback khi mở phiên); không sửa ngưỡng đã lưu của phiên cũ.
 - DoD: ô number mặc định 30, không readonly/disabled; giá trị người dùng sửa được gửi nguyên vào p_warn_before_min; bỏ trống dùng 30.
 - Kiểm thử: Node syntax và chạy hàm openSession thực tế với DOM/RPC stub cho mặc định, sửa tay, bỏ trống.
+
+### [TASK-028] Siết chặt bộ so khớp Face AI: Hạ ngưỡng FaceMatcher về 0.40 và tăng xác thực đa khung hình chống nhận nhầm
+
+- **Ngày tạo:** 2026-10-29
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** 
+  1. Khắc phục triệt để hiện tượng nhận diện nhầm người khi nâng ngưỡng lên 0.45.
+  2. Siết ngưỡng Euclidean khoảng cách của FaceMatcher từ  .45 trở lại  .40 (mức an toàn cao chống nhận nhầm danh tính).
+  3. Tăng số khung hình xác thực liên tục REQUIRED_CONFIRM_FRAMES từ 2 lên 4 khung hình (~0.4s - 0.5s giữ mặt ổn định) để loại bỏ hoàn toàn các sai lệch chớp nhoáng (glitch) do góc nhìn hay bóng đổ.
+- **Phạm vi tác động:** js/admin/admin.face.js.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] 
+ode -c js/admin/admin.face.js exit 0.
+  - [ ] Ngưỡng FaceMatcher đặt lại  .40.
+  - [ ] REQUIRED_CONFIRM_FRAMES đặt là 4.
+  - [ ] Ghi nhận TLOG-028 và cập nhật AI_PROGRESS.md.
+- **Phương án kiểm thử:** Kiểm tra cú pháp và tham số qua Node.js.

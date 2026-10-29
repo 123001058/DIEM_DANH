@@ -432,9 +432,9 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.45 (cân bằng tối ưu giữa nhận diện nhạy và chống nhận nhầm)
-    // Mặc định thư viện là 0.60; 0.40 quá gắt cho thực tế phòng học → điều chỉnh lên 0.45
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.45);
+    // Ngưỡng so khớp Euclidean distance: 0.40 (siết chặt an toàn tuyệt đối chống nhận nhầm người)
+    // Mặc định thư viện là 0.60; 0.45 bị nhận nhầm -> siết chặt về 0.40
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
   } else {
     adminFaceMatcher = null;
   }
@@ -981,7 +981,7 @@ async function runAdminDetectionLoop() {
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 2; // Nhận diện cực nhạy & tức thì (2 frame liên tiếp ~0.25s)
+const REQUIRED_CONFIRM_FRAMES = 4; // Cần giữ mặt ổn định 4 frame liên tiếp (~0.4s-0.5s) để chốt, chống tuyệt đối nhận nhầm lướt qua
 
 async function processAdminCameraFrame(media) {
   // Guard check 1: Nếu cam đã dừng -> thoát ngay

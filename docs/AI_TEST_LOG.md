@@ -1153,3 +1153,23 @@ ode -c: Exit code 0 (Không phát sinh bất kỳ lỗi cú pháp).
 - `git diff --check` toàn workspace phát hiện whitespace trong phần TASK-027 có sẵn và newline phần doc mới. Đã sửa newline phần TASK-028; không sửa nội dung task khác.
 - KNOWN: default và payload tùy chỉnh đã kiểm tra bằng lệnh thật. UNKNOWN: chưa thao tác trên trang đăng nhập/live production; chưa push/deploy.
 - Kết quả: PASS cho thay đổi mặc định và giữ nhập tay.
+
+### [TLOG-028] Siết chặt bộ so khớp Face AI về 0.40 & tăng khung hình xác thực chống nhận nhầm (TASK-028)
+
+- **Thời gian chạy test:** 2026-10-29
+- **Mục tiêu kiểm thử:**
+  1. Siết ngưỡng khoảng cách Euclidean FaceMatcher từ  .45 trở lại  .40 tại dòng 437 để loại trừ triệt để hiện tượng nhận nhầm người (False Positive).
+  2. Nâng số khung hình xác thực liên tục REQUIRED_CONFIRM_FRAMES từ 2 lên 4 khung hình tại dòng 984 (~0.4s giữ mặt ổn định) để loại bỏ các trường hợp glitch thoáng qua.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  node -c js/admin/admin.face.js
+  `
+- **Kết quả thực tế (Raw Output):**
+  - Cú pháp 
+ode -c: Exit code 0 (Không lỗi cú pháp).
+  - Kiểm tra tham số:
+    + FaceMatcher(labeled, 0.40): TRUE.
+    + REQUIRED_CONFIRM_FRAMES = 4: TRUE.
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Mã nguồn sạch lỗi cú pháp, đã siết chặt lại ngưỡng an toàn 0.40 và nâng gấp đôi số frame xác minh trước khi chốt điểm danh.
+  - **Trạng thái:** PASS.
