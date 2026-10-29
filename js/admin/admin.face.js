@@ -339,7 +339,7 @@ async function runMiniFasnetInference(srcCanvas, box) {
     pLive,
     pReplay,
     latency,
-    isLive: (pLive > pPrint && pLive > pReplay && pLive >= 0.70)
+    isLive: (pLive > pPrint && pLive > pReplay && pLive >= 0.50)
   };
 }
 
@@ -432,9 +432,9 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.38 (chặt hơn để tránh nhận nhầm người)
-    // Mặc định thư viện là 0.6 (rất lỏng), 0.42 vẫn còn lỏng → hạ xuống 0.38
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
+    // Ngưỡng so khớp Euclidean distance: 0.45 (cân bằng tối ưu giữa nhận diện nhạy và chống nhận nhầm)
+    // Mặc định thư viện là 0.60; 0.40 quá gắt cho thực tế phòng học → điều chỉnh lên 0.45
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.45);
   } else {
     adminFaceMatcher = null;
   }
@@ -1011,12 +1011,12 @@ async function processAdminCameraFrame(media) {
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
 
-  // 1. Phát hiện khuôn mặt bằng Face-API Tiny
+  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 320 giúp bắt nhạy từ xa và góc nghiêng)
   let det = null;
   try {
     det = await faceapi.detectSingleFace(
       adminCaptureCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
     ).withFaceLandmarks(true).withFaceDescriptor();
   } catch (e) { }
 

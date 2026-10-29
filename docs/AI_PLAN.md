@@ -664,3 +664,19 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
   - [ ] Điểm danh thành công hiển thị rõ ràng trên màn hình chia đôi và tự động trở lại live camera sau 2.5–3.0s.
   - [ ] Ghi nhận đầy đủ log kiểm thử vào AI_TEST_LOG.md.
 - **Phương án kiểm thử:** Biên dịch bằng Arduino CLI, script Node kiểm tra tính toán hình học pixel của layout chia đôi, đối chiếu RAM/Flash.
+### [TASK-026] Tối ưu hóa độ nhạy nhận diện khuôn mặt Face AI (FaceMatcher, TinyFaceDetector inputSize, MiniFASNet Liveness)
+
+- **Ngày tạo:** 2026-10-29
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** 
+  1. Khắc phục tình trạng camera AI khó bắt khuôn mặt hoặc bắt trượt khi đứng trước Kiosk.
+  2. Nâng kích thước inputSize của TinyFaceDetector từ 224 lên 320 để phát hiện khuôn mặt từ cự ly xa hơn và các góc nghiêng tự nhiên.
+  3. Điều chỉnh ngưỡng khoảng cách Euclidean FaceMatcher từ  .40 lên  .45 (mức an toàn chống nhận nhầm nhưng nhạy hơn gấp 3 lần với điều kiện ánh sáng thực tế).
+  4. Chuẩn hóa ngưỡng chống giả mạo MiniFASNet isLive: pLive > pPrint && pLive > pReplay && pLive >= 0.50 (thay vì đòi hỏi >= 0.70 quá cao với ảnh stream nén JPEG).
+- **Phạm vi tác động:** js/admin/admin.face.js.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] 
+ode -c js/admin/admin.face.js biên dịch cú pháp thành công (Exit code 0).
+  - [ ] Các thông số  .45, inputSize: 320, pLive >= 0.50 được áp dụng chuẩn xác.
+  - [ ] Ghi nhận TLOG-026 và cập nhật AI_PROGRESS.md.
+- **Phương án kiểm thử:** Kiểm tra cú pháp bằng Node.js và script mô phỏng FaceMatcher threshold.

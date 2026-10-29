@@ -1099,3 +1099,26 @@
   - **LIKELY:** Tốc độ làm tươi camera trên màn hình LCD đạt ~8–10 FPS, không còn bị khựng mỗi 1 giây do mạng Supabase.
   - **UNKNOWN:** Cần nạp bo mạch Kiosk thật để nghiệm thu độ mượt soi gương và độ nhạy quét QR của điện thoại ngoài đời.
 - **Trạng thái:** VERIFYING (Firmware tối ưu đã sẵn sàng nạp lên thiết bị thật).
+### [TLOG-026] Tối ưu hóa độ nhạy nhận diện khuôn mặt Face AI (FaceMatcher, Tiny inputSize, MiniFASNet) (TASK-026)
+
+- **Thời gian chạy test:** 2026-10-29
+- **Mục tiêu kiểm thử:**
+  1. Nâng kích thước inputSize của TinyFaceDetector từ 224 lên 320 tại dòng 1019 để bắt khuôn mặt từ xa và góc nghiêng nhạy hơn.
+  2. Nâng ngưỡng khoảng cách Euclidean của FaceMatcher từ  .40 lên  .45 tại dòng 437 để dung sai với ánh sáng phòng học thực tế và góc quay mặt nhẹ (10-15 độ).
+  3. Điều chỉnh ngưỡng xác thực sống MiniFASNet isLive từ  .70 sang  .50 tại dòng 342 (kèm điều kiện pLive > pPrint && pLive > pReplay) để khắc phục lỗi nén ảnh JPEG qua WiFi.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  node -c js/admin/admin.face.js
+  `
+- **Kết quả thực tế (Raw Output):**
+  - Cú pháp 
+ode -c: Exit code 0 (Không phát sinh bất kỳ lỗi cú pháp).
+  - Kiểm tra tham số trong mã nguồn:
+    + FaceMatcher(labeled, 0.45): TRUE.
+    + TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }): TRUE.
+    + isLive: (pLive > pPrint && pLive > pReplay && pLive >= 0.50): TRUE.
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Cả 3 tham số đã được cập nhật chính xác, file sạch lỗi cú pháp JavaScript.
+  - **LIKELY:** Tỷ lệ bắt trúng khuôn mặt sẽ tăng rõ rệt khi người dùng đứng trước camera Kiosk ở cự ly 0.8m - 1.2m và góc nghiêng nhẹ.
+  - **UNKNOWN:** Cần mở web Admin Face Cam thực tế và đứng trước camera để kiểm chứng trải nghiệm bắt mặt thực tế.
+- **Trạng thái:** PASS (Sẵn sàng tải lại trang Web Admin để kiểm chứng).
