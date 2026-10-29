@@ -1260,6 +1260,11 @@ function getAttendanceExportStatus(status, category) {
   return status === 'vắng có phép' && (category === 'Học trường' || category === 'Lịch ngoài') ? 'Đi học' : status;
 }
 
+function getAttendanceExportCategory(category) {
+  return category === 'Xưởng' ? 'Chưa quét' : (category || '—');
+}
+window.getAttendanceExportCategory = getAttendanceExportCategory;
+
 function applyAttendanceExportRowFill(worksheet, rowIndex, status, category, columnCount) {
   let rgb;
   if (status === 'vắng không phép') rgb = 'F4CCCC';
@@ -1323,7 +1328,7 @@ window.exportPastSessionExcel = async function(sid, button) {
         String(student.name || row?.full_name || student.mssv || ''),
         getAttendanceExportStatus(st, row?.category),
         (st === 'có mặt' || st === 'đi muộn' || st === 'vắng có phép') && row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
-        row?.category || '—',
+        getAttendanceExportCategory(row?.category),
         row?.note || '—'
       ];
     });

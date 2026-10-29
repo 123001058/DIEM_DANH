@@ -680,3 +680,25 @@ ode -c js/admin/admin.face.js biên dịch cú pháp thành công (Exit code 0).
   - [ ] Các thông số  .45, inputSize: 320, pLive >= 0.50 được áp dụng chuẩn xác.
   - [ ] Ghi nhận TLOG-026 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Kiểm tra cú pháp bằng Node.js và script mô phỏng FaceMatcher threshold.
+### [TASK-027] Chuẩn hóa nhãn 'Xưởng' thành 'Chưa quét' trong các báo cáo xuất Excel điểm danh
+
+- **Ngày tạo:** 2026-10-29
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** 
+  1. Trong các file Excel xuất điểm danh (xuất theo phiên exportPastSessionExcel và xuất theo nhóm exportAttendanceByGroups), nếu cột Phân loại mang giá trị 'Xưởng' (giá trị mặc định trong database cho ca trực xưởng khi chưa có sự kiện quét), tự động chuẩn hóa hiển thị thành 'Chưa quét'.
+  2. Giữ nguyên màu sắc tô dòng (dòng vắng không phép tô đỏ, có lịch học trường/lịch ngoài tô xanh, đi muộn tô vàng) và giữ nguyên nhãn 'Đi học' cho các trường hợp vắng có phép học trường.
+- **Phạm vi tác động:** js/admin/admin.students.js, js/admin/admin.attendance.js, tài liệu quản lý.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] 
+ode -c js/admin/admin.students.js và 
+ode -c js/admin/admin.attendance.js exit 0.
+  - [ ] Kiểm thử logic: category === 'Xưởng' trả về 'Chưa quét'; các category khác giữ nguyên.
+  - [ ] Ghi nhận TLOG-027 và cập nhật AI_PROGRESS.md.
+- **Phương án kiểm thử:** Script Node.js kiểm tra logic hàm export và kiểm tra syntax.
+
+### [TASK-028] Mặc định đi muộn 30 phút, vẫn sửa được
+
+- Ngày: 2026-10-29.
+- Phạm vi: admin.html (ô nhập và nhãn ban đầu), js/admin/admin.tasks.js (fallback khi mở phiên); không sửa ngưỡng đã lưu của phiên cũ.
+- DoD: ô number mặc định 30, không readonly/disabled; giá trị người dùng sửa được gửi nguyên vào p_warn_before_min; bỏ trống dùng 30.
+- Kiểm thử: Node syntax và chạy hàm openSession thực tế với DOM/RPC stub cho mặc định, sửa tay, bỏ trống.

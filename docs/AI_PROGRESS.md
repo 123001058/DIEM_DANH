@@ -56,6 +56,8 @@ stateDiagram-v2
 
 ---
 
+### TASK-028 — `[DONE]` — Mặc định đi muộn 30 phút, giữ nhập tay (2026-10-29); TLOG-028 PASS (HTML + openSession runtime stub).
+
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
 
 ### Phiên làm việc: 2026-10-24 (Khởi tạo hệ thống quản lý AI)

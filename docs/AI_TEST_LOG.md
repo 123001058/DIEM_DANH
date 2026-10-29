@@ -1122,3 +1122,34 @@ ode -c: Exit code 0 (Không phát sinh bất kỳ lỗi cú pháp).
   - **LIKELY:** Tỷ lệ bắt trúng khuôn mặt sẽ tăng rõ rệt khi người dùng đứng trước camera Kiosk ở cự ly 0.8m - 1.2m và góc nghiêng nhẹ.
   - **UNKNOWN:** Cần mở web Admin Face Cam thực tế và đứng trước camera để kiểm chứng trải nghiệm bắt mặt thực tế.
 - **Trạng thái:** PASS (Sẵn sàng tải lại trang Web Admin để kiểm chứng).
+### [TLOG-027] Chuẩn hóa nhãn 'Xưởng' thành 'Chưa quét' trong các báo cáo xuất Excel điểm danh (TASK-027)
+
+- **Thời gian chạy test:** 2026-10-29
+- **Mục tiêu kiểm thử:**
+  1. Trong file Excel xuất theo phiên (exportPastSessionExcel) và xuất theo nhóm (exportAttendanceByGroups): Nếu cột Phân loại (category) mang giá trị 'Xưởng' (giá trị mặc định trong database cho ca trực xưởng khi chưa quét), tự động hiển thị thành 'Chưa quét'.
+  2. Bảo toàn việc tô màu dòng (pplyAttendanceExportRowFill) và nhãn 'Đi học' cho các trường hợp vắng có phép học trường/lịch ngoài.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  node -c js/admin/admin.students.js
+  node -c js/admin/admin.attendance.js
+  node scratch\test_export_category.js
+  `
+- **Kết quả thực tế (Raw Output):**
+  - Cú pháp cả 2 file: Exit code 0 (Không lỗi).
+  - Test logic:
+    + getAttendanceExportCategory('Xưởng') => 'Chưa quét': PASS.
+    + getAttendanceExportCategory('Học trường') => 'Học trường': PASS.
+    + getAttendanceExportCategory('Lịch ngoài') => 'Lịch ngoài': PASS.
+    + getAttendanceExportStatus('vắng có phép', 'Học trường') => 'Đi học': PASS.
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Cú pháp, logic ánh xạ và việc đưa nhãn vào bảng tính Excel đã được kiểm chứng hoàn toàn bằng script Node.js; diff tối thiểu sạch sẽ.
+  - **Trạng thái:** PASS.
+
+### [TLOG-028] Mặc định đi muộn 30 phút (TASK-028)
+
+- Ngày: 2026-10-29.
+- `node --check js/admin/admin.tasks.js`: exit 0.
+- Chạy Node VM với nguyên hàm openSession trích từ source và DOM/RPC stub: PASS. HTML value=30, type=number, không readonly/disabled. RPC nhận 30 mặc định; nhập 45 hoặc 15 giữ đúng 45/15; để trống hoặc thiếu input dùng 30; localStorage lưu đúng giá trị. Không ghi database thật.
+- `git diff --check` toàn workspace phát hiện whitespace trong phần TASK-027 có sẵn và newline phần doc mới. Đã sửa newline phần TASK-028; không sửa nội dung task khác.
+- KNOWN: default và payload tùy chỉnh đã kiểm tra bằng lệnh thật. UNKNOWN: chưa thao tác trên trang đăng nhập/live production; chưa push/deploy.
+- Kết quả: PASS cho thay đổi mặc định và giữ nhập tay.

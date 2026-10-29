@@ -2047,9 +2047,9 @@ async function openSession(){
   const dur = parseInt(document.getElementById('quickDuration').value, 10) || 90;
   if (!name) return toast('err', 'Thiếu tên phiên', 'Vui lòng nhập tên phiên.');
 
-  // Lấy ngưỡng đi muộn từ ô nhập người dùng (mặc định 15 phút nếu để trống)
+  // Lấy ngưỡng đi muộn từ ô nhập người dùng (mặc định 30 phút nếu để trống)
   const lateInput = document.getElementById('quickLateThreshold');
-  const lateMin = lateInput ? (parseInt(lateInput.value, 10) || 15) : 15;
+  const lateMin = lateInput ? (parseInt(lateInput.value, 10) || 30) : 30;
   localStorage.setItem('admin_late_minutes', String(lateMin));
 
   const openBtn = document.querySelector('.btn-open-session');

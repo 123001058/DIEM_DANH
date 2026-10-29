@@ -105,13 +105,16 @@ async function exportAttendanceByGroups(){
       memberMssvs.forEach((mssv, idx) => {
         const a = attendanceMap[mssv];
         const rawStatus = a?.status || 'Chưa điểm danh';
-        const category = a?.category || '';
-        const status = getAttendanceExportStatus(rawStatus, category);
+        const rawCategory = a?.category || '';
+        const category = (typeof getAttendanceExportCategory === 'function')
+          ? getAttendanceExportCategory(rawCategory)
+          : (rawCategory === 'Xưởng' ? 'Chưa quét' : rawCategory);
+        const status = getAttendanceExportStatus(rawStatus, rawCategory);
         const note = a?.note || '';
         const time = a?.time || '—';
         
         teamData.push([idx + 1, mssv, names[mssv] || mssv, status, category, note, time]);
-        attendanceRows.push({ status: rawStatus, category });
+        attendanceRows.push({ status: rawStatus, category: rawCategory });
       });
       
       const ws = XLSX.utils.aoa_to_sheet(teamData);
@@ -136,13 +139,16 @@ async function exportAttendanceByGroups(){
       memberMssvs.forEach(mssv => {
         const a = attendanceMap[mssv];
         const rawStatus = a?.status || 'Chưa điểm danh';
-        const category = a?.category || '';
-        const status = getAttendanceExportStatus(rawStatus, category);
+        const rawCategory = a?.category || '';
+        const category = (typeof getAttendanceExportCategory === 'function')
+          ? getAttendanceExportCategory(rawCategory)
+          : (rawCategory === 'Xưởng' ? 'Chưa quét' : rawCategory);
+        const status = getAttendanceExportStatus(rawStatus, rawCategory);
         const note = a?.note || '';
         const time = a?.time || '—';
         
         allData.push([stt++, team.name, mssv, names[mssv] || mssv, status, category, note, time]);
-        allAttendanceRows.push({ status: rawStatus, category });
+        allAttendanceRows.push({ status: rawStatus, category: rawCategory });
       });
     });
     
