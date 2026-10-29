@@ -719,3 +719,22 @@ ode -c js/admin/admin.face.js exit 0.
   - [ ] REQUIRED_CONFIRM_FRAMES đặt là 4.
   - [ ] Ghi nhận TLOG-028 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Kiểm tra cú pháp và tham số qua Node.js.
+### [TASK-029] Chuẩn hóa toàn diện nhãn Phân loại điểm danh khi xuất Excel: Admin tích, Quét mặt, Quét QR, Chưa quét, Lịch trường, Nghỉ phép
+
+- **Ngày tạo:** 2026-10-29
+- **Mức độ ưu tiên:** High
+- **Mục tiêu:** 
+  1. Thay thế nhãn cộc lốc 'Admin' bằng 'Admin tích' để thể hiện rõ Admin/Giảng viên điểm danh bù thủ công.
+  2. Chuẩn hóa hình thức nhận diện khuôn mặt 'Khuôn mặt' thành 'Quét mặt'.
+  3. Chuẩn hóa hình thức sinh viên tự quét mã QR trên điện thoại thành 'Quét QR'.
+  4. Chuẩn hóa các trạng thái vắng: 'Xưởng' thành 'Chưa quét', 'Học trường' thành 'Lịch trường', 'Xin nghỉ' thành 'Nghỉ phép'.
+  5. Áp dụng đồng bộ cho cả 2 hàm xuất Excel: exportPastSessionExcel (theo phiên) và exportAttendanceByGroups (theo nhóm).
+  6. Bảo toàn việc tô màu dòng của SheetJS (pplyAttendanceExportRowFill).
+- **Phạm vi tác động:** js/admin/admin.students.js, js/admin/admin.attendance.js.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] 
+ode -c js/admin/admin.students.js và 
+ode -c js/admin/admin.attendance.js exit 0.
+  - [ ] Kiểm thử logic: Tất cả 6 trường hợp phân loại map đúng 100%.
+  - [ ] Ghi nhận TLOG-029 và cập nhật AI_PROGRESS.md.
+- **Phương án kiểm thử:** Script Node.js unit test và cú pháp.

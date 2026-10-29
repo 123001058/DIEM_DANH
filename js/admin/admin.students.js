@@ -1260,8 +1260,16 @@ function getAttendanceExportStatus(status, category) {
   return status === 'vắng có phép' && (category === 'Học trường' || category === 'Lịch ngoài') ? 'Đi học' : status;
 }
 
-function getAttendanceExportCategory(category) {
-  return category === 'Xưởng' ? 'Chưa quét' : (category || '—');
+function getAttendanceExportCategory(category, status) {
+  if (category === 'Admin') return 'Admin tích';
+  if (category === 'Khuôn mặt') return 'Quét mặt';
+  if (category === 'Xưởng') return 'Chưa quét';
+  if (category === 'Học trường') return 'Lịch trường';
+  if (category === 'Lịch ngoài') return 'Lịch ngoài';
+  if (category === 'Xin nghỉ') return 'Nghỉ phép';
+  if (status === 'có mặt' || status === 'đi muộn') return 'Quét QR';
+  if (status === 'vắng không phép' || status === 'Chưa điểm danh') return 'Chưa quét';
+  return category || '—';
 }
 window.getAttendanceExportCategory = getAttendanceExportCategory;
 
@@ -1328,7 +1336,7 @@ window.exportPastSessionExcel = async function(sid, button) {
         String(student.name || row?.full_name || student.mssv || ''),
         getAttendanceExportStatus(st, row?.category),
         (st === 'có mặt' || st === 'đi muộn' || st === 'vắng có phép') && row?.created_at ? formatPastSessionDateTime(row.created_at) : '—',
-        getAttendanceExportCategory(row?.category),
+        getAttendanceExportCategory(row?.category, st),
         row?.note || '—'
       ];
     });

@@ -1173,3 +1173,32 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - **Phân định nhận thức (Epistemic Status):**
   - **KNOWN:** Mã nguồn sạch lỗi cú pháp, đã siết chặt lại ngưỡng an toàn 0.40 và nâng gấp đôi số frame xác minh trước khi chốt điểm danh.
   - **Trạng thái:** PASS.
+### [TLOG-029] Chuẩn hóa toàn diện nhãn Phân loại điểm danh khi xuất Excel (TASK-029)
+
+- **Thời gian chạy test:** 2026-10-29
+- **Mục tiêu kiểm thử:**
+  1. Thay thế nhãn 'Admin' bằng 'Admin tích' (thể hiện giảng viên/admin điểm danh bù thủ công).
+  2. Chuẩn hóa hình thức quét mặt 'Khuôn mặt' thành 'Quét mặt'.
+  3. Chuẩn hóa sinh viên tự quét mã QR trên điện thoại thành 'Quét QR'.
+  4. Chuẩn hóa các trường hợp vắng: 'Xưởng' thành 'Chưa quét', 'Học trường' thành 'Lịch trường', 'Xin nghỉ' thành 'Nghỉ phép'.
+  5. Đổi tên cột header từ 'Lĩnh vực' sang 'Phân loại' trong dmin.attendance.js để dữ liệu và tiêu đề hoàn toàn đồng nhất.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  `powershell
+  node -c js/admin/admin.students.js
+  node -c js/admin/admin.attendance.js
+  node scratch\test_advanced_categories.js
+  `
+- **Kết quả thực tế (Raw Output):**
+  - Cú pháp cả 2 file: Exit code 0 (Không lỗi).
+  - Kết quả 11 test assertions logic:
+    + Admin => 'Admin tích': PASS
+    + Khuôn mặt => 'Quét mặt': PASS
+    + Cơ khí + có mặt => 'Quét QR': PASS
+    + Đi học + có mặt => 'Quét QR': PASS
+    + Xưởng + ắng không phép => 'Chưa quét': PASS
+    + Học trường => 'Lịch trường': PASS
+    + Xin nghỉ => 'Nghỉ phép': PASS
+  - ALL 11 ADVANCED CATEGORY TESTS PASSED (100%).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Cú pháp, logic ánh xạ và việc cập nhật tiêu đề cột 'Phân loại' đã được kiểm chứng hoàn toàn bằng script Node.js.
+  - **Trạng thái:** PASS.

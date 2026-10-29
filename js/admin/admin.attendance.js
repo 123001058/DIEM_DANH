@@ -98,7 +98,7 @@ async function exportAttendanceByGroups(){
         ['Lĩnh vực: ' + team.field],
         ['Đội trưởng: ' + (names[team.leader_mssv] || 'Chưa chọn')],
         [''],
-        ['STT', 'MSSV', 'Họ tên', 'Trạng thái', 'Lĩnh vực', 'Ghi chú', 'Thời gian']
+        ['STT', 'MSSV', 'Họ tên', 'Trạng thái', 'Phân loại', 'Ghi chú', 'Thời gian']
       ];
       const attendanceRows = [];
       
@@ -107,7 +107,7 @@ async function exportAttendanceByGroups(){
         const rawStatus = a?.status || 'Chưa điểm danh';
         const rawCategory = a?.category || '';
         const category = (typeof getAttendanceExportCategory === 'function')
-          ? getAttendanceExportCategory(rawCategory)
+          ? getAttendanceExportCategory(rawCategory, rawStatus)
           : (rawCategory === 'Xưởng' ? 'Chưa quét' : rawCategory);
         const status = getAttendanceExportStatus(rawStatus, rawCategory);
         const note = a?.note || '';
@@ -129,7 +129,7 @@ async function exportAttendanceByGroups(){
       ['Phiên: ' + sessionName],
       ['Ngày: ' + new Date(currentSession.started_at).toLocaleDateString('vi-VN')],
       [''],
-      ['STT', 'Nhóm', 'MSSV', 'Họ tên', 'Trạng thái', 'Lĩnh vực', 'Ghi chú', 'Thời gian']
+      ['STT', 'Nhóm', 'MSSV', 'Họ tên', 'Trạng thái', 'Phân loại', 'Ghi chú', 'Thời gian']
     ];
     
     let stt = 1;
@@ -141,7 +141,7 @@ async function exportAttendanceByGroups(){
         const rawStatus = a?.status || 'Chưa điểm danh';
         const rawCategory = a?.category || '';
         const category = (typeof getAttendanceExportCategory === 'function')
-          ? getAttendanceExportCategory(rawCategory)
+          ? getAttendanceExportCategory(rawCategory, rawStatus)
           : (rawCategory === 'Xưởng' ? 'Chưa quét' : rawCategory);
         const status = getAttendanceExportStatus(rawStatus, rawCategory);
         const note = a?.note || '';
