@@ -1202,3 +1202,26 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - **Phân định nhận thức (Epistemic Status):**
   - **KNOWN:** Cú pháp, logic ánh xạ và việc cập nhật tiêu đề cột 'Phân loại' đã được kiểm chứng hoàn toàn bằng script Node.js.
   - **Trạng thái:** PASS.
+
+
+### [TLOG-030] Kiểm thử biên dịch Firmware Kiosk ESP32: Tách biệt Live Camera & Banner thông báo (TASK-030)
+
+- **Thời gian chạy test:** 2026-10-30
+- **Mục tiêu kiểm thử:**
+  1. Loại bỏ cờ `checkinFullscreenVisible` khỏi `cameraCaptureWorker` (Core 0) và `loop()` (Core 1) để luồng video camera soi gương không bao giờ bị dừng/đơ.
+  2. Bổ sung `drawSplitCheckinBanner(String name, String mssv)` trong `esp32_kiosk/qr_display.h`: Chỉ vẽ và xóa vùng dải dưới (Y: 136..239), tuyệt đối không xóa/vẽ đè lên khung camera (Y: 52..131).
+  3. Bổ sung cờ `isSuccess` trong `drawSplitCameraFrame`: Chớp 4 góc ngắm sang màu xanh lá (`TFT_GREEN`) khi nhận diện thành công trong 1.5 giây.
+  4. Bổ sung `drawSplitCameraIdleBanner()`: Tự động khôi phục dải hướng dẫn "Nhin vao cam / Canh giua khuon mat" sau 1.5 giây mà không làm gián đoạn video camera.
+  5. Kiểm tra tính toàn vẹn cú pháp, link symbol và dung lượng bộ nhớ RAM/Flash bằng `arduino-cli`.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_smooth_task030 esp32_kiosk
+  ```
+- **Kết quả thực tế (Raw Output):**
+  - Exit code: 0 (Biên dịch thành công 100%, không lỗi cú pháp hay link).
+  - Program storage (Flash): 1,097,688 bytes (83% / 1,310,720 bytes) - An toàn.
+  - Dynamic memory (RAM): 94,104 bytes (28% / 327,680 bytes) - Còn trống 233,576 bytes cho heap và stack.
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Firmware biên dịch thành công 100% với Arduino CLI, kiến trúc 2 core (Core 0 mạng, Core 1 hiển thị) được giữ nguyên vẹn, cờ chặn camera đã bị gỡ bỏ triệt để.
+  - **LIKELY:** Trên phần cứng LCD thật, màn hình camera sẽ mượt mà liên tục ở tốc độ ~10 FPS, không còn bị giật/đơ khi có nhiều người quét liên tiếp.
+  - **Trạng thái:** PASS (Firmware).

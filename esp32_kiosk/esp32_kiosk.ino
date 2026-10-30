@@ -23,9 +23,9 @@ const char* supabase_key = "sb_publishable_h1nRwciz_rOgnD88ZCnkIw_v0Czf1L8";
 TFT_eSPI tft = TFT_eSPI(); 
 
 // Trang thai hien thi tren LCD (Chi Core 1 xu ly)
-bool checkinFullscreenVisible = false;
+bool checkinNoticeActive = false;
 bool noOpenSessionVisible = false;
-uint32_t checkinFullscreenUntil = 0;
+uint32_t checkinNoticeUntil = 0;
 
 // Buffer anh Camera (Core 0 ghi vao, Core 1 doc ve)
 #define CAM_BUF_SIZE 40960
@@ -66,7 +66,7 @@ void cameraCaptureWorker(void* pvParameters) {
   camHttp.setReuse(true);
 
   while (true) {
-    if (WiFi.status() == WL_CONNECTED && !newCamFrameReady && !checkinFullscreenVisible) {
+    if (WiFi.status() == WL_CONNECTED && !newCamFrameReady) {
       String camUrl = String("http://") + esp_cam_ip + "/capture";
       camHttp.begin(camClient, camUrl);
       camHttp.setTimeout(500);
@@ -246,12 +246,12 @@ void setup() {
 void loop() {
   uint32_t now = millis();
 
-  // 1. Neu co su kien diem danh moi: Hien thi hop thong bao xanh la tren nua trai
+  // 1. Neu co su kien diem danh moi: Hien thi banner nua duoi ben trai trong 1.5s (khong che khuon mat)
   if (pendingCheckinFlag) {
     pendingCheckinFlag = false;
-    drawSplitCheckinNotice(String(pendingCheckinName), String(pendingCheckinMssv));
-    checkinFullscreenVisible = true;
-    checkinFullscreenUntil = now + 2500; // 2.5s
+    drawSplitCheckinBanner(String(pendingCheckinName), String(pendingCheckinMssv));
+    checkinNoticeActive = true;
+    checkinNoticeUntil = now + 1500; // 1.5s gon gang, khong de len camera
   }
 
   // 2. Neu co ma QR moi: Cap nhat ngay tren nua phai (khong anh huong nua trai)
@@ -260,17 +260,16 @@ void loop() {
     drawSplitQRCode(String(pendingQrText));
   }
 
-  // 3. Neu co frame Camera moi tu Core 0: Ve ngay len nua trai (sieu muot, ~10 FPS)
-  if (newCamFrameReady && !checkinFullscreenVisible) {
-    drawSplitCameraFrame(camBuffer, camBufferSize);
+  // 3. Neu co frame Camera moi tu Core 0: Luon ve ngay len nua trai (sieu muot, ~10 FPS khong bi chan)
+  if (newCamFrameReady) {
+    drawSplitCameraFrame(camBuffer, camBufferSize, checkinNoticeActive);
     newCamFrameReady = false;
   }
 
-  // 4. Khi het 2.5 giay thong bao diem danh: Khoi phuc lai khung Live Camera
-  if (checkinFullscreenVisible && static_cast<int32_t>(now - checkinFullscreenUntil) >= 0) {
-    checkinFullscreenVisible = false;
-    Serial.println("[KIOSK] Het 2.5s: Khoi phuc Live Camera");
-    drawSplitCameraLayout();
+  // 4. Khi het 1.5 giay thong bao diem danh: Khoi phuc banner huong dan (camera van tiep tuc chay)
+  if (checkinNoticeActive && static_cast<int32_t>(now - checkinNoticeUntil) >= 0) {
+    checkinNoticeActive = false;
+    drawSplitCameraIdleBanner();
   }
 
   // 5. Khi phien dong

@@ -738,3 +738,19 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [ ] Kiểm thử logic: Tất cả 6 trường hợp phân loại map đúng 100%.
   - [ ] Ghi nhận TLOG-029 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Script Node.js unit test và cú pháp.
+### [TASK-030] Khắc phục triệt để đơ màn hình Kiosk khi quét liên tục: Tách biệt Live Camera và Banner thông báo
+
+- **Ngày tạo:** 2026-10-30
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** 
+  1. Khắc phục triệt để hiện tượng màn hình camera Kiosk bị đơ/đóng băng khi có nhiều người quét điểm danh liên tiếp.
+  2. Bỏ hoàn toàn cơ chế tắt camera khi có thông báo: Luồng camera soi gương chạy xuyên suốt 100% thời gian ở tốc độ cao (~10 FPS), không bao giờ bị dừng.
+  3. Tái cấu trúc khu vực thông báo: Khi có lượt điểm danh thành công, chỉ cập nhật dải thông tin bên dưới camera (Y: 145..239) trong 1.5 giây và chớp viền khung ngắm sang màu xanh lá; vùng camera (Y: 52..131) vẫn tiếp tục nhận và vẽ video liên tục.
+  4. Hết 1.5 giây: Dải bên dưới tự động khôi phục hướng dẫn 'Nhìn vào cam / Canh giữa khuôn mặt' mà không gián đoạn video camera.
+- **Phạm vi tác động:** esp32_kiosk/qr_display.h, esp32_kiosk/esp32_kiosk.ino.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Firmware esp32_kiosk biên dịch thành công 100% bằng rduino-cli không lỗi (Exit code 0).
+  - [ ] Camera worker và loop() loại bỏ hoàn toàn cờ chặn checkinFullscreenVisible.
+  - [ ] Bộ nhớ RAM và Flash trong ngưỡng an toàn.
+  - [ ] Ghi nhận TLOG-030 và cập nhật AI_PROGRESS.md.
+- **Phương án kiểm thử:** Biên dịch bằng Arduino CLI thực tế.

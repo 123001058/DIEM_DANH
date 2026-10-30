@@ -1,4 +1,4 @@
-﻿# TIẾN ĐỘ THỰC HIỆN CÔNG VIỆC AI (AI_PROGRESS.MD)
+# TIẾN ĐỘ THỰC HIỆN CÔNG VIỆC AI (AI_PROGRESS.MD)
 
 > **Mục đích:** Bảng điều phối trạng thái công việc tập trung. Mọi AI Agent khi bắt đầu phiên làm việc phải đọc file này đầu tiên để nắm bắt tiến độ và không bị trùng lặp công việc.
 
@@ -53,6 +53,9 @@ stateDiagram-v2
 | [TASK-023](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-023-kiosk-lấy-avatar-từ-thư-mục-imagesfaces) | Kiosk lấy avatar từ thư mục `images/faces` | `[VERIFYING]` | High | [TLOG-022](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-022-lấy-avatar-kiosk-từ-imagesfaces-task-023) (URL JPEG & firmware build PASS; chờ LCD thật) | 2026-10-28 |
 
 | TASK-024 | Avatar đóng gói từ images/faces, sửa xuống dòng tên | `[VERIFYING]` | High | TLOG-023: 58 native decodes, tên theo font, firmware build PASS; chờ nạp LCD thật | 2026-10-28 |
+| [TASK-028](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-028) | Mặc định đi muộn 30 phút, siết ngưỡng FaceMatcher 0.40 | `[DONE]` | High | [TLOG-028](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-028) (PASS) | 2026-10-29 |
+| [TASK-029](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-029) | Chuẩn hóa nhãn Phân loại khi xuất Excel: Admin tích, Quét mặt, Quét QR, Chưa quét | `[DONE]` | High | [TLOG-029](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-029) (PASS) | 2026-10-29 |
+| [TASK-030](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-030) | Tách biệt Live Camera & Banner thông báo Kiosk, chống đơ màn hình khi quét liên tiếp | `[VERIFYING]` | Critical | [TLOG-030](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-030) (Firmware build PASS 100%; chờ nạp LCD thật) | 2026-10-30 |
 
 ---
 

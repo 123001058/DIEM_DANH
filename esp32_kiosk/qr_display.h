@@ -438,7 +438,7 @@ inline void drawSplitCameraLayout() {
 }
 
 // Ve frame JPEG tu camera len vung ben trai (chi goi tu main loop!)
-inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize) {
+inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize, bool isSuccess = false) {
   if (!jpgData || jpgSize == 0) return false;
   
   TJpgDec.setJpgScale(4);
@@ -447,7 +447,7 @@ inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize) {
   
   JRESULT res = TJpgDec.drawJpg(CAM_BOX_X, CAM_BOX_Y, jpgData, jpgSize);
   
-  uint16_t cColor = (res == JDR_OK) ? TFT_CYAN : TFT_RED;
+  uint16_t cColor = isSuccess ? TFT_GREEN : ((res == JDR_OK) ? TFT_CYAN : TFT_RED);
   int bx = CAM_BOX_X, by = CAM_BOX_Y, bw = CAM_BOX_W, bh = CAM_BOX_H;
   int blen = 8;
   tft.drawFastHLine(bx, by, blen, cColor);
@@ -462,36 +462,57 @@ inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize) {
   return (res == JDR_OK);
 }
 
-// Ve thong bao diem danh thanh cong tren nua ben trai (thoi gian 2.5s)
-inline void drawSplitCheckinNotice(String name, String mssv) {
+// Ve thong bao diem danh thanh cong o nua duoi ben trai (khong de len Live Camera!)
+inline void drawSplitCheckinBanner(String name, String mssv) {
   name = nameForTft(name);
   mssv.trim();
   
-  tft.fillRect(SPLIT_CAM_X, SPLIT_CAM_Y, SPLIT_CAM_W, SPLIT_CAM_H, TFT_BLACK);
+  // Xoa phan duoi ben trai (Y: 136..239, cao 104px)
+  tft.fillRect(SPLIT_CAM_X, 136, SPLIT_CAM_W - 1, 104, TFT_BLACK);
   
-  tft.fillRoundRect(SPLIT_CAM_X + 6, 8, SPLIT_CAM_W - 12, 34, 4, TFT_DARKGREEN);
+  // 1. Tag thong bao xanh la
+  tft.fillRoundRect(SPLIT_CAM_X + 8, 138, SPLIT_CAM_W - 16, 22, 3, TFT_DARKGREEN);
   tft.setTextColor(TFT_WHITE, TFT_DARKGREEN);
-  tft.drawCentreString("DA DIEM DANH", SPLIT_CAM_X + SPLIT_CAM_W / 2, 16, 2);
+  tft.drawCentreString("DA DIEM DANH", SPLIT_CAM_X + SPLIT_CAM_W / 2, 142, 2);
   
-  tft.setTextColor(TFT_CYAN, TFT_BLACK);
-  tft.drawCentreString("MSSV: " + mssv, SPLIT_CAM_X + SPLIT_CAM_W / 2, 54, 2);
-  
-  String lines[4];
+  // 2. Ten sinh vien (mau vang, wrap toi da 2 dong)
+  String lines[2];
   int lineCount = 0;
-  wrapFullscreenName(name, 2, lines, 3, SPLIT_CAM_W - 16, lineCount);
+  wrapFullscreenName(name, 2, lines, 2, SPLIT_CAM_W - 16, lineCount);
   
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  int startY = 86;
+  int startY = 164;
   for (int i = 0; i < lineCount; i++) {
-    tft.drawCentreString(lines[i], SPLIT_CAM_X + SPLIT_CAM_W / 2, startY + i * 22, 2);
+    tft.drawCentreString(lines[i], SPLIT_CAM_X + SPLIT_CAM_W / 2, startY + i * 18, 2);
   }
   
-  tft.drawFastHLine(SPLIT_CAM_X + 10, 168, SPLIT_CAM_W - 20, TFT_DARKGREY);
+  // 3. MSSV (mau cyan)
+  int mssvY = startY + lineCount * 18;
+  if (mssvY > 200) mssvY = 200;
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawCentreString(mssv, SPLIT_CAM_X + SPLIT_CAM_W / 2, mssvY, 2);
+  
+  // 4. Trang thai hop le o day man hinh
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawCentreString("THANH CONG", SPLIT_CAM_X + SPLIT_CAM_W / 2, 180, 2);
+  tft.drawCentreString("Xac nhan hop le", SPLIT_CAM_X + SPLIT_CAM_W / 2, 222, 1);
   
-  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawCentreString("Diem danh hop le", SPLIT_CAM_X + SPLIT_CAM_W / 2, 210, 1);
-  
+  // Duong phan cach doc giua 2 nua chuyen xanh bao hieu
   tft.drawFastVLine(159, 0, 240, TFT_GREEN);
+}
+
+// Khoi phuc banner huong dan nua duoi ben trai ve trang thai binh thuong
+inline void drawSplitCameraIdleBanner() {
+  tft.fillRect(SPLIT_CAM_X, 136, SPLIT_CAM_W - 1, 104, TFT_BLACK);
+  
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawCentreString("Nhin vao cam", SPLIT_CAM_X + SPLIT_CAM_W / 2, 175, 2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("Canh giua khuon mat", SPLIT_CAM_X + SPLIT_CAM_W / 2, 202, 1);
+  
+  tft.drawFastVLine(159, 0, 240, TFT_NAVY);
+}
+
+// Ve thong bao diem danh thanh cong tren nua ben trai (chuyen tiep sang banner de khong chan camera)
+inline void drawSplitCheckinNotice(String name, String mssv) {
+  drawSplitCheckinBanner(name, mssv);
 }
