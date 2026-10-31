@@ -672,7 +672,7 @@ async function loadZaloScheduleMatrix(dateKey){
 
     const [{ data: rawMembers, error: e1 }, { data: schedules, error: e2 }] = await Promise.all([
       supabase.from('students').select('mssv, name, is_active').order('mssv').limit(1000),
-      supabase.from('student_schedules').select('mssv, subject_name, room_name, start_time, end_time, buoi').lt('start_time', to).gte('end_time', from).order('start_time')
+      supabase.from('student_schedules').select('mssv, subject_name, room_name, start_time, end_time, buoi, tinh_trang').lt('start_time', to).gte('end_time', from).order('start_time')
     ]);
 
     if (e1 || e2) throw new Error(e1?.message || e2?.message || 'Lỗi truy vấn dữ liệu');
@@ -721,18 +721,26 @@ async function loadZaloScheduleMatrix(dateKey){
           const sT = new Date(x.start_time).getTime();
           const eT = new Date(x.end_time).getTime();
           return sT < rangeEnd && eT > rangeStart;
-        }).map(x => ({
-          subject_name: x.subject_name || 'Môn học',
-          room_name: x.room_name || '',
-          time_range: `${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}–${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}`
-        }));
+        }).map(x => {
+          const tt = Number(x.tinh_trang) || 0;
+          return {
+            subject_name: x.subject_name || 'Môn học',
+            room_name: x.room_name || '',
+            tinh_trang: tt,
+            is_cancelled: tt === 1,
+            is_exam: tt === 6,
+            time_range: `${new Date(x.start_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}–${new Date(x.end_time).toLocaleTimeString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit'})}`
+          };
+        });
 
-        const isBusy = classes.length > 0;
-        rowItem.periods[p.key] = { isFree: !isBusy, classes };
+        const activeClasses = classes.filter(c => !c.is_cancelled);
+        const cancelledClasses = classes.filter(c => c.is_cancelled);
+        const isBusy = activeClasses.length > 0;
+        rowItem.periods[p.key] = { isFree: !isBusy, classes, activeClasses, cancelledClasses };
         if (isBusy) {
           periodStats[p.key].busy++;
           periodStats[p.key].busyMssvs.add(m.mssv);
-          periodStats[p.key].classesByMssv.set(m.mssv, classes);
+          periodStats[p.key].classesByMssv.set(m.mssv, activeClasses);
         } else {
           periodStats[p.key].free++;
         }
@@ -777,13 +785,19 @@ async function loadZaloScheduleMatrix(dateKey){
     if (tbody) {
       tbody.innerHTML = matrixRows.map(r => {
         const renderCell = (periodData) => {
-          if (periodData.isFree) {
-            return '<span class="badge-cell-free">🟢 Rảnh</span>';
-          }
-          const items = periodData.classes.map(c => {
-            const room = c.room_name ? ` · P.${c.room_name}` : '';
-            return `<div class="cell-class-info">⏱ ${c.time_range} · <b>${c.subject_name}</b>${room}</div>`;
+          const items = (periodData.classes || []).map(c => {
+            const room = c.room_name ? ` · P.${escapeHtml(c.room_name)}` : '';
+            if (c.is_cancelled) {
+              return `<div class="cell-class-info" style="color:#dc2626"><span style="display:inline-block;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;padding:0px 5px;border-radius:4px;font-weight:700;font-size:10px;margin-right:3px">🚫 Báo nghỉ</span><s style="opacity:0.78">⏱ ${c.time_range} · <b>${escapeHtml(c.subject_name)}</b>${room}</s></div>`;
+            }
+            if (c.is_exam) {
+              return `<div class="cell-class-info"><span style="display:inline-block;background:#fef3c7;color:#b45309;border:1px solid #fde68a;padding:0px 5px;border-radius:4px;font-weight:700;font-size:10px;margin-right:3px">📝 Lịch thi</span>⏱ ${c.time_range} · <b>${escapeHtml(c.subject_name)}</b>${room}</div>`;
+            }
+            return `<div class="cell-class-info">⏱ ${c.time_range} · <b>${escapeHtml(c.subject_name)}</b>${room}</div>`;
           }).join('');
+          if (periodData.isFree) {
+            return '<span class="badge-cell-free">🟢 Rảnh</span>' + items;
+          }
           return `<span class="badge-cell-busy">🔴 Bận</span>${items}`;
         };
 
@@ -839,15 +853,15 @@ async function loadZaloScheduleMatrix(dateKey){
               <div class="zalo-card-shifts">
                 <div class="zalo-card-shift ${r.periods.morning.isFree ? 'is-free' : 'is-busy'}">
                   <span class="shift-name">Sáng</span>
-                  <span class="shift-status">${r.periods.morning.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.morning.classes[0]?.subject_name || 'Bận')}</span>
+                  <span class="shift-status">${r.periods.morning.isFree ? (r.periods.morning.cancelledClasses?.length ? '🟢 Rảnh (🚫 Báo nghỉ: ' + escapeHtml(r.periods.morning.cancelledClasses[0].subject_name) + ')' : '🟢 Rảnh') : (r.periods.morning.activeClasses?.[0]?.is_exam ? '📝 Thi: ' : '🔴 ') + escapeHtml(r.periods.morning.activeClasses?.[0]?.subject_name || r.periods.morning.classes[0]?.subject_name || 'Bận')}</span>
                 </div>
                 <div class="zalo-card-shift ${r.periods.afternoon.isFree ? 'is-free' : 'is-busy'}">
                   <span class="shift-name">Chiều</span>
-                  <span class="shift-status">${r.periods.afternoon.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.afternoon.classes[0]?.subject_name || 'Bận')}</span>
+                  <span class="shift-status">${r.periods.afternoon.isFree ? (r.periods.afternoon.cancelledClasses?.length ? '🟢 Rảnh (🚫 Báo nghỉ: ' + escapeHtml(r.periods.afternoon.cancelledClasses[0].subject_name) + ')' : '🟢 Rảnh') : (r.periods.afternoon.activeClasses?.[0]?.is_exam ? '📝 Thi: ' : '🔴 ') + escapeHtml(r.periods.afternoon.activeClasses?.[0]?.subject_name || r.periods.afternoon.classes[0]?.subject_name || 'Bận')}</span>
                 </div>
                 <div class="zalo-card-shift ${r.periods.evening.isFree ? 'is-free' : 'is-busy'}">
                   <span class="shift-name">Tối</span>
-                  <span class="shift-status">${r.periods.evening.isFree ? '🟢 Rảnh' : '🔴 ' + escapeHtml(r.periods.evening.classes[0]?.subject_name || 'Bận')}</span>
+                  <span class="shift-status">${r.periods.evening.isFree ? (r.periods.evening.cancelledClasses?.length ? '🟢 Rảnh (🚫 Báo nghỉ: ' + escapeHtml(r.periods.evening.cancelledClasses[0].subject_name) + ')' : '🟢 Rảnh') : (r.periods.evening.activeClasses?.[0]?.is_exam ? '📝 Thi: ' : '🔴 ') + escapeHtml(r.periods.evening.activeClasses?.[0]?.subject_name || r.periods.evening.classes[0]?.subject_name || 'Bận')}</span>
                 </div>
               </div>
             </div>
@@ -1209,10 +1223,19 @@ function exportZaloScheduleExcel(){
 
   matrixRows.forEach((r, idx) => {
     const fmtPeriod = (pData) => {
-      if (pData.isFree) return 'Rảnh';
+      if (pData.isFree) {
+        if (pData.cancelledClasses && pData.cancelledClasses.length > 0) {
+          return 'Rảnh (' + pData.cancelledClasses.map(c => {
+            const room = c.room_name ? ` (P.${c.room_name})` : '';
+            return `Báo nghỉ: ${c.subject_name}${room} [${c.time_range}]`;
+          }).join('; ') + ')';
+        }
+        return 'Rảnh';
+      }
       return 'Bận: ' + pData.classes.map(c => {
         const room = c.room_name ? ` (P.${c.room_name})` : '';
-        return `${c.subject_name}${room} [${c.time_range}]`;
+        const prefix = c.is_cancelled ? '[Báo nghỉ] ' : (c.is_exam ? '[Lịch thi] ' : '');
+        return `${prefix}${c.subject_name}${room} [${c.time_range}]`;
       }).join('; ');
     };
 
@@ -1508,19 +1531,6 @@ async function loadStudents(){
     if (mssv === '12300555') {
       mssv = '123000555';
       avatar = 'images/faces/123000555.png';
-      // Tự động chuyển đổi bản ghi sinh viên trên Supabase
-      if (typeof supabase !== 'undefined') {
-        supabase.from('students').upsert({
-          mssv: '123000555',
-          name: s.name || 'Nguyễn Lê Vũ Duy',
-          class: s.class || '23TD111',
-          phone: s.phone || '0888189218',
-          avatar: 'images/faces/123000555.png',
-          is_active: true
-        }, { onConflict: 'mssv' }).then(() => {
-          supabase.from('students').delete().eq('mssv', '12300555');
-        }).catch(e => console.warn('Lỗi migrate student:', e));
-      }
     }
     return {
       mssv: mssv,
@@ -1920,21 +1930,33 @@ function getStudentScheduleCellHtml(mssv) {
   }
 
   // Nếu không có đơn hoặc đơn thuộc ca khác, hiển thị lịch học trường kèm huy hiệu phụ (nếu có)
+  const cancelledList = (info.classes || []).filter(c => c.isCancelled);
+  const cancelledHtml = cancelledList.map(c => {
+    const cTitle = `Báo nghỉ trên ME: ${c.rawSubject || c.subject} - Phòng ${c.room} (${c.timeRange})`;
+    return `<div style="margin-top:2px;font-size:10px;color:#dc2626;font-weight:600;max-width:185px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(cTitle)}"><span style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;padding:0 4px;border-radius:3px;font-weight:700;font-size:9.5px">🚫 Báo nghỉ</span> <s style="opacity:0.8">${escapeHtml(c.rawSubject || c.subject)} (${escapeHtml(c.room)})</s></div>`;
+  }).join('');
+
   let schedContent = '<span style="font-size:11px;color:var(--muted)">⚪ Chưa có lịch</span>';
   if (info.status === 'in_class') {
     const cur = info.currentClass;
+    const isExam = Boolean(cur?.isExam);
     const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Đang trong giờ học';
     const subText = cur ? `<div style="font-size:10.5px;color:#dc2626;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.room)})</div>` : '';
-    schedContent = `<div><span class="sched-status-tag tag-busy-now" style="font-size:10px" title="${escapeHtml(title)}">🔴 Đang học</span>${subText}</div>`;
+    const mainTag = isExam ? '🔴 Đang thi (Lịch thi)' : '🔴 Đang học';
+    schedContent = `<div><span class="sched-status-tag tag-busy-now" style="font-size:10px" title="${escapeHtml(title)}">${mainTag}</span>${subText}${cancelledHtml}</div>`;
   } else if (info.status === 'upcoming_class') {
-    const cur = info.upcomingClass || (info.classes && info.classes[0]);
+    const cur = info.upcomingClass || (info.classes && info.classes.find(c => !c.isCancelled));
+    const isExam = Boolean(cur?.isExam);
     const title = cur ? `${cur.subject} - Phòng ${cur.room} (${cur.timeRange})` : 'Có ca học sắp tới';
     const subText = cur ? `<div style="font-size:10.5px;color:#d97706;font-weight:500;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(title)}">${escapeHtml(cur.subject)} (${escapeHtml(cur.timeRange)})</div>` : '';
-    schedContent = `<div><span class="sched-status-tag tag-busy-future" style="font-size:10px" title="${escapeHtml(title)}">⏳ Sắp học</span>${subText}</div>`;
+    const mainTag = isExam ? '⏳ Sắp thi (Lịch thi)' : '⏳ Sắp học';
+    schedContent = `<div><span class="sched-status-tag tag-busy-future" style="font-size:10px" title="${escapeHtml(title)}">${mainTag}</span>${subText}${cancelledHtml}</div>`;
   } else if (info.status === 'finished_classes') {
-    schedContent = `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Đã kết thúc các ca học hôm nay">🟢 Đã học xong (Rảnh)</span>`;
+    schedContent = `<div><span class="sched-status-tag tag-free-now" style="font-size:10px" title="Đã kết thúc các ca học hôm nay">🟢 Đã học xong (Rảnh)</span>${cancelledHtml}</div>`;
   } else if (info.status === 'free_all_day') {
-    schedContent = `<span class="sched-status-tag tag-free-now" style="font-size:10px" title="Không có lịch học trường hôm nay">🟢 Rảnh cả ngày</span>`;
+    const freeLabel = cancelledList.length > 0 ? '🟢 Rảnh (Môn báo nghỉ)' : '🟢 Rảnh cả ngày';
+    const freeTitle = cancelledList.length > 0 ? 'Môn học hôm nay trên ME đã báo nghỉ' : 'Không có lịch học trường hôm nay';
+    schedContent = `<div><span class="sched-status-tag tag-free-now" style="font-size:10px" title="${freeTitle}">${freeLabel}</span>${cancelledHtml}</div>`;
   }
 
   if (inactiveLeaveBadge) {
@@ -2063,6 +2085,7 @@ async function openSession(){
       const end = new Date(start.getTime() + dur * 60000);
       const { count } = await supabase.from('student_schedules')
         .select('mssv', { count: 'exact', head: true })
+        .neq('tinh_trang', 1)
         .lt('start_time', end.toISOString())
         .gt('end_time', start.toISOString());
       if (!count) {
@@ -2649,7 +2672,7 @@ async function loadTeamGroups(){
   const bounds = vietnamDayBounds();
   let schedules = [];
   if (allMemberIds.length) {
-    const result = await supabase.from('student_schedules').select('mssv,start_time,end_time')
+    const result = await supabase.from('student_schedules').select('mssv,start_time,end_time,tinh_trang')
       .in('mssv', allMemberIds).lt('start_time', bounds.end).gt('end_time', bounds.start);
     if (!result.error) schedules = result.data || [];
   }
@@ -2659,7 +2682,7 @@ async function loadTeamGroups(){
   const names = Object.fromEntries(students.map(s => [s.mssv, s.name]));
   list.innerHTML = teamGroups.map(team => {
     const ids = membersByTeam.get(team.id) || [];
-    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
+    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && Number(s.tinh_trang) !== 1 && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
     const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
     const fieldText = team.field && team.field !== team.name ? escapeHtml(team.field) + ' · ' : '';
     return '<button class="team-accordion" onclick="openTeamGroup(\'' + escapeJsAttr(team.id) + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
@@ -2750,7 +2773,7 @@ async function loadTeamAvailability(){
   if (!memberIds.length) { list.innerHTML = '<div class="schedule-loading">Nhóm chưa có thành viên.</div>'; return; }
   const bounds = vietnamDayBounds();
   const { data: schedules, error: scheduleError } = await supabase.from('student_schedules')
-    .select('mssv,subject_name,room_name,start_time,end_time').in('mssv', memberIds).lt('start_time', bounds.end).gt('end_time', bounds.start).order('start_time');
+    .select('mssv,subject_name,room_name,start_time,end_time,tinh_trang').in('mssv', memberIds).lt('start_time', bounds.end).gt('end_time', bounds.start).order('start_time');
   if (scheduleError) { list.innerHTML = '<div class="schedule-loading">Không tải được lịch học: ' + escapeHtml(scheduleError.message) + '</div>'; return; }
   const {data:knownTeamSchedules}=await supabase.from('student_schedules').select('mssv').in('mssv',memberIds);
   const membersWithCalendar=new Set((knownTeamSchedules||[]).map(r=>r.mssv));
@@ -2768,14 +2791,21 @@ async function loadTeamAvailability(){
   list.innerHTML = memberIds.map(mssv => {
     const member = students.find(s => s.mssv === mssv);
     const allClasses = byMember.get(mssv) || [];
-    const activeClass = allClasses.find(sc => new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
-    const upcoming = allClasses.filter(sc => new Date(sc.start_time).getTime() > now);
-    const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming];
+    const activeClass = allClasses.find(sc => Number(sc.tinh_trang) !== 1 && new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
+    const upcoming = allClasses.filter(sc => Number(sc.tinh_trang) !== 1 && new Date(sc.start_time).getTime() > now);
+    const cancelledToday = allClasses.filter(sc => Number(sc.tinh_trang) === 1);
+    const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming, ...cancelledToday];
     const hasCalendar=membersWithCalendar.has(mssv);
     const isLeader = team.leader_mssv === mssv;
     const scheduleHtml = visibleClasses.length ? visibleClasses.map(sc => {
+      const isCancelled = Number(sc.tinh_trang) === 1;
+      const isExam = Number(sc.tinh_trang) === 6;
+      if (isCancelled) {
+        return '<div class="team-class" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca">🚫 Báo nghỉ · <s>' + escapeHtml(sc.subject_name || 'Môn học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</s></div>';
+      }
       const active = sc === activeClass;
-      return '<div class="team-class ' + (active ? '' : 'team-schedule-future') + '">' + (active ? '🔴 Đang học · ' : '📅 Sắp tới · ') + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>';
+      const labelPrefix = active ? (isExam ? '🔴 Đang thi · ' : '🔴 Đang học · ') : (isExam ? '📝 Lịch thi · ' : '📅 Sắp tới · ');
+      return '<div class="team-class ' + (active ? '' : 'team-schedule-future') + '">' + labelPrefix + escapeHtml(sc.subject_name || 'Có lịch học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</div>';
     }).join('') : '<div class="team-class">'+(hasCalendar?'Hôm nay không có tiết học.':'⚪ Chưa có dữ liệu lịch; vẫn xem xét đơn xin nghỉ.')+'</div>';
     const leaveHtml=(leaveByMember.get(mssv)||[]).map(r=>'<div class="team-class" style="background:#eaf7ef;color:#176b43">✅ Đã duyệt nghỉ · '+escapeHtml(r.period)+' · '+escapeHtml(r.reason)+'</div>').join('');
     const state = !hasCalendar?'<span class="team-availability" style="color:var(--muted)">⚪ Chưa có dữ liệu</span>':activeClass ? '<span class="team-availability busy">🔴 Đang bận</span>' : '<span class="team-availability free">🟢 Đang rảnh</span>';
@@ -2995,6 +3025,25 @@ async function quickReopenSession(sid){
   }
 }
 
+if (typeof window.showToast !== 'function') {
+  window.showToast = function(msg, type = 'info') {
+    if (typeof toast === 'function') {
+      toast(type === 'warning' ? 'warn' : type, msg, '');
+    } else {
+      alert(msg);
+    }
+  };
+}
+
+function confirmReopenSession() {
+  if (currentSession && typeof quickReopenSession === 'function') {
+    quickReopenSession(currentSession.id);
+  } else if (!currentSession) {
+    showToast('Không có phiên nào đang chọn', 'warning');
+  }
+}
+window.confirmReopenSession = confirmReopenSession;
+
 async function loadTodaySchoolSchedule(){
   const freeWrap = document.getElementById('schedFreeListWrap');
   const busyWrap = document.getElementById('schedBusyListWrap');
@@ -3022,7 +3071,7 @@ async function loadTodaySchoolSchedule(){
     const [{ data, error }, { data: extData, error: extErr }] = await Promise.all([
       supabase
         .from('student_schedules')
-        .select('mssv, subject_name, room_name, teacher_name, start_time, end_time')
+        .select('mssv, subject_name, room_name, teacher_name, start_time, end_time, tinh_trang')
         .gte('start_time', startStr)
         .lt('start_time', endStr)
         .order('start_time', { ascending: true }),
@@ -3144,59 +3193,73 @@ async function loadTodaySchoolSchedule(){
         let currentlyInClass = false;
         let futureClasses = 0;
         let pastClasses = 0;
+        let cancelledClassesCount = 0;
 
         const classDetails = sScheds.map(c => {
           const cStart = new Date(c.start_time).getTime();
           const cEnd = new Date(c.end_time).getTime();
+          const isExt = Boolean(c.isExternal);
+          const tinhTrang = isExt ? 0 : (Number(c.tinh_trang) || 0);
+          const isCancelled = !isExt && tinhTrang === 1;
+          const isExam = !isExt && tinhTrang === 6;
           let stateTag = '';
           let stateClass = '';
 
-          if (nowMs >= cStart && nowMs < cEnd) {
+          if (isCancelled) {
+            cancelledClassesCount++;
+            stateTag = '🚫 Báo nghỉ';
+            stateClass = 'tag-cancelled';
+          } else if (nowMs >= cStart && nowMs < cEnd) {
             currentlyInClass = true;
-            stateTag = '🔴 Đang trong giờ học';
+            stateTag = isExam ? '🔴 Đang thi (Lịch thi)' : '🔴 Đang trong giờ học';
             stateClass = 'tag-busy-now';
           } else if (nowMs < cStart) {
             futureClasses++;
-            stateTag = '⏳ Sắp học';
+            stateTag = isExam ? '⏳ Sắp thi (Lịch thi)' : '⏳ Sắp học';
             stateClass = 'tag-busy-future';
           } else {
             pastClasses++;
-            stateTag = '✅ Đã kết thúc';
+            stateTag = isExam ? '✅ Đã thi xong' : '✅ Đã kết thúc';
             stateClass = 'tag-busy-past';
           }
 
           const tStart = new Date(c.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
           const tEnd = new Date(c.end_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
-          const isExt = Boolean(c.isExternal);
-          const subjPrefix = isExt ? '📚 ' : '';
+          const subjPrefix = isExt ? '📚 ' : (isExam ? '📝 ' : '');
+          const rawSubj = c.subject_name || 'Môn học';
 
           return {
-            subject: `${subjPrefix}${c.subject_name || 'Môn học'}`,
+            rawSubject: rawSubj,
+            subject: `${subjPrefix}${rawSubj}`,
             room: c.room_name || 'Chưa xếp phòng',
             teacher: c.teacher_name || '',
             timeRange: `${tStart} – ${tEnd}`,
             stateTag: isExt ? stateTag.replace('giờ học', 'giờ học ngoài').replace('Sắp học', 'Sắp học ngoài') : stateTag,
             stateClass,
-            isCurrent: (nowMs >= cStart && nowMs < cEnd),
-            isExternal: isExt
+            isCurrent: (!isCancelled && nowMs >= cStart && nowMs < cEnd),
+            isExternal: isExt,
+            isCancelled,
+            isExam,
+            tinhTrang
           };
         });
 
         const currentClass = classDetails.find(c => c.isCurrent);
-        const upcomingClass = classDetails.find(c => c.stateTag && c.stateTag.includes('Sắp'));
+        const upcomingClass = classDetails.find(c => !c.isCancelled && c.stateTag && c.stateTag.includes('Sắp'));
 
         if (currentlyInClass) {
+          const busyText = currentClass?.isExam ? '🔴 Đang thi' : '🔴 Đang học';
           busyList.push({
             mssv: sMssv,
             name: sName,
             status: 'in_class',
-            statusText: '🔴 Đang học',
+            statusText: busyText,
             tagClass: 'tag-busy-now',
             classes: classDetails
           });
           window._todayStudentScheduleMap[sMssv] = {
             status: 'in_class',
-            statusText: '🔴 Đang học',
+            statusText: busyText,
             currentClass: currentClass,
             upcomingClass: upcomingClass,
             leaves: leaves,
@@ -3204,25 +3267,26 @@ async function loadTodaySchoolSchedule(){
             classes: classDetails
           };
         } else if (futureClasses > 0) {
+          const upText = upcomingClass?.isExam ? '⏳ Có lịch thi sắp tới' : '⏳ Có ca học sắp tới';
           busyList.push({
             mssv: sMssv,
             name: sName,
             status: 'upcoming_class',
-            statusText: '⏳ Có ca học sắp tới',
+            statusText: upText,
             tagClass: 'tag-busy-future',
             classes: classDetails
           });
           window._todayStudentScheduleMap[sMssv] = {
             status: 'upcoming_class',
-            statusText: '⏳ Sắp học',
+            statusText: upcomingClass?.isExam ? '⏳ Sắp thi' : '⏳ Sắp học',
             currentClass: null,
             upcomingClass: upcomingClass,
             leaves: leaves,
             leaveText: leaveText,
             classes: classDetails
           };
-        } else {
-          // All classes have ended -> Currently free!
+        } else if (pastClasses > 0) {
+          // All active classes have ended -> Currently free!
           freeList.push({
             mssv: sMssv,
             name: sName,
@@ -3233,6 +3297,24 @@ async function loadTodaySchoolSchedule(){
           window._todayStudentScheduleMap[sMssv] = {
             status: 'finished_classes',
             statusText: '🟢 Đã xong ca học (Rảnh)',
+            currentClass: null,
+            upcomingClass: null,
+            leaves: leaves,
+            leaveText: leaveText,
+            classes: classDetails
+          };
+        } else {
+          // Only cancelled classes today (tinh_trang === 1) -> Free all day with Báo nghỉ notice!
+          freeList.push({
+            mssv: sMssv,
+            name: sName,
+            status: 'free_all_day',
+            statusText: '🟢 Rảnh (Môn báo nghỉ)',
+            classes: classDetails
+          });
+          window._todayStudentScheduleMap[sMssv] = {
+            status: 'free_all_day',
+            statusText: '🟢 Rảnh (Môn báo nghỉ)',
             currentClass: null,
             upcomingClass: null,
             leaves: leaves,
@@ -3270,7 +3352,10 @@ async function loadTodaySchoolSchedule(){
             <b>Hiện tại toàn bộ thành viên đều đang có lịch học!</b>
           </div>`;
       } else {
-        freeWrap.innerHTML = freeList.map(s => `
+        freeWrap.innerHTML = freeList.map(s => {
+          const activePastCount = (s.classes || []).filter(c => !c.isCancelled).length;
+          const cancelledToday = (s.classes || []).filter(c => c.isCancelled);
+          return `
           <div class="sched-student-card">
             <div class="sched-card-top">
               <div>
@@ -3279,13 +3364,29 @@ async function loadTodaySchoolSchedule(){
               </div>
               <span class="sched-status-tag tag-free-now">${escapeHtml(s.statusText)}</span>
             </div>
-            ${s.classes && s.classes.length > 0 ? `
+            ${activePastCount > 0 ? `
               <div class="sched-class-info">
-                <span style="font-size:11.5px;color:var(--muted)">Đã hoàn thành ${s.classes.length} ca học trước đó trong ngày.</span>
+                <span style="font-size:11.5px;color:var(--muted)">Đã hoàn thành ${activePastCount} ca học trước đó trong ngày.</span>
               </div>` : ''}
-            ${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin-top:7px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x)}</div>`).join('')}
+            ${cancelledToday.length > 0 ? `
+              <div class="sched-class-info" style="margin-top:6px">
+                ${cancelledToday.map(c => `
+                  <div style="margin-bottom:4px;padding:5px 8px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca">
+                    <div class="sched-subject-line" style="color:#dc2626;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                      <span style="background:#dc2626;color:#fff;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:4px">🚫 Báo nghỉ</span>
+                      <s style="opacity:0.85">${escapeHtml(c.rawSubject || c.subject)}</s>
+                    </div>
+                    <div class="sched-meta-line" style="margin-top:2px">
+                      <span>⏱ ${c.timeRange}</span>
+                      <span class="room-chip">🚪 ${escapeHtml(c.room)}</span>
+                      ${c.teacher ? `<span style="font-size:10.5px;color:var(--muted)">👨‍🏫 ${escapeHtml(c.teacher)}</span>` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>` : ''}
+            ${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin-top:7px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x.fullText || x)}</div>`).join('')}
           </div>
-        `).join('');
+        `}).join('');
       }
     }
 
@@ -3309,7 +3410,19 @@ async function loadTodaySchoolSchedule(){
               <span class="sched-status-tag ${s.tagClass}">${escapeHtml(s.statusText)}</span>
             </div>
             <div class="sched-class-info">
-              ${s.classes.map(c => `
+              ${s.classes.map(c => c.isCancelled ? `
+                <div style="margin-bottom:4px;padding:5px 8px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca">
+                  <div class="sched-subject-line" style="color:#dc2626;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <span style="background:#dc2626;color:#fff;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:4px">🚫 Báo nghỉ</span>
+                    <s style="opacity:0.85">${escapeHtml(c.rawSubject || c.subject)}</s>
+                  </div>
+                  <div class="sched-meta-line" style="margin-top:2px">
+                    <span>⏱ ${c.timeRange}</span>
+                    <span class="room-chip">🚪 ${escapeHtml(c.room)}</span>
+                    ${c.teacher ? `<span style="font-size:10.5px;color:var(--muted)">👨‍🏫 ${escapeHtml(c.teacher)}</span>` : ''}
+                  </div>
+                </div>
+              ` : `
                 <div style="margin-bottom:4px">
                   <div class="sched-subject-line">📚 ${escapeHtml(c.subject)}</div>
                   <div class="sched-meta-line">
@@ -3320,13 +3433,13 @@ async function loadTodaySchoolSchedule(){
                 </div>
               `).join('')}
             </div>
-            ${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin:7px 10px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x)}</div>`).join('')}
+            ${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin:7px 10px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x.fullText || x)}</div>`).join('')}
           </div>
         `).join('');
       }
     }
 
-    if(unknownWrap){unknownWrap.innerHTML=unknownList.length?unknownList.map(s=>`<div class="sched-student-card"><div class="sched-card-top"><div><span class="sched-student-name">${escapeHtml(s.name)}</span><span class="sched-student-mssv">(${escapeHtml(s.mssv)})</span></div><span class="sched-status-tag" style="background:#f1f5f9;color:var(--muted)">⚪ Chưa có dữ liệu</span></div>${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin-top:7px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x)}</div>`).join('')}</div>`).join(''):'<div class="schedule-loading">Đã có lịch cho tất cả thành viên.</div>';}
+    if(unknownWrap){unknownWrap.innerHTML=unknownList.length?unknownList.map(s=>`<div class="sched-student-card"><div class="sched-card-top"><div><span class="sched-student-name">${escapeHtml(s.name)}</span><span class="sched-student-mssv">(${escapeHtml(s.mssv)})</span></div><span class="sched-status-tag" style="background:#f1f5f9;color:var(--muted)">⚪ Chưa có dữ liệu</span></div>${(todayLeaveByStudent[s.mssv]||[]).map(x=>`<div style="margin-top:7px;padding:6px 8px;border-radius:7px;background:var(--ok-bg);color:var(--ok);font-size:11px">✅ Đã duyệt nghỉ: ${escapeHtml(x.fullText || x)}</div>`).join('')}</div>`).join(''):'<div class="schedule-loading">Đã có lịch cho tất cả thành viên.</div>';}
 
   } catch (err) {
     console.error('loadTodaySchoolSchedule error:', err);

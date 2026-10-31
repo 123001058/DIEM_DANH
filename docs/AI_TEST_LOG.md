@@ -1104,8 +1104,8 @@
 - **Thời gian chạy test:** 2026-10-29
 - **Mục tiêu kiểm thử:**
   1. Nâng kích thước inputSize của TinyFaceDetector từ 224 lên 320 tại dòng 1019 để bắt khuôn mặt từ xa và góc nghiêng nhạy hơn.
-  2. Nâng ngưỡng khoảng cách Euclidean của FaceMatcher từ  .40 lên  .45 tại dòng 437 để dung sai với ánh sáng phòng học thực tế và góc quay mặt nhẹ (10-15 độ).
-  3. Điều chỉnh ngưỡng xác thực sống MiniFASNet isLive từ  .70 sang  .50 tại dòng 342 (kèm điều kiện pLive > pPrint && pLive > pReplay) để khắc phục lỗi nén ảnh JPEG qua WiFi.
+  2. Nâng ngưỡng khoảng cách Euclidean của FaceMatcher từ .40 lên .45 tại dòng 437 để dung sai với ánh sáng phòng học thực tế và góc quay mặt nhẹ (10-15 độ).
+  3. Điều chỉnh ngưỡng xác thực sống MiniFASNet isLive từ .70 sang .50 tại dòng 342 (kèm điều kiện pLive > pPrint && pLive > pReplay) để khắc phục lỗi nén ảnh JPEG qua WiFi.
 - **Lệnh / Thao tác thực tế đã chạy:**
   `powershell
   node -c js/admin/admin.face.js
@@ -1158,7 +1158,7 @@ ode -c: Exit code 0 (Không phát sinh bất kỳ lỗi cú pháp).
 
 - **Thời gian chạy test:** 2026-10-29
 - **Mục tiêu kiểm thử:**
-  1. Siết ngưỡng khoảng cách Euclidean FaceMatcher từ  .45 trở lại  .40 tại dòng 437 để loại trừ triệt để hiện tượng nhận nhầm người (False Positive).
+  1. Siết ngưỡng khoảng cách Euclidean FaceMatcher từ .45 trở lại .40 tại dòng 437 để loại trừ triệt để hiện tượng nhận nhầm người (False Positive).
   2. Nâng số khung hình xác thực liên tục REQUIRED_CONFIRM_FRAMES từ 2 lên 4 khung hình tại dòng 984 (~0.4s giữ mặt ổn định) để loại bỏ các trường hợp glitch thoáng qua.
 - **Lệnh / Thao tác thực tế đã chạy:**
   `powershell
@@ -1225,3 +1225,140 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **KNOWN:** Firmware biên dịch thành công 100% với Arduino CLI, kiến trúc 2 core (Core 0 mạng, Core 1 hiển thị) được giữ nguyên vẹn, cờ chặn camera đã bị gỡ bỏ triệt để.
   - **LIKELY:** Trên phần cứng LCD thật, màn hình camera sẽ mượt mà liên tục ở tốc độ ~10 FPS, không còn bị giật/đơ khi có nhiều người quét liên tiếp.
   - **Trạng thái:** PASS (Firmware).
+
+
+---
+
+### [TLOG-031] Kiểm định Toàn diện E2E Toàn Hệ Thống và Báo cáo Kiểm toán Backend (TASK-031)
+
+- **Thời gian chạy test:** 2026-10-31 10:22:16 (UTC+7)
+- **Người/Agent thực hiện:** Worker M4 (Comprehensive E2E Verification & Reporting Worker)
+- **Môi trường:** Windows 11 / PowerShell 5.1 / Node.js 24.19.0 / Python 3.12 / Supabase PostgreSQL 17 Cloud
+- **Mục tiêu kiểm thử:**
+  1. Thực thi bộ kiểm thử tổng hợp tối cao `scratch/run_full_system_verification.js` chạy 11 suites kiểm định E2E độc lập:
+     - Syntax validation (Node direct syntax `node -c` và Python HTML embedded script AST check `scratch/test_syntax.py`).
+     - Worker verification suites (`scratch/test_admin_fixes.js`, `scratch/test_admin_fixes.py`, `scratch/test_student_and_db_fixes.js`).
+     - Challenger suites (`scratch/challenger_m1_1.js`, `scratch/stress_test_admin_challenger.js`, `scratch/stress_test_student_challenger.js`, `scratch/test_student_subsystem_challenger.js`).
+     - Forensic auditor suites (`scratch/auditor_m1_test.js`, `scratch/auditor_m2_independent_check.js`).
+  2. Xác minh tính toàn diện của 10 views, 16 modals, 37 RPCs phân hệ Admin.
+  3. Xác minh tính toàn diện của 6 views, 15 RPCs, face capture, timetable phân hệ Sinh viên.
+  4. Xác minh publication `supabase_realtime` có `sessions` và policy `sessions_read_policy` đang hoạt động.
+  5. Xác minh tuân thủ 100% các tính năng đóng băng (`docs/FROZEN_FEATURES.md`).
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  node scratch/run_full_system_verification.js
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  ================================================================================
+         LH-NaviX MASTER UNIFIED FULL-SYSTEM VERIFICATION RUNNER (M4)            
+         Repository: C:\Users\ACER\Documents\GitHub\DIEM_DANH
+         Timestamp : 2026-10-31T03:22:16.435Z
+  ================================================================================
+
+  [1/11] RUNNING: [Syntax Validation] Node.js Direct Syntax Validation (node -c)
+  Command: node -c js/config.js js/auth.js js/lichhoc.js js/admin/admin.core.js js/admin/admin.leave.js js/admin/admin.schedules.js js/admin/admin.tasks.js js/admin/admin.students.js js/admin/admin.attendance.js js/admin/admin.face.js
+  >>> RESULT: [PASS] (1 checks passed, duration: 0.05s)
+
+  [2/11] RUNNING: [Syntax Validation] Comprehensive Syntax & HTML Tag AST Validation (test_syntax.py)
+  Command: python scratch/test_syntax.py
+  >>> RESULT: [PASS] (1 checks passed, duration: 1.36s)
+
+  [3/11] RUNNING: [Worker Verification Suites] Worker M1: Admin Subsystem Remediation Verification (Node.js)
+  Command: node scratch/test_admin_fixes.js
+  >>> RESULT: [PASS] (23 checks passed, duration: 0.59s)
+
+  [4/11] RUNNING: [Worker Verification Suites] Worker M1: Admin Subsystem Remediation Verification (Python)
+  Command: python scratch/test_admin_fixes.py
+  >>> RESULT: [PASS] (17 checks passed, duration: 0.43s)
+
+  [5/11] RUNNING: [Worker Verification Suites] Worker M2: Student Subsystem & Supabase Alignment (Node.js)
+  Command: node scratch/test_student_and_db_fixes.js
+  >>> RESULT: [PASS] (53 checks passed, duration: 5.98s)
+
+  [6/11] RUNNING: [Challenger Suites] Challenger M1_1: Admin Adversarial & Stress Suite
+  Command: node scratch/challenger_m1_1.js
+  >>> RESULT: [PASS] (22 checks passed, duration: 0.12s)
+
+  [7/11] RUNNING: [Challenger Suites] Challenger M1_2: Admin Empirical Stress & Handler Suite
+  Command: node scratch/stress_test_admin_challenger.js
+  >>> RESULT: [PASS] (31 checks passed, duration: 0.30s)
+
+  [8/11] RUNNING: [Challenger Suites] Challenger M2_1: Student Live RLS & Realtime Stress Suite
+  Command: node scratch/stress_test_student_challenger.js
+  >>> RESULT: [PASS] (50 checks passed, duration: 20.57s)
+
+  [9/11] RUNNING: [Challenger Suites] Challenger M2_2: Student Subsystem Challenge Suite
+  Command: node scratch/test_student_subsystem_challenger.js
+  >>> RESULT: [PASS] (29 checks passed, duration: 5.49s)
+
+  [10/11] RUNNING: [Auditor Independent Suites] Forensic Auditor M1: Independent Static & VM Audit Check
+  Command: node scratch/auditor_m1_test.js
+  >>> RESULT: [PASS] (14 checks passed, duration: 0.06s)
+
+  [11/11] RUNNING: [Auditor Independent Suites] Forensic Auditor M2: Independent DB & Frozen Code Audit
+  Command: node scratch/auditor_m2_independent_check.js
+  >>> RESULT: [PASS] (16 checks passed, duration: 3.58s)
+
+  ================================================================================
+                         MASTER VERIFICATION SUMMARY REPORT                       
+  ================================================================================
+  Total Suites Executed : 11
+  Total Granular Checks : 257
+  Total Passed Checks   : 257
+  Total Failed Checks   : 0
+  Overall Execution Time: 38.55s
+  --------------------------------------------------------------------------------
+  ID                        Category                    Checks        Duration  Status
+  --------------------------------------------------------------------------------
+  SYNTAX_NODE_CHECK         Syntax Validation           1P / 0F       0.05s     [PASS]
+  SYNTAX_FULL_PY            Syntax Validation           1P / 0F       1.36s     [PASS]
+  WORKER_M1_ADMIN_JS        Worker Verification Suites  23P / 0F      0.59s     [PASS]
+  WORKER_M1_ADMIN_PY        Worker Verification Suites  17P / 0F      0.43s     [PASS]
+  WORKER_M2_STUDENT_DB_JS   Worker Verification Suites  53P / 0F      5.98s     [PASS]
+  CHALLENGER_M1_1           Challenger Suites           22P / 0F      0.12s     [PASS]
+  CHALLENGER_M1_2_STRESS    Challenger Suites           31P / 0F      0.30s     [PASS]
+  CHALLENGER_M2_1_STRESS    Challenger Suites           50P / 0F      20.57s    [PASS]
+  CHALLENGER_M2_2_SUBSYSTEM Challenger Suites           29P / 0F      5.49s     [PASS]
+  AUDITOR_M1                Auditor Independent Suites  14P / 0F      0.06s     [PASS]
+  AUDITOR_M2                Auditor Independent Suites  16P / 0F      3.58s     [PASS]
+  ================================================================================
+  >>> ALL 11 VERIFICATION SUITES PASSED FLAWLESSLY. 0 REGRESSIONS DETECTED.
+  ```
+- **Đánh giá so với Tiêu chí Nghiệm thu (TASK-031):**
+  - [x] R1 Admin Subsystem: 10 views, 16 modals, 37 RPCs đều được kiểm tra luồng thực thi và xử lý ngoại lệ an toàn.
+  - [x] R2 Student Subsystem: 6 views, 15 RPCs, face capture 5 góc, timetable và external schedules hoạt động trơn tru.
+  - [x] R3 Báo cáo kiểm toán phân loại Bug vs Backend Gap: `docs/COMPREHENSIVE_AUDIT_REPORT.md` hoàn chỉnh.
+  - [x] Publication `supabase_realtime` và policy `sessions_read_policy` hoạt động ổn định trên remote PostgreSQL 17 Cloud.
+  - [x] Toàn bộ 257 assertions trên 11 test suites đạt kết quả PASS 100% (0 lỗi, 0 regression).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** 11 bộ test chạy thật trên môi trường thực tế (Node VM, PostgREST API, PostgreSQL Catalog, AST parsing) đều cho kết quả PASS 100%. Báo cáo kiểm toán và tài liệu theo dõi tiến độ đã được cập nhật đầy đủ.
+- **Trạng thái:** PASS (Nghiệm thu hoàn tất).
+
+---
+
+### [TLOG-032] Kiểm thử đồng bộ và hiển thị trạng thái lịch học ME (Báo nghỉ / Lịch thi) y chang cổng ME Lạc Hồng (TASK-032)
+
+- **Thời gian:** 2026-10-31 10:59:39 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity / Thinking Partner
+- **Môi trường:** Windows 11 / Node.js v24.19.0 / Supabase PostgreSQL 17 Cloud (`nhjkpknhybenkxwadvzv`) / ME API Lạc Hồng (`https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien`)
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  node scratch/verify_task_032.js
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  === [TASK-032] BẮT ĐẦU KIỂM THỬ ĐỒNG BỘ & HIỂN THỊ BÁO NGHỈ ME ===
+  [PASS] 1. Syntax check tất cả file JS Admin: OK
+  [INFO] Đang kéo lịch thực tế từ ME cho 28 sinh viên...
+  [INFO] Đã lấy 310 buổi học từ ME (TinhTrang=1 Báo nghỉ: 17, TinhTrang=6 Lịch thi: 2).
+  [PASS] 2. Đồng bộ lịch ME có trường tinh_trang lên Supabase Cloud cho 33 ngày: OK
+  [PASS] 3. Thống kê cột tinh_trang trong public.student_schedules: [{"tinh_trang":0,"cnt":291},{"tinh_trang":1,"cnt":17},{"tinh_trang":6,"cnt":2}]
+  [PASS] 4. Trigger reconcile_schedule_with_attendance tự động gỡ miễn Học trường khi môn Báo nghỉ (tinh_trang=1): OK
+  === TẤT CẢ KIỂM THỬ TASK-032 ĐẠT 100% ===
+  ```
+- **Đánh giá so với Tiêu chí Nghiệm thu (TASK-032):**
+  - [x] Cột `tinh_trang smallint NOT NULL DEFAULT 0` đã được thêm vào `public.student_schedules` và đồng bộ thành công 310 buổi học thực tế từ cổng ME (291 buổi học bình thường `tinh_trang=0`, 17 buổi Báo nghỉ `tinh_trang=1`, 2 buổi Lịch thi `tinh_trang=6`).
+  - [x] Giao diện Admin (`js/admin/admin.students.js`, `js/admin/admin.tasks.js`, `js/admin/admin.leave.js`, `css/admin.css`) và Sinh viên (`checkin.html`) hiển thị rõ nhãn `🚫 Báo nghỉ` (gạch ngang môn/phòng) và `📝 Lịch thi` y chang ME trên bảng Thời khóa biểu hôm nay, cột Lịch học của bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo (cả Web, Mobile & Xuất Excel), và modal Nhóm chuyên môn.
+  - [x] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn đang hoạt động (`tinh_trang <> 1`), và tự động gỡ bản ghi miễn `Học trường` kèm ghi `attendance_audit_logs` khi lịch học cập nhật sang `tinh_trang = 1` (Báo nghỉ).
+- **Trạng thái:** PASS.

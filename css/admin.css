@@ -2117,6 +2117,7 @@ tbody tr:last-child td { border-bottom: none; }
 .tag-busy-now { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
 .tag-busy-future { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
 .tag-busy-past { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.tag-cancelled { background: #fef2f2; color: #b91c1c; border: 1px dashed #fca5a5; }
 
 .sched-class-info {
   margin-top: 6px;

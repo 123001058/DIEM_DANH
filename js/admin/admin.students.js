@@ -10,8 +10,11 @@ let studentsManagementFilter = 'all';
 let pendingMeStudent = null;
 let currentDeleteTarget = null;
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+if (typeof window.sleep !== 'function') {
+  window.sleep = ms => new Promise(r => setTimeout(r, ms));
+}
+if (typeof sleep !== 'function') {
+  var sleep = window.sleep;
 }
 
 function normalizeMeTime(value) {
@@ -40,7 +43,8 @@ function deduplicateSchedules(list) {
   const map = new Map();
   for (const item of list) {
     const key = `${item.mssv}_${item.start_time}_${item.end_time}_${item.subject_name}`;
-    if (!map.has(key)) {
+    const existing = map.get(key);
+    if (!existing || (Number(item.tinh_trang) || 0) > (Number(existing.tinh_trang) || 0)) {
       map.set(key, item);
     }
   }
@@ -205,7 +209,13 @@ function toggleAddStudentCard(show) {
 }
 function focusAddStudentMssv() {
   toggleAddStudentCard(true);
+  const input = document.getElementById('inputSearchMssv');
+  if (input) {
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input.focus();
+  }
 }
+window.focusAddStudentMssv = focusAddStudentMssv;
 
 let collapsedTeamsSet = new Set();
 
@@ -608,7 +618,8 @@ async function lookupStudentFromME() {
           start_time: start,
           end_time: end,
           day_of_week: c.Thu || 0,
-          buoi: Number(c.Buoi) || null
+          buoi: Number(c.Buoi) || null,
+          tinh_trang: Number(c.TinhTrang) || 0
         });
       }
     });
@@ -718,13 +729,6 @@ function cancelAddStudentPreview() {
   if (statusEl) statusEl.textContent = '';
 }
 
-function focusAddStudentMssv() {
-  const input = document.getElementById('inputSearchMssv');
-  if (input) {
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    input.focus();
-  }
-}
 
 async function toggleStudentActive(mssv, currentActive) {
   const newActive = !currentActive;
@@ -871,7 +875,8 @@ async function syncStudentScheduleSingle(mssv) {
           start_time: sTime,
           end_time: eTime,
           day_of_week: c.Thu || 0,
-          buoi: Number(c.Buoi) || null
+          buoi: Number(c.Buoi) || null,
+          tinh_trang: Number(c.TinhTrang) || 0
         });
       }
     });
@@ -963,7 +968,8 @@ async function syncSchedulesForConfiguredRange() {
                       start_time: sTime,
                       end_time: eTime,
                       day_of_week: c.Thu || 0,
-                      buoi: Number(c.Buoi) || null
+                      buoi: Number(c.Buoi) || null,
+                      tinh_trang: Number(c.TinhTrang) || 0
                     });
                   }
             });
@@ -1046,7 +1052,7 @@ async function syncSchedulesFromME(isAuto=false,targetDate=null,preserveOtherDay
           return items.map(c=>{
             const normalizeTime=value=>{let time=String(value||'').trim().replace(' ','T');if(/[+-]\d{2}$/.test(time))time+=':00';if(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(time))return time;return time+'+07:00';};
             const start=normalizeTime(c.ThoiGianBD),end=normalizeTime(c.ThoiGianKT);
-            return {mssv:student.mssv,subject_name:(c.TenMonHoc||'Chưa rõ').trim(),room_name:(c.TenPhong||'Online').trim(),teacher_name:(c.GiaoVien||'').trim(),start_time:start,end_time:end,day_of_week:c.Thu||0,buoi:Number(c.Buoi)||null};
+            return {mssv:student.mssv,subject_name:(c.TenMonHoc||'Chưa rõ').trim(),room_name:(c.TenPhong||'Online').trim(),teacher_name:(c.GiaoVien||'').trim(),start_time:start,end_time:end,day_of_week:c.Thu||0,buoi:Number(c.Buoi)||null,tinh_trang:Number(c.TinhTrang)||0};
           });
         }catch(e){failedCalendarStudents.push(student.mssv);console.warn('Lỗi lấy lịch MSSV '+student.mssv,e);return [];}
       }));

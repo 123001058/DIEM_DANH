@@ -671,13 +671,13 @@ Mọi nhiệm vụ (task) mới phải được đăng ký theo cấu trúc chu�
 - **Mục tiêu:** 
   1. Khắc phục tình trạng camera AI khó bắt khuôn mặt hoặc bắt trượt khi đứng trước Kiosk.
   2. Nâng kích thước inputSize của TinyFaceDetector từ 224 lên 320 để phát hiện khuôn mặt từ cự ly xa hơn và các góc nghiêng tự nhiên.
-  3. Điều chỉnh ngưỡng khoảng cách Euclidean FaceMatcher từ  .40 lên  .45 (mức an toàn chống nhận nhầm nhưng nhạy hơn gấp 3 lần với điều kiện ánh sáng thực tế).
+  3. Điều chỉnh ngưỡng khoảng cách Euclidean FaceMatcher từ .40 lên .45 (mức an toàn chống nhận nhầm nhưng nhạy hơn gấp 3 lần với điều kiện ánh sáng thực tế).
   4. Chuẩn hóa ngưỡng chống giả mạo MiniFASNet isLive: pLive > pPrint && pLive > pReplay && pLive >= 0.50 (thay vì đòi hỏi >= 0.70 quá cao với ảnh stream nén JPEG).
 - **Phạm vi tác động:** js/admin/admin.face.js.
 - **Tiêu chí nghiệm thu (DoD):**
   - [ ] 
 ode -c js/admin/admin.face.js biên dịch cú pháp thành công (Exit code 0).
-  - [ ] Các thông số  .45, inputSize: 320, pLive >= 0.50 được áp dụng chuẩn xác.
+  - [ ] Các thông số .45, inputSize: 320, pLive >= 0.50 được áp dụng chuẩn xác.
   - [ ] Ghi nhận TLOG-026 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Kiểm tra cú pháp bằng Node.js và script mô phỏng FaceMatcher threshold.
 ### [TASK-027] Chuẩn hóa nhãn 'Xưởng' thành 'Chưa quét' trong các báo cáo xuất Excel điểm danh
@@ -709,13 +709,13 @@ ode -c js/admin/admin.attendance.js exit 0.
 - **Mức độ ưu tiên:** Critical
 - **Mục tiêu:** 
   1. Khắc phục triệt để hiện tượng nhận diện nhầm người khi nâng ngưỡng lên 0.45.
-  2. Siết ngưỡng Euclidean khoảng cách của FaceMatcher từ  .45 trở lại  .40 (mức an toàn cao chống nhận nhầm danh tính).
+  2. Siết ngưỡng Euclidean khoảng cách của FaceMatcher từ .45 trở lại .40 (mức an toàn cao chống nhận nhầm danh tính).
   3. Tăng số khung hình xác thực liên tục REQUIRED_CONFIRM_FRAMES từ 2 lên 4 khung hình (~0.4s - 0.5s giữ mặt ổn định) để loại bỏ hoàn toàn các sai lệch chớp nhoáng (glitch) do góc nhìn hay bóng đổ.
 - **Phạm vi tác động:** js/admin/admin.face.js.
 - **Tiêu chí nghiệm thu (DoD):**
   - [ ] 
 ode -c js/admin/admin.face.js exit 0.
-  - [ ] Ngưỡng FaceMatcher đặt lại  .40.
+  - [ ] Ngưỡng FaceMatcher đặt lại .40.
   - [ ] REQUIRED_CONFIRM_FRAMES đặt là 4.
   - [ ] Ghi nhận TLOG-028 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Kiểm tra cú pháp và tham số qua Node.js.
@@ -754,3 +754,45 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [ ] Bộ nhớ RAM và Flash trong ngưỡng an toàn.
   - [ ] Ghi nhận TLOG-030 và cập nhật AI_PROGRESS.md.
 - **Phương án kiểm thử:** Biên dịch bằng Arduino CLI thực tế.
+
+
+---
+
+### [TASK-031] Kiểm định Toàn diện Hệ thống E2E & Lập Báo cáo Kiểm toán Supabase Backend (Milestone M4)
+
+- **Ngày tạo:** 2026-10-31
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:**
+  1. Xây dựng bộ kiểm thử hợp nhất tối cao `scratch/run_full_system_verification.js` chạy toàn bộ 11 test suites (AST syntax, M1/M2 worker fixes, challenger stress tests, forensic auditor checks).
+  2. Rà soát toàn bộ 10 views, 16 modals, 37 RPCs của phân hệ Admin (R1); 6 views, 15 RPCs, face capture, timetable của phân hệ Sinh viên (R2).
+  3. Lập Báo cáo kiểm toán kỹ thuật toàn diện `docs/COMPREHENSIVE_AUDIT_REPORT.md` phân định rõ ràng giữa Client Code Bugs và Supabase Backend Gaps (R3), đối chiếu đầy đủ 5 tiêu chí nghiệm thu.
+  4. Cập nhật và lưu vết bằng chứng thực nghiệm vào `docs/AI_PROGRESS.md` và `docs/AI_TEST_LOG.md` (TLOG-031) tuân thủ nghiêm ngặt hiến chương `AGENTS.md`.
+- **Phạm vi tác động:**
+  - `scratch/run_full_system_verification.js` (tạo mới)
+  - `docs/COMPREHENSIVE_AUDIT_REPORT.md` (tạo mới)
+  - `docs/AI_PLAN.md` (cập nhật task)
+  - `docs/AI_PROGRESS.md` (cập nhật bảng task)
+  - `docs/AI_TEST_LOG.md` (ghi nhật ký TLOG-031)
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Master unified runner `scratch/run_full_system_verification.js` thực thi 11 suites thành công 100% (257 assertions PASS, 0 FAIL).
+  - [x] Báo cáo `docs/COMPREHENSIVE_AUDIT_REPORT.md` bao phủ trọn vẹn R1, R2, R3 (bảng taxonomy chi tiết với file, dòng code, symptom, root cause, remediation), và 5 tiêu chí nghiệm thu.
+  - [x] Bảo toàn 100% các tính năng đóng băng trong `docs/FROZEN_FEATURES.md`.
+  - [x] Ghi nhận bằng chứng thực nghiệm TLOG-031 vào `docs/AI_TEST_LOG.md` và đánh dấu `[DONE]` trong `docs/AI_PROGRESS.md`.
+- **Phương án kiểm thử:** Thực thi trực tiếp lệnh `node scratch/run_full_system_verification.js` và xác minh exit code 0 cùng 257 checks PASS.
+
+---
+
+### TASK-032: Đồng bộ và hiển thị trạng thái lịch học ME (Báo nghỉ / Lịch thi) y chang cổng ME Lạc Hồng
+- **Mức độ ưu tiên:** High
+- **Trạng thái:** `[DONE]`
+- **Bối cảnh:** Khi kéo lịch học sinh viên từ cổng ME (`https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien`), mỗi buổi học có trường `TinhTrang` (`0` = học bình thường, `1` = **Báo nghỉ**, `6` = **Lịch thi**). Trước đây hệ thống chưa lưu trường `tinh_trang`, dẫn đến môn đã "Báo nghỉ" trên ME vẫn bị hiển thị là "Đang học" / "Bận" và tự động miễn điểm danh xưởng ("Vắng có phép - Học trường"). Người dùng yêu cầu hiển thị y chang bên ME và xử lý chuẩn logic điểm danh khi lịch cập nhật báo nghỉ.
+- **Danh sách file dự kiến tác động:**
+  - `supabase/migrations/20261031110000_sync_me_schedule_status_baonghi.sql` (Tạo mới & áp dụng lên Supabase Cloud)
+  - `js/admin/admin.students.js` (Lưu `tinh_trang` khi đồng bộ lịch từ ME ở cả 4 luồng: `lookupStudentFromME`, `syncStudentScheduleSingle`, `syncSchedulesForConfiguredRange`, `syncSchedulesFromME` và ưu tiên giữ `tinh_trang` trong `deduplicateSchedules`)
+  - `js/admin/admin.tasks.js` (Hiển thị huy hiệu `🚫 Báo nghỉ` / `📝 Lịch thi` y chang ME trên bảng Thời khóa biểu hôm nay, cột Lịch học của bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo + Xuất Excel, và Nhóm chuyên môn; không tính môn `Báo nghỉ` là đang bận học)
+  - `js/admin/admin.leave.js` & `checkin.html` (Bỏ qua môn đã `Báo nghỉ` khi kiểm tra xung đột lịch học trong form xin nghỉ)
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Cột `tinh_trang smallint NOT NULL DEFAULT 0` có mặt trên `public.student_schedules` và được cập nhật qua cả 4 hàm RPC đồng bộ lịch.
+  - [x] Giao diện Admin hiển thị rõ `🚫 Báo nghỉ` (kèm tên môn, giờ, phòng gạch ngang nhẹ y chang ME) khi `tinh_trang === 1` và `📝 Lịch thi` khi `tinh_trang === 6` tại: Thời khóa biểu hôm nay, cột Lịch học bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo và modal Nhóm chuyên môn.
+  - [x] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn không báo nghỉ (`tinh_trang <> 1`), đồng thời tự động thu hồi/đối soát lại bản ghi miễn `Học trường` nếu môn học cập nhật sang `tinh_trang = 1` (Báo nghỉ) khi kéo lịch lại.
+  - [x] Đồng bộ dữ liệu thực tế từ ME Lạc Hồng lên Supabase Cloud và kiểm thử E2E PASS 100%.

@@ -56,12 +56,24 @@ stateDiagram-v2
 | [TASK-028](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-028) | Mặc định đi muộn 30 phút, siết ngưỡng FaceMatcher 0.40 | `[DONE]` | High | [TLOG-028](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-028) (PASS) | 2026-10-29 |
 | [TASK-029](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-029) | Chuẩn hóa nhãn Phân loại khi xuất Excel: Admin tích, Quét mặt, Quét QR, Chưa quét | `[DONE]` | High | [TLOG-029](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-029) (PASS) | 2026-10-29 |
 | [TASK-030](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-030) | Tách biệt Live Camera & Banner thông báo Kiosk, chống đơ màn hình khi quét liên tiếp | `[VERIFYING]` | Critical | [TLOG-030](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-030) (Firmware build PASS 100%; chờ nạp LCD thật) | 2026-10-30 |
+| [TASK-031](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-031-kiểm-định-toàn-diện-hệ-thống-e2e--lập-báo-cáo-kiểm-toán-supabase-backend-milestone-m4) | Kiểm định Toàn diện Hệ thống E2E & Lập Báo cáo Kiểm toán Supabase Backend | `[DONE]` | Critical | [TLOG-031](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-031-kiểm-định-toàn-diện-e2e-toàn-hệ-thống-và-báo-cáo-kiểm-toán-backend-task-031) (PASS 257/257) | 2026-10-31 |
+| [TASK-032](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-032-đồng-bộ-và-hiển-thị-trạng-thái-lịch-học-me-báo-nghỉ--lịch-thi-y-chang-cổng-me-lạc-hồng) | Đồng bộ và hiển thị trạng thái lịch học ME (Báo nghỉ / Lịch thi) y chang cổng ME Lạc Hồng | `[DONE]` | High | [TLOG-032](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-032-kiểm-thử-đồng-bộ-và-hiển-thị-trạng-thái-lịch-học-me-báo-nghỉ--lịch-thi-y-chang-cổng-me-lạc-hồng-task-032) (PASS) | 2026-10-31 |
 
 ---
 
-### TASK-028 — `[DONE]` — Mặc định đi muộn 30 phút, giữ nhập tay (2026-10-29); TLOG-028 PASS (HTML + openSession runtime stub).
+### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-10-31 (Kiểm định toàn diện E2E & Lập báo cáo kiểm toán Backend)
+- **Agent/Model:** Worker M4 / Comprehensive E2E Verification & Reporting Worker
+- **Nhiệm vụ:** [TASK-031] (Milestone M4)
+- **Tóm tắt hành động:**
+  - Xây dựng master test runner `scratch/run_full_system_verification.js` hợp nhất 11 suites.
+  - Chạy toàn diện 11 suites kiểm tra syntax, fixes, stress tests và auditor checks: 257 assertions PASS (0 FAIL).
+  - Soạn thảo báo cáo kỹ thuật toàn diện `docs/COMPREHENSIVE_AUDIT_REPORT.md` (đáp ứng 100% R1, R2, R3, 5 Acceptance Criteria).
+  - Ghi nhận nhật ký TLOG-031 và hoàn tất thủ tục bàn giao.
+
 
 ### Phiên làm việc: 2026-10-24 (Khởi tạo hệ thống quản lý AI)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)

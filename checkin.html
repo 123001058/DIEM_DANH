@@ -1329,10 +1329,6 @@ document.addEventListener('keydown', event => {
     if (document.getElementById('studentSidebar')?.classList.contains('open')) {
       closeStudentSidebar();
     }
-    const fbModal = document.getElementById('fbModal');
-    if (fbModal && fbModal.style.display !== 'none') {
-      fbModal.style.display = 'none';
-    }
   }
 });
 async function loadHistory(){
@@ -1366,12 +1362,14 @@ async function checkLeaveConflict(){
   const notice=document.getElementById('leaveConflictNotice');if(!notice)return;
   const bounds=leavePeriodBounds(document.getElementById('leaveDate')?.value,document.getElementById('leavePeriod')?.value);
   if(!bounds||!currentProfile?.mssv){notice.classList.remove('show');return;}const {start,end}=bounds;
-  const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time')
+  const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time,tinh_trang')
     .eq('mssv',currentProfile.mssv).limit(300);
   if(error){notice.textContent='Chưa kiểm tra được lịch học.';notice.classList.add('show');return;}
   if(!data?.length){notice.textContent='⚪ Chưa có dữ liệu lịch học. Bạn vẫn có thể gửi đơn để quản lý xem xét.';notice.classList.add('show');return;}
-  const conflicts=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);
-  notice.textContent=conflicts.length?`⚠️ Thời gian xin nghỉ trùng lịch học: ${conflicts.map(s=>s.subject_name).join(', ')}. Đơn vẫn được gửi để quản lý xem xét.`:'Không thấy lịch học trùng thời gian.';
+  const inWindow=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);
+  const conflicts=inWindow.filter(s=>Number(s.tinh_trang)!==1);
+  const cancelled=inWindow.filter(s=>Number(s.tinh_trang)===1);
+  notice.textContent=conflicts.length?`⚠️ Thời gian xin nghỉ trùng lịch học: ${conflicts.map(s=>(Number(s.tinh_trang)===6?'[Lịch thi] ':'')+s.subject_name).join(', ')}. Đơn vẫn được gửi để quản lý xem xét.`:(cancelled.length?`Không thấy lịch học trùng thời gian (🚫 Báo nghỉ trên ME: ${cancelled.map(s=>s.subject_name).join(', ')}).`:'Không thấy lịch học trùng thời gian.');
   notice.classList.add('show');
 }
 function resetLeaveForm(){document.getElementById('editingLeaveId').value='';document.getElementById('leaveDate').value='';document.getElementById('leavePeriod').value='full_day';document.getElementById('leaveReason').value='';document.getElementById('leaveEvidence').value='';document.getElementById('leaveSubmitButton').textContent='Gửi đơn xin nghỉ';document.getElementById('leaveCancelEdit').style.display='none';checkLeaveConflict();}
@@ -1561,7 +1559,7 @@ async function completeMyTask(id){const {data,error}=await supabase.rpc('update_
 async function claimGlobalTask(id){const {data,error}=await supabase.rpc('claim_my_global_task',{p_task_id:id});if(error||!data?.ok){showResult('warning',escapeHtml(error?.message||data?.message||'Không nhận được nhiệm vụ.'));await loadMyTasks();return;}await loadMyTasks();showResult('success',data.already_claimed?'Bạn đang nhận nhiệm vụ này.':'Đã nhận nhiệm vụ.');}
 async function releaseGlobalTask(id){const {data,error}=await supabase.rpc('release_my_global_task',{p_task_id:id});if(error||!data?.ok){showResult('warning',escapeHtml(error?.message||data?.message||'Không hủy nhận được nhiệm vụ.'));await loadMyTasks();return;}await loadMyTasks();showResult('success','Đã hủy nhận nhiệm vụ. Sinh viên khác có thể nhận làm.');}
 async function createLeaderTask(){const title=document.getElementById('leaderTaskTitle').value.trim(),team=document.getElementById('leaderTaskTeam').value;if(!title)return showResult('warning','Nhập tên nhiệm vụ trước.');const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('leaderTaskDesc').value,p_scope:'group',p_team_id:team,p_assignee_mssv:null,p_priority:'med',p_due_date:null});if(error||!data?.ok)return showResult('error',escapeHtml(error?.message||data?.message||'Không giao được nhiệm vụ.'));document.getElementById('leaderTaskTitle').value='';document.getElementById('leaderTaskDesc').value='';await loadMyTasks();showResult('success','Đã giao nhiệm vụ chung cho cả nhóm.');}
-async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';{const modal=document.getElementById('fbModal');if(modal)modal.style.display='none';}showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
+async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
 async function init(){
   deviceId = getDeviceId();
   const leaveDateInput=document.getElementById('leaveDate');
