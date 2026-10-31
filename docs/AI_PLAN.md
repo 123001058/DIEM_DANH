@@ -796,3 +796,30 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [ ] Giao diện Admin hiển thị rõ `🚫 Báo nghỉ` (kèm tên môn, giờ, phòng gạch ngang nhẹ y chang ME) khi `tinh_trang === 1` và `📝 Lịch thi` khi `tinh_trang === 6` tại: Thời khóa biểu hôm nay, cột Lịch học bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo và modal Nhóm chuyên môn.
   - [ ] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn không báo nghỉ (`tinh_trang <> 1`), đồng thời tự động thu hồi/đối soát lại bản ghi miễn `Học trường` nếu môn học cập nhật sang `tinh_trang = 1` (Báo nghỉ) khi kéo lịch lại.
   - [ ] Đồng bộ dữ liệu thực tế từ ME Lạc Hồng lên Supabase Cloud và kiểm thử E2E PASS 100%.
+
+
+---
+
+### [TASK-033] Tối ưu hóa độ mượt Live Camera trên LCD ESP32 Kiosk theo 2 bước (Đo đạc Serial + Ping-Pong Double Buffering A/B & Zero-Lag Drop Frame)
+
+- **Ngày tạo:** 2026-10-31
+- **Mức độ ưu tiên:** High
+- **Trạng thái:** `[IN_PROGRESS]`
+- **Mục tiêu:**
+  1. **Bước 1 (Đo chỗ đang chậm không chiếm diện tích LCD):** Đo thời gian tải ảnh (`T_fetch`), thời gian giải mã JPEG + vẽ SPI (`T_draw`), số khung hình cũ bị bỏ qua (`Dropped`) và `FPS` thực tế bằng `micros()` trong RAM; xuất báo cáo gọn ra Serial Monitor mỗi 5 giây (`[CAM PERF]`), tuyệt đối không vẽ đè thông số lên màn hình LCD.
+  2. **Bước 2 (Bộ đệm kép Ping-Pong A/B + Bỏ khoảng chờ thừa + Bỏ ảnh cũ chống trễ + Tối ưu tầng thấp):**
+     - Sử dụng 2 bộ đệm ảnh `camBuf[2][40960]` đồng bộ bằng spinlock `portMUX_TYPE`: Core 1 giải mã và vẽ ảnh A lên LCD song song trong lúc Core 0 tải ảnh B từ `ESP32-CAM`.
+     - Nếu LCD đang bận hoặc có ảnh mới hơn vừa tải xong, tự động loại bỏ ảnh cũ chưa vẽ (`latestReadyIdx` luôn trỏ tới ảnh mới nhất, tăng `perfDroppedFrames`) để hình ảnh trên LCD phản hồi tức thời theo cử động thật (Zero-Lag).
+     - Gỡ bỏ các khoảng chờ cứng gây giật cục (`vTaskDelay(35ms)` cuối mỗi frame, `vTaskDelay(2ms)` trong vòng lặp đọc TCP stream, `delay(8ms)` ở `loop()`), thay bằng nhịp điều phối động (`Dynamic Pacing`).
+     - Tắt chế độ ngủ tiết kiệm điện của WiFi (`WiFi.setSleep(false)`), bật `camClient.setNoDelay(true)`, và gom toàn bộ lệnh đẩy pixel JPEG + vẽ góc khung ngắm trong `drawSplitCameraFrame()` vào một giao dịch SPI duy nhất (`tft.startWrite()` / `tft.endWrite()`).
+- **Phạm vi tác động:**
+  - `esp32_kiosk/esp32_kiosk.ino`
+  - `esp32_kiosk/qr_display.h`
+  - `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Bộ đệm kép `camBuf[2][CAM_BUF_SIZE]` hoạt động an toàn đa luồng giữa Core 0 (`cameraCaptureWorker`) và Core 1 (`loop()`), đảm bảo Core 0 không bao giờ ghi đè vào bộ đệm mà Core 1 đang vẽ (`drawingIdx`).
+  - [x] Có cơ chế đo `T_fetch`, `T_draw`, `FPS`, `Dropped` chính xác bằng `micros()` và in ra Serial mỗi 5 giây; không hiển thị chữ đè lên màn hình LCD.
+  - [x] Áp dụng đầy đủ `WiFi.setSleep(false)`, `camClient.setNoDelay(true)`, và `tft.startWrite()`/`tft.endWrite()` trong `drawSplitCameraFrame()`.
+  - [x] Bảo toàn 100% các tính năng đóng băng (`FRZ-001` polling Supabase 1000ms, URL `checkin.html?t=`, bố cục Split-Screen và Banner điểm danh 1.5s).
+  - [x] Biên dịch thành công 100% với `arduino-cli compile --fqbn esp32:esp32:esp32 esp32_kiosk` (Exit code 0) và kiểm tra mức sử dụng RAM/Flash an toàn.
+- **Phương án kiểm thử:** Biên dịch thực tế bằng `arduino-cli` và chạy script kiểm tra tính toàn vẹn cấu trúc code C++ / invariants.

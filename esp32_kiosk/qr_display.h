@@ -451,6 +451,7 @@ inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize, bool is
   TJpgDec.setSwapBytes(true);
   TJpgDec.setCallback(tft_output);
   
+  tft.startWrite();
   JRESULT res = TJpgDec.drawJpg(CAM_BOX_X, CAM_BOX_Y, jpgData, jpgSize);
   
   uint16_t cColor = isSuccess ? TFT_GREEN : ((res == JDR_OK) ? TFT_CYAN : TFT_RED);
@@ -464,6 +465,7 @@ inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize, bool is
   tft.drawFastVLine(bx, by + bh - blen, blen, cColor);
   tft.drawFastHLine(bx + bw - blen, by + bh - 1, blen, cColor);
   tft.drawFastVLine(bx + bw - 1, by + bh - blen, blen, cColor);
+  tft.endWrite();
   
   return (res == JDR_OK);
 }

@@ -1362,3 +1362,49 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - [x] Giao diện Admin (`js/admin/admin.students.js`, `js/admin/admin.tasks.js`, `js/admin/admin.leave.js`, `css/admin.css`) và Sinh viên (`checkin.html`) hiển thị rõ nhãn `🚫 Báo nghỉ` (gạch ngang môn/phòng) và `📝 Lịch thi` y chang ME trên bảng Thời khóa biểu hôm nay, cột Lịch học của bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo (cả Web, Mobile & Xuất Excel), và modal Nhóm chuyên môn.
   - [x] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn đang hoạt động (`tinh_trang <> 1`), và tự động gỡ bản ghi miễn `Học trường` kèm ghi `attendance_audit_logs` khi lịch học cập nhật sang `tinh_trang = 1` (Báo nghỉ).
 - **Trạng thái:** PASS.
+
+
+---
+
+### [TLOG-033] Kiểm thử tối ưu hóa độ mượt Live Camera trên LCD ESP32 Kiosk theo 2 bước: Đo đạc Serial & Ping-Pong Double Buffering A/B (TASK-033)
+
+- **Thời gian:** 2026-10-31 18:13:25 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity / Thinking Partner
+- **Môi trường:** Windows 11 / Node.js v24.19.0 / `arduino-cli` (`esp32:esp32:esp32` v3.3.12, `xtensa-esp-elf-gcc` 14.2.0)
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  node scratch/verify_task_033.js
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  === [TASK-033] KIEM THU TOI UU LCD KIOSK (STEP 1 + STEP 2) ===
+  [PASS] Step 1: Do thoi gian tai anh (T_fetch) bang micros() tren Core 0
+  [PASS] Step 1: Do thoi gian giai ma/ve (T_draw) bang micros() tren Core 1
+  [PASS] Step 1: Xuat bao cao [CAM PERF] FPS, Fetch, Draw, Dropped qua Serial moi 5s
+  [PASS] Step 1: Tuyet doi khong ve thong so FPS/timing de len man hinh LCD
+  [PASS] Step 2: Khai bao 2 bo dem anh Ping-Pong camBuf[2] (Buffer A .bss + Buffer B SRAM Heap 40KB)
+  [PASS] Step 2: Dong bo spinlock camMux giua Core 0 va Core 1
+  [PASS] Step 2: Core 0 luon chon buffer ghi khac voi buffer Core 1 dang ve
+  [PASS] Step 2: Tu dong bo khung hinh cu (Drop Stale Frame) khi LCD ban de chong tre hinh
+  [PASS] Step 2: Da loai bo khoang cho thua 35ms co dinh o cameraCaptureWorker
+  [PASS] Step 2: Da loai bo delay(8); co dinh o loop() va thay bang adaptive delay(drewFrame ? 1 : 2)
+  [PASS] Low-Level Opt 1: Tat WiFi Modem-Sleep (WiFi.setSleep(false))
+  [PASS] Low-Level Opt 2: Bat TCP_NODELAY (camClient.setNoDelay(true))
+  [PASS] Low-Level Opt 3: Khoa SPI transaction 1 lan duy nhat (tft.startWrite/endWrite) trong drawSplitCameraFrame
+  [PASS] Frozen Check: Giu nguyen chu ky polling Supabase 1000ms (FRZ-001)
+  [PASS] Frozen Check: Giu nguyen dinh dang URL QR checkin.html?t= (FRZ-001)
+  [PASS] Frozen Check: Giu nguyen banner diem danh 1.5s khong chan camera (TASK-030)
+  [PASS] Stress Test 100,000 steps Ping-Pong State Machine: 0 xung dot, thu tu frame tang nghiem ngat (Total=20077, Drawn=13568, Dropped=6509)
+  [INFO] Dang bien dich firmware esp32_kiosk bang arduino-cli...
+  Sketch uses 1099284 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 94152 bytes (28%) of dynamic memory, leaving 233528 bytes for local variables. Maximum is 327680 bytes.
+  [PASS] Bien dich firmware esp32_kiosk thanh cong (Exit code 0)
+  === TAT CA KIEM THU TASK-033 DAT 100% ===
+  ```
+- **Phát hiện & Xử lý trong quá trình kiểm thử:**
+  - Khi khai báo cả 2 mảng tĩnh `uint8_t camBuf[2][40960]` trong `.dram0.bss`, linker `xtensa-esp-elf-ld` báo tràn vùng `.dram0.bss` (`dram0_0_seg overflowed by 10536 bytes`).
+  - Đã khắc phục triệt để bằng thiết kế Hybrid SRAM: giữ **Buffer A (`camBufA[40960]`)** trong `.dram0.bss` và cấp phát **Buffer B (`40960` bytes)** cố định 1 lần duy nhất lúc khởi động trong `setup()` qua `heap_caps_malloc(CAM_BUF_SIZE, MALLOC_CAP_8BIT)` (không bao giờ giải phóng nên 0% phân mảnh heap, đồng thời giữ tĩnh `.bss` ở mức an toàn 28% / 94,152 bytes, còn trống 233,528 bytes cho Heap/Stack).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Firmware biên dịch thành công 100% (Exit code 0); mô phỏng 100,000 bước chuyển trạng thái đa luồng chứng minh không có xung đột đọc/ghi (`writeIdx != drawingIdx`) và thứ tự khung hình tăng nghiêm ngặt; bảo toàn 100% `FRZ-001` và `TASK-030`.
+  - **LIKELY:** Tốc độ khung hình thực tế trên màn hình LCD 2.4" đạt ~14–20 FPS mượt mà khi nạp lên mạch thật (cần người dùng nạp lên ESP32 Kiosk thực tế để quan sát trực quan).
+- **Trạng thái:** PASS (Biên dịch & Kiểm thử logic 100%; chuyển `TASK-033` sang `[VERIFYING]` chờ nạp mạch thật).
