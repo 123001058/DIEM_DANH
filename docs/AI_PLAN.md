@@ -784,7 +784,7 @@ ode -c js/admin/admin.attendance.js exit 0.
 
 ### TASK-032: Đồng bộ và hiển thị trạng thái lịch học ME (Báo nghỉ / Lịch thi) y chang cổng ME Lạc Hồng
 - **Mức độ ưu tiên:** High
-- **Trạng thái:** `[DONE]`
+- **Trạng thái:** `[IN_PROGRESS]`
 - **Bối cảnh:** Khi kéo lịch học sinh viên từ cổng ME (`https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien`), mỗi buổi học có trường `TinhTrang` (`0` = học bình thường, `1` = **Báo nghỉ**, `6` = **Lịch thi**). Trước đây hệ thống chưa lưu trường `tinh_trang`, dẫn đến môn đã "Báo nghỉ" trên ME vẫn bị hiển thị là "Đang học" / "Bận" và tự động miễn điểm danh xưởng ("Vắng có phép - Học trường"). Người dùng yêu cầu hiển thị y chang bên ME và xử lý chuẩn logic điểm danh khi lịch cập nhật báo nghỉ.
 - **Danh sách file dự kiến tác động:**
   - `supabase/migrations/20261031110000_sync_me_schedule_status_baonghi.sql` (Tạo mới & áp dụng lên Supabase Cloud)
@@ -792,7 +792,7 @@ ode -c js/admin/admin.attendance.js exit 0.
   - `js/admin/admin.tasks.js` (Hiển thị huy hiệu `🚫 Báo nghỉ` / `📝 Lịch thi` y chang ME trên bảng Thời khóa biểu hôm nay, cột Lịch học của bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo + Xuất Excel, và Nhóm chuyên môn; không tính môn `Báo nghỉ` là đang bận học)
   - `js/admin/admin.leave.js` & `checkin.html` (Bỏ qua môn đã `Báo nghỉ` khi kiểm tra xung đột lịch học trong form xin nghỉ)
 - **Tiêu chí nghiệm thu (DoD):**
-  - [x] Cột `tinh_trang smallint NOT NULL DEFAULT 0` có mặt trên `public.student_schedules` và được cập nhật qua cả 4 hàm RPC đồng bộ lịch.
-  - [x] Giao diện Admin hiển thị rõ `🚫 Báo nghỉ` (kèm tên môn, giờ, phòng gạch ngang nhẹ y chang ME) khi `tinh_trang === 1` và `📝 Lịch thi` khi `tinh_trang === 6` tại: Thời khóa biểu hôm nay, cột Lịch học bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo và modal Nhóm chuyên môn.
-  - [x] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn không báo nghỉ (`tinh_trang <> 1`), đồng thời tự động thu hồi/đối soát lại bản ghi miễn `Học trường` nếu môn học cập nhật sang `tinh_trang = 1` (Báo nghỉ) khi kéo lịch lại.
-  - [x] Đồng bộ dữ liệu thực tế từ ME Lạc Hồng lên Supabase Cloud và kiểm thử E2E PASS 100%.
+  - [ ] Cột `tinh_trang smallint NOT NULL DEFAULT 0` có mặt trên `public.student_schedules` và được cập nhật qua cả 4 hàm RPC đồng bộ lịch.
+  - [ ] Giao diện Admin hiển thị rõ `🚫 Báo nghỉ` (kèm tên môn, giờ, phòng gạch ngang nhẹ y chang ME) khi `tinh_trang === 1` và `📝 Lịch thi` khi `tinh_trang === 6` tại: Thời khóa biểu hôm nay, cột Lịch học bảng Điểm danh, Ma trận Lịch Rảnh/Bận Zalo và modal Nhóm chuyên môn.
+  - [ ] Các hàm `admin_open_session`, `admin_close_session`, `submit_attendance` và trigger `reconcile_schedule_with_attendance` chỉ miễn điểm danh (`Học trường`) cho môn không báo nghỉ (`tinh_trang <> 1`), đồng thời tự động thu hồi/đối soát lại bản ghi miễn `Học trường` nếu môn học cập nhật sang `tinh_trang = 1` (Báo nghỉ) khi kéo lịch lại.
+  - [ ] Đồng bộ dữ liệu thực tế từ ME Lạc Hồng lên Supabase Cloud và kiểm thử E2E PASS 100%.
