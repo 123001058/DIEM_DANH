@@ -416,6 +416,18 @@ inline void drawSplitQRCode(String text) {
   esp_qrcode_generate(&cfg, text.c_str());
 }
 
+// Khoi phuc banner huong dan nua duoi ben trai ve trang thai binh thuong
+inline void drawSplitCameraIdleBanner() {
+  tft.fillRect(SPLIT_CAM_X, 136, SPLIT_CAM_W - 1, 104, TFT_BLACK);
+  
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawCentreString("Nhin vao cam", SPLIT_CAM_X + SPLIT_CAM_W / 2, 175, 2);
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.drawCentreString("Canh giua khuon mat", SPLIT_CAM_X + SPLIT_CAM_W / 2, 202, 1);
+  
+  tft.drawFastVLine(159, 0, 240, TFT_NAVY);
+}
+
 // Ve khung giao dien ban dau cua vung Camera ben trai
 inline void drawSplitCameraLayout() {
   tft.fillRect(SPLIT_CAM_X, SPLIT_CAM_Y, SPLIT_CAM_W, SPLIT_CAM_H, TFT_BLACK);
@@ -427,14 +439,8 @@ inline void drawSplitCameraLayout() {
   // Khung ngam cho camera (120x80)
   tft.drawRect(CAM_BOX_X - 1, CAM_BOX_Y - 1, CAM_BOX_W + 2, CAM_BOX_H + 2, TFT_DARKGREY);
   
-  // Huong dan ben duoi
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString("Nhin vao cam", SPLIT_CAM_X + SPLIT_CAM_W / 2, 190, 2);
-  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawCentreString("Canh giua khuon mat", SPLIT_CAM_X + SPLIT_CAM_W / 2, 214, 1);
-  
-  // Duong ke doc phan cach
-  tft.drawFastVLine(159, 0, 240, TFT_NAVY);
+  // Huong dan ben duoi (dong bo toa do chuan voi IdleBanner)
+  drawSplitCameraIdleBanner();
 }
 
 // Ve frame JPEG tu camera len vung ben trai (chi goi tu main loop!)
@@ -498,18 +504,6 @@ inline void drawSplitCheckinBanner(String name, String mssv) {
   
   // Duong phan cach doc giua 2 nua chuyen xanh bao hieu
   tft.drawFastVLine(159, 0, 240, TFT_GREEN);
-}
-
-// Khoi phuc banner huong dan nua duoi ben trai ve trang thai binh thuong
-inline void drawSplitCameraIdleBanner() {
-  tft.fillRect(SPLIT_CAM_X, 136, SPLIT_CAM_W - 1, 104, TFT_BLACK);
-  
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString("Nhin vao cam", SPLIT_CAM_X + SPLIT_CAM_W / 2, 175, 2);
-  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawCentreString("Canh giua khuon mat", SPLIT_CAM_X + SPLIT_CAM_W / 2, 202, 1);
-  
-  tft.drawFastVLine(159, 0, 240, TFT_NAVY);
 }
 
 // Ve thong bao diem danh thanh cong tren nua ben trai (chuyen tiep sang banner de khong chan camera)

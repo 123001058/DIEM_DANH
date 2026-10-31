@@ -1119,7 +1119,7 @@ async function processAdminCameraFrame(media) {
       progressRatio = Math.min(1.0, adminTrackingFrames / REQUIRED_CONFIRM_FRAMES);
 
       if (adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES) {
-        // ĐÃ GIỮ ĐỦ 6 FRAMES LIÊN TỤC -> CHỐT ĐIỂM DANH THÀNH CÔNG!
+        // ĐÃ GIỮ ĐỦ SỐ FRAMES LIÊN TỤC (REQUIRED_CONFIRM_FRAMES) -> CHỐT ĐIỂM DANH THÀNH CÔNG!
         boxColor = '#16a34a';
         const liveInfo = antiSpoofResult.ok ? ` · LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : '';
         statusText = `✅ ĐÃ XÁC THỰC: ${name} (${mssv})${liveInfo}`;

@@ -162,6 +162,7 @@ void supabasePollWorker(void* pvParameters) {
               Serial.println("[SUPABASE WORKER] Vua diem danh: " + latestCheckinName + " (" + latestCheckinMssv + ")");
               snprintf(pendingCheckinName, sizeof(pendingCheckinName), "%s", latestCheckinName.c_str());
               snprintf(pendingCheckinMssv, sizeof(pendingCheckinMssv), "%s", latestCheckinMssv.c_str());
+              asm volatile("" ::: "memory");
               pendingCheckinFlag = true;
             }
           }
@@ -172,6 +173,7 @@ void supabasePollWorker(void* pvParameters) {
             String qrUrl = String(web_domain) + "/checkin.html?t=" + qrToken;
             Serial.println("[SUPABASE WORKER] Co ma QR moi: " + qrUrl);
             snprintf(pendingQrText, sizeof(pendingQrText), "%s", qrUrl.c_str());
+            asm volatile("" ::: "memory");
             pendingQrFlag = true;
           }
         } else {
