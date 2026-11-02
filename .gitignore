@@ -6,3 +6,5 @@ scratch/
 supabase/.temp/
 .agents/
 backup_data_before_migration.sql
+/graphify-out
+js/graphify-out/cache/stat-index.json
