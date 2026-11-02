@@ -165,21 +165,21 @@
   let latestDetection = null;
   let basePitch = null, baseMar = null;
   let currentIndex = 0;
-  const STABLE_FRAMES = 4;
+  const STABLE_FRAMES = 2;
 
   const SLOTS_DEF = [
     { id: 'straight', label: 'Góc 1: Nhìn thẳng', guide: 'Nhìn thẳng vào camera, mặt tự nhiên',
       target: (m) => m.yawOk,
-      hint: (m) => m.yaw < 0.80 ? '👉 Quay mặt nhẹ sang phải' : (m.yaw > 1.20 ? '👈 Quay mặt nhẹ sang trái' : 'Nhìn thẳng vào giữa camera') },
+      hint: (m) => m.yaw < 0.75 ? '👉 Quay mặt nhẹ sang phải' : (m.yaw > 1.25 ? '👈 Quay mặt nhẹ sang trái' : 'Nhìn thẳng vào giữa camera') },
     { id: 'left', label: 'Góc 2: Nghiêng trái ~15°', guide: 'Quay nhẹ đầu sang TRÁI của bạn',
-      target: (m) => m.yaw <= 0.84, hint: () => 'Quay thêm nhẹ sang TRÁI...' },
+      target: (m) => m.yaw <= 0.88, hint: () => 'Quay thêm nhẹ sang TRÁI...' },
     { id: 'right', label: 'Góc 3: Nghiêng phải ~15°', guide: 'Quay nhẹ đầu sang PHẢI của bạn',
-      target: (m) => m.yaw >= 1.16, hint: () => 'Quay thêm nhẹ sang PHẢI...' },
+      target: (m) => m.yaw >= 1.12, hint: () => 'Quay thêm nhẹ sang PHẢI...' },
     { id: 'tilt', label: 'Góc 4: Ngẩng / cúi ~10°', guide: 'Ngẩng hoặc cúi nhẹ đầu',
-      target: (m) => (basePitch != null && Math.abs(m.pitch - basePitch) > 0.035) || m.pitch > 0.49 || m.pitch < 0.38,
+      target: (m) => (basePitch != null && Math.abs(m.pitch - basePitch) > 0.030) || m.pitch > 0.48 || m.pitch < 0.39,
       hint: () => 'Ngẩng hoặc cúi nhẹ đầu...' },
     { id: 'smile', label: 'Góc 5: Cười nhẹ', guide: 'Cười nhẹ, biểu cảm tự nhiên',
-      target: (m) => (baseMar != null && m.mar >= baseMar * 1.15) || m.mar > 0.20, hint: () => 'Mỉm cười nhẹ...' }
+      target: (m) => (baseMar != null && m.mar >= baseMar * 1.12) || m.mar > 0.19, hint: () => 'Mỉm cười nhẹ...' }
   ];
 
   let slots = SLOTS_DEF.map(s => ({ id: s.id, label: s.label, done: false, descriptor: null, thumbnail: null, guide: s.guide }));
@@ -280,7 +280,7 @@
     const ear = (eyeEAR(lm.getLeftEye()) + eyeEAR(lm.getRightEye()))/2;
     const mar = mouthMAR(lm.getMouth());
     const pitch = pitchM(lm);
-    return { yaw, ear, mar, pitch, yawOk: yaw >= 0.80 && yaw <= 1.20, eyeOpen: ear >= 0.14, mouthNeutral: mar <= 0.40 };
+    return { yaw, ear, mar, pitch, yawOk: yaw >= 0.75 && yaw <= 1.25, eyeOpen: ear >= 0.14, mouthNeutral: mar <= 0.40 };
   }
 
   // ========================= AUTH & DATA =========================
@@ -653,7 +653,7 @@
       if (captureCanvas.width !== w || captureCanvas.height !== h) { captureCanvas.width = w; captureCanvas.height = h; }
       capCtx.drawImage(video, 0, 0, w, h);
 
-      const detections = await faceapi.detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
+      const detections = await faceapi.detectAllFaces(captureCanvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 }))
         .withFaceLandmarks(true).withFaceDescriptors();
 
       const ctx = canvas.getContext('2d');

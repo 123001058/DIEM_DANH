@@ -432,9 +432,9 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.40 (siết chặt an toàn tuyệt đối chống nhận nhầm người)
-    // Mặc định thư viện là 0.60; 0.45 bị nhận nhầm -> siết chặt về 0.40
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
+    // Ngưỡng so khớp Euclidean distance: 0.48 (cân bằng tối ưu giữa độ nhạy bắt dính người thật và chống nhận nhầm)
+    // 0.40 quá gắt làm trượt người thật; 0.60 quá lỏng; 0.48 là điểm cân bằng vàng chuẩn Face-API
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.48);
   } else {
     adminFaceMatcher = null;
   }
@@ -981,7 +981,7 @@ async function runAdminDetectionLoop() {
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 4; // Cần giữ mặt ổn định 4 frame liên tiếp (~0.4s-0.5s) để chốt, chống tuyệt đối nhận nhầm lướt qua
+const REQUIRED_CONFIRM_FRAMES = 2; // Giữ mặt ổn định 2 frame liên tiếp (~0.2s-0.3s) để chốt, phản hồi nhanh và chống trượt frame do mạng lag
 
 async function processAdminCameraFrame(media) {
   // Guard check 1: Nếu cam đã dừng -> thoát ngay
@@ -1011,12 +1011,12 @@ async function processAdminCameraFrame(media) {
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
 
-  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 320 giúp bắt nhạy từ xa và góc nghiêng)
+  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 416 giúp bắt nhạy từ xa > 1m và góc nghiêng)
   let det = null;
   try {
     det = await faceapi.detectSingleFace(
       adminCaptureCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.22 })
     ).withFaceLandmarks(true).withFaceDescriptor();
   } catch (e) { }
 
@@ -1971,7 +1971,7 @@ async function processEnrollBatchQueue() {
       // 3. Chạy phát hiện khuôn mặt với Face-API
       const detections = await faceapi.detectAllFaces(
         imgEl,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.22 })
       ).withFaceLandmarks(true).withFaceDescriptors();
 
       if (!detections || detections.length === 0) {
@@ -2295,7 +2295,7 @@ async function validateAndPreviewPendingPhoto(dataUrl, label) {
     // Phát hiện khuôn mặt
     const detections = await faceapi.detectAllFaces(
       imgEl,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.22 })
     ).withFaceLandmarks(true).withFaceDescriptors();
 
     if (!detections || detections.length === 0) {

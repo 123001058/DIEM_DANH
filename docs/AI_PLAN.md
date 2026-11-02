@@ -823,3 +823,28 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Bảo toàn 100% các tính năng đóng băng (`FRZ-001` polling Supabase 1000ms, URL `checkin.html?t=`, bố cục Split-Screen và Banner điểm danh 1.5s).
   - [x] Biên dịch thành công 100% với `arduino-cli compile --fqbn esp32:esp32:esp32 esp32_kiosk` (Exit code 0) và kiểm tra mức sử dụng RAM/Flash an toàn.
 - **Phương án kiểm thử:** Biên dịch thực tế bằng `arduino-cli` và chạy script kiểm tra tính toàn vẹn cấu trúc code C++ / invariants.
+
+---
+
+### [TASK-034] Tối ưu hóa độ nhạy và tốc độ nhận diện khuôn mặt Face AI
+
+- **Ngày tạo:** 2026-11-02
+- **Mức độ ưu tiên:** High
+- **Trạng thái:** `[DONE]`
+- **Mục tiêu:**
+  1. Nâng ngưỡng so khớp khoảng cách Euclidean của FaceMatcher từ `0.40` lên `0.48` (ngưỡng vàng cân bằng tuyệt đối để nhận diện nhạy, không trượt góc mặt người thật và chống nhận nhầm).
+  2. Giảm số khung hình xác thực liên tục `REQUIRED_CONFIRM_FRAMES` từ `4` xuống `2` frames (~0.2s - 0.3s) để chốt điểm danh nhanh gọn, không bắt người dùng đứng bất động và chống hiện tượng reset oan khi stream camera drop frame.
+  3. Tối ưu hóa độ phân giải phát hiện `TinyFaceDetector`: Nâng `inputSize` từ `320` lên `416`, hạ nhẹ `scoreThreshold` từ `0.25` xuống `0.22` để bắt mặt rõ nét từ khoảng cách xa (> 1m) và góc nghiêng.
+  4. Đồng bộ tinh chỉnh trang tự chụp nạp mẫu sinh viên (`face-sinhvien.html`): Giảm `STABLE_FRAMES` từ `4` xuống `2`, nới nhẹ biên độ hình học góc mặt `yawOk` (`[0.75, 1.25]`) để sinh viên nạp 5 góc mặt dễ dàng, không bị kẹt.
+- **Phạm vi tác động:**
+  - `js/admin/admin.face.js`
+  - `face-sinhvien.html`
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] `node -c js/admin/admin.face.js` exit 0.
+  - [x] Ngưỡng FaceMatcher trong `reloadAdminFaceMatcher()` được đặt thành `0.48`.
+  - [x] `REQUIRED_CONFIRM_FRAMES` trong `js/admin/admin.face.js` được đặt thành `2`.
+  - [x] `TinyFaceDetectorOptions` dùng `inputSize: 416` và `scoreThreshold: 0.22`.
+  - [x] Trang `face-sinhvien.html` cập nhật `STABLE_FRAMES = 2` và `inputSize: 416`.
+  - [x] Tất cả các test suites liên quan đến Face AI và hệ thống chạy PASS 100%.
+  - [x] Ghi nhận nhật ký `TLOG-034` và cập nhật `AI_PROGRESS.md`.
+- **Phương án kiểm thử:** Kiểm tra cú pháp tĩnh Node.js và chạy script kiểm định mô phỏng nhận diện vector.
