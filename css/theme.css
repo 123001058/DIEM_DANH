@@ -326,6 +326,59 @@ button:disabled, .btn:disabled {
 .rise-2 { animation-delay: 0.06s; }
 .rise-3 { animation-delay: 0.12s; }
 
+/* Mobile-First Responsive & Touch-Target Enhancements (WCAG 2.2 AA) */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  overflow-x: clip;
+  max-width: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+  max-width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  /* Chống iOS Safari tự động phóng to form khi font-size < 16px */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Chuẩn hóa vùng chạm WCAG 2.2 AA tối thiểu 44px cho tương tác di động */
+  .btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .btn-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+
+  .btn-sm {
+    min-height: 38px;
+    touch-action: manipulation;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

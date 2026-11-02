@@ -33,20 +33,20 @@ body {
 }
 .header.student-header {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 8px;
   text-align: left;
 }
 .student-brand { min-width: 0; text-align: center; }
 .student-menu-button {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 4.5px;
   padding: 0;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
@@ -55,6 +55,7 @@ body {
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(20,24,32,.08);
   flex: none;
+  touch-action: manipulation;
 }
 .student-menu-button:hover { background: var(--surface-hover); }
 .student-menu-button:focus-visible,
@@ -70,7 +71,7 @@ body {
   border-radius: 2px;
   background: currentColor;
 }
-.student-menu-spacer { width: 40px; height: 40px; }
+.student-menu-spacer { width: 44px; height: 44px; }
 .student-menu-overlay {
   position: fixed;
   inset: 0;
@@ -107,14 +108,18 @@ body {
 .student-sidebar-title { font-size: 15px; font-weight: 800; color: var(--text); }
 .student-sidebar-subtitle { margin-top: 2px; font-size: 11px; color: var(--muted); }
 .student-sidebar-close {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface);
   color: var(--text);
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
 }
 .student-sidebar-nav {
   display: grid;
@@ -816,10 +821,115 @@ body.student-menu-open { overflow: hidden; }
 }
 
 .footer { text-align: center; margin-top: 20px; color: var(--faint); font-size: 11px; font-weight: 600; }
-@media (max-width: 480px) {
-  body { padding: 14px 10px 30px; }
-  .card { padding: 22px 16px 18px; border-radius: var(--radius); }
+
+/* Student Mobile Bottom Navigation Bar (App-like thumb navigation) */
+.student-bottom-nav {
+  display: none;
+}
+.user-box-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 14px 10px calc(76px + env(safe-area-inset-bottom, 12px)) !important;
+  }
+  .wrap {
+    max-width: 100%;
+  }
+  .card {
+    padding: 20px 16px 16px;
+    border-radius: var(--radius);
+  }
   .logo { font-size: 22px; }
+
+  /* Bottom Navigation for Mobile */
+  .student-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    z-index: 1050;
+    padding: 0 4px;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .student-bnav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 48px;
+    border-radius: 10px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    padding: 4px 2px;
+    transition: all 0.15s ease;
+    touch-action: manipulation;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    gap: 3px;
+  }
+  .student-bnav-item .bnav-icon {
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .student-bnav-item:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  .student-bnav-item.active {
+    color: var(--primary);
+    background: var(--primary-soft);
+    font-weight: 800;
+  }
+  .student-bnav-item.active .bnav-icon {
+    filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.3));
+  }
+
+  .user-box {
+    padding: 10px 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .user-info {
+    min-width: 130px;
+  }
+}
+
+@media (max-width: 380px) {
+  .user-btn-label {
+    display: none;
+  }
+  .logout {
+    padding: 8px 10px;
+    min-width: 38px;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 </style>
 <script src="js/html5-qrcode.min.js"></script>
@@ -846,6 +956,9 @@ body.student-menu-open { overflow: hidden; }
     <button type="button" id="snav-feedback" onclick="switchStudentView('feedback')"><span aria-hidden="true">💬</span> Gửi phản hồi ẩn danh</button>
     <a href="face-sinhvien.html" id="snav-face-data"><span aria-hidden="true">📸</span> Khuôn mặt &amp; Ảnh đại diện</a>
     <a href="lichhoc.html" id="snav-timetable"><span aria-hidden="true">📅</span> Thời khóa biểu ME</a>
+    <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+    <a href="change-password.html" id="snav-change-pwd"><span aria-hidden="true">🔑</span> Đổi mật khẩu</a>
+    <button type="button" id="snav-logout" onclick="logoutStudent()" style="color:var(--err) !important;"><span aria-hidden="true">🚪</span> Đăng xuất</button>
   </nav>
 </aside>
 <div class="wrap">
@@ -867,11 +980,15 @@ body.student-menu-open { overflow: hidden; }
         <div class="user-name" id="userName">Đang tải...</div>
         <div class="user-id" id="userId">—</div>
       </div>
-      <a href="change-password.html" class="logout" style="text-decoration:none; color:var(--text); background:var(--surface-2); margin-right:4px; display:inline-flex; align-items:center; gap:5px;">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Đổi mật khẩu
-      </a>
-      <button class="logout" onclick="logoutStudent()">Đăng xuất</button>
+      <div class="user-box-actions">
+        <a href="change-password.html" class="logout" style="text-decoration:none; color:var(--text); background:var(--surface-2); display:inline-flex; align-items:center; gap:5px;" title="Đổi mật khẩu">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span class="user-btn-label">Đổi MK</span>
+        </a>
+        <button class="logout logout-danger" onclick="logoutStudent()" title="Đăng xuất">
+          <span class="user-btn-label">Đăng xuất</span>
+        </button>
+      </div>
     </section>
 
     <!-- Global Result Box -->
@@ -1021,6 +1138,30 @@ body.student-menu-open { overflow: hidden; }
     <footer class="footer">LH-NaviX · v2.0.0</footer>
   </div>
 </div>
+
+<!-- Mobile Bottom Navigation Bar (Thao tác ngón cái một tay chuẩn Mobile App) -->
+<nav class="student-bottom-nav" id="studentBottomNav" aria-label="Thanh điều hướng nhanh">
+  <button type="button" class="student-bnav-item active" id="sbnav-checkin" onclick="switchStudentView('checkin')">
+    <span class="bnav-icon">📷</span>
+    <span>Điểm danh</span>
+  </button>
+  <button type="button" class="student-bnav-item" id="sbnav-history" onclick="switchStudentView('history')">
+    <span class="bnav-icon">📋</span>
+    <span>Lịch sử</span>
+  </button>
+  <button type="button" class="student-bnav-item" id="sbnav-leave" onclick="switchStudentView('leave')">
+    <span class="bnav-icon">📝</span>
+    <span>Nghỉ phép</span>
+  </button>
+  <button type="button" class="student-bnav-item" id="sbnav-tasks" onclick="switchStudentView('tasks')">
+    <span class="bnav-icon">✅</span>
+    <span>Nhiệm vụ</span>
+  </button>
+  <button type="button" class="student-bnav-item" id="sbnav-more" onclick="toggleStudentSidebar()">
+    <span class="bnav-icon">☰</span>
+    <span>Thêm</span>
+  </button>
+</nav>
 
 <script>
 let currentUser = null, currentProfile = null;
@@ -1305,6 +1446,9 @@ function switchStudentView(viewName) {
 
   document.querySelectorAll('.student-sidebar-nav button').forEach(btn => btn.classList.remove('active'));
   document.getElementById('snav-' + viewName)?.classList.add('active');
+
+  document.querySelectorAll('.student-bottom-nav .student-bnav-item').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('sbnav-' + viewName)?.classList.add('active');
 
   const titleEl = document.getElementById('studentCurrentSection');
   if (titleEl) titleEl.textContent = studentViewTitles[viewName] || 'Điểm danh';

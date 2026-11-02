@@ -61,12 +61,22 @@ stateDiagram-v2
 | [TASK-033](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-033-tối-ưu-hóa-độ-mượt-live-camera-trên-lcd-esp32-kiosk-theo-2-bước-đo-đạc-serial--ping-pong-double-buffering-ab--zero-lag-drop-frame) | Tối ưu độ mượt Live Camera trên LCD ESP32 Kiosk (Đo đạc Serial + Ping-Pong Double Buffering A/B & Drop Frame) | `[VERIFYING]` | High | [TLOG-033](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-033-kiểm-thử-tối-ưu-hóa-độ-mượt-live-camera-trên-lcd-esp32-kiosk-theo-2-bước-đo-đạc-serial--ping-pong-double-buffering-ab-task-033) (Firmware build & 100k stress test PASS; chờ nạp LCD thật) | 2026-10-31 |
 | [TASK-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-034-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai) | Tối ưu hóa độ nhạy & tốc độ bắt khuôn mặt Face AI (Ngưỡng 0.48, confirm 2 frames, inputSize 416) | `[DONE]` | High | [TLOG-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-034-kiểm-thử-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai-task-034) (PASS) | 2026-11-02 |
 | [TASK-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-035-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-lichhocjs) | Đồng bộ trạng thái Báo nghỉ & Lịch thi trên trang Lịch học (lichhoc.html / js/lichhoc.js) | `[DONE]` | High | [TLOG-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-035-kiểm-thử-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-task-035) (PASS) | 2026-11-02 |
+| [TASK-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-036-mobile-first-responsive-uiux-optimization-toàn-diện-hệ-thống-lh-navix) | Mobile-First Responsive UI/UX Optimization Toàn Diện (Hệ Thống LH-NaviX) | `[DONE]` | Critical | [TLOG-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-036-kiểm-thử-toàn-diện-mobile-first-responsive-uiux-optimization-task-036) (PASS 72/72 viewports, 0 overflow, 11/11 suites PASS) | 2026-11-02 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-02 (Mobile-First Responsive UI/UX Optimization Toàn Diện - TASK-036)
+- **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Nhiệm vụ:** [TASK-036] (Mobile-First Responsive UI/UX Optimization Toàn Diện Hệ Thống LH-NaviX)
+- **Tóm tắt hành động:**
+  - Hoàn tất kiểm thử và đo đạc tự động qua Selenium Chrome CDP trên 9 viewport tiêu chuẩn (320px đến 1440px): 72/72 kịch bản đạt `scrollWidth <= innerWidth` (0 tràn ngang).
+  - Tối ưu CSS toàn diện (`css/theme.css`, `css/index.css`, `css/admin.css`, `css/lichhoc.css`) và các trang HTML (`index.html`, `checkin.html`, `admin.html`, `face-sinhvien.html`, `change-password.html`): tích hợp safe-area insets cho notch/home indicator, input font-size >= 16px chống iOS auto-zoom, touch targets >= 44x44px theo WCAG 2.2 AA.
+  - Tích hợp Bottom Navigation cố định chuẩn Native App cho Student Portal (`checkin.html`) gồm 5 tab chuyển nhanh bằng ngón cái.
+  - Chạy master test runner `scratch/run_full_system_verification.js`: 11/11 suites PASS (257/257 granular checks, 0 regressions). Ghi nhận TLOG-036.
 
 ### Phiên làm việc: 2026-11-02 (Tối ưu Face AI & Đồng bộ Báo nghỉ trang Lịch học)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)

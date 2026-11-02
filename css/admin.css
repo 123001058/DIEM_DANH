@@ -61,8 +61,10 @@ body {
 }
 
 .btn-hamburger {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border-strong);
   background: var(--surface-2);
@@ -320,9 +322,10 @@ body {
 }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; }
 .sidebar-close-btn {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--surface-2);
   color: var(--muted); display: grid; place-items: center; cursor: pointer;
+  touch-action: manipulation;
 }
 .sidebar-nav {
   padding: 14px 10px;
@@ -784,8 +787,20 @@ body {
 .search-wrap input:focus { border-color: var(--text); box-shadow: 0 0 0 3px #eceef2; width: 220px; }
 .search-wrap svg { position: absolute; left: 8px; color: var(--faint); pointer-events: none; }
 
-.tbl-wrap { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
-.tbl-scroll { max-height: 440px; overflow-y: auto; }
+.tbl-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+  width: 100%;
+  max-width: 100%;
+}
+.tbl-scroll {
+  max-height: 440px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th { position: sticky; top: 0; z-index: 2; text-align: left; font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
 td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -1334,7 +1349,7 @@ tbody tr:last-child td { border-bottom: none; }
 
 @media (max-width: 768px) {
   .app-wrapper {
-    padding: 10px 12px calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 10px 12px calc(76px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .topbar-compact {
     padding: 8px 12px;
@@ -1362,7 +1377,7 @@ tbody tr:last-child td { border-bottom: none; }
     bottom: 0;
     left: 0;
     right: 0;
-    height: 52px;
+    height: 56px;
     background: var(--surface);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -1380,7 +1395,8 @@ tbody tr:last-child td { border-bottom: none; }
     align-items: center;
     justify-content: center;
     flex: 1;
-    height: 38px;
+    height: 46px;
+    min-height: 44px;
     border-radius: 8px;
     background: transparent;
     border: none;

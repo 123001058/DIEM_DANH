@@ -168,23 +168,28 @@ body {
 }
 
 .input-wrap-pwd input {
-  padding-right: 44px;
+  padding-right: 48px;
 }
 
 .pwd-toggle-btn {
   position: absolute;
-  right: 10px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
+  padding: 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 .pwd-toggle-btn:hover {
   color: var(--text);
@@ -249,14 +254,32 @@ body {
 }
 
 @media (max-width: 480px) {
+  body {
+    padding: 12px 10px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
   .hero {
-    padding: 34px 22px 26px;
+    padding: 28px 18px 24px;
     border-radius: var(--radius);
+    max-width: calc(100vw - 20px);
+    margin: 8px auto;
   }
   .hero h1 {
     font-size: 22px;
   }
+  .modal-bg {
+    padding: 12px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
   .modal {
-    padding: 24px 20px 20px;
+    max-width: min(400px, calc(100vw - 20px));
+    max-height: calc(100dvh - 28px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 22px 18px 18px;
+  }
+  .modal-actions button {
+    min-height: 44px;
+    font-size: 14.5px;
+    touch-action: manipulation;
   }
 }

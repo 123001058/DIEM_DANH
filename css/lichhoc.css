@@ -138,8 +138,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 8px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
@@ -147,6 +149,7 @@
   font-size: 14px;
   cursor: pointer;
   transition: all .15s ease;
+  touch-action: manipulation;
 }
 
 .week-btn:hover:not(:disabled) {
@@ -162,7 +165,8 @@
 .week-display {
   display: flex;
   flex-direction: column;
-  min-width: 220px;
+  min-width: 140px;
+  flex: 1;
   text-align: center;
 }
 
@@ -191,7 +195,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 8px 14px;
+  min-height: 44px;
   border-radius: 7px;
   border: none;
   background: transparent;
@@ -200,6 +205,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all .16s ease;
+  touch-action: manipulation;
 }
 
 .tab-btn:hover {
@@ -1089,5 +1095,62 @@
 .freetime-busy-meta {
   font-size: 11px;
   color: var(--muted);
+}
+
+/* Mobile-First Responsive Styles cho Thời Khóa Biểu */
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 12px 10px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .tkb-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 14px;
+  }
+  .tkb-header-left {
+    gap: 10px;
+  }
+  .tkb-title-group h1 {
+    font-size: 18px;
+  }
+  .tkb-nav-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  .tkb-nav-links .nav-pill {
+    min-height: 44px;
+    justify-content: center;
+  }
+  .controls-row-bottom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .week-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .view-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    display: flex;
+  }
+  .view-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex: 1;
+    min-width: max-content;
+    justify-content: center;
+    padding: 8px 10px;
+  }
+  .btn-action {
+    min-height: 44px;
+    padding: 8px 12px;
+    touch-action: manipulation;
+  }
 }
 

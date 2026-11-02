@@ -1496,3 +1496,77 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **KNOWN:** Cú pháp sạch (Node exit 0); các hàm render sinh thẻ HTML đúng chuẩn huy hiệu `🚫 Báo nghỉ` / `📝 Lịch thi`; logic lọc người rảnh loại bỏ môn báo nghỉ; 11/11 test suites master runner PASS không lỗi hồi quy.
   - **LIKELY:** Giao diện `lichhoc.html` khi sinh viên hoặc Admin xem thời khóa biểu tuần hiển thị trực quan, đồng bộ 100% với cổng ME Lạc Hồng và phân hệ Admin.
 - **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-035).
+
+---
+
+### [TLOG-036] Kiểm thử toàn diện Mobile-First Responsive UI/UX Optimization (TASK-036)
+
+- **Thời gian:** 2026-11-02 17:16:00 (UTC+7)
+- **Người/Agent thực hiện:** Senior Frontend & Mobile UI/UX QA Agent (Antigravity)
+- **Môi trường:** Windows 11 / Node.js v24.19.0 / Python 3.13 / Selenium 4.49.0 / Headless Chrome 156 (CDP Emulation)
+- **Hạng mục kiểm tra:**
+  1. Kiểm tra 9 độ phân giải tiêu chuẩn: 320px, 360px, 375px, 390px, 412px, 430px, 768px, 1024px, 1440px.
+  2. Đo đạc cuộn ngang toàn trang (`scrollWidth <= window.innerWidth`) trên tất cả các trang (`index.html`, `index.html#login`, `index.html#forgot`, `checkin.html`, `admin.html`, `lichhoc.html`, `change-password.html`, `face-sinhvien.html`).
+  3. Kiểm tra vùng chạm Touch Targets chuẩn WCAG 2.2 AA (chiều cao và chiều rộng tối thiểu 44×44 CSS px, hoặc >= 36px cho compact pills).
+  4. Kiểm tra font-size ô nhập liệu (`input`, `select`, `textarea`) >= 16px trên mobile để chống hiện tượng iOS Safari auto-zoom.
+  5. Kiểm tra hoạt động của Mobile Bottom Navigation Bar trên Student Portal (`checkin.html`) và Admin Dashboard (`admin.html`).
+  6. Chụp ảnh màn hình Before/After trên 5 viewport mốc (320px, 375px, 412px, 768px, 1440px).
+  7. Kiểm tra hồi quy toàn diện hệ thống với 11 test suites master runner (`scratch/run_full_system_verification.js`).
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  python scratch/run_post_optimization_audit.py
+  node -c js/config.js js/auth.js js/lichhoc.js js/admin/admin.core.js js/admin/admin.leave.js js/admin/admin.schedules.js js/admin/admin.tasks.js js/admin/admin.students.js js/admin/admin.attendance.js js/admin/admin.face.js
+  node scratch/run_full_system_verification.js
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  ==========================================
+  VERIFYING ALL PAGES ACROSS 9 VIEWPORTS (320px - 1440px)
+  ==========================================
+  [ 320px] ✅ PASS | ScrollW:  320px | Small Touch:  0 | Inputs <16px:  0
+  [ 360px] ✅ PASS | ScrollW:  360px | Small Touch:  0 | Inputs <16px:  0
+  [ 375px] ✅ PASS | ScrollW:  375px | Small Touch:  0 | Inputs <16px:  0
+  [ 390px] ✅ PASS | ScrollW:  390px | Small Touch:  0 | Inputs <16px:  0
+  [ 412px] ✅ PASS | ScrollW:  412px | Small Touch:  0 | Inputs <16px:  0
+  [ 430px] ✅ PASS | ScrollW:  430px | Small Touch:  0 | Inputs <16px:  0
+  [ 768px] ✅ PASS | ScrollW:  768px | Small Touch:  0 | Inputs <16px:  0
+  [1024px] ✅ PASS | ScrollW: 1024px | Small Touch:  0 | Inputs <16px:  0
+  [1440px] ✅ PASS | ScrollW: 1440px | Small Touch:  0 | Inputs <16px:  0
+
+  ==========================================
+  SUMMARY: 72/72 Viewport-Page Combinations Passed Horizontal Overflow Check (0 Scroll Overflow)
+  Saved full audit report to scratch/reports/post_optimization_audit.json
+  Saved screenshots to scratch/screenshots/after/
+  ==========================================
+
+  ================================================================================
+         LH-NaviX MASTER UNIFIED FULL-SYSTEM VERIFICATION RUNNER (M4)            
+         Repository: C:\Users\ACER\Documents\GitHub\DIEM_DANH
+         Timestamp : 2026-11-02T10:15:44.984Z
+  ================================================================================
+  Total Suites Executed : 11
+  Total Granular Checks : 257
+  Total Passed Checks   : 257
+  Total Failed Checks   : 0
+  Overall Execution Time: 39.14s
+  --------------------------------------------------------------------------------
+  ID                        Category                    Checks        Duration  Status
+  --------------------------------------------------------------------------------
+  SYNTAX_NODE_CHECK         Syntax Validation           1P / 0F       0.05s     [PASS]
+  SYNTAX_FULL_PY            Syntax Validation           1P / 0F       1.58s     [PASS]
+  WORKER_M1_ADMIN_JS        Worker Verification Suites  23P / 0F      0.69s     [PASS]
+  WORKER_M1_ADMIN_PY        Worker Verification Suites  17P / 0F      0.46s     [PASS]
+  WORKER_M2_STUDENT_DB_JS   Worker Verification Suites  53P / 0F      7.31s     [PASS]
+  CHALLENGER_M1_1           Challenger Suites           22P / 0F      0.14s     [PASS]
+  CHALLENGER_M1_2_STRESS    Challenger Suites           31P / 0F      0.31s     [PASS]
+  CHALLENGER_M2_1_STRESS    Challenger Suites           50P / 0F      18.82s    [PASS]
+  CHALLENGER_M2_2_SUBSYSTEM Challenger Suites           29P / 0F      5.16s     [PASS]
+  AUDITOR_M1                Auditor Independent Suites  14P / 0F      0.06s     [PASS]
+  AUDITOR_M2                Auditor Independent Suites  16P / 0F      4.57s     [PASS]
+  ================================================================================
+  >>> ALL 11 VERIFICATION SUITES PASSED FLAWLESSLY. 0 REGRESSIONS DETECTED.
+  ```
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Đo đạc thực tế qua CDP Selenium Headless Chrome trên 72 kết hợp (8 trang x 9 viewports) đều không có hiện tượng cuộn ngang toàn trang (ScrollW === Viewport width); Student Bottom Nav và Admin Bottom Nav hoạt động hoàn hảo; các input font size >= 16px chống auto-zoom; 11/11 master test suites PASS 100%.
+  - **LIKELY:** Trải nghiệm người dùng bằng điện thoại thực tế (iPhone Safari, Android Chrome) khi thao tác vuốt chạm một tay sẽ có độ mượt và thuận tiện tương đương một ứng dụng native.
+- **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-036).

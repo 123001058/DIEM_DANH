@@ -873,3 +873,43 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Toàn bộ 11 verification suites kiểm thử hệ thống chạy PASS 100%.
   - [x] Ghi nhận nhật ký TLOG-035 và cập nhật `AI_PROGRESS.md`.
 - **Phương án kiểm thử:** Kiểm tra cú pháp tĩnh Node.js và chạy kịch bản kiểm định DOM/dữ liệu trong scratch.
+
+---
+
+### [TASK-036] Mobile-First Responsive UI/UX Optimization Toàn Diện (Hệ Thống LH-NaviX)
+
+- **Ngày tạo:** 2026-11-02
+- **Mức độ ưu tiên:** Critical
+- **Trạng thái:** `[DONE]`
+- **Mục tiêu:**
+  1. Giai đoạn 1: Khảo sát, audit tự động và phân tích toàn diện các trang (`index.html`, `checkin.html`, `admin.html`, `lichhoc.html`, `change-password.html`, `face-sinhvien.html`) trên 9 viewports (320px, 360px, 375px, 390px, 412px, 430px, 768px, 1024px, 1440px), lập danh sách lỗi theo mức độ nghiêm trọng (tràn màn hình, touch target < 44px, chữ nhỏ, menu che, modal vỡ).
+  2. Giai đoạn 2: Tối ưu Mobile-First Responsive & Adaptive Layout:
+     - Bố cục 1 cột mobile mượt mà, không cuộn ngang toàn trang (`overflow-x: hidden / clip` hợp lý), safe-area insets cho notch/home indicator (`env(safe-area-inset-*)`).
+     - Điều hướng sau đăng nhập: Student Portal (`checkin.html`) bổ sung Bottom Navigation cố định tiện lợi cho thao tác 1 tay + Drawer menu; Admin Dashboard (`admin.html`) tối ưu navigation bar/drawer gọn gàng, không che content.
+     - Đăng nhập (`index.html`): Form căn chỉnh tối ưu màn hình nhỏ, touch target >= 44x44px, hiển thị toggle mật khẩu to rõ, tránh che input khi bàn phím ảo bật.
+     - Dashboard & Chức năng bên trong: Bảng biểu (Admin attendance, students, tasks, schedules) chuyển đổi responsive (card stack hoặc scroll wrapper có visual hint rõ ràng), Modal/Popup/Dropdown responsive 100% max-height 90vh có scroll nội bộ.
+     - Trải nghiệm cảm ứng (Touch-friendly), font chữ >= 16px cho input chống iOS auto-zoom, đạt chuẩn WCAG 2.2 AA.
+  3. Giai đoạn 3: Hiệu năng cao (Vanilla CSS/JS thuần, không cài framework cồng kềnh, giữ nguyên 100% logic DB/Auth/RPC và các tính năng đóng băng `FROZEN_FEATURES.md`).
+  4. Giai đoạn 4: Kiểm thử thực tế bằng Browser Automation (Selenium Headless Chrome) trên 9 viewports, đo đạc tràn màn hình, touch target, chụp ảnh screenshot đối chiếu Before/After. Chạy 11/11 master test suites đảm bảo 0 regression.
+  5. Giai đoạn 5: Xuất báo cáo nghiệm thu kỹ thuật chi tiết.
+- **Phạm vi tác động:**
+  - `css/theme.css`
+  - `css/index.css`
+  - `css/admin.css`
+  - `css/lichhoc.css`
+  - `checkin.html`
+  - `admin.html`
+  - `lichhoc.html`
+  - `index.html`
+  - `change-password.html`
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Khảo sát tự động 9 viewports và chụp baseline screenshot lưu trữ.
+  - [x] Không có hiện tượng cuộn ngang toàn trang (`scrollWidth <= clientWidth`) trên bất kỳ viewport nào từ 320px đến 1440px.
+  - [x] Vùng chạm tương tác chính (nút, tab, menu, input) đạt tối thiểu 44×44 CSS px theo WCAG 2.2 AA.
+  - [x] Font size input tối thiểu 16px trên mobile để chống safari auto-zoom.
+  - [x] Student portal (`checkin.html`) có Bottom Navigation / Drawer dễ thao tác bằng 1 tay trên mobile.
+  - [x] Modal/Popup trên cả Admin và Student hiển thị trọn vẹn, không tràn màn hình, không bị che nút đóng.
+  - [x] Bảng dữ liệu Admin co giãn hoặc chuyển card view/scroll wrapper mượt mà, không làm vỡ trang.
+  - [x] Toàn bộ 11 verification suites kiểm thử hệ thống chạy PASS 100% (0 regression).
+  - [x] Báo cáo nghiệm thu đầy đủ kết quả đo đạc, screenshot Before/After, đánh giá WCAG 2.2 AA và TLOG ghi nhận tại `AI_TEST_LOG.md`.
+- **Phương án kiểm thử:** Script Selenium Chrome tự động đo đạc 9 viewports, kiểm tra tràn ngang, touch targets, chụp screenshot và chạy master runner. Đã nghiệm thu tại [TLOG-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-036-kiểm-thử-toàn-diện-mobile-first-responsive-uiux-optimization-task-036).
