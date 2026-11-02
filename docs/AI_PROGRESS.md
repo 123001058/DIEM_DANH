@@ -60,12 +60,21 @@ stateDiagram-v2
 | [TASK-032](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-032-đồng-bộ-và-hiển-thị-trạng-thái-lịch-học-me-báo-nghỉ--lịch-thi-y-chang-cổng-me-lạc-hồng) | Đồng bộ và hiển thị trạng thái lịch học ME (Báo nghỉ / Lịch thi) y chang cổng ME Lạc Hồng | `[DONE]` | High | [TLOG-032](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-032-kiểm-thử-đồng-bộ-và-hiển-thị-trạng-thái-lịch-học-me-báo-nghỉ--lịch-thi-y-chang-cổng-me-lạc-hồng-task-032) (PASS) | 2026-10-31 |
 | [TASK-033](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-033-tối-ưu-hóa-độ-mượt-live-camera-trên-lcd-esp32-kiosk-theo-2-bước-đo-đạc-serial--ping-pong-double-buffering-ab--zero-lag-drop-frame) | Tối ưu độ mượt Live Camera trên LCD ESP32 Kiosk (Đo đạc Serial + Ping-Pong Double Buffering A/B & Drop Frame) | `[VERIFYING]` | High | [TLOG-033](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-033-kiểm-thử-tối-ưu-hóa-độ-mượt-live-camera-trên-lcd-esp32-kiosk-theo-2-bước-đo-đạc-serial--ping-pong-double-buffering-ab-task-033) (Firmware build & 100k stress test PASS; chờ nạp LCD thật) | 2026-10-31 |
 | [TASK-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-034-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai) | Tối ưu hóa độ nhạy & tốc độ bắt khuôn mặt Face AI (Ngưỡng 0.48, confirm 2 frames, inputSize 416) | `[DONE]` | High | [TLOG-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-034-kiểm-thử-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai-task-034) (PASS) | 2026-11-02 |
+| [TASK-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-035-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-lichhocjs) | Đồng bộ trạng thái Báo nghỉ & Lịch thi trên trang Lịch học (lichhoc.html / js/lichhoc.js) | `[DONE]` | High | [TLOG-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-035-kiểm-thử-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-task-035) (PASS) | 2026-11-02 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-02 (Tối ưu Face AI & Đồng bộ Báo nghỉ trang Lịch học)
+- **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Nhiệm vụ:** [TASK-034], [TASK-035]
+- **Tóm tắt hành động:**
+  - [TASK-034] Tối ưu hóa Face AI: nâng ngưỡng so khớp `FaceMatcher` lên `0.48`, giảm `REQUIRED_CONFIRM_FRAMES` còn 2 frames, tối ưu `TinyFaceDetector` (`inputSize: 416`, `scoreThreshold: 0.22`), đồng bộ `face-sinhvien.html` (`STABLE_FRAMES: 2`). TLOG-034 PASS.
+  - [TASK-035] Đồng bộ Báo nghỉ (`tinh_trang = 1`) và Lịch thi (`tinh_trang = 6`) trên `js/lichhoc.js`: hiển thị badge đỏ `🚫 Báo nghỉ` và gạch ngang tên môn/phòng trên lưới tuần & xem theo ngày; môn báo nghỉ được tính là Rảnh trong bộ lọc người rảnh; xuất Excel/iCalendar có tiền tố `[Báo nghỉ]`. TLOG-035 PASS.
+  - Chạy toàn bộ 11 verification suites kiểm định E2E hệ thống (`scratch/run_full_system_verification.js`): 257/257 granular checks PASS 100%, không xung đột, không phá vỡ tính năng đóng băng. Đồng bộ AST Graphify (`graphify update .`).
 
 ### Phiên làm việc: 2026-10-31 (Kiểm định toàn diện E2E & Lập báo cáo kiểm toán Backend)
 - **Agent/Model:** Worker M4 / Comprehensive E2E Verification & Reporting Worker

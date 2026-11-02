@@ -848,3 +848,28 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Tất cả các test suites liên quan đến Face AI và hệ thống chạy PASS 100%.
   - [x] Ghi nhận nhật ký `TLOG-034` và cập nhật `AI_PROGRESS.md`.
 - **Phương án kiểm thử:** Kiểm tra cú pháp tĩnh Node.js và chạy script kiểm định mô phỏng nhận diện vector.
+
+---
+
+### [TASK-035] Đồng bộ trạng thái Báo nghỉ và Lịch thi trên trang Lịch học (lichhoc.html / js/lichhoc.js)
+
+- **Ngày tạo:** 2026-11-02
+- **Mức độ ưu tiên:** High
+- **Trạng thái:** `[DONE]`
+- **Mục tiêu:**
+  1. Nạp và liên kết trường `tinh_trang` (`0`: học bình thường, `1`: Báo nghỉ, `6`: Lịch thi) từ bảng `student_schedules` trong `js/lichhoc.js`.
+  2. Hiển thị thẻ môn học trên lưới tuần (`renderSchedule()`): Vẫn giữ nguyên môn học nhưng gắn huy hiệu đỏ `🚫 Báo nghỉ`, gạch ngang tên môn/phòng (`<s>...</s>`) khi `tinh_trang === 1`, và gắn huy hiệu vàng `📝 Lịch thi` khi `tinh_trang === 6`.
+  3. Hiển thị danh sách lớp theo ngày (`renderDaySchedule()`): Gắn huy hiệu `🚫 Báo nghỉ` / `📝 Lịch thi`.
+  4. Lọc tra cứu người rảnh (`renderFreeTimeView()`): Môn có `tinh_trang === 1` (Báo nghỉ) được tính là **RẢNH** chứ không tính là bận.
+  5. Đồng bộ nhãn khi Xuất Excel ma trận (`exportMatrixExcel`), In TKB (`printTimetable`), và xuất iCalendar (`exportICalendar`).
+- **Phạm vi tác động:**
+  - `js/lichhoc.js`
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] `node -c js/lichhoc.js` exit 0.
+  - [x] `schedMap` nạp đủ thuộc tính `TinhTrang: Number(s.tinh_trang) || 0`.
+  - [x] Lưới TKB tuần và Xem theo ngày hiển thị rõ huy hiệu `🚫 Báo nghỉ` kèm tên môn gạch ngang khi `TinhTrang === 1`.
+  - [x] Lọc người rảnh tính đúng sinh viên có môn báo nghỉ là Rảnh.
+  - [x] Xuất Excel và iCal có tiền tố `[Báo nghỉ]`.
+  - [x] Toàn bộ 11 verification suites kiểm thử hệ thống chạy PASS 100%.
+  - [x] Ghi nhận nhật ký TLOG-035 và cập nhật `AI_PROGRESS.md`.
+- **Phương án kiểm thử:** Kiểm tra cú pháp tĩnh Node.js và chạy kịch bản kiểm định DOM/dữ liệu trong scratch.

@@ -285,7 +285,8 @@
           Thu: s.day_of_week || (t.getDay() === 0 ? 8 : t.getDay() + 1),
           Buoi: buoi,
           TenCoSo: s.room_name ? 'Trường' : 'Online',
-          GoogleMap: ''
+          GoogleMap: '',
+          TinhTrang: Number(s.tinh_trang) || 0
         });
       });
 
@@ -611,6 +612,20 @@
               ? `<a class="card-campus-link" href="${item.GoogleMap}" target="_blank" title="Xem trên Google Maps">📍 ${item.TenCoSo || 'Trường'}</a>`
               : `<span>📍 ${item.TenCoSo || 'Cơ sở'}</span>`;
 
+            const isCancelled = Number(item.TinhTrang) === 1;
+            const isExam = Number(item.TinhTrang) === 6;
+
+            let statusBadge = '';
+            if (isCancelled) {
+              statusBadge = `<span style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-right:4px;display:inline-block;vertical-align:middle;">🚫 Báo nghỉ</span>`;
+            } else if (isExam) {
+              statusBadge = `<span style="background:#fef3c7;color:#d97706;border:1px solid #fde68a;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-right:4px;display:inline-block;vertical-align:middle;">📝 Lịch thi</span>`;
+            }
+
+            const subjectDisplayName = isCancelled ? `<s>${item.TenMonHoc}</s>` : item.TenMonHoc;
+            const roomDisplayName = isCancelled ? `<s>${item.TenPhong || 'Chưa rõ'}</s>` : (item.TenPhong || 'Chưa rõ');
+            const cardExtraStyle = isCancelled ? 'border:1.5px solid #fca5a5;background:rgba(254,242,242,0.65);' : '';
+
             const extBadge = item.isExternal
               ? `<span style="background:#ea580c;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;">Lịch ngoài</span>`
               : '';
@@ -620,16 +635,16 @@
             const noteItem = item.note ? `<div class="card-meta-item" style="color:#2563eb;font-weight:600;"><span>📝 ${item.note}</span></div>` : '';
 
             html += `
-              <div class="subject-card ${theme}">
+              <div class="subject-card ${theme}" style="${cardExtraStyle}">
                 <div class="card-top">
-                  <div class="card-subject-name">${item.TenMonHoc} ${extBadge}</div>
+                  <div class="card-subject-name" ${isCancelled ? 'style="color:#dc2626;"' : ''}>${statusBadge}${subjectDisplayName} ${extBadge}</div>
                   <div style="display:flex;align-items:center;gap:2px;">
                     <span class="card-group">${item.TenNhom || ''}</span>
                     ${deleteBtn}
                   </div>
                 </div>
-                <div class="card-room-badge">
-                  <span>Phòng:</span> <b>${item.TenPhong || 'Chưa rõ'}</b>
+                <div class="card-room-badge" ${isCancelled ? 'style="background:#fee2e2;color:#dc2626;"' : ''}>
+                  <span>Phòng:</span> <b>${roomDisplayName}</b>
                 </div>
                 <div class="card-meta">
                   <div class="card-meta-item">
@@ -742,6 +757,19 @@
       html += `<div class="class-session-grid">`;
       sessions.forEach(sess => {
         const it = sess.info;
+        const isCancelled = Number(it.TinhTrang) === 1;
+        const isExam = Number(it.TinhTrang) === 6;
+
+        let dayStatusBadge = '';
+        if (isCancelled) {
+          dayStatusBadge = `<span style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-size:11px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">🚫 Báo nghỉ</span>`;
+        } else if (isExam) {
+          dayStatusBadge = `<span style="background:#fef3c7;color:#d97706;border:1px solid #fde68a;font-size:11px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:middle;">📝 Lịch thi</span>`;
+        }
+
+        const subjName = isCancelled ? `<s>${it.TenMonHoc}</s>` : it.TenMonHoc;
+        const roomName = isCancelled ? `<s>${it.TenPhong}</s>` : it.TenPhong;
+
         const buoiBadge = it.Buoi === 1
           ? '<span class="session-badge session-badge-morning">🌅 Sáng (07:30 - 11:25)</span>'
           : it.Buoi === 2
@@ -753,13 +781,13 @@
           : `<span>📍 ${it.TenCoSo}</span>`;
 
         html += `
-          <div class="class-session-card">
+          <div class="class-session-card" ${isCancelled ? 'style="border-color:#fca5a5;background:#fffafb;"' : ''}>
             <div class="session-header">
-              <div class="session-subject-title">${it.TenMonHoc}</div>
+              <div class="session-subject-title" ${isCancelled ? 'style="color:#dc2626;"' : ''}>${dayStatusBadge}${subjName}</div>
               ${buoiBadge}
             </div>
             <div class="session-details">
-              <div><b>Phòng:</b> <span style="color:var(--text);font-weight:800;">${it.TenPhong}</span></div>
+              <div><b>Phòng:</b> <span style="color:${isCancelled ? '#dc2626' : 'var(--text)'};font-weight:800;">${roomName}</span></div>
               <div><b>Giảng viên:</b> ${it.GiaoVien}</div>
               <div><b>Nhóm:</b> ${it.TenNhom || '—'}</div>
               <div><b>Cơ sở:</b> ${mapBtn}</div>
@@ -860,6 +888,7 @@
         const match = schedule.find(item => {
           const itemDate = item.ThoiGianBD.split('T')[0];
           if (itemDate !== targetDateStr) return false;
+          if (Number(item.TinhTrang) === 1) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
           if (freeFilterBuoi === 'all') return true;
           return item.Buoi === freeFilterBuoi;
         });
@@ -872,6 +901,7 @@
         // All semester on this Thu & Buoi
         const match = schedule.find(item => {
           if (item.Thu !== freeFilterThu) return false;
+          if (Number(item.TinhTrang) === 1) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
           if (freeFilterBuoi === 'all') return true;
           return item.Buoi === freeFilterBuoi;
         });
@@ -1207,8 +1237,11 @@
     currentStudent.schedule.forEach(item => {
       const dtStart = formatICalDate(item.ThoiGianBD);
       const dtEnd = formatICalDate(item.ThoiGianKT);
-      const summary = `${item.TenMonHoc} - Phòng ${item.TenPhong}`;
-      const desc = `Môn học: ${item.TenMonHoc}\\nNhóm: ${item.TenNhom || ''}\\nPhòng: ${item.TenPhong}\\nGiảng viên: ${item.GiaoVien}\\nCơ sở: ${item.TenCoSo}`;
+      const isCancelled = Number(item.TinhTrang) === 1;
+      const isExam = Number(item.TinhTrang) === 6;
+      const statusPrefix = isCancelled ? '[Báo nghỉ] ' : (isExam ? '[Lịch thi] ' : '');
+      const summary = `${statusPrefix}${item.TenMonHoc} - Phòng ${item.TenPhong}`;
+      const desc = `${statusPrefix}Môn học: ${item.TenMonHoc}\\nNhóm: ${item.TenNhom || ''}\\nPhòng: ${item.TenPhong}\\nGiảng viên: ${item.GiaoVien}\\nCơ sở: ${item.TenCoSo}`;
       const location = `${item.TenPhong}, ${item.TenCoSo}, ĐH Lạc Hồng`;
 
       icsContent.push('BEGIN:VEVENT');
@@ -1222,7 +1255,7 @@
       // Alarm 15 minutes before
       icsContent.push('BEGIN:VALARM');
       icsContent.push('ACTION:DISPLAY');
-      icsContent.push(`DESCRIPTION:Nhắc nhở lịch học: ${item.TenMonHoc}`);
+      icsContent.push(`DESCRIPTION:Nhắc nhở lịch học: ${summary}`);
       icsContent.push('TRIGGER:-PT15M');
       icsContent.push('END:VALARM');
       icsContent.push('END:VEVENT');
@@ -1316,9 +1349,15 @@
         tableHtml += `<td>`;
         if (matches.length > 0) {
           matches.forEach(m => {
+            const isCancelled = Number(m.TinhTrang) === 1;
+            const isExam = Number(m.TinhTrang) === 6;
+            const prefix = isCancelled ? '<span style="color:#dc2626;font-weight:bold;">[Báo nghỉ] </span><s>' : (isExam ? '<span style="color:#d97706;font-weight:bold;">[Lịch thi] </span>' : '');
+            const suffix = isCancelled ? '</s>' : '';
+            const roomText = isCancelled ? `<s>Phòng: ${m.TenPhong}</s>` : `Phòng: ${m.TenPhong}`;
+
             tableHtml += `
-              <div class="subj-title">${m.TenMonHoc}</div>
-              <div class="room">Phòng: ${m.TenPhong}</div>
+              <div class="subj-title" ${isCancelled ? 'style="color:#dc2626;"' : ''}>${prefix}${m.TenMonHoc}${suffix}</div>
+              <div class="room">${roomText}</div>
               <div>GV: ${m.GiaoVien}</div>
               <div>${m.TenCoSo}</div>
               <hr style="border:0.5px dashed #ddd;">
