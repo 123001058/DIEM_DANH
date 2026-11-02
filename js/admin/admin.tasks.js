@@ -2085,7 +2085,7 @@ async function openSession(){
       const end = new Date(start.getTime() + dur * 60000);
       const { count } = await supabase.from('student_schedules')
         .select('mssv', { count: 'exact', head: true })
-        .neq('tinh_trang', 1)
+        .not('tinh_trang', 'in', '(1,2)')
         .lt('start_time', end.toISOString())
         .gt('end_time', start.toISOString());
       if (!count) {
@@ -2682,7 +2682,7 @@ async function loadTeamGroups(){
   const names = Object.fromEntries(students.map(s => [s.mssv, s.name]));
   list.innerHTML = teamGroups.map(team => {
     const ids = membersByTeam.get(team.id) || [];
-    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && Number(s.tinh_trang) !== 1 && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
+    const busy = new Set(schedules.filter(s => ids.includes(s.mssv) && Number(s.tinh_trang) !== 1 && Number(s.tinh_trang) !== 2 && new Date(s.start_time).getTime() <= now && new Date(s.end_time).getTime() > now).map(s => s.mssv));
     const leader = names[team.leader_mssv] || 'Chưa chọn đội trưởng';
     const fieldText = team.field && team.field !== team.name ? escapeHtml(team.field) + ' · ' : '';
     return '<button class="team-accordion" onclick="openTeamGroup(\'' + escapeJsAttr(team.id) + '\')" aria-label="Mở nhóm ' + escapeHtml(team.name) + '">' +
@@ -2791,14 +2791,14 @@ async function loadTeamAvailability(){
   list.innerHTML = memberIds.map(mssv => {
     const member = students.find(s => s.mssv === mssv);
     const allClasses = byMember.get(mssv) || [];
-    const activeClass = allClasses.find(sc => Number(sc.tinh_trang) !== 1 && new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
-    const upcoming = allClasses.filter(sc => Number(sc.tinh_trang) !== 1 && new Date(sc.start_time).getTime() > now);
-    const cancelledToday = allClasses.filter(sc => Number(sc.tinh_trang) === 1);
+    const activeClass = allClasses.find(sc => Number(sc.tinh_trang) !== 1 && Number(sc.tinh_trang) !== 2 && new Date(sc.start_time).getTime() <= now && new Date(sc.end_time).getTime() > now);
+    const upcoming = allClasses.filter(sc => Number(sc.tinh_trang) !== 1 && Number(sc.tinh_trang) !== 2 && new Date(sc.start_time).getTime() > now);
+    const cancelledToday = allClasses.filter(sc => Number(sc.tinh_trang) === 1 || Number(sc.tinh_trang) === 2);
     const visibleClasses = [...(activeClass ? [activeClass] : []), ...upcoming, ...cancelledToday];
     const hasCalendar=membersWithCalendar.has(mssv);
     const isLeader = team.leader_mssv === mssv;
     const scheduleHtml = visibleClasses.length ? visibleClasses.map(sc => {
-      const isCancelled = Number(sc.tinh_trang) === 1;
+      const isCancelled = Number(sc.tinh_trang) === 1 || Number(sc.tinh_trang) === 2;
       const isExam = Number(sc.tinh_trang) === 6;
       if (isCancelled) {
         return '<div class="team-class" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca">🚫 Báo nghỉ · <s>' + escapeHtml(sc.subject_name || 'Môn học') + ' · ' + vietnamTime(sc.start_time) + '–' + vietnamTime(sc.end_time) + (sc.room_name ? ' · ' + escapeHtml(sc.room_name) : '') + '</s></div>';
@@ -3200,7 +3200,7 @@ async function loadTodaySchoolSchedule(){
           const cEnd = new Date(c.end_time).getTime();
           const isExt = Boolean(c.isExternal);
           const tinhTrang = isExt ? 0 : (Number(c.tinh_trang) || 0);
-          const isCancelled = !isExt && tinhTrang === 1;
+          const isCancelled = !isExt && (tinhTrang === 1 || tinhTrang === 2);
           const isExam = !isExt && tinhTrang === 6;
           let stateTag = '';
           let stateClass = '';

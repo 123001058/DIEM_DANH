@@ -403,8 +403,8 @@ async function checkAdminLeaveConflict(){
   const {data,error}=await supabase.from('student_schedules').select('subject_name,start_time,end_time,tinh_trang').eq('mssv',targetMssv).limit(300);
   if(error){out.textContent='Chưa kiểm tra được lịch học.';return;}if(!data?.length){out.textContent='⚪ Chưa có dữ liệu lịch học; vẫn có thể gửi đơn.';return;}
   const inWindow=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);
-  const conflicts=inWindow.filter(s=>Number(s.tinh_trang)!==1);
-  const cancelled=inWindow.filter(s=>Number(s.tinh_trang)===1);
+  const conflicts=inWindow.filter(s=>Number(s.tinh_trang)!==1&&Number(s.tinh_trang)!==2);
+  const cancelled=inWindow.filter(s=>Number(s.tinh_trang)===1||Number(s.tinh_trang)===2);
   out.textContent=conflicts.length?`⚠️ Trùng lịch học: ${conflicts.map(s=>(Number(s.tinh_trang)===6?'[Lịch thi] ':'')+s.subject_name).join(', ')}. Vẫn có thể gửi đơn.`:(cancelled.length?`🟢 Không trùng lịch học (🚫 Báo nghỉ trên ME: ${cancelled.map(s=>s.subject_name).join(', ')}).`:'Không thấy lịch học trùng thời gian.');
 }
 
@@ -667,8 +667,8 @@ function renderLeaveRequests(){
         const currentPeriod=leaveRowPeriod(r);
         const bounds=adminLeaveBounds(day,currentPeriod==='full_day'?'full_day':currentPeriod);
         const allMatches=adminLeaveSchedules.filter(s=>s.mssv===r.mssv&&bounds&&new Date(s.start_time)<bounds.end&&new Date(s.end_time)>bounds.start);
-        const matches=allMatches.filter(s=>Number(s.tinh_trang)!==1);
-        const cancelledMatches=allMatches.filter(s=>Number(s.tinh_trang)===1);
+        const matches=allMatches.filter(s=>Number(s.tinh_trang)!==1&&Number(s.tinh_trang)!==2);
+        const cancelledMatches=allMatches.filter(s=>Number(s.tinh_trang)===1||Number(s.tinh_trang)===2);
         const hasCalendar=adminLeaveSchedules.some(s=>s.mssv===r.mssv);
         const availability=!hasCalendar
           ?'⚪ Chưa có dữ liệu lịch; vẫn có thể xem xét đơn.'

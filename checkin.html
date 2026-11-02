@@ -1511,8 +1511,8 @@ async function checkLeaveConflict(){
   if(error){notice.textContent='Chưa kiểm tra được lịch học.';notice.classList.add('show');return;}
   if(!data?.length){notice.textContent='⚪ Chưa có dữ liệu lịch học. Bạn vẫn có thể gửi đơn để quản lý xem xét.';notice.classList.add('show');return;}
   const inWindow=data.filter(s=>new Date(s.start_time)<end&&new Date(s.end_time)>start);
-  const conflicts=inWindow.filter(s=>Number(s.tinh_trang)!==1);
-  const cancelled=inWindow.filter(s=>Number(s.tinh_trang)===1);
+  const conflicts=inWindow.filter(s=>Number(s.tinh_trang)!==1&&Number(s.tinh_trang)!==2);
+  const cancelled=inWindow.filter(s=>Number(s.tinh_trang)===1||Number(s.tinh_trang)===2);
   notice.textContent=conflicts.length?`⚠️ Thời gian xin nghỉ trùng lịch học: ${conflicts.map(s=>(Number(s.tinh_trang)===6?'[Lịch thi] ':'')+s.subject_name).join(', ')}. Đơn vẫn được gửi để quản lý xem xét.`:(cancelled.length?`Không thấy lịch học trùng thời gian (🚫 Báo nghỉ trên ME: ${cancelled.map(s=>s.subject_name).join(', ')}).`:'Không thấy lịch học trùng thời gian.');
   notice.classList.add('show');
 }

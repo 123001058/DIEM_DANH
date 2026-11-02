@@ -1570,3 +1570,29 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **KNOWN:** Đo đạc thực tế qua CDP Selenium Headless Chrome trên 72 kết hợp (8 trang x 9 viewports) đều không có hiện tượng cuộn ngang toàn trang (ScrollW === Viewport width); Student Bottom Nav và Admin Bottom Nav hoạt động hoàn hảo; các input font size >= 16px chống auto-zoom; 11/11 master test suites PASS 100%.
   - **LIKELY:** Trải nghiệm người dùng bằng điện thoại thực tế (iPhone Safari, Android Chrome) khi thao tác vuốt chạm một tay sẽ có độ mượt và thuận tiện tương đương một ứng dụng native.
 - **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-036).
+
+---
+
+### [TLOG-037] Sửa lỗi đồng bộ Báo nghỉ TinhTrang=2 và chuẩn hóa múi giờ hiển thị trên Lịch học (TASK-035)
+
+- **Thời gian:** 2026-11-02 17:46:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity / Senior Frontend & DB Systems
+- **Mục tiêu:**
+  1. Xác minh nguyên nhân vì sao kéo lịch từ ME về nhưng trang Lịch học (`lichhoc.html`) không hiển thị trạng thái "Báo nghỉ" cho môn "An toàn" ngày 03/11.
+  2. Phát hiện: Cổng ME Lạc Hồng trả về `TinhTrang = 2` (Trường/Khoa báo nghỉ / lịch nghỉ bù), trong khi mã nguồn trước đó chỉ kiểm tra `TinhTrang === 1` (Giảng viên báo nghỉ).
+  3. Phát hiện lỗi múi giờ: Hàm `formatTimeFromISO` cắt chuỗi `'T'` trực tiếp từ timestamp UTC khiến thời gian môn học hiển thị sai lệch 7 tiếng (ví dụ 07:30 hiển thị thành 00:30, 12:50 hiển thị thành 05:50).
+  4. Nâng cấp CSS `.card-ribbon-cancelled` và `.subject-card.is-cancelled` tái hiện dải ruy băng chéo góc "Báo nghỉ" và nền hồng nhạt giống hệt cổng ME Lạc Hồng.
+  5. Cập nhật Stored Procedures (`admin_open_session`, `admin_close_session`, `submit_attendance`, `reconcile_schedule_with_attendance`) để hỗ trợ `coalesce(tinh_trang, 0) NOT IN (1, 2)`.
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  node scratch/test_lichhoc_rendering_forensic.js
+  node scratch/stress_test_student_challenger.js
+  node scratch/run_full_system_verification.js
+  ```
+- **Kết quả thực tế:**
+  1. Dữ liệu thực tế của MSSV 125000550 tuần 02/11–08/11: Môn "An toàn" có `tinh_trang = 2`, nhận diện `isCancelled = true`.
+  2. Thời gian hiển thị chuẩn hóa `07:30 – 10:40` (chuẩn múi giờ `Asia/Ho_Chi_Minh`), môn chiều "Nguyên lý - Chi tiết máy" hiển thị `12:50 – 16:00`.
+  3. Master test runner: 11/11 suites PASS (257/257 granular checks, 0 regressions).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Dữ liệu từ API ME đã lưu vào DB là `tinh_trang = 2`. Cả frontend và backend đã mở rộng nhận diện `tinh_trang IN (1, 2)`. Giờ học hiển thị đúng 100% theo giờ Việt Nam. 11 suites test đều PASS.
+- **Trạng thái:** PASS.

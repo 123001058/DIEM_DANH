@@ -98,8 +98,34 @@
   }
 
   function formatTimeFromISO(isoString) {
-    if (!isoString || !isoString.includes('T')) return '';
-    return isoString.split('T')[1].slice(0, 5);
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) {
+        if (typeof isoString === 'string' && isoString.includes('T')) return isoString.split('T')[1].slice(0, 5);
+        return '';
+      }
+      return new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(d);
+    } catch (e) {
+      if (typeof isoString === 'string' && isoString.includes('T')) return isoString.split('T')[1].slice(0, 5);
+      return '';
+    }
+  }
+
+  // Trạng thái Báo nghỉ từ cổng ME Lạc Hồng:
+  // TinhTrang: 1 (Giảng viên báo nghỉ) hoặc 2 (Trường/Khoa báo nghỉ / lịch nghỉ bù)
+  function isCancelledSchedule(status) {
+    const n = Number(status);
+    return n === 1 || n === 2;
+  }
+
+  function isExamSchedule(status) {
+    return Number(status) === 6;
   }
 
   // Show Toast
@@ -612,11 +638,13 @@
               ? `<a class="card-campus-link" href="${item.GoogleMap}" target="_blank" title="Xem trên Google Maps">📍 ${item.TenCoSo || 'Trường'}</a>`
               : `<span>📍 ${item.TenCoSo || 'Cơ sở'}</span>`;
 
-            const isCancelled = Number(item.TinhTrang) === 1;
-            const isExam = Number(item.TinhTrang) === 6;
+            const isCancelled = isCancelledSchedule(item.TinhTrang);
+            const isExam = isExamSchedule(item.TinhTrang);
 
             let statusBadge = '';
+            let cancelRibbon = '';
             if (isCancelled) {
+              cancelRibbon = '<div class="card-ribbon-cancelled" title="Tiết học báo nghỉ trên cổng ME">Báo nghỉ</div>';
               statusBadge = `<span style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-right:4px;display:inline-block;vertical-align:middle;">🚫 Báo nghỉ</span>`;
             } else if (isExam) {
               statusBadge = `<span style="background:#fef3c7;color:#d97706;border:1px solid #fde68a;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-right:4px;display:inline-block;vertical-align:middle;">📝 Lịch thi</span>`;
@@ -624,7 +652,7 @@
 
             const subjectDisplayName = isCancelled ? `<s>${item.TenMonHoc}</s>` : item.TenMonHoc;
             const roomDisplayName = isCancelled ? `<s>${item.TenPhong || 'Chưa rõ'}</s>` : (item.TenPhong || 'Chưa rõ');
-            const cardExtraStyle = isCancelled ? 'border:1.5px solid #fca5a5;background:rgba(254,242,242,0.65);' : '';
+            const cardCancelledClass = isCancelled ? 'is-cancelled' : '';
 
             const extBadge = item.isExternal
               ? `<span style="background:#ea580c;color:#fff;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px;vertical-align:middle;">Lịch ngoài</span>`
@@ -635,7 +663,8 @@
             const noteItem = item.note ? `<div class="card-meta-item" style="color:#2563eb;font-weight:600;"><span>📝 ${item.note}</span></div>` : '';
 
             html += `
-              <div class="subject-card ${theme}" style="${cardExtraStyle}">
+              <div class="subject-card ${theme} ${cardCancelledClass}">
+                ${cancelRibbon}
                 <div class="card-top">
                   <div class="card-subject-name" ${isCancelled ? 'style="color:#dc2626;"' : ''}>${statusBadge}${subjectDisplayName} ${extBadge}</div>
                   <div style="display:flex;align-items:center;gap:2px;">
@@ -643,7 +672,7 @@
                     ${deleteBtn}
                   </div>
                 </div>
-                <div class="card-room-badge" ${isCancelled ? 'style="background:#fee2e2;color:#dc2626;"' : ''}>
+                <div class="card-room-badge" ${isCancelled ? 'style="background:#fee2e2;color:#dc2626;border-color:#fecaca;"' : ''}>
                   <span>Phòng:</span> <b>${roomDisplayName}</b>
                 </div>
                 <div class="card-meta">
@@ -757,8 +786,8 @@
       html += `<div class="class-session-grid">`;
       sessions.forEach(sess => {
         const it = sess.info;
-        const isCancelled = Number(it.TinhTrang) === 1;
-        const isExam = Number(it.TinhTrang) === 6;
+        const isCancelled = isCancelledSchedule(it.TinhTrang);
+        const isExam = isExamSchedule(it.TinhTrang);
 
         let dayStatusBadge = '';
         if (isCancelled) {
@@ -886,9 +915,9 @@
       if (freeFilterWeek !== 'all') {
         // Specific date in the selected week
         const match = schedule.find(item => {
-          const itemDate = item.ThoiGianBD.split('T')[0];
+          const itemDate = toLocalDateStr(new Date(item.ThoiGianBD));
           if (itemDate !== targetDateStr) return false;
-          if (Number(item.TinhTrang) === 1) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
+          if (isCancelledSchedule(item.TinhTrang)) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
           if (freeFilterBuoi === 'all') return true;
           return item.Buoi === freeFilterBuoi;
         });
@@ -901,7 +930,7 @@
         // All semester on this Thu & Buoi
         const match = schedule.find(item => {
           if (item.Thu !== freeFilterThu) return false;
-          if (Number(item.TinhTrang) === 1) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
+          if (isCancelledSchedule(item.TinhTrang)) return false; // Môn Báo nghỉ -> Sinh viên RẢNH!
           if (freeFilterBuoi === 'all') return true;
           return item.Buoi === freeFilterBuoi;
         });
@@ -1237,8 +1266,8 @@
     currentStudent.schedule.forEach(item => {
       const dtStart = formatICalDate(item.ThoiGianBD);
       const dtEnd = formatICalDate(item.ThoiGianKT);
-      const isCancelled = Number(item.TinhTrang) === 1;
-      const isExam = Number(item.TinhTrang) === 6;
+      const isCancelled = isCancelledSchedule(item.TinhTrang);
+      const isExam = isExamSchedule(item.TinhTrang);
       const statusPrefix = isCancelled ? '[Báo nghỉ] ' : (isExam ? '[Lịch thi] ' : '');
       const summary = `${statusPrefix}${item.TenMonHoc} - Phòng ${item.TenPhong}`;
       const desc = `${statusPrefix}Môn học: ${item.TenMonHoc}\\nNhóm: ${item.TenNhom || ''}\\nPhòng: ${item.TenPhong}\\nGiảng viên: ${item.GiaoVien}\\nCơ sở: ${item.TenCoSo}`;
@@ -1344,13 +1373,13 @@
       daysConfig.forEach(d => {
         const dayDate = curWeek.days[d.dayIndex];
         const dayDateISO = toLocalDateStr(dayDate);
-        const matches = scheduleInWeek.filter(it => it.ThoiGianBD.split('T')[0] === dayDateISO && it.Buoi === sess.buoi);
+        const matches = scheduleInWeek.filter(it => toLocalDateStr(new Date(it.ThoiGianBD)) === dayDateISO && it.Buoi === sess.buoi);
 
         tableHtml += `<td>`;
         if (matches.length > 0) {
           matches.forEach(m => {
-            const isCancelled = Number(m.TinhTrang) === 1;
-            const isExam = Number(m.TinhTrang) === 6;
+            const isCancelled = isCancelledSchedule(m.TinhTrang);
+            const isExam = isExamSchedule(m.TinhTrang);
             const prefix = isCancelled ? '<span style="color:#dc2626;font-weight:bold;">[Báo nghỉ] </span><s>' : (isExam ? '<span style="color:#d97706;font-weight:bold;">[Lịch thi] </span>' : '');
             const suffix = isCancelled ? '</s>' : '';
             const roomText = isCancelled ? `<s>Phòng: ${m.TenPhong}</s>` : `Phòng: ${m.TenPhong}`;
