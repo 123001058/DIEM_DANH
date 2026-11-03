@@ -1619,3 +1619,10 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - Giới hạn: hoàn tác 10 giây trong trang đang mở; đóng/tải lại trang sẽ mất khả năng hoàn tác, đã ghi rõ trên giao diện xác nhận và thanh hoàn tác.
 - Trạng thái: kiểm thử PASS; đang xác minh triển khai GitHub Pages.
 - Rà soát tích hợp sau commit đầu: chuẩn hóa thông báo lỗi về loại `err` đúng hệ thống toast hiện có, thêm kiểm tra loại toast trong adapter test và chạy lại browser suite. Tăng phiên bản tải admin.face.js để tránh cache cũ.
+- Xác minh triển khai: `git push origin main` thành công cho commits `90c7f05` và `9fe4f83`. `python scratch/verify_camera_history_live.py` exit 0: HTTP 200 và nội dung 3 file live khớp file đã kiểm thử (chuẩn hóa CRLF/LF):
+  - admin.html: SHA-256 `5e5f83ff7bb76145a4e8c42c7c931bb1ecfe7d7bf8ccecd63128ab49ffb42b14`.
+  - css/admin.css: SHA-256 `bca1614de7cfe032ba25d9debf378aab4b4b2b95ea640c5fdd1e696471f3457e`.
+  - js/admin/admin.face.js: SHA-256 `78fbdbeea3ff474af261bad3f20b03c3aa83216fd9a5296e32e31fef4afe221a`.
+- URL kiểm tra: https://123001058.github.io/DIEM_DANH/admin.html. GitHub Pages cần khoảng một phút để cập nhật; script chờ và xác minh bản cuối đã khớp.
+- Browser suite sau sửa toast: 34/34 PASS, 0 uncaught JavaScript errors. Supabase: không có thay đổi database cần push trong TASK-038; migration TASK-037 và thay đổi frontend của công việc khác được giữ nguyên ở working tree, không đưa vào các commit này.
+- Kết luận cuối: PASS; TASK-038 đủ bằng chứng `[DONE]` cho phạm vi giao diện/lịch sử cục bộ và triển khai frontend.

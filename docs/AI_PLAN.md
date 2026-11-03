@@ -917,10 +917,12 @@ ode -c js/admin/admin.attendance.js exit 0.
 ---
 
 ### [TASK-038] Quản lý xóa lịch sử Camera Điểm Danh ESP32 an toàn
-- Ngày: 2026-11-03. Trạng thái: `[IN_PROGRESS]`.
+- Ngày: 2026-11-03. Trạng thái: `[DONE]`.
 - Phạm vi: đúng khung Lịch sử quét theo ngày trong admin.html, js/admin/admin.face.js, css/admin.css; bổ sung kiểm thử và 3 tài liệu quản trị.
 - Hành vi: Quản lý lịch sử → chọn ngày hoặc từng lượt (mặc định không chọn) → xác nhận số lượt/ngày → xóa lựa chọn; Xóa toàn bộ trong menu phụ yêu cầu nhập XÓA; hoàn tác trong 10 giây.
 - An toàn: giữ các lượt mới đến sau khi chọn/xóa; không xóa điểm danh Supabase; lỗi lưu phải báo thất bại; chặn lần xóa tiếp theo trong thời gian hoàn tác. Giữ nguyên FRZ-005 âm thanh và mọi luồng camera/kiosk.
 - DoD: kiểm thử browser tương tác thật (chọn ngày/lượt, hủy, xác nhận, xóa toàn bộ, hoàn tác, hết hạn, lượt mới, tải lại, lỗi storage); kiểm tra cú pháp và viewport mobile/desktop; triển khai frontend GitHub Pages và kiểm tra file live.
 - Supabase: lịch sử này là localStorage, không có thay đổi schema/RPC cần push. Không đẩy migration TASK-037 của công việc khác.
 - Rủi ro: trùng sửa docs với TASK-037; chỉ ghi thêm mục mới, giữ nguyên thay đổi có sẵn. Hoàn tác có hiệu lực trong trang đang mở, không phục hồi sau khi tải lại/đóng trang.
+
+- Nghiệm thu: TLOG-039 PASS (34 kiểm tra browser + 257 regression); frontend live khớp bản kiểm thử sau push commit 9fe4f83.

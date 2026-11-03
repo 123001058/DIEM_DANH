@@ -108,7 +108,7 @@ stateDiagram-v2
 
 ---
 
-### TASK-038 — `[IN_PROGRESS]` — 2026-11-03
+### TASK-038 — `[DONE]` — 2026-11-03
 - Quản lý xóa lịch sử đúng trang Camera Điểm Danh ESP32: chọn ngày/lượt, xác nhận, hoàn tác 10 giây, xóa toàn bộ có nhập XÓA.
-- Đang triển khai và kiểm thử; frontend triển khai GitHub Pages, không phát sinh migration Supabase.
-- Kiểm thử TASK-038: TLOG-039 PASS (34 browser + 257 regression); trạng thái `[VERIFYING]` — chờ xác minh frontend đã triển khai.
+- Đã kiểm thử và triển khai GitHub Pages; TLOG-039 PASS. Không phát sinh migration Supabase.
+- Kiểm thử TASK-038: TLOG-039 PASS (34 browser + 257 regression); trạng thái `[DONE]` — frontend live đã xác minh HTTP 200 và 3 file khớp bản kiểm thử (commit 9fe4f83).
