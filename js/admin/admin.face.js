@@ -436,9 +436,8 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.48 (cân bằng tối ưu giữa độ nhạy bắt dính người thật và chống nhận nhầm)
-    // 0.40 quá gắt làm trượt người thật; 0.60 quá lỏng; 0.48 là điểm cân bằng vàng chuẩn Face-API
-    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.48);
+    // Ngưỡng so khớp Euclidean distance: 0.40 (mức bảo mật cao chống tuyệt đối nhận diện nhầm danh tính)
+    adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
   } else {
     adminFaceMatcher = null;
   }
@@ -985,7 +984,7 @@ async function runAdminDetectionLoop() {
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 2; // Giữ mặt ổn định 2 frame liên tiếp (~0.2s-0.3s) để chốt, phản hồi nhanh và chống trượt frame do mạng lag
+const REQUIRED_CONFIRM_FRAMES = 4; // Giữ mặt ổn định 4 frame liên tiếp (~0.4s-0.5s) để loại bỏ hoàn toàn glitch và chống nhận nhầm người khác
 
 async function processAdminCameraFrame(media) {
   // Guard check 1: Nếu cam đã dừng -> thoát ngay
@@ -1103,7 +1102,7 @@ async function processAdminCameraFrame(media) {
     // Khuôn mặt thật vượt qua kiểm tra chống giả mạo
     adminConsecutiveSpoofHits = 0;
 
-    if (bestMatch && bestMatch.label !== 'unknown') {
+    if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.40) {
       const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
       if (btnQuick) btnQuick.style.display = 'none';
       adminLastUnknownFaceDataUrl = null;

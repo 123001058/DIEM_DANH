@@ -1656,3 +1656,34 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - URL kiểm tra: https://123001058.github.io/DIEM_DANH/admin.html. GitHub Pages cần khoảng một phút để cập nhật; script chờ và xác minh bản cuối đã khớp.
 - Browser suite sau sửa toast: 34/34 PASS, 0 uncaught JavaScript errors. Supabase: không có thay đổi database cần push trong TASK-038; migration TASK-037 và thay đổi frontend của công việc khác được giữ nguyên ở working tree, không đưa vào các commit này.
 - Kết luận cuối: PASS; TASK-038 đủ bằng chứng `[DONE]` cho phạm vi giao diện/lịch sử cục bộ và triển khai frontend.
+
+
+---
+
+### [TLOG-039] Kiểm thử Siết chặt bảo mật Face AI chống nhận nhầm danh tính (TASK-038)
+
+- **Thời gian:** 2026-11-03 08:34:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity (Gemini 3.8 Flash High)
+- **Môi trường:** Windows 11 / Node.js 24.19.0 / Supabase Cloud DB
+- **Bối cảnh & Lỗi thực tế đã điều tra:**
+  - Trong phiên thực tế `sáng 3/11`, người dùng phản ánh Face AI nhận diện người khác thành sinh viên trong lớp và ghi nhận điểm danh.
+  - Điều tra dữ liệu DB cho thấy nhiều ca quét đạt độ khớp rất thấp (chỉ 22% - 30%, tương đương khoảng cách Euclidean 0.45 - 0.47) nhưng vì `FaceMatcher` đặt `0.48` và `REQUIRED_CONFIRM_FRAMES = 2`, hệ thống đã chốt điểm danh. Cụ thể bản ghi của MSSV 123000432 (Trần Thành Long) chỉ khớp 23% (LIVE 98.5%) đã bị chốt có mặt, sau đó Admin phải sửa tay thành "vắng không phép".
+- **Hành động khắc phục:**
+  1. Siết ngưỡng Euclidean Distance của `FaceMatcher` từ `0.48` xuống `0.40`.
+  2. Nâng số khung hình xác thực liên tục `REQUIRED_CONFIRM_FRAMES` từ `2` lên `4` frames (~0.4s - 0.5s) yêu cầu người dùng giữ mặt ổn định, loại bỏ hoàn toàn các trường hợp lướt qua hoặc glitch góc nhìn.
+  3. Bổ sung chốt chặn an toàn `bestMatch.distance <= 0.40` trước khi cho phép tích lũy frame xác thực danh tính.
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  node scratch/test_face_hardening.js
+  node scratch/run_full_system_verification.js
+  ```
+- **Kết quả thực tế:**
+  1. `scratch/test_face_hardening.js`: 13/13 assertions PASS 100%:
+     - Distance 0.47 (ca 22% sáng nay) và 0.43 (ca 28%) bị CHẶN 100%.
+     - Distance 0.35 và 0.22 (người thật hợp lệ) được CHẤP NHẬN.
+     - Xác thực đủ 4 frames liên tiếp mới chốt điểm danh.
+  2. `scratch/run_full_system_verification.js`: 11/11 test suites PASS (257/257 checks, 0 regressions, duration: 44.52s).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Mã nguồn `js/admin/admin.face.js` đã được siết chặt về 0.40 và 4 frames. Thử nghiệm mô phỏng và test suites hệ thống đều PASS.
+  - **LIKELY:** Khắc phục triệt để hiện tượng nhận diện nhầm người khác vào phiên điểm danh chính.
+- **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-038).

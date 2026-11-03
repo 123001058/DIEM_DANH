@@ -952,6 +952,31 @@ ode -c js/admin/admin.attendance.js exit 0.
 
 ---
 
+### [TASK-038] Siết chặt bảo mật Face AI chống nhận nhầm danh tính (FaceMatcher 0.40, 4 confirm frames, Confidence Gate)
+
+- **Ngày tạo:** 2026-11-03
+- **Mức độ ưu tiên:** Critical
+- **Trạng thái:** `[DONE]`
+- **Bối cảnh & Hiện trạng lỗi:**
+  - Sáng 03/11, trong phiên điểm danh thực tế `sáng 3/11`, người dùng phản ánh camera Face AI đã nhận diện nhầm người khác thành sinh viên trong lớp và tự động ghi nhận điểm danh có mặt (ghi đè vào điểm danh chính).
+  - Tra cứu dữ liệu thực tế trên Supabase Cloud cho thấy nhiều lượt quét đạt độ khớp rất thấp (chỉ 22% - 25% - 30%, tương đương khoảng cách Euclidean rất xa 0.45 - 0.47) nhưng vì ngưỡng `FaceMatcher` đặt lỏng ở mức `0.48` và `REQUIRED_CONFIRM_FRAMES = 2` (~0.2s), hệ thống đã lập tức chốt điểm danh.
+  - Cụ thể: Bản ghi của MSSV 123000432 (Trần Thành Long) chỉ khớp 23% (LIVE 98.5%) đã bị camera AI tự động chốt có mặt, sau đó Admin phải sửa tay lại thành "vắng không phép".
+- **Mục tiêu triển khai:**
+  1. Siết ngưỡng khoảng cách Euclidean của `FaceMatcher` từ `0.48` xuống mức an toàn cao `0.40`.
+  2. Tăng số khung hình xác thực liên tục `REQUIRED_CONFIRM_FRAMES` từ `2` lên `4` frames (~0.4s - 0.5s) yêu cầu người dùng nhìn thẳng ổn định vào camera, loại bỏ triệt để các trường hợp lướt qua hoặc glitch góc nhìn.
+  3. Bổ sung chốt chặn khoảng cách an toàn (Safety Distance Gate): Chỉ chấp nhận chốt điểm danh khi `bestMatch.distance <= 0.40` (độ tin cậy tính toán $\ge 33\%$). Nếu distance > 0.40, coi là chưa đủ tin cậy, không chốt điểm danh và hiển thị hướng dẫn người dùng nhìn rõ vào camera.
+  4. Đảm bảo toàn bộ 11 test suites kiểm thử hệ thống không bị hồi quy (0 regression).
+- **Phạm vi tác động:** `js/admin/admin.face.js`, `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] `js/admin/admin.face.js` có `FaceMatcher` sử dụng ngưỡng `0.40`.
+  - [x] `REQUIRED_CONFIRM_FRAMES` được đặt thành `4`.
+  - [x] Bổ sung chốt chặn `bestMatch.distance <= 0.40` trước khi cho phép tích lũy frame xác thực danh tính.
+  - [x] Cú pháp file JavaScript hợp lệ (`node -c`).
+  - [x] Chạy bộ kiểm thử tự động, xác minh các trường hợp distance > 0.40 bị từ chối 100%. Đã nghiệm thu tại [TLOG-039](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-039).
+- **Phương án kiểm thử:** Tạo script test Node.js kiểm tra invariants và mô phỏng vector descriptor.
+
+---
+
 ### [TASK-038] Quản lý xóa lịch sử Camera Điểm Danh ESP32 an toàn
 - Ngày: 2026-11-03. Trạng thái: `[DONE]`.
 - Phạm vi: đúng khung Lịch sử quét theo ngày trong admin.html, js/admin/admin.face.js, css/admin.css; bổ sung kiểm thử và 3 tài liệu quản trị.
