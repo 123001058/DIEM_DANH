@@ -62,12 +62,24 @@ stateDiagram-v2
 | [TASK-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-034-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai) | Tối ưu hóa độ nhạy & tốc độ bắt khuôn mặt Face AI (Ngưỡng 0.48, confirm 2 frames, inputSize 416) | `[DONE]` | High | [TLOG-034](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-034-kiểm-thử-tối-ưu-hóa-độ-nhạy-và-tốc-độ-nhận-diện-khuôn-mặt-face-ai-task-034) (PASS) | 2026-11-02 |
 | [TASK-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-035-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-lichhocjs) | Đồng bộ trạng thái Báo nghỉ & Lịch thi trên trang Lịch học (lichhoc.html / js/lichhoc.js) | `[DONE]` | High | [TLOG-035](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-035-kiểm-thử-đồng-bộ-trạng-thái-báo-nghỉ-và-lịch-thi-trên-trang-lịch-học-task-035) (PASS) | 2026-11-02 |
 | [TASK-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-036-mobile-first-responsive-uiux-optimization-toàn-diện-hệ-thống-lh-navix) | Mobile-First Responsive UI/UX Optimization Toàn Diện (Hệ Thống LH-NaviX) | `[DONE]` | Critical | [TLOG-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-036-kiểm-thử-toàn-diện-mobile-first-responsive-uiux-optimization-task-036) (PASS 72/72 viewports, 0 overflow, 11/11 suites PASS) | 2026-11-02 |
+| [TASK-037](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-037) | Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn | `[DONE]` | Critical | [TLOG-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-038) (PASS 21/21 assertions, 11/11 master suites) | 2026-11-03 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-03 (Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn - TASK-037)
+- **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Nhiệm vụ:** [TASK-037] (Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn)
+- **Tóm tắt hành động:**
+  - Phát hiện & sửa 3 lỗi cốt lõi:
+    1. Lỗi kẹp cứng `s.warn_before_min > 5` trong `submit_attendance` khiến ngưỡng đi muộn <= 5 phút bị tự động ép thành 15 phút. Đã gỡ bỏ, dùng `greatest(1, coalesce(warn_before_min, 30))`.
+    2. Lỗi đếm số phút muộn: Ghi chú trước đây lấy tổng thời gian từ khi mở phiên (`now() - started_at`), khiến sinh viên đến sau mốc 30 phút chỉ 2 phút lại bị ghi nhận là "Quét trễ (+32 phút)". Đã sửa thành tính đúng chênh lệch so với mốc quy định (`now() - (started_at + warn_before_min)`).
+    3. Lỗi đếm ngược trên UI (`checkin.html` và `admin.students.js`): Lấy nhầm ngưỡng đi muộn so sánh với thời gian đóng phiên, gây hiển thị mâu thuẫn "Còn XX:XX để điểm danh" suốt thời lượng phiên. Đã tách bạch: đếm ngược thời gian có mặt đúng giờ kèm cảnh báo khẩn trương khi còn <= 5 phút, và hiển thị rõ ràng khi đã chuyển sang giai đoạn Đi muộn (`🟡 Quét lúc này sẽ tính Đi muộn (+Xp)`).
+  - Tạo và thực thi migration `20261103080000_fix_late_attendance_countdown_and_calculation.sql` lên Supabase Cloud API cho cả 4 RPCs (`admin_open_session`, `submit_attendance`, `kiosk_record_face_checkin`, `submit_attendance_authenticated`).
+  - Kiểm thử chuyên sâu qua `scratch/test_late_calculation.js` (21/21 PASS) và chạy toàn bộ 11 master suites `scratch/run_full_system_verification.js` (257/257 checks PASS 100%, 0 regression). Đồng bộ AST Graphify. Ghi nhận TLOG-038.
 
 ### Phiên làm việc: 2026-11-02 (Mobile-First Responsive UI/UX Optimization Toàn Diện - TASK-036)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
@@ -105,8 +117,6 @@ stateDiagram-v2
   - Khởi tạo [`docs/AI_PLAN.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md) cấu trúc nhiệm vụ chuẩn và danh sách task hiện hành.
   - Khởi tạo [`docs/AI_PROGRESS.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PROGRESS.md) quản lý vòng đời và bảng trạng thái.
   - Khởi tạo [`docs/AI_TEST_LOG.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md) ghi nhận log kiểm thử thực nghiệm.
-
----
 
 ### TASK-038 — `[DONE]` — 2026-11-03
 - Quản lý xóa lịch sử đúng trang Camera Điểm Danh ESP32: chọn ngày/lượt, xác nhận, hoàn tác 10 giây, xóa toàn bộ có nhập XÓA.

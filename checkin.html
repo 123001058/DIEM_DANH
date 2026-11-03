@@ -1337,7 +1337,8 @@ async function loadSession(){
   document.getElementById('sessionTime').textContent = new Date(started_at).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
   document.getElementById('sessionMeta').innerHTML =
     '<span>🔑 ID: <code>' + String(id).slice(0,8) + '</code></span>' +
-    (duration_min ? '<span>⏱ ' + duration_min + ' phút</span>' : '<span>⏱ Không giới hạn</span>');
+    (duration_min ? '<span>⏱ ' + duration_min + ' phút</span>' : '<span>⏱ Không giới hạn</span>') +
+    '<span>🟡 Đi muộn sau: ' + (data.warn_before_min || 30) + ' phút</span>';
   if (sessionToken && previousSession &&
       (previousSession.id !== data.id ||
        (previousSession.qr_born_at && data.qr_born_at && previousSession.qr_born_at !== data.qr_born_at))){
@@ -1352,19 +1353,60 @@ function tickCountdown(){
   const { started_at, duration_min, warn_before_min } = currentSession;
   const el = document.getElementById('sessionCountdown');
   const box = document.getElementById('sessionBox');
-  if (!duration_min){ el.textContent = '⏱ Không giới hạn thời gian'; return; }
-  const end = new Date(started_at).getTime() + duration_min * 60000;
-  const left = Math.max(0, Math.floor((end - Date.now())/1000));
-  if (left === 0){
+  const statusTxt = document.getElementById('sessionStatusText');
+
+  const start = new Date(started_at).getTime();
+  const now = Date.now();
+  const lateMin = Math.max(1, warn_before_min || 30);
+  const lateDeadline = start + lateMin * 60000;
+
+  if (!duration_min){
+    if (now < lateDeadline) {
+      const leftUntilLate = Math.max(0, Math.floor((lateDeadline - now) / 1000));
+      if (leftUntilLate <= 300) {
+        box.className = 'session state-warn';
+        el.textContent = '⚠️ Khẩn trương! Còn ' + fmtTime(leftUntilLate) + ' trước khi tính Đi muộn';
+      } else {
+        box.className = 'session state-open';
+        el.textContent = '⏱ Còn ' + fmtTime(leftUntilLate) + ' để có mặt đúng giờ (sau đó tính Đi muộn)';
+      }
+    } else {
+      const lateDiffMin = Math.floor((now - lateDeadline) / 60000) + 1;
+      box.className = 'session state-warn';
+      if (statusTxt) statusTxt.textContent = 'Đang mở (Giai đoạn Đi muộn)';
+      el.textContent = '🟡 Đang ở giai đoạn Đi muộn (+' + lateDiffMin + 'p) · Quét sẽ tính Đi muộn';
+    }
+    return;
+  }
+
+  const end = start + duration_min * 60000;
+  const leftSession = Math.max(0, Math.floor((end - now) / 1000));
+  if (leftSession === 0){
     box.className = 'session state-closed';
-    document.getElementById('sessionStatusText').textContent = 'Đã đóng';
+    if (statusTxt) statusTxt.textContent = 'Đã đóng';
     el.textContent = '⏱ Phiên đã kết thúc';
     clearInterval(refreshTimer); currentSession = null; sessionToken = null; updateScanBtn();
     return;
   }
-  const warn = (warn_before_min || 5) * 60;
-  el.textContent = left <= warn ? '⚠️ Còn ' + fmtTime(left) + ' — Khẩn trương!' : '⏱ Còn ' + fmtTime(left) + ' để điểm danh';
-  box.className = left <= warn ? 'session state-warn' : 'session state-open';
+
+  if (now < lateDeadline) {
+    const leftUntilLate = Math.max(0, Math.floor((lateDeadline - now) / 1000));
+    if (leftUntilLate <= 300) {
+      box.className = 'session state-warn';
+      el.textContent = '⚠️ Khẩn trương! Còn ' + fmtTime(leftUntilLate) + ' trước khi tính Đi muộn';
+    } else {
+      box.className = 'session state-open';
+      el.textContent = '⏱ Còn ' + fmtTime(leftUntilLate) + ' để có mặt đúng giờ (sau đó tính Đi muộn)';
+    }
+  } else {
+    const lateDiffMin = Math.floor((now - lateDeadline) / 60000) + 1;
+    box.className = 'session state-warn';
+    if (leftSession <= 300) {
+      el.textContent = '⚠️ Sắp đóng phiên! Còn ' + fmtTime(leftSession) + ' · Đang trễ +' + lateDiffMin + 'p (sẽ tính Đi muộn)';
+    } else {
+      el.textContent = '🟡 Quét lúc này sẽ tính Đi muộn (+' + lateDiffMin + 'p) · Đóng phiên sau ' + fmtTime(leftSession);
+    }
+  }
 }
 async function doCheckin(){
   hideResult();

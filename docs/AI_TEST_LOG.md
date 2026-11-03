@@ -1597,6 +1597,36 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **KNOWN:** Dữ liệu từ API ME đã lưu vào DB là `tinh_trang = 2`. Cả frontend và backend đã mở rộng nhận diện `tinh_trang IN (1, 2)`. Giờ học hiển thị đúng 100% theo giờ Việt Nam. 11 suites test đều PASS.
 - **Trạng thái:** PASS.
 
+
+---
+
+### [TLOG-038] Kiểm thử Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn (TASK-037)
+
+- **Thời gian:** 2026-11-03 07:37:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity (Gemini 3.8 Flash High)
+- **Môi trường:** Windows 11 / PowerShell / Supabase Cloud PostgreSQL / Node.js 24.19.0
+- **Mục tiêu:**
+  1. Xác minh việc gỡ bỏ điều kiện cứng `s.warn_before_min > 5` trong `submit_attendance` và `submit_attendance_authenticated`, tiếp nhận mọi ngưỡng đi muộn cài đặt từ 1 phút trở lên (mặc định 30 phút theo chuẩn TASK-028).
+  2. Xác minh việc tính số phút trễ thực tế so với mốc quy định (`now() - (started_at + warn_before_min)`) thay vì lấy tổng thời gian từ khi mở phiên (`now() - started_at`).
+  3. Xác minh đồng bộ `kiosk_record_face_checkin`: Ngưỡng đi muộn `v_warn` mặc định 30 phút và số phút trễ tính chuẩn xác so với `v_warn`.
+  4. Xác minh bộ đếm ngược trên giao diện Sinh viên (`checkin.html`): Đếm ngược thời gian có mặt đúng giờ (`leftUntilLate`), cảnh báo màu vàng khi còn <= 5 phút, và hiển thị rõ thông báo khi đã bước sang giai đoạn Đi muộn kèm số phút trễ thực tế (`+Xp`).
+  5. Xác minh bộ đếm ngược Admin (`js/admin/admin.students.js`): Cảnh báo đỏ nguy hiểm kích hoạt chuẩn xác khi còn <= 5 phút đóng phiên; thẻ `Đi muộn sau:` cập nhật trực quan tiến độ theo thời gian thực.
+- **Lệnh kiểm thử đã chạy:**
+  ```powershell
+  node scratch/test_late_calculation.js
+  node scratch/run_full_system_verification.js
+  ```
+- **Kết quả thực tế:**
+  1. `scratch/test_late_calculation.js`: 21/21 assertions PASS 100%:
+     - Đã áp dụng migration `20261103080000_fix_late_attendance_countdown_and_calculation.sql` lên Supabase Cloud API.
+     - Kiểm tra source code SQL trên Cloud: cả `submit_attendance`, `submit_attendance_authenticated` và `kiosk_record_face_checkin` đều đã bỏ điều kiện `> 5`, sử dụng `greatest(1, coalesce(warn_before_min, 30))` và tính số phút trễ theo mốc quy định.
+     - Mô phỏng client countdown: Phút 10 còn 20 phút đúng giờ; Phút 28 cảnh báo <= 5 phút; Phút 35 chuyển sang Đi muộn (+6p) thay vì trễ 35p.
+  2. `scratch/run_full_system_verification.js`: 11/11 test suites PASS (257/257 checks, 0 regressions, duration: 33.44s).
+- **Phân định nhận thức (Epistemic Status):**
+  - **KNOWN:** Logic SQL RPC trên Cloud đã được cập nhật và kiểm tra trực tiếp qua `information_schema.routines`. Mã nguồn JS/HTML đã qua kiểm tra cú pháp và invariants. Toàn bộ 11 suites E2E đều PASS.
+  - **LIKELY:** Sinh viên và Admin khi mở web sẽ thấy đồng hồ hiển thị minh bạch, không còn ngộ nhận về thời gian tính đi muộn hay bị phạt bất ngờ.
+- **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-037).
+
 ---
 
 ### [TLOG-039] Quản lý xóa lịch sử Camera Điểm Danh ESP32 (TASK-038)

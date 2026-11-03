@@ -916,6 +916,42 @@ ode -c js/admin/admin.attendance.js exit 0.
 
 ---
 
+### [TASK-037] Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn (Late Calculation & Countdown Logic)
+
+- **Ngày tạo:** 2026-11-03
+- **Mức độ ưu tiên:** Critical
+- **Trạng thái:** `[DONE]`
+- **Bối cảnh & Hiện trạng lỗi:**
+  1. **Lỗi chặn ngưỡng đi muộn <= 5 phút:** Trong stored procedure `submit_attendance` có điều kiện `if s.warn_before_min is not null and s.warn_before_min > 5 then v_late_min := s.warn_before_min; else v_late_min := 15; end if;`. Khi Admin thiết lập ngưỡng đi muộn là 5 phút hoặc ít hơn, hệ thống tự động ép về 15 phút, gây sai lệch nghiêm trọng giữa mong muốn của Admin và kết quả điểm danh.
+  2. **Bất đồng bộ giữa quét QR web và Face AI Kiosk:** `kiosk_record_face_checkin` không có điều kiện `> 5`, dẫn tới sinh viên quét mặt lúc phút thứ 6 bị tính Đi muộn, nhưng quét QR điện thoại lúc phút thứ 6 lại được tính Có mặt.
+  3. **Lỗi đếm số phút muộn:** Ghi chú `Quét trễ (+X phút)` và `Camera ESP32: Đi muộn (+Xp)` đang lấy `now() - started_at` (tổng thời gian từ khi mở phiên) thay vì số phút trễ thực tế so với mốc quy định (`now() - (started_at + warn_before_min)`). Ví dụ: Ngưỡng 30p, sinh viên quét lúc phút thứ 32 (trễ 2 phút) nhưng bị ghi nhận là trễ tận 32 phút.
+  4. **Lỗi đếm ngược trên giao diện Sinh viên (`checkin.html`):** `tickCountdown()` so sánh `left <= warn` (với `warn = warn_before_min`), hiển thị "⏱ Còn XX:XX để điểm danh" suốt thời lượng của phiên, khiến sinh viên ngộ nhận còn nhiều thời gian để có mặt đúng giờ, nhưng khi quét sau mốc đi muộn thì bị phạt Đi muộn bất ngờ; đồng thời cảnh báo khẩn trương ở cuối phiên thay vì trước giờ đi muộn.
+  5. **Lỗi đếm ngược trên giao diện Admin (`admin.students.js`):** `tickCountdown()` cũng dùng `warn_before_min` (30 phút) để kích hoạt cảnh báo đỏ nguy hiểm suốt 30 phút cuối của phiên thay vì chỉ cảnh báo khi sắp đóng phiên (5 phút cuối).
+- **Mục tiêu triển khai:**
+  1. Tạo migration `20261103080000_fix_late_attendance_countdown_and_calculation.sql`:
+     - Cập nhật `submit_attendance`: Tiếp nhận mọi ngưỡng đi muộn hợp lệ `v_late_min := greatest(1, coalesce(s.warn_before_min, 30));`, bỏ hoàn toàn điều kiện cứng `> 5`.
+     - Cập nhật `kiosk_record_face_checkin`: Đồng bộ `v_warn := greatest(1, coalesce(v_session.warn_before_min, 30));`.
+     - Chuẩn hóa số phút trễ thực tế trong ghi chú: `v_late_diff_min := greatest(1, round(extract(epoch from (now() - (s.started_at + (v_late_min * interval '1 minute')))) / 60));` -> `Quét trễ (+' || v_late_diff_min::text || ' phút)` và `Camera ESP32: Đi muộn (+' || v_late_diff_min::text || 'p)`.
+     - Đồng bộ `admin_open_session`: Default `p_warn_before_min` là 30 phút.
+     - Thực thi áp dụng migration trực tiếp lên Supabase Cloud API.
+  2. Cập nhật `checkin.html`:
+     - Phân định rõ 2 mốc thời gian: `lateDeadline = start + warn_before_min * 60000` và `sessionEnd = start + duration_min * 60000`.
+     - Khi chưa qua mốc đi muộn: Hiển thị đếm ngược thời gian có mặt đúng giờ (`⏱ Còn MM:SS để có mặt đúng giờ (sau đó tính Đi muộn)`). Khi còn <= 5 phút: cảnh báo vàng `⚠️ Còn MM:SS trước khi tính Đi muộn — Khẩn trương!`.
+     - Khi đã qua mốc đi muộn: Hiển thị rõ ràng `🟡 Đã qua giờ đúng giờ (+X phút) — Điểm danh sẽ tính Đi muộn · Phiên đóng sau MM:SS`.
+  3. Cập nhật `js/admin/admin.students.js`:
+     - `tickCountdown()`: Cảnh báo đỏ nguy hiểm khi phiên còn <= 5 phút (300s).
+     - `sessionLateDisplay`: Hiển thị trạng thái tiến độ đi muộn động theo thời gian thực (chưa qua mốc / đã qua mốc).
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Migration SQL được tạo và áp dụng thành công trên Supabase Cloud database.
+  - [x] Ngưỡng đi muộn 5 phút, 15 phút, 30 phút hoạt động chính xác và đồng nhất 100% giữa quét QR (`submit_attendance`) và quét mặt (`kiosk_record_face_checkin`).
+  - [x] Ghi chú số phút trễ phản ánh đúng chênh lệch so với mốc quy định (không lấy nhầm tổng thời gian mở phiên).
+  - [x] Màn hình sinh viên (`checkin.html`) đếm ngược chính xác thời gian còn lại trước khi chuyển sang trạng thái Đi muộn và thông báo rõ khi đã muộn.
+  - [x] Giao diện Admin (`admin.students.js`) cảnh báo hết phiên đúng 5 phút cuối và hiển thị tiến độ đi muộn trực quan.
+  - [x] Chạy bộ kiểm thử tự động xác minh toàn diện, không hồi quy (0 regression) trên toàn hệ thống.
+- **Phương án kiểm thử:** Tạo script test mô phỏng kịch bản SQL và kiểm tra cú pháp, logic đếm ngược DOM. Đã nghiệm thu tại [TLOG-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-038).
+
+---
+
 ### [TASK-038] Quản lý xóa lịch sử Camera Điểm Danh ESP32 an toàn
 - Ngày: 2026-11-03. Trạng thái: `[DONE]`.
 - Phạm vi: đúng khung Lịch sử quét theo ngày trong admin.html, js/admin/admin.face.js, css/admin.css; bổ sung kiểm thử và 3 tài liệu quản trị.

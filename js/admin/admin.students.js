@@ -1088,19 +1088,36 @@ function tickCountdown(){
   const chip = document.getElementById('countdownChip');
   const txt = document.getElementById('countdownText');
   const warnEl = document.getElementById('qrWarning');
-  if (!currentSession.duration_min){ txt.textContent = '∞'; chip.className = 'countdown-chip'; warnEl.classList.remove('show'); return; }
+  const lateDisp = document.getElementById('sessionLateDisplay');
+
   const start = new Date(currentSession.started_at).getTime();
+  const now = Date.now();
+  const lateMin = Math.max(1, currentSession.warn_before_min || 30);
+  const lateDeadline = start + lateMin * 60000;
+
+  // Cập nhật hiển thị tiến độ đi muộn trên thanh Session Meta
+  if (lateDisp) {
+    if (now < lateDeadline) {
+      const leftUntilLate = Math.max(0, Math.floor((lateDeadline - now) / 1000));
+      lateDisp.innerHTML = lateMin + ' phút <span style="font-size:11.5px;color:var(--ok);font-weight:600">(còn ' + fmtTime(leftUntilLate) + ' đúng giờ)</span>';
+    } else {
+      const lateDiffMin = Math.floor((now - lateDeadline) / 60000) + 1;
+      lateDisp.innerHTML = lateMin + ' phút <span style="font-size:11.5px;color:#d97706;font-weight:700">(đang tính Đi muộn +' + lateDiffMin + 'p)</span>';
+    }
+  }
+
+  if (!currentSession.duration_min){ txt.textContent = '∞'; chip.className = 'countdown-chip'; warnEl.classList.remove('show'); return; }
   const end = start + currentSession.duration_min * 60000;
-  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
-  const warn = (currentSession.warn_before_min || 5) * 60;
+  const left = Math.max(0, Math.floor((end - now) / 1000));
   if (left === 0){
     txt.textContent = '00:00'; chip.className = 'countdown-chip danger'; warnEl.classList.add('show');
     if (!_closingSession){ _closingSession = true; toast('warn', 'Phiên đã tự đóng', 'Hết thời gian mở phiên.'); autoCloseSession(); }
     return;
   }
   txt.textContent = fmtTime(left);
-  if (left <= warn){ chip.className = 'countdown-chip danger'; warnEl.classList.add('show'); }
-  else if (left <= warn * 2){ chip.className = 'countdown-chip warn'; warnEl.classList.remove('show'); }
+  // Cảnh báo đỏ khi còn <= 5 phút (300s) đóng phiên, cảnh báo vàng khi còn <= 10 phút (600s)
+  if (left <= 300){ chip.className = 'countdown-chip danger'; warnEl.classList.add('show'); }
+  else if (left <= 600){ chip.className = 'countdown-chip warn'; warnEl.classList.remove('show'); }
   else { chip.className = 'countdown-chip'; warnEl.classList.remove('show'); }
 }
 function setupRealtime(){
@@ -1153,7 +1170,7 @@ async function refreshAll(){
   document.getElementById('sessionDurationDisplay').textContent = currentSession.duration_min ? currentSession.duration_min + ' phút' : 'Không giới hạn';
   const lateDisp = document.getElementById('sessionLateDisplay');
   if (lateDisp) {
-    const lateVal = currentSession.warn_before_min || localStorage.getItem('admin_late_minutes') || 15;
+    const lateVal = currentSession.warn_before_min || localStorage.getItem('admin_late_minutes') || 30;
     lateDisp.textContent = lateVal + ' phút';
   }
   _lastMssvSet = new Set();
@@ -1229,7 +1246,7 @@ window.viewPastSession = async function(sid, forceRefresh = false) {
   const durEl = document.getElementById('sessionDurationDisplay');
   if (durEl) durEl.textContent = sess.duration_min ? sess.duration_min + ' phút' : 'Không giới hạn';
   const lateDisp = document.getElementById('sessionLateDisplay');
-  if (lateDisp) lateDisp.textContent = (sess.warn_before_min || 15) + ' phút';
+  if (lateDisp) lateDisp.textContent = (sess.warn_before_min || 30) + ' phút';
 
   // Hiển thị Dashboard to
   const emptyState = document.getElementById('emptyState');
