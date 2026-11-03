@@ -1025,9 +1025,18 @@ function evaluateAdminFaceIdentity(matcher, descriptor) {
   }
 }
 
-function renderAdminIdentityDiagnostics(result, reason = result.reason) {
-  const el = document.getElementById('adminFaceIdentityDiagnostics');
-  if (!el) return;
+const ADMIN_IDENTITY_LOG_KEY = 'admin_face_identity_log_v1';
+const ADMIN_IDENTITY_LOG_LIMIT = 100;
+const ADMIN_IDENTITY_DISPLAY_MS = 1000;
+let adminIdentityLog = null;
+let adminIdentityLatest = null;
+let adminIdentityLastFace = null;
+let adminIdentityPaused = false;
+let adminIdentityLastPaint = -Infinity;
+let adminIdentityLastSample = -Infinity;
+let adminIdentityStorageFailed = false;
+
+function adminIdentityReason(reason) {
   const reasons = {
     no_face: 'Chưa thấy mặt', no_data: 'Chưa có hồ sơ để so khớp',
     invalid_data: 'Dữ liệu khuôn mặt không hợp lệ — cần kiểm tra hồ sơ',
@@ -1037,10 +1046,111 @@ function renderAdminIdentityDiagnostics(result, reason = result.reason) {
     accepted: 'Qua điều kiện danh tính; còn cần đủ 4 lượt và kiểm tra giả mạo',
     spoof: 'Bị chặn bởi kiểm tra giả mạo', stopped: 'Camera đã dừng'
   };
-  const describe = candidate => candidate ? `${candidate.label}: ${candidate.distance.toFixed(4)}` : '—';
-  el.textContent = `Gần nhất: ${describe(result.best)}\nThứ hai: ${describe(result.second)}\n` +
-    `Chênh lệch: ${result.margin == null ? '—' : result.margin.toFixed(4)} · Ngưỡng thử nghiệm: ${ADMIN_FACE_MIN_MARGIN}\n` +
-    `Kết quả: ${reasons[reason] || reason}`;
+  return reasons[reason] || reason;
+}
+
+function loadAdminIdentityLog() {
+  if (adminIdentityLog !== null) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem(ADMIN_IDENTITY_LOG_KEY) || '[]');
+    adminIdentityLog = Array.isArray(saved) ? saved.filter(row => row &&
+      typeof row.time === 'string' && Number.isFinite(Date.parse(row.time)) &&
+      typeof row.reason === 'string').slice(-ADMIN_IDENTITY_LOG_LIMIT) : [];
+  } catch (error) {
+    adminIdentityLog = [];
+    adminIdentityStorageFailed = true;
+  }
+}
+
+function formatAdminIdentitySample(row) {
+  const describe = candidate => candidate && Number.isFinite(candidate.distance)
+    ? `${candidate.label}: ${candidate.distance.toFixed(4)}` : '—';
+  return `Gần nhất: ${describe(row.best)}\nThứ hai: ${describe(row.second)}\n` +
+    `Chênh lệch: ${Number.isFinite(row.margin) ? row.margin.toFixed(4) : '—'} · Ngưỡng thử nghiệm: ${row.minMargin}\n` +
+    `Kết quả: ${adminIdentityReason(row.reason)}`;
+}
+
+function paintAdminIdentityDiagnostics(force = false) {
+  loadAdminIdentityLog();
+  const panel = document.getElementById('adminFaceIdentityDebug');
+  if (adminIdentityPaused || (!force && !panel?.open)) return;
+  const now = performance.now();
+  if (!force && now - adminIdentityLastPaint < ADMIN_IDENTITY_DISPLAY_MS) return;
+  adminIdentityLastPaint = now;
+  const el = document.getElementById('adminFaceIdentityDiagnostics');
+  if (el && adminIdentityLatest) {
+    const latest = adminIdentityLatest;
+    const sample = latest.best ? latest : adminIdentityLastFace;
+    const time = sample ? new Date(sample.time).toLocaleTimeString('vi-VN') : '';
+    el.textContent = sample
+      ? `Mẫu có mặt gần nhất: ${time}\n${formatAdminIdentitySample(sample)}` +
+        (sample !== latest ? `\nTrạng thái hiện tại: ${adminIdentityReason(latest.reason)}` : '')
+      : `Trạng thái hiện tại: ${adminIdentityReason(latest.reason)}`;
+  }
+  const list = document.getElementById('adminFaceIdentityLog');
+  if (list) {
+    list.replaceChildren();
+    for (const row of [...adminIdentityLog].reverse()) {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border);white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;';
+      item.textContent = `${new Date(row.time).toLocaleString('vi-VN')}\n${formatAdminIdentitySample(row)}`;
+      list.appendChild(item);
+    }
+  }
+  const status = document.getElementById('adminFaceIdentityLogStatus');
+  if (status) status.textContent = `${adminIdentityLog.length}/${ADMIN_IDENTITY_LOG_LIMIT} mẫu · ` +
+    (adminIdentityStorageFailed ? 'Không lưu được trên trình duyệt; hãy tải log trước khi đóng trang.' : 'Đã lưu trên trình duyệt này.');
+}
+
+function renderAdminIdentityDiagnostics(result, reason = result.reason) {
+  loadAdminIdentityLog();
+  const candidate = value => value ? { label: value.label, mssv: value.mssv, distance: value.distance } : null;
+  const row = {
+    time: new Date().toISOString(), reason,
+    best: candidate(result.best), second: candidate(result.second), margin: result.margin ?? null,
+    minMargin: ADMIN_FACE_MIN_MARGIN, distanceThreshold: adminFaceMatcher?.distanceThreshold ?? 0.40
+  };
+  adminIdentityLatest = row;
+  if (row.best) adminIdentityLastFace = row;
+  const now = performance.now();
+  // Lấy mẫu có giới hạn; không ghi từng frame và không tác động thời gian suy luận.
+  const previous = adminIdentityLog[adminIdentityLog.length - 1];
+  const repeatedEmpty = !row.best && previous && !previous.best && previous.reason === reason;
+  if (!repeatedEmpty && now - adminIdentityLastSample >= ADMIN_IDENTITY_DISPLAY_MS) {
+    adminIdentityLastSample = now;
+    adminIdentityLog.push(row);
+    if (adminIdentityLog.length > ADMIN_IDENTITY_LOG_LIMIT) adminIdentityLog.shift();
+    try {
+      localStorage.setItem(ADMIN_IDENTITY_LOG_KEY, JSON.stringify(adminIdentityLog));
+      adminIdentityStorageFailed = false;
+    } catch (error) { adminIdentityStorageFailed = true; }
+  }
+  paintAdminIdentityDiagnostics();
+}
+
+function toggleAdminIdentityPause() {
+  adminIdentityPaused = !adminIdentityPaused;
+  const button = document.getElementById('adminFaceIdentityPause');
+  if (button) {
+    button.textContent = adminIdentityPaused ? 'Tiếp tục hiển thị' : 'Tạm dừng hiển thị';
+    button.setAttribute('aria-pressed', String(adminIdentityPaused));
+  }
+  if (!adminIdentityPaused) paintAdminIdentityDiagnostics(true);
+}
+
+function exportAdminIdentityLog() {
+  loadAdminIdentityLog();
+  const blob = new Blob([JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    note: 'Nhật ký lấy mẫu tối đa 1 lần/giây, không chứa mọi frame và không xác nhận lưu điểm danh.',
+    samples: adminIdentityLog
+  }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `face-identity-${Date.now()}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function processAdminCameraFrame(media) {

@@ -620,10 +620,20 @@
 
           <!-- Cột Phải: Thẻ sinh viên vừa nhận diện & Lịch sử quét theo ngày -->
           <div style="display:flex;flex-direction:column;gap:12px;">
-            <details id="adminFaceIdentityDebug" style="padding:10px;border:1px solid var(--border);border-radius:10px;">
+            <details id="adminFaceIdentityDebug" ontoggle="if(this.open) paintAdminIdentityDiagnostics(true)" style="padding:10px;border:1px solid var(--border);border-radius:10px;">
               <summary style="cursor:pointer;font-size:12px;">Kiểm tra so khớp danh tính</summary>
               <p style="font-size:12px;color:var(--muted);">Ngưỡng chênh lệch đang thử nghiệm, cần kiểm chứng bằng camera thực tế. Khoảng cách nhỏ hơn nghĩa là giống hơn.</p>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <button type="button" class="btn btn-secondary btn-sm" id="adminFaceIdentityPause" aria-pressed="false" onclick="toggleAdminIdentityPause()">Tạm dừng hiển thị</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="adminFaceIdentityExport" onclick="exportAdminIdentityLog()">Tải log JSON</button>
+              </div>
+              <p style="font-size:12px;color:var(--muted);">Cập nhật tối đa 1 lần/giây. Tạm dừng chỉ giữ nguyên bảng; AI và ghi log vẫn chạy. Log lấy mẫu không chứa mọi khung hình và không xác nhận đã lưu điểm danh.</p>
               <pre id="adminFaceIdentityDiagnostics" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;">Chưa có kết quả quét.</pre>
+              <details>
+                <summary style="cursor:pointer;font-size:12px;">Nhật ký so khớp gần đây</summary>
+                <p id="adminFaceIdentityLogStatus" style="font-size:12px;">Mở bảng để tải nhật ký trên trình duyệt này.</p>
+                <div id="adminFaceIdentityLog" style="max-height:320px;overflow:auto;overscroll-behavior:contain;"></div>
+              </details>
             </details>
             <!-- Thẻ hồ sơ sinh viên nhận diện nổi bật -->
             <div id="adminRecognizedCard">
@@ -2098,6 +2108,6 @@
 <script src="js/admin/admin.tasks.js?v=2"></script>
 <script src="js/admin/admin.students.js?v=2"></script>
 <script src="js/admin/admin.attendance.js?v=2"></script>
-<script src="js/admin/admin.face.js?v=11"></script>
+<script src="js/admin/admin.face.js?v=12"></script>
 </body>
 </html>

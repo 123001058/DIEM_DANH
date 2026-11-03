@@ -997,3 +997,10 @@ ode -c js/admin/admin.attendance.js exit 0.
 - DoD: chạy hàm thật + FaceMatcher thật với vector fixture; xác minh ambiguity/tie/threshold/invalid/same MSSV/one identity và chuỗi frame; browser DOM click diagnostics và không gọi checkin khi bị chặn; regression và syntax pass. Camera thật/hiệu chỉnh vẫn VERIFYING đến khi có bằng chứng.
 - Kết quả local: TLOG-040 — 35 kiểm tra danh tính/browser, 34 regression lịch sử và 13 kiểm tra cũ PASS. Đã giữ strict threshold `< 0.40` như FaceMatcher thật (điều kiện cũ `<= 0.40` không khiến boundary được thư viện chấp nhận).
 - Trạng thái: `[VERIFYING]`; camera thật và ngưỡng thử nghiệm 0.05 chưa nghiệm thu. Không coi PASS vector fixture là PASS độ chính xác nhận người.
+
+### [TASK-040] Nhật ký so khớp và tạm dừng bảng chẩn đoán
+- Ngày 2026-11-03. Yêu cầu: có log xem lại và bảng không nhảy liên tục.
+- Phạm vi: admin.face.js, admin.html, tests/test_face_identity.py và docs AI. Giữ nguyên matcher, ngưỡng, bộ đếm, luồng ghi điểm danh, LCD/QR/còi.
+- Thiết kế: bảng cập nhật tối đa 1 lần/giây; nút tạm dừng chỉ đóng băng hiển thị, nhận diện và ghi log vẫn chạy. Giữ mẫu có mặt gần nhất với thời gian khi mất mặt. Lưu tối đa 100 mẫu, tối đa 1 mẫu/giây vào localStorage riêng; khôi phục khi mở lại; tải JSON để đối chiếu. Ghi rõ log lấy mẫu không chứa mọi frame và không chứng minh điểm danh đã lưu. Không lưu ảnh/vector. Nếu storage lỗi vẫn xem/xuất bản trong bộ nhớ và báo rõ.
+- DoD: test browser thật throttle, pause/resume, capture continues, timestamps/reasons/candidates, retention/reload/export/storage failure và regression identity/history; kiểm tra desktop/mobile. Chưa cần camera thật để kiểm chứng chức năng nhật ký.
+- Nghiệm thu: TLOG-041 PASS — 51 nhận diện/nhật ký + 34 regression lịch sử; đã kiểm tra download JSON, reload, lỗi storage, pause/resume và mobile. TASK-040 hoàn tất local, chưa deploy; TASK-039 vẫn VERIFYING camera thật.

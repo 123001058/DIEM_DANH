@@ -128,3 +128,7 @@ stateDiagram-v2
 - Chặn nhận diện nhập nhằng bằng hai ứng viên khác MSSV; diagnostics tùy chọn, giữ 0.40 và 4 lượt xác nhận.
 - Margin 0.05 chỉ là giá trị thử nghiệm; cần xác minh camera thật. Chưa triển khai production.
 - TLOG-040: 35 kiểm tra danh tính/browser + 34 regression lịch sử + 13 kiểm tra cũ PASS; chờ kiểm chứng camera thật và hiệu chỉnh margin. Chưa commit/push/deploy.
+
+### TASK-040 — `[DONE]` — 2026-11-03
+- Nhật ký so khớp 100 mẫu, cập nhật 1 giây, pause/resume và xuất JSON; không thay logic nhận danh tính.
+- TLOG-041 PASS: 51 kiểm tra nhận diện/nhật ký, 34 regression lịch sử. Hoàn tất chức năng local; chưa push/deploy. Không nâng trạng thái nghiệm thu chính xác nhận người của TASK-039.

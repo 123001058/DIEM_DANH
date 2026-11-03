@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import sys
 import threading
+import time
+import json
 import urllib.request
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -52,6 +54,9 @@ options = webdriver.ChromeOptions()
 options.add_argument('--headless=new')
 options.add_argument('--window-size=1440,1100')
 options.set_capability('goog:loggingPrefs', {'browser': 'ALL'})
+DOWNLOADS = ROOT / 'scratch' / f'identity-log-download-{time.time_ns()}'
+DOWNLOADS.mkdir(parents=True)
+options.add_experimental_option('prefs', {'download.default_directory': str(DOWNLOADS), 'download.prompt_for_download': False})
 driver = webdriver.Chrome(options=options)
 driver.set_script_timeout(30)
 try:
@@ -139,6 +144,7 @@ const done = arguments[arguments.length - 1];
   adminCameraActive = false; await frame(clear);
   check(writes.length === 0, 'stopped camera cannot check in');
   adminCameraActive = true; await frame(ambiguous);
+  paintAdminIdentityDiagnostics(true);
   check(document.getElementById('adminFaceIdentityDiagnostics').textContent.includes('Alpha') && document.getElementById('adminFaceIdentityDiagnostics').textContent.includes('Beta'), 'diagnostics contain both candidates');
   check(localStorage.getItem('admin_camera_scan_history_v2') === null, 'fixture never persisted attendance/history');
   return checks;
@@ -155,6 +161,69 @@ const done = arguments[arguments.length - 1];
     assert details.get_attribute('open') is not None
     assert driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').is_displayed()
     print('PASS: diagnostics collapsed by default, opens via real click')
+    extra = 0
+    def check_log(condition, label):
+        global extra
+        assert condition, label
+        extra += 1
+        print('PASS:', label)
+
+    sample_js = '''renderAdminIdentityDiagnostics({best:{label:'A - Alpha',mssv:'A',distance:0.32},second:{label:'B - Beta',mssv:'B',distance:0.33},margin:0.01}, 'ambiguous');'''
+    driver.execute_script('adminIdentityLastSample = -Infinity; adminIdentityLastPaint = -Infinity;' + sample_js)
+    original = driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text
+    count = driver.execute_script('return adminIdentityLog.length')
+    driver.execute_script("renderAdminIdentityDiagnostics({}, 'no_face');")
+    check_log(driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text == original, 'rapid updates do not repaint the table')
+    check_log(driver.execute_script('return adminIdentityLog.length') == count, 'rapid updates do not flood log')
+    time.sleep(1.1)
+    driver.execute_script("renderAdminIdentityDiagnostics({}, 'no_face');")
+    current = driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text
+    check_log('Alpha' in current and 'Chưa thấy mặt' in current and 'Mẫu có mặt gần nhất' in current, 'face loss retains last face with time and current status')
+    count = driver.execute_script('return adminIdentityLog.length')
+    driver.execute_script("adminIdentityLastSample=-Infinity; renderAdminIdentityDiagnostics({}, 'no_face');")
+    check_log(driver.execute_script('return adminIdentityLog.length') == count, 'repeated no-face status does not evict useful samples')
+    pause = driver.find_element(By.ID, 'adminFaceIdentityPause')
+    driver.execute_script('arguments[0].scrollIntoView({block:"center"})', pause)
+    pause.click()
+    frozen = driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text
+    time.sleep(1.1)
+    count = driver.execute_script('return adminIdentityLog.length')
+    driver.execute_script(sample_js)
+    check_log(driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text == frozen, 'pause freezes displayed snapshot')
+    check_log(driver.execute_script('return adminIdentityLog.length') == count + 1, 'log keeps collecting while display paused')
+    check_log(driver.execute_script('return adminCameraActive && adminInferenceRunning'), 'pause does not stop recognition')
+    pause.click()
+    check_log('Chưa thấy mặt' not in driver.find_element(By.ID, 'adminFaceIdentityDiagnostics').text, 'resume displays newest sample immediately')
+    driver.execute_script('for(let i=0;i<110;i++){adminIdentityLastSample=-Infinity;' + sample_js + '} paintAdminIdentityDiagnostics(true);')
+    check_log(driver.execute_script('return adminIdentityLog.length') == 100, 'retention capped at 100 samples')
+    saved = driver.execute_script('return JSON.parse(localStorage.getItem(ADMIN_IDENTITY_LOG_KEY))')
+    check_log(len(saved) == 100 and saved[-1]['best']['mssv'] == 'A' and saved[-1]['minMargin'] == 0.05, 'saved samples include identity distances thresholds and timestamps')
+    driver.execute_script('''const set = Storage.prototype.setItem;
+      try { Storage.prototype.setItem = () => { throw Error('test quota'); };
+        adminIdentityLastSample=-Infinity; renderAdminIdentityDiagnostics({},'no_face');
+      } finally { Storage.prototype.setItem = set; }
+      paintAdminIdentityDiagnostics(true);''')
+    check_log(driver.execute_script('return adminIdentityStorageFailed && adminIdentityLog.length === 100'), 'storage error keeps in-memory log')
+    check_log('Không lưu được' in driver.find_element(By.ID, 'adminFaceIdentityLogStatus').get_attribute('textContent'), 'storage failure clearly reported')
+    export = driver.find_element(By.ID, 'adminFaceIdentityExport')
+    driver.execute_script('arguments[0].scrollIntoView({block:"center"})', export)
+    export.click()
+    from selenium.webdriver.support.ui import WebDriverWait
+    exported = WebDriverWait(driver, 10).until(lambda _: next(iter(DOWNLOADS.glob('*.json')), None))
+    data = json.loads(exported.read_text(encoding='utf-8'))
+    check_log(len(data['samples']) == 100 and data['samples'][-1]['reason'] == 'no_face', 'JSON download contains current in-memory samples after storage failure')
+    driver.refresh()
+    details = driver.find_element(By.ID, 'adminFaceIdentityDebug')
+    summary = details.find_element(By.TAG_NAME, 'summary')
+    driver.execute_script('arguments[0].scrollIntoView({block:"center"})', summary)
+    summary.click()
+    WebDriverWait(driver, 5).until(lambda d: d.execute_script('return adminIdentityLog !== null'))
+    check_log(driver.execute_script('return adminIdentityLog.length') == 100, 'persisted log restored after page reload')
+    check_log(driver.execute_script('return adminIdentityLog[99].reason') == 'ambiguous', 'reload uses last successfully saved log')
+    nested = details.find_element(By.CSS_SELECTOR, ':scope > details > summary')
+    driver.execute_script('arguments[0].scrollIntoView({block:"center"})', nested)
+    nested.click()
+    check_log(driver.find_element(By.ID, 'adminFaceIdentityLog').is_displayed(), 'saved log readable via real click')
     for width in (1440, 390):
         driver.set_window_size(width, 1100)
         driver.execute_cdp_cmd('Emulation.setDeviceMetricsOverride', {
@@ -167,7 +236,7 @@ const done = arguments[arguments.length - 1];
         print(f'PASS: no page overflow at {width}px')
     errors = [e for e in driver.get_log('browser') if e.get('source') == 'javascript' and e['level'] == 'SEVERE']
     assert not errors, errors
-    print(f"RESULT: {len(result['checks']) + 4} checks PASS; actual FaceMatcher and production handler, synthetic descriptors. No camera/model accuracy claim.")
+    print(f"RESULT: {len(result['checks']) + 4 + extra} checks PASS; actual FaceMatcher and production handler, synthetic descriptors. No camera/model accuracy claim.")
 finally:
     driver.quit()
     server.shutdown()

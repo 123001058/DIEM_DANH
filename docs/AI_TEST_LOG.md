@@ -1703,3 +1703,16 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - LIKELY: giảm nhận nhầm khi hai ứng viên có khoảng cách sát nhau.
 - UNKNOWN: hiệu quả trên ca camera thực tế, tỷ lệ từ chối đúng người, margin tối ưu. Margin 0.05 là thử nghiệm; một người sai vẫn đứng đầu cách xa thứ hai có thể lọt. Không xử lý khung hình lặp/chất lượng ảnh/nhánh anti-spoof fallback trong task này.
 - Kết luận: kiểm thử logic/browser PASS; TASK-039 `[VERIFYING]` chờ camera thật và hiệu chỉnh. Chưa commit/push/deploy.
+
+### [TLOG-041] Nhật ký so khớp và bảng ổn định — TASK-040
+- Ngày 2026-11-03; Windows / Chrome headless / Selenium / Node. Chạy trên admin.html + admin.face.js thật với vector fixture, không camera/Supabase.
+- `node --check js/admin/admin.face.js`: exit 0.
+- `python tests/test_face_identity.py`: cuối cùng exit 0, `RESULT: 51 checks PASS; actual FaceMatcher and production handler, synthetic descriptors. No camera/model accuracy claim.`
+- `python tests/test_camera_history.py`: exit 0, `RESULT: 34 checks PASS. Fixtures only; live auth/camera not exercised.`
+- `git diff --check`: exit 0; chỉ cảnh báo LF/CRLF.
+- Chứng minh: bảng giới hạn 1 giây; mất mặt giữ mẫu gần nhất và thời gian, trạng thái hiện tại riêng; pause/resume click thật đóng băng UI trong khi log tiếp tục; không tắt camera/inference; 100 mẫu giữ giới hạn; dòng không có mặt lặp không lấp log; reload khôi phục; JSON tải thật và đọc nội dung; lỗi localStorage giữ bản bộ nhớ và cảnh báo; không thay lịch sử điểm danh; 0 uncaught JS errors; viewport thực 1440/390 không overflow.
+- Đã xem screenshot scratch/face-identity-390.png: các nút, nhật ký cuộn, dòng khoảng cách hiển thị đầy đủ.
+- Lỗi kiểm thử trung thực: lần đầu `AssertionError: saved log readable via real click` do selector `details summary` chọn summary cha thay vì nhật ký con; sửa thành `:scope > details > summary`, chạy lại đạt. Một lượt server test gặp `ConnectionResetError: [WinError 10054]` khi client đóng kết nối; suite vẫn exit 0 và không có lỗi JS. Lần cuối 51 checks PASS không có lỗi này.
+- KNOWN: chức năng nhật ký/hiển thị và hồi quy fixture PASS. LIKELY: giúp đọc và đối chiếu ca nhầm trên camera. UNKNOWN: độ chính xác thực tế của matcher vẫn thuộc TASK-039 VERIFYING.
+- Giới hạn: log lấy mẫu tối đa 1/giây, không phải mọi frame; không chứa ảnh/vector hoặc bằng chứng lưu điểm danh; lưu 100 mẫu gần nhất trên trình duyệt đang dùng. Chưa push/deploy.
+- Kết luận: PASS phạm vi chức năng TASK-040.
