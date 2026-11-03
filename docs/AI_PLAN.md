@@ -1012,3 +1012,15 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Rủi ro: tăng byte truyền/giải mã; buffer kiosk 40KB vẫn giữ, frame vượt giới hạn bị bỏ theo code hiện có; chưa chứng minh FPS/độ chính xác thực tế. Nạp firmware LCD tương thích trước khi camera VGA. Không tự flash phần cứng.
 - DoD: build hai firmware thật, kiểm tra hình học từ helper C++ thực bằng host harness, ghi bằng chứng; giữ VERIFYING đến khi nạp và thử camera/LCD, so các ca từng nhầm.
 - TLOG-042: camera và kiosk build PASS, 14 kiểm tra constexpr PASS. Trạng thái VERIFYING; firmware mới chưa được nạp. LCD VGA hiển thị80x60 căn giữa vùng120x80, giữ bố cục. Cần đo buffer/FPS và ca nhận nhầm sau nạp.
+
+
+### [TASK-042] Camera soft standby theo trạng thái phiên điểm danh (không thêm phần cứng)
+- **Ngày tạo:** 2026-11-03. **Ưu tiên:** High. **Trạng thái:** [VERIFYING].
+- **Mục tiêu:** Ngừng yêu cầu ảnh liên tục khi phiên đóng và giảm việc thu DMA liên tục ở camera bằng cơ chế lấy frame theo nhu cầu.
+- **Phạm vi:** `esp32_kiosk/esp32_kiosk.ino`, `esp32_cam_ai/esp32_cam_ai.ino`; không sửa Web Admin, QR, buzzer, RPC, HTTP handler hay cảm biến bên ngoài.
+- **Hiện trạng:** Kiosk gọi `/capture` cả khi không có phiên; camera dùng `CAMERA_GRAB_LATEST` + `fb_count=2`, gây thu ảnh liên tục.
+- **Phương án:** Supabase worker đặt cờ `camSessionOpen` theo phản hồi RPC hợp lệ; CamWorker bỏ qua HTTP GET khi cờ false (đợi 200ms, không đổi polling Supabase 1000ms). Camera dùng `CAMERA_GRAB_WHEN_EMPTY` và `fb_count=1` để không thu DMA liên tục khi rảnh. `/stream` vẫn có thể được Admin yêu cầu độc lập (bảo toàn TASK-018).
+- **Giới hạn:** Đây là **soft standby**, không phải power-down cảm biến: OV2640 và XCLK vẫn được cấp; không cam_stop/start, deinit/init hay thay đổi Wi-Fi/CPU. Không bảo đảm nhiệt độ giảm bao nhiêu trước khi đo. Khi mạng Supabase lỗi, cờ phiên gần nhất có thể còn giữ cho tới khi nhận phản hồi RPC thành công.
+- **Rủi ro:** `fb_count=1` có thể giảm FPS khi streaming đồng thời Kiosk/Admin; lần chụp đầu sau thời gian không có client có thể là frame cũ. Cần kiểm chứng trên ESP32 thực và rollback nếu giảm chất lượng nhận diện.
+- **Các bước:** (1) Xác minh code và FRZ-001/004/005; (2) giới hạn worker camera theo cờ phiên; (3) chọn grab theo nhu cầu; (4) test tĩnh, build cả hai firmware, nạp thử và đo HTTP/Serial/FPS/nhiệt độ; (5) rollback bằng revert commit trên nhánh nếu không đạt.
+- **DoD:** Kiosk 0 request `/capture` khi đóng phiên; bắt đầu gửi lại khi mở phiên; `/capture` và `/stream` hoạt động khi cần; không ảnh hưởng QR polling/còi; build hai firmware; kiểm thử trên thiết bị và so nhiệt độ/FPS trước/sau. TLOG-043 mới kiểm chứng tĩnh; build và phần cứng **chưa thực hiện**.
