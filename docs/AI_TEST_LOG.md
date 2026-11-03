@@ -1731,3 +1731,15 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - Kiosk: `arduino-cli compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_vga_kiosk esp32_kiosk` cuối cùng exit 0.
   Output thật: `Sketch uses 1099664 bytes (83%) of program storage space. Maximum is 1310720 bytes.`; `Global variables use 94152 bytes (28%) of dynamic memory, leaving 233528 bytes for local variables. Maximum is 327680 bytes.`
 - Kết luận cuối TLOG-042: cả hai firmware build PASS, 14 kiểm tra constexpr PASS. TASK-041 vẫn VERIFYING vì chưa nạp camera/LCD và chưa đo độ mượt/độ chính xác. Không tuyên bố thiết bị đang gửi VGA khi chưa nạp.
+
+
+### [TLOG-043] TASK-042 — Camera soft standby theo phiên (2026-11-03)
+- **Phạm vi chạy thật:** Dùng GitHub connector `fetch_file` để đối chiếu hai firmware trên nhánh `fix/camera-session-soft-standby-20261103` với `main`, chạy 13 biểu thức kiểm thử tĩnh qua JavaScript trong công cụ. Kết quả: **13 PASS / 0 FAIL**.
+- PASS: cờ phiên ban đầu false; CamWorker bỏ qua request khi đóng; mở/đóng phiên cập nhật cờ; Supabase polling giữ 1000ms; GET `/capture` còn nguyên; camera fb_count1/grab when empty; giữ VGA JPEG; HTTP handler và `FROZEN_FEATURES.md` không đổi; nhịp render LCD và trạng thái tắt còi boot giữ nguyên.
+- **Không thực hiện:** `arduino-cli compile` vì môi trường chạy hiện tại không có `arduino-cli` và toolchain ESP32. Chưa nạp ESP32 thật, chưa đo phản hồi HTTP/Serial, chưa đo FPS, dòng điện hoặc nhiệt độ. Không suy diễn từ static checks rằng thiết bị đã chạy hoặc giảm nhiệt.
+- **Các bước nghiệm thu còn thiếu trên Windows/Antigravity:**
+  1. `arduino-cli compile --fqbn esp32:esp32:esp32s3 esp32_cam_ai`
+  2. `arduino-cli compile --fqbn esp32:esp32:esp32 esp32_kiosk`
+  3. Nạp firmware phù hợp lên hai bo, xác minh chưa có phiên thì Kiosk không GET `/capture`; mở phiên thì GET/stream thành công, đóng thủ công/hết hạn thì dừng GET; thử đồng thời Admin xem trực tiếp.
+  4. Theo dõi Serial, FPS trên Kiosk, ảnh đầu sau idle, các lỗi `esp_camera_fb_get` và đo nhiệt độ thực tế trong cùng điều kiện trước/sau.
+- **Trạng thái:** [VERIFYING]; yêu cầu bằng chứng phần cứng trước khi đánh dấu [DONE].
