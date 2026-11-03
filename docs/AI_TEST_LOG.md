@@ -1716,3 +1716,18 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - KNOWN: chức năng nhật ký/hiển thị và hồi quy fixture PASS. LIKELY: giúp đọc và đối chiếu ca nhầm trên camera. UNKNOWN: độ chính xác thực tế của matcher vẫn thuộc TASK-039 VERIFYING.
 - Giới hạn: log lấy mẫu tối đa 1/giây, không phải mọi frame; không chứa ảnh/vector hoặc bằng chứng lưu điểm danh; lưu 100 mẫu gần nhất trên trình duyệt đang dùng. Chưa push/deploy.
 - Kết luận: PASS phạm vi chức năng TASK-040.
+
+### [TLOG-042] Nâng camera VGA, giữ JPEG trong khung LCD — TASK-041
+- Ngày: 2026-11-03. Môi trường: Windows, Arduino CLI có sẵn trong Arduino IDE. Chỉ biên dịch; không upload thiết bị.
+- Camera: `arduino-cli compile --jobs 2 --fqbn esp32:esp32:esp32s3 --build-path scratch/arduino_build_vga_cam esp32_cam_ai` exit 0.
+  Output thật: `Sketch uses 1078029 bytes (82%) of program storage space. Maximum is 1310720 bytes.`; `Global variables use 56544 bytes (17%) of dynamic memory, leaving 271136 bytes for local variables. Maximum is 327680 bytes.`
+- Hình học: `arduino-cli compile --jobs 2 --fqbn esp32:esp32:esp32 --build-property compiler.cpp.extra_flags=-IC:/Users/ACER/Documents/GitHub/DIEM_DANH --build-path scratch/arduino_build_vga_fit_tests tests/camera_frame_fit` exit 0. 14 static_assert đánh giá helper C++ thật tại compile time: HVGA/VGA/SVGA, giới hạn khung, kích thước lẻ, đầu vào trống/lớn, vị trí căn giữa VGA và không đè banner. Không có native host compiler nên dùng đánh giá constexpr bởi compiler Arduino, không gọi là chạy trên LCD.
+  Output: `Sketch uses 254772 bytes (19%) ...`; `Global variables use 22100 bytes (6%) ...`.
+- `git diff --check`: exit 0, chỉ cảnh báo LF/CRLF.
+- Lệnh dò `rg --files` không có file build phù hợp trả exit 1; không phải lỗi biên dịch. Lệnh dò g++/clang++/cl/zig không tìm thấy host compiler; không cài thêm compiler.
+- KNOWN: camera firmware build PASS; tăng cấu hình khởi tạo và sensor từ HVGA 480x320 lên VGA 640x480, giữ JPEG quality14. Helper cho VGA scale8=80x60 trong khung LCD120x80; HVGA cũ scale4 giữ120x80. QR/banner/polling/còi/matcher không đổi.
+- UNKNOWN: độ phân giải thực trên camera sau nạp, FPS/byte ảnh thực, frame vượt buffer40KB, độ nét và tỷ lệ nhận nhầm. Ảnh VGA nhiều gấp đôi điểm ảnh không chứng minh AI chính xác gấp đôi.
+- Trạng thái: VERIFYING; chờ build kiosk và thử phần cứng. Nạp LCD tương thích trước camera VGA; chưa upload/push/deploy.
+- Kiosk: `arduino-cli compile --jobs 2 --fqbn esp32:esp32:esp32 --build-path scratch/arduino_build_vga_kiosk esp32_kiosk` cuối cùng exit 0.
+  Output thật: `Sketch uses 1099664 bytes (83%) of program storage space. Maximum is 1310720 bytes.`; `Global variables use 94152 bytes (28%) of dynamic memory, leaving 233528 bytes for local variables. Maximum is 327680 bytes.`
+- Kết luận cuối TLOG-042: cả hai firmware build PASS, 14 kiểm tra constexpr PASS. TASK-041 vẫn VERIFYING vì chưa nạp camera/LCD và chưa đo độ mượt/độ chính xác. Không tuyên bố thiết bị đang gửi VGA khi chưa nạp.

@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 #include <TJpg_Decoder.h>
 #include "qrcode.h"
+#include "camera_frame_fit.h"
 
 extern TFT_eSPI tft;
 
@@ -446,13 +447,29 @@ inline void drawSplitCameraLayout() {
 // Ve frame JPEG tu camera len vung ben trai (chi goi tu main loop!)
 inline bool drawSplitCameraFrame(const uint8_t* jpgData, size_t jpgSize, bool isSuccess = false) {
   if (!jpgData || jpgSize == 0) return false;
-  
-  TJpgDec.setJpgScale(4);
+  uint16_t width = 0, height = 0;
+  if (TJpgDec.getJpgSize(&width, &height, jpgData, jpgSize) != JDR_OK) return false;
+  const uint8_t scale = cameraFrameScale(width, height, CAM_BOX_W, CAM_BOX_H);
+  if (!scale) return false; // Không để ảnh lớn tràn sang QR hoặc banner tên.
+  const int drawWidth = (width + scale - 1) / scale;
+  const int drawHeight = (height + scale - 1) / scale;
+  const int drawX = CAM_BOX_X + (CAM_BOX_W - drawWidth) / 2;
+  const int drawY = CAM_BOX_Y + (CAM_BOX_H - drawHeight) / 2;
+  TJpgDec.setJpgScale(scale);
   TJpgDec.setSwapBytes(true);
   TJpgDec.setCallback(tft_output);
   
   tft.startWrite();
-  JRESULT res = TJpgDec.drawJpg(CAM_BOX_X, CAM_BOX_Y, jpgData, jpgSize);
+  // Xóa phần viền thừa khi nguồn ảnh có độ phân giải/tỉ lệ khác trước.
+  if (drawX > CAM_BOX_X) {
+    tft.fillRect(CAM_BOX_X, CAM_BOX_Y, drawX - CAM_BOX_X, CAM_BOX_H, TFT_BLACK);
+    tft.fillRect(drawX + drawWidth, CAM_BOX_Y, CAM_BOX_X + CAM_BOX_W - drawX - drawWidth, CAM_BOX_H, TFT_BLACK);
+  }
+  if (drawY > CAM_BOX_Y) {
+    tft.fillRect(drawX, CAM_BOX_Y, drawWidth, drawY - CAM_BOX_Y, TFT_BLACK);
+    tft.fillRect(drawX, drawY + drawHeight, drawWidth, CAM_BOX_Y + CAM_BOX_H - drawY - drawHeight, TFT_BLACK);
+  }
+  JRESULT res = TJpgDec.drawJpg(drawX, drawY, jpgData, jpgSize);
   
   uint16_t cColor = isSuccess ? TFT_GREEN : ((res == JDR_OK) ? TFT_CYAN : TFT_RED);
   int bx = CAM_BOX_X, by = CAM_BOX_Y, bw = CAM_BOX_W, bh = CAM_BOX_H;

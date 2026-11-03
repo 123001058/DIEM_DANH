@@ -132,3 +132,7 @@ stateDiagram-v2
 ### TASK-040 — `[DONE]` — 2026-11-03
 - Nhật ký so khớp 100 mẫu, cập nhật 1 giây, pause/resume và xuất JSON; không thay logic nhận danh tính.
 - TLOG-041 PASS: 51 kiểm tra nhận diện/nhật ký, 34 regression lịch sử. Hoàn tất chức năng local; chưa push/deploy. Không nâng trạng thái nghiệm thu chính xác nhận người của TASK-039.
+
+### TASK-041 — `[VERIFYING]` — 2026-11-03
+- Nâng camera VGA 640x480 và thu JPEG vừa vùng LCD hiện có. Cần build và thử phần cứng.
+- TLOG-042: cả hai firmware biên dịch PASS và 14 kiểm tra hình học constexpr PASS. Chờ nạp LCD trước, camera sau; chưa đo hiệu quả nhận diện thực tế. Chưa push/deploy/upload.

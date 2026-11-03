@@ -1004,3 +1004,11 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Thiết kế: bảng cập nhật tối đa 1 lần/giây; nút tạm dừng chỉ đóng băng hiển thị, nhận diện và ghi log vẫn chạy. Giữ mẫu có mặt gần nhất với thời gian khi mất mặt. Lưu tối đa 100 mẫu, tối đa 1 mẫu/giây vào localStorage riêng; khôi phục khi mở lại; tải JSON để đối chiếu. Ghi rõ log lấy mẫu không chứa mọi frame và không chứng minh điểm danh đã lưu. Không lưu ảnh/vector. Nếu storage lỗi vẫn xem/xuất bản trong bộ nhớ và báo rõ.
 - DoD: test browser thật throttle, pause/resume, capture continues, timestamps/reasons/candidates, retention/reload/export/storage failure và regression identity/history; kiểm tra desktop/mobile. Chưa cần camera thật để kiểm chứng chức năng nhật ký.
 - Nghiệm thu: TLOG-041 PASS — 51 nhận diện/nhật ký + 34 regression lịch sử; đã kiểm tra download JSON, reload, lỗi storage, pause/resume và mobile. TASK-040 hoàn tất local, chưa deploy; TASK-039 vẫn VERIFYING camera thật.
+
+### [TASK-041] Nâng ảnh camera cho nhận diện lên VGA 640x480
+- Ngày 2026-11-03. Người dùng yêu cầu tăng độ phân giải camera để cải thiện đầu vào nhận diện.
+- Phạm vi: esp32_cam_ai.ino đặt VGA ở cả cấu hình khởi tạo và sensor; qr_display.h chọn hệ số JPEG phù hợp giữ nguyên vùng LCD 120x80. Không đổi matcher, ngưỡng, QR, còi, banner hay polling.
+- LCD: HVGA cũ vẫn scale4=120x80; VGA scale8=80x60 căn giữa (hình hiển thị nhỏ hơn trong khung), không vẽ đè QR/banner. JPEG scale chỉ hỗ trợ 1/2/4/8; không thêm bộ resize ảnh hoặc buffer.
+- Rủi ro: tăng byte truyền/giải mã; buffer kiosk 40KB vẫn giữ, frame vượt giới hạn bị bỏ theo code hiện có; chưa chứng minh FPS/độ chính xác thực tế. Nạp firmware LCD tương thích trước khi camera VGA. Không tự flash phần cứng.
+- DoD: build hai firmware thật, kiểm tra hình học từ helper C++ thực bằng host harness, ghi bằng chứng; giữ VERIFYING đến khi nạp và thử camera/LCD, so các ca từng nhầm.
+- TLOG-042: camera và kiosk build PASS, 14 kiểm tra constexpr PASS. Trạng thái VERIFYING; firmware mới chưa được nạp. LCD VGA hiển thị80x60 căn giữa vùng120x80, giữ bố cục. Cần đo buffer/FPS và ca nhận nhầm sau nạp.
