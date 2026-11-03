@@ -436,7 +436,7 @@ function reloadAdminFaceMatcher() {
   }
 
   if (labeled.length > 0) {
-    // Ngưỡng so khớp Euclidean distance: 0.40 (mức bảo mật cao chống tuyệt đối nhận diện nhầm danh tính)
+    // Ngưỡng khoảng cách 0.40; vẫn cần kiểm tra chênh lệch với MSSV đứng thứ hai.
     adminFaceMatcher = new faceapi.FaceMatcher(labeled, 0.40);
   } else {
     adminFaceMatcher = null;
@@ -804,6 +804,7 @@ function stopAdminCamera() {
   }
 
   // Reset các bộ đệm tracking
+  renderAdminIdentityDiagnostics({}, 'stopped');
   adminTrackingMssv = null;
   adminTrackingFrames = 0;
   adminConsecutiveSpoofHits = 0;
@@ -984,7 +985,63 @@ async function runAdminDetectionLoop() {
 // Biến theo dõi xác thực đa khung hình chắc chắn
 let adminTrackingMssv = null;
 let adminTrackingFrames = 0;
-const REQUIRED_CONFIRM_FRAMES = 4; // Giữ mặt ổn định 4 frame liên tiếp (~0.4s-0.5s) để loại bỏ hoàn toàn glitch và chống nhận nhầm người khác
+const REQUIRED_CONFIRM_FRAMES = 4; // 4 lượt xử lý liên tiếp đạt điều kiện; không bảo đảm là 4 ảnh mới từ camera.
+// Giá trị thử nghiệm, cần hiệu chỉnh bằng ca đúng/sai/người ngoài trên camera thực tế.
+const ADMIN_FACE_MIN_MARGIN = 0.05;
+
+function evaluateAdminFaceIdentity(matcher, descriptor) {
+  const result = { accepted: false, reason: 'no_data', best: null, second: null, margin: null };
+  if (!matcher) return result;
+  const validVector = v => v && v.length === 128 && Array.from(v).every(Number.isFinite);
+  if (!validVector(descriptor)) return { ...result, reason: 'invalid_data' };
+  try {
+    // Gộp theo MSSV để hai nhãn tên khác nhau của cùng người không thành hai ứng viên.
+    const identities = new Map();
+    for (const entry of matcher.labeledDescriptors) {
+      const mssv = entry.label.split(' - ')[0].trim();
+      if (!mssv || !entry.descriptors.length || !entry.descriptors.every(validVector)) {
+        return { ...result, reason: 'invalid_data' };
+      }
+      if (!identities.has(mssv)) identities.set(mssv, { label: entry.label, mssv, descriptors: [] });
+      identities.get(mssv).descriptors.push(...entry.descriptors);
+    }
+    const ranked = Array.from(identities.values(), entry => ({
+      label: entry.label, mssv: entry.mssv,
+      distance: matcher.computeMeanDistance(descriptor, entry.descriptors)
+    })).sort((a, b) => a.distance - b.distance || a.mssv.localeCompare(b.mssv));
+    if (!ranked.length) return result;
+    if (ranked.some(entry => !Number.isFinite(entry.distance))) return { ...result, reason: 'invalid_data' };
+    result.best = ranked[0];
+    result.second = ranked[1] || null;
+    result.margin = result.second ? result.second.distance - result.best.distance : null;
+    // FaceMatcher dùng dấu < (đúng bằng ngưỡng vẫn là unknown).
+    if (!(result.best.distance < matcher.distanceThreshold)) result.reason = 'too_far';
+    else if (!result.second) result.reason = 'insufficient_identities';
+    else if (result.margin < ADMIN_FACE_MIN_MARGIN) result.reason = 'ambiguous';
+    else { result.accepted = true; result.reason = 'accepted'; }
+    return result;
+  } catch (error) {
+    return { ...result, reason: 'invalid_data' };
+  }
+}
+
+function renderAdminIdentityDiagnostics(result, reason = result.reason) {
+  const el = document.getElementById('adminFaceIdentityDiagnostics');
+  if (!el) return;
+  const reasons = {
+    no_face: 'Chưa thấy mặt', no_data: 'Chưa có hồ sơ để so khớp',
+    invalid_data: 'Dữ liệu khuôn mặt không hợp lệ — cần kiểm tra hồ sơ',
+    too_far: 'Chưa đủ giống hồ sơ đã đăng ký',
+    insufficient_identities: 'Chưa đủ hai MSSV để kiểm tra chênh lệch',
+    ambiguous: 'Hai danh tính quá sát nhau — chưa chốt',
+    accepted: 'Qua điều kiện danh tính; còn cần đủ 4 lượt và kiểm tra giả mạo',
+    spoof: 'Bị chặn bởi kiểm tra giả mạo', stopped: 'Camera đã dừng'
+  };
+  const describe = candidate => candidate ? `${candidate.label}: ${candidate.distance.toFixed(4)}` : '—';
+  el.textContent = `Gần nhất: ${describe(result.best)}\nThứ hai: ${describe(result.second)}\n` +
+    `Chênh lệch: ${result.margin == null ? '—' : result.margin.toFixed(4)} · Ngưỡng thử nghiệm: ${ADMIN_FACE_MIN_MARGIN}\n` +
+    `Kết quả: ${reasons[reason] || reason}`;
+}
 
 async function processAdminCameraFrame(media) {
   // Guard check 1: Nếu cam đã dừng -> thoát ngay
@@ -1031,6 +1088,7 @@ async function processAdminCameraFrame(media) {
 
   // NẾU MẤT KHUÔN MẶT: RESET NGAY LẬP TỨC TIẾN TRÌNH XÁC THỰC
   if (!det) {
+    renderAdminIdentityDiagnostics({}, 'no_face');
     adminTrackingMssv = null;
     adminTrackingFrames = 0;
     adminLastUnknownFaceDataUrl = null;
@@ -1068,10 +1126,9 @@ async function processAdminCameraFrame(media) {
   }
 
   // 3. So khớp nhận diện danh tính bằng FaceMatcher
-  let bestMatch = null;
-  if (adminFaceMatcher && det.descriptor) {
-    bestMatch = adminFaceMatcher.findBestMatch(det.descriptor);
-  }
+  const identity = evaluateAdminFaceIdentity(adminFaceMatcher, det.descriptor);
+  const bestMatch = identity.best;
+  renderAdminIdentityDiagnostics(identity, antiSpoofResult.ok && !antiSpoofResult.isLive ? 'spoof' : identity.reason);
 
   // 4. Đánh giá kết hợp & Xác thực Đa Khung Hình Chắc Chắn
   let boxColor = '#3b82f6';
@@ -1102,13 +1159,13 @@ async function processAdminCameraFrame(media) {
     // Khuôn mặt thật vượt qua kiểm tra chống giả mạo
     adminConsecutiveSpoofHits = 0;
 
-    if (bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.40) {
+    if (identity.accepted && bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.40) {
       const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
       if (btnQuick) btnQuick.style.display = 'none';
       adminLastUnknownFaceDataUrl = null;
 
       const parts = bestMatch.label.split(' - ');
-      const mssv = parts[0];
+      const mssv = bestMatch.mssv;
       const name = parts[1] || mssv;
       const distance = bestMatch.distance;
 
@@ -1166,14 +1223,24 @@ async function processAdminCameraFrame(media) {
       adminTrackingMssv = null;
       adminTrackingFrames = 0;
       boxColor = '#d97706';
-      statusText = '⚠️ Khuôn mặt chưa có trong dữ liệu sinh viên';
+      const rejectionMessages = {
+        ambiguous: '⚠️ Chưa phân biệt rõ khuôn mặt — hãy nhìn thẳng và quét lại',
+        insufficient_identities: '⚠️ Cần ít nhất hai hồ sơ sinh viên để kiểm tra danh tính',
+        invalid_data: '⚠️ Dữ liệu khuôn mặt không hợp lệ — cần kiểm tra hồ sơ',
+        no_data: '⚠️ Chưa có dữ liệu khuôn mặt sinh viên',
+        too_far: '⚠️ Chưa nhận diện chắc chắn — hãy nhìn thẳng và quét lại'
+      };
+      statusText = rejectionMessages[identity.reason] || '⚠️ Chưa xác định được danh tính';
       if (hudStatus) {
         hudStatus.textContent = statusText;
         hudStatus.style.color = 'var(--warn)';
       }
 
-      // Hỗ trợ đăng ký nhanh nếu chưa có
-      try {
+      adminLastUnknownFaceDataUrl = null;
+      const quickEnrollButton = document.getElementById('btnAdminQuickEnrollFromFeed');
+      if (quickEnrollButton) quickEnrollButton.style.display = 'none';
+      // Chỉ hỗ trợ đăng ký nhanh khi chưa có kết quả phù hợp, không gán lại ca nhập nhằng.
+      if (identity.reason === 'too_far' || identity.reason === 'no_data') try {
         const cropCanvas = document.createElement('canvas');
         const pad = Math.round(box.width * 0.25);
         const cropX = Math.max(0, box.x - pad);

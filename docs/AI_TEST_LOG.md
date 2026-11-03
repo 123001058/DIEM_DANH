@@ -1687,3 +1687,19 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **KNOWN:** Mã nguồn `js/admin/admin.face.js` đã được siết chặt về 0.40 và 4 frames. Thử nghiệm mô phỏng và test suites hệ thống đều PASS.
   - **LIKELY:** Khắc phục triệt để hiện tượng nhận diện nhầm người khác vào phiên điểm danh chính.
 - **Trạng thái:** PASS (Đạt 100% tiêu chí DoD của TASK-038).
+
+### [TLOG-040] Chặn danh tính nhập nhằng — TASK-039
+- Ngày: 2026-11-03. Windows / Chrome headless / Selenium / Node.js. Phạm vi: bản local, dữ liệu vector tổng hợp; không chạy camera hoặc gọi Supabase.
+- Lệnh thực tế:
+  - `node --check js/admin/admin.face.js`: exit 0, không có lỗi cú pháp.
+  - `python tests/test_face_identity.py`: exit 0. `RESULT: 35 checks PASS; actual FaceMatcher and production handler, synthetic descriptors. No camera/model accuracy claim.`
+  - `python tests/test_camera_history.py`: exit 0. `RESULT: 34 checks PASS. Fixtures only; live auth/camera not exercised.`
+  - `node scratch/test_face_hardening.js`: exit 0. `KẾT QUẢ KIỂM THỬ: 13 PASS, 0 FAIL`. Bộ cũ chỉ kiểm tra source và logic mô phỏng; không là bằng chứng độ chính xác nhận người.
+  - `git diff --check`: exit 0; cảnh báo chuyển LF sang CRLF, không có lỗi whitespace.
+- FaceMatcher thật tải từ CDN đang dùng trong admin.html; SHA256 bundle: `0160f7af3a8c78cece45c7ecc765383bad74becfd438bb787cdd627b2d6f2cf6`.
+- KNOWN: mean distance khớp FaceMatcher; hai MSSV gần nhau/tie bị chặn; grouping cùng MSSV; một identity không đủ so sánh; vector thiếu chiều/NaN bị chặn; giữ strict threshold của thư viện; 3 lượt chưa ghi, 4 lượt đạt gọi checkin một lần; 8 lượt nhập nhằng không ghi; mất mặt/đổi người/quá ngưỡng/invalid/spoof reset bộ đếm. Hàm ghi điểm danh được thay bằng bộ đếm gọi trong test, detector trả vector fixture; không giả lập lại logic quyết định.
+- Browser: click mở diagnostics thật; hiện hai ứng viên/lý do; không tự lưu diagnostics; không tràn ở innerWidth thực 1440 và 390 (dùng device metrics, assert innerWidth). 0 uncaught JS errors. Đã xem screenshots scratch/face-identity-1440.png và scratch/face-identity-390.png. Lần đầu Chrome giới hạn window nhỏ nhất khoảng 500px; đã bổ sung device metrics và chạy lại PASS trước ghi nhận mobile 390px.
+- Regression lịch sử camera: 34/34; không đổi các hàm còi, RPC, firmware LCD/QR. Không chạy lại master suite không liên quan.
+- LIKELY: giảm nhận nhầm khi hai ứng viên có khoảng cách sát nhau.
+- UNKNOWN: hiệu quả trên ca camera thực tế, tỷ lệ từ chối đúng người, margin tối ưu. Margin 0.05 là thử nghiệm; một người sai vẫn đứng đầu cách xa thứ hai có thể lọt. Không xử lý khung hình lặp/chất lượng ảnh/nhánh anti-spoof fallback trong task này.
+- Kết luận: kiểm thử logic/browser PASS; TASK-039 `[VERIFYING]` chờ camera thật và hiệu chỉnh. Chưa commit/push/deploy.

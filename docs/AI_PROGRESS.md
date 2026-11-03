@@ -123,3 +123,8 @@ stateDiagram-v2
 - Quản lý xóa lịch sử đúng trang Camera Điểm Danh ESP32: chọn ngày/lượt, xác nhận, hoàn tác 10 giây, xóa toàn bộ có nhập XÓA.
 - Đã kiểm thử và triển khai GitHub Pages; TLOG-039 PASS. Không phát sinh migration Supabase.
 - Kiểm thử TASK-038: TLOG-039 PASS (34 browser + 257 regression); trạng thái `[DONE]` — frontend live đã xác minh HTTP 200 và 3 file khớp bản kiểm thử (commit 9fe4f83).
+
+### TASK-039 — `[VERIFYING]` — 2026-11-03
+- Chặn nhận diện nhập nhằng bằng hai ứng viên khác MSSV; diagnostics tùy chọn, giữ 0.40 và 4 lượt xác nhận.
+- Margin 0.05 chỉ là giá trị thử nghiệm; cần xác minh camera thật. Chưa triển khai production.
+- TLOG-040: 35 kiểm tra danh tính/browser + 34 regression lịch sử + 13 kiểm tra cũ PASS; chờ kiểm chứng camera thật và hiệu chỉnh margin. Chưa commit/push/deploy.

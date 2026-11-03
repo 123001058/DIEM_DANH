@@ -987,3 +987,13 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Rủi ro: trùng sửa docs với TASK-037; chỉ ghi thêm mục mới, giữ nguyên thay đổi có sẵn. Hoàn tác có hiệu lực trong trang đang mở, không phục hồi sau khi tải lại/đóng trang.
 
 - Nghiệm thu: TLOG-039 PASS (34 kiểm tra browser + 257 regression); frontend live khớp bản kiểm thử sau push commit 9fe4f83.
+
+### [TASK-039] Chặn so khớp danh tính nhập nhằng giữa hai MSSV
+- Ngày: 2026-11-03. Phạm vi được duyệt: quyết định danh tính trong admin.face.js; không đổi model, LCD, QR, còi, RPC hay dữ liệu đăng ký.
+- Files: js/admin/admin.face.js, admin.html (diagnostics và cache version), tests/test_face_identity.py, ba tài liệu AI.
+- Thiết kế: xếp hạng bằng mean Euclidean distance của FaceMatcher; gộp mẫu cùng MSSV; giữ threshold 0.40; thêm runner-up margin tạm thời 0.05 (chưa hiệu chỉnh bằng dữ liệu thực). Không đủ hai danh tính để so sánh thì từ chối và giải thích. Dữ liệu vector không hợp lệ phải từ chối thay vì làm mất ứng viên cạnh tranh.
+- Mỗi lượt trong 4 lượt phải vượt gate; ambiguous/invalid/missing/change identity reset theo luồng hiện có. Diagnostics tùy chọn hiển thị hai ứng viên, khoảng cách, gap, lý do; không lưu hay gửi dữ liệu chẩn đoán.
+- Rủi ro: tăng từ chối đúng người; margin không bảo đảm chặn người ngoài có best match cách xa runner-up. Chưa thay lọc chất lượng ảnh/khung hình mới/anti-spoof.
+- DoD: chạy hàm thật + FaceMatcher thật với vector fixture; xác minh ambiguity/tie/threshold/invalid/same MSSV/one identity và chuỗi frame; browser DOM click diagnostics và không gọi checkin khi bị chặn; regression và syntax pass. Camera thật/hiệu chỉnh vẫn VERIFYING đến khi có bằng chứng.
+- Kết quả local: TLOG-040 — 35 kiểm tra danh tính/browser, 34 regression lịch sử và 13 kiểm tra cũ PASS. Đã giữ strict threshold `< 0.40` như FaceMatcher thật (điều kiện cũ `<= 0.40` không khiến boundary được thư viện chấp nhận).
+- Trạng thái: `[VERIFYING]`; camera thật và ngưỡng thử nghiệm 0.05 chưa nghiệm thu. Không coi PASS vector fixture là PASS độ chính xác nhận người.
