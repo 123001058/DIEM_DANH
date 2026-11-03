@@ -1618,3 +1618,4 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - UNKNOWN: chưa thực hiện điểm danh bằng ESP32 vật lý/tài khoản admin thật; không thay đổi các luồng đó.
 - Giới hạn: hoàn tác 10 giây trong trang đang mở; đóng/tải lại trang sẽ mất khả năng hoàn tác, đã ghi rõ trên giao diện xác nhận và thanh hoàn tác.
 - Trạng thái: kiểm thử PASS; đang xác minh triển khai GitHub Pages.
+- Rà soát tích hợp sau commit đầu: chuẩn hóa thông báo lỗi về loại `err` đúng hệ thống toast hiện có, thêm kiểm tra loại toast trong adapter test và chạy lại browser suite. Tăng phiên bản tải admin.face.js để tránh cache cũ.

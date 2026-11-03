@@ -1599,7 +1599,7 @@ function deleteAdminScans(all) {
     adminScanUndoTimer = setInterval(updateAdminScanUndo, 250);
   } catch (error) {
     console.warn('Không thể xóa lịch sử quét:', error);
-    toast('error', 'Chưa xóa lịch sử', 'Không thể đọc hoặc lưu lịch sử. Vui lòng thử lại.');
+    toast('err', 'Chưa xóa lịch sử', 'Không thể đọc hoặc lưu lịch sử. Vui lòng thử lại.');
   }
 }
 
@@ -1644,7 +1644,7 @@ function undoAdminScanDeletion() {
     toast('ok', 'Đã hoàn tác', 'Đã khôi phục các lượt quét vừa xóa.');
   } catch (error) {
     console.warn('Không thể hoàn tác lịch sử quét:', error);
-    toast('error', 'Chưa thể hoàn tác', 'Không thể lưu lịch sử. Hãy thử lại trước khi hết thời gian hoàn tác.');
+    toast('err', 'Chưa thể hoàn tác', 'Không thể lưu lịch sử. Hãy thử lại trước khi hết thời gian hoàn tác.');
   }
 }
 

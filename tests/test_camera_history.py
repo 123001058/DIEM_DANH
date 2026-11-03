@@ -23,7 +23,7 @@ BOOT = """
 <script>
 function escapeHtml(v) { const e = document.createElement('span'); e.textContent = v ?? ''; return e.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
 window.testToasts = [];
-function toast(...args) { testToasts.push(args); }
+function toast(...args) { if (!['ok', 'err', 'warn', 'info'].includes(args[0])) throw new Error('Unknown toast type'); testToasts.push(args); }
 </script>
 <script src="/js/admin/admin.face.js"></script>
 <script>
