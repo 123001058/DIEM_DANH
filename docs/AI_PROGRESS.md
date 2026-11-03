@@ -136,3 +136,9 @@ stateDiagram-v2
 ### TASK-041 — `[VERIFYING]` — 2026-11-03
 - Nâng camera VGA 640x480 và thu JPEG vừa vùng LCD hiện có. Cần build và thử phần cứng.
 - TLOG-042: cả hai firmware biên dịch PASS và 14 kiểm tra hình học constexpr PASS. Chờ nạp LCD trước, camera sau; chưa đo hiệu quả nhận diện thực tế. Chưa push/deploy/upload.
+
+
+### TASK-042 — `[VERIFYING]` — 2026-11-03
+- Soft standby camera theo phiên điểm danh: CamWorker tạm ngừng HTTP `/capture` khi RPC báo không có phiên; camera cấu hình single framebuffer + grab when empty.
+- TLOG-043: 13/13 kiểm tra tĩnh trên GitHub branch PASS. **Chưa build Arduino, chưa nạp ESP32, chưa đo nhiệt độ và chưa test HTTP/Serial trên phần cứng.** Không đánh dấu DONE.
+- Nhánh thử nghiệm: `fix/camera-session-soft-standby-20261103` (không thay đổi `main`).
