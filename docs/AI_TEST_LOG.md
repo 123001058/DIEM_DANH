@@ -1596,3 +1596,25 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
 - **Phân định nhận thức (Epistemic Status):**
   - **KNOWN:** Dữ liệu từ API ME đã lưu vào DB là `tinh_trang = 2`. Cả frontend và backend đã mở rộng nhận diện `tinh_trang IN (1, 2)`. Giờ học hiển thị đúng 100% theo giờ Việt Nam. 11 suites test đều PASS.
 - **Trạng thái:** PASS.
+
+---
+
+### [TLOG-039] Quản lý xóa lịch sử Camera Điểm Danh ESP32 (TASK-038)
+- Ngày: 2026-11-03. Agent: Codex. Môi trường: Windows, Node.js, Python 3.13, Selenium 4.49, Chrome 156 headless.
+- Phạm vi: admin.html → #view-face-cam → Lịch sử quét theo ngày; không thay đổi database/RPC/Supabase, camera, buzzer.
+- Lệnh và kết quả thực tế:
+  - `node --check js/admin/admin.face.js`: exit 0.
+  - `python tests/test_camera_history.py`: exit 0, `RESULT: 34 checks PASS. Fixtures only; live auth/camera not exercised.`
+  - Kiểm tra: mặc định không chọn; checkbox ngày/lượt và trạng thái chọn một phần; không mở nhầm chi tiết; xác nhận ghi số lượt/ngày/phạm vi; hủy giữ nguyên; xóa đúng lựa chọn; nhập sai/hủy XÓA giữ nguyên; xóa toàn bộ và hoàn tác; ngăn xóa tiếp trong thời gian hoàn tác; lượt mới trong xác nhận/hoàn tác được giữ; lỗi lưu/xóa và lỗi hoàn tác báo thất bại, cho thử lại; giữ đủ 51 mục khi hoàn tác tại giới hạn 50; chờ thật 10.4s để thử hết hạn; tải lại vẫn giữ kết quả; 1440/390/320px không tràn ngang toàn trang hoặc danh sách; 0 lỗi JavaScript uncaught.
+  - `node scratch/run_full_system_verification.js`: exit 0; 11/11 suites, 257/257 checks PASS, 0 failed; 35.17s.
+  - `git diff --check`: exit 0 (chỉ cảnh báo chuẩn hóa LF/CRLF).
+  - Đã xem ảnh browser: scratch/camera-history-qa/history-320.png và history-1440.png.
+- Các lần kiểm thử thất bại đã xử lý:
+  1. Lần đầu test dừng vì Python stdout cp1252 không in được tiếng Việt (UnicodeEncodeError); sửa cấu hình stdout UTF-8.
+  2. Test mobile ban đầu gặp ElementClickInterceptedException bởi thanh điều hướng cố định; bổ sung cuộn phần tử về giữa màn hình trước thao tác.
+  3. Test mobile tiếp tục phát hiện header sticky che checkbox do giới hạn chiều cao thẻ 320px khi thêm thanh quản lý; sửa thẻ mở rộng riêng trong chế độ quản lý/hoàn tác và giữ danh sách cao tối thiểu 220px. Một lần server test ghi ConnectionResetError khi trình duyệt đóng sau thất bại; không phải lỗi ứng dụng. Chạy lại cuối đạt 34/34.
+- KNOWN: các hành vi trên đã chạy bằng click/input thật của Selenium với markup admin.html và toàn bộ admin.face.js; CSS responsive đã được đo và xem ảnh. Supabase không tham gia lưu/xóa lịch sử này.
+- LIKELY: cùng hành vi với tài khoản admin thật khi nhận lượt quét từ camera, vì dùng chung hàm addRecentScanRecord đã được thử với fixture.
+- UNKNOWN: chưa thực hiện điểm danh bằng ESP32 vật lý/tài khoản admin thật; không thay đổi các luồng đó.
+- Giới hạn: hoàn tác 10 giây trong trang đang mở; đóng/tải lại trang sẽ mất khả năng hoàn tác, đã ghi rõ trên giao diện xác nhận và thanh hoàn tác.
+- Trạng thái: kiểm thử PASS; đang xác minh triển khai GitHub Pages.

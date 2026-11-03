@@ -105,3 +105,10 @@ stateDiagram-v2
   - Khởi tạo [`docs/AI_PLAN.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md) cấu trúc nhiệm vụ chuẩn và danh sách task hiện hành.
   - Khởi tạo [`docs/AI_PROGRESS.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PROGRESS.md) quản lý vòng đời và bảng trạng thái.
   - Khởi tạo [`docs/AI_TEST_LOG.md`](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md) ghi nhận log kiểm thử thực nghiệm.
+
+---
+
+### TASK-038 — `[IN_PROGRESS]` — 2026-11-03
+- Quản lý xóa lịch sử đúng trang Camera Điểm Danh ESP32: chọn ngày/lượt, xác nhận, hoàn tác 10 giây, xóa toàn bộ có nhập XÓA.
+- Đang triển khai và kiểm thử; frontend triển khai GitHub Pages, không phát sinh migration Supabase.
+- Kiểm thử TASK-038: TLOG-039 PASS (34 browser + 257 regression); trạng thái `[VERIFYING]` — chờ xác minh frontend đã triển khai.

@@ -20,6 +20,10 @@ let adminInferenceRunning = false;
 let adminAntiSpoofEnabled = true; // Luôn bật sẵn khi quét, không cần nút bật tắt thủ công
 let adminAnimFrameId = null; // Quản lý requestAnimationFrame để hủy dứt khoát khi tắt cam
 let adminGroupOpenState = {}; // Trạng thái mở/đóng các folder accordion ngày
+let adminScanManaging = false;
+const adminScanSelection = new Set();
+let adminScanUndoBatch = null;
+let adminScanUndoTimer = null;
 // Chế độ hoạt động camera: 'ai' (Điểm danh AI) | 'monitor' (Chỉ xem trực tiếp)
 let adminCameraMode = 'ai';
 // Cờ ghi nhớ người dùng đã chủ động tắt camera (chống tự bật lại khi chuyển tab)
@@ -1413,6 +1417,11 @@ function renderAdminRecentScansGrouped() {
 
   const scans = loadAdminRecentScans();
   if (countEl) countEl.textContent = scans.length;
+  const presentIds = new Set(scans.map(item => item.id));
+  for (const id of adminScanSelection) {
+    if (!presentIds.has(id)) adminScanSelection.delete(id);
+  }
+  updateAdminScanManagement(scans);
 
   if (scans.length === 0) {
     list.innerHTML = `
@@ -1458,7 +1467,8 @@ function renderAdminRecentScansGrouped() {
       const photoSrc = item.facePhotoUrl || item.avatar || 'images/logo.png';
 
       return `
-        <div onclick="openFaceScanDetail('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--surface)'" title="Bấm để xem lịch sử quét chi tiết của sinh viên này">
+        <div data-scan-id="${escapeHtml(item.id)}" onclick="openFaceScanDetail(this.dataset.scanId)" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='var(--surface)'" title="Bấm để xem lịch sử quét chi tiết của sinh viên này">
+          ${adminScanManaging ? `<label class="scan-select" onclick="event.stopPropagation()"><input type="checkbox" data-scan-select="${escapeHtml(item.id)}" aria-label="${escapeHtml('Chọn lượt quét ' + item.name + ' lúc ' + item.timeFormatted)}" onchange="selectAdminScan(this.dataset.scanSelect, this.checked)" ${adminScanSelection.has(item.id) ? 'checked' : ''}></label>` : ''}
           <img src="${escapeHtml(photoSrc)}" onerror="this.src='images/logo.png'" style="width:34px;height:34px;border-radius:6px;object-fit:cover;border:1px solid var(--border);background:#fff;flex-shrink:0;">
           <div style="flex:1;min-width:0;">
             <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.name)}</div>
@@ -1474,9 +1484,10 @@ function renderAdminRecentScansGrouped() {
       <div class="scan-date-group-card" style="border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-bottom:8px;flex-shrink:0;">
         <div id="scanGroupHeader_${dKey}" onclick="toggleScanDateGroup('${dKey}')" style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--surface-2);cursor:pointer;user-select:none;border-bottom:${isOpen ? '1px solid var(--border)' : 'none'};border-top-left-radius:9px;border-top-right-radius:9px;border-bottom-left-radius:${isOpen ? '0px' : '9px'};border-bottom-right-radius:${isOpen ? '0px' : '9px'};" title="Bấm để mở/đóng danh sách">
           <div style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:12px;color:var(--text);">
+            ${adminScanManaging ? `<label class="scan-select" onclick="event.stopPropagation()"><input type="checkbox" data-scan-date="${escapeHtml(dKey)}" aria-label="${escapeHtml('Chọn ngày ' + grp.dateFormatted)}" onchange="selectAdminScanDate(this.dataset.scanDate, this.checked)"></label>` : ''}
             <span>📁</span>
             <span>${escapeHtml(grp.dayOfWeekStr)}, ${escapeHtml(grp.dateFormatted)}</span>
-            <span style="font-size:11px;color:var(--muted);font-weight:600;">(${grp.items.length} SV)</span>
+            <span style="font-size:11px;color:var(--muted);font-weight:600;">(${grp.items.length} lượt)</span>
           </div>
           <span id="scanGroupIcon_${dKey}" style="font-size:11px;color:var(--muted);font-weight:800;">${isOpen ? '▲' : '▼'}</span>
         </div>
@@ -1488,6 +1499,153 @@ function renderAdminRecentScansGrouped() {
   });
 
   list.innerHTML = html;
+  updateAdminScanManagement(scans);
+}
+
+function toggleAdminScanManagement() {
+  adminScanManaging = !adminScanManaging;
+  adminScanSelection.clear();
+  const more = document.getElementById('adminScanMore');
+  if (more) more.open = false;
+  renderAdminRecentScansGrouped();
+}
+
+function selectAdminScan(id, selected) {
+  if (selected) adminScanSelection.add(id);
+  else adminScanSelection.delete(id);
+  updateAdminScanManagement(loadAdminRecentScans());
+}
+
+function selectAdminScanDate(dateKey, selected) {
+  const scans = loadAdminRecentScans();
+  scans.filter(item => (item.dateKey || 'Khác') === dateKey).forEach(item => {
+    if (selected) adminScanSelection.add(item.id);
+    else adminScanSelection.delete(item.id);
+  });
+  updateAdminScanManagement(scans);
+}
+
+function updateAdminScanManagement(scans) {
+  const card = document.querySelector('.admin-face-history-card');
+  if (card) card.classList.toggle('is-managing', adminScanManaging || !!adminScanUndoBatch);
+  const panel = document.getElementById('adminScanManagement');
+  const manage = document.getElementById('adminScanManage');
+  const remove = document.getElementById('adminScanDeleteSelected');
+  const all = document.getElementById('adminScanDeleteAll');
+  if (panel) panel.hidden = !adminScanManaging;
+  if (manage) {
+    manage.textContent = adminScanManaging ? 'Xong' : 'Quản lý lịch sử';
+    manage.setAttribute('aria-pressed', String(adminScanManaging));
+  }
+  const selectedCount = scans.filter(item => adminScanSelection.has(item.id)).length;
+  if (remove) {
+    remove.textContent = `Xóa ${selectedCount} lượt đã chọn`;
+    remove.disabled = selectedCount === 0 || !!adminScanUndoBatch;
+  }
+  if (all) all.disabled = scans.length === 0 || !!adminScanUndoBatch;
+  document.querySelectorAll('[data-scan-select]').forEach(input => {
+    input.checked = adminScanSelection.has(input.dataset.scanSelect);
+  });
+  document.querySelectorAll('[data-scan-date]').forEach(input => {
+    const items = scans.filter(item => (item.dateKey || 'Khác') === input.dataset.scanDate);
+    const count = items.filter(item => adminScanSelection.has(item.id)).length;
+    input.checked = items.length > 0 && count === items.length;
+    input.indeterminate = count > 0 && count < items.length;
+  });
+}
+
+// Destructive actions must stop on unreadable storage, never treat it as an empty history.
+function readAdminScansForDeletion() {
+  const records = JSON.parse(localStorage.getItem('admin_camera_scan_history_v2') || '[]');
+  if (!Array.isArray(records) || records.some(item => !item || typeof item.id !== 'string')) {
+    throw new Error('Lịch sử quét không hợp lệ');
+  }
+  return records;
+}
+
+function deleteSelectedAdminScans() {
+  deleteAdminScans(false);
+}
+
+function deleteAdminScans(all) {
+  if (adminScanUndoBatch) return;
+  try {
+    const snapshot = readAdminScansForDeletion();
+    const chosen = snapshot.filter(item => all || adminScanSelection.has(item.id));
+    if (!chosen.length) return;
+    const dates = new Map();
+    chosen.forEach(item => {
+      const date = item.dateFormatted || item.dateKey || 'Không rõ ngày';
+      dates.set(date, (dates.get(date) || 0) + 1);
+    });
+    const summary = [...dates].map(([date, count]) => `${date}: ${count} lượt`).join('\n');
+    const message = `${all ? 'Xóa toàn bộ' : 'Xóa'} ${chosen.length} lượt quét?\n${summary}\n\nChỉ xóa lịch sử trên trình duyệt này. Không xóa dữ liệu điểm danh trên hệ thống.\nCó thể hoàn tác trong 10 giây nếu giữ trang này mở.`;
+    if (all) {
+      if (prompt(message + '\n\nNhập XÓA để xác nhận:') !== 'XÓA') return;
+    } else if (!confirm(message)) return;
+
+    // Re-read after confirmation: other tabs or incoming scans may have added records.
+    const ids = new Set(chosen.map(item => item.id));
+    const latest = readAdminScansForDeletion();
+    const removed = latest.filter(item => ids.has(item.id));
+    if (!removed.length) return;
+    localStorage.setItem('admin_camera_scan_history_v2', JSON.stringify(latest.filter(item => !ids.has(item.id))));
+    adminScanUndoBatch = { records: removed, expiresAt: Date.now() + 10000 };
+    adminScanSelection.clear();
+    const more = document.getElementById('adminScanMore');
+    if (more) more.open = false;
+    renderAdminRecentScansGrouped();
+    updateAdminScanUndo();
+    adminScanUndoTimer = setInterval(updateAdminScanUndo, 250);
+  } catch (error) {
+    console.warn('Không thể xóa lịch sử quét:', error);
+    toast('error', 'Chưa xóa lịch sử', 'Không thể đọc hoặc lưu lịch sử. Vui lòng thử lại.');
+  }
+}
+
+function updateAdminScanUndo() {
+  const panel = document.getElementById('adminScanUndo');
+  if (!adminScanUndoBatch) {
+    if (panel) panel.hidden = true;
+    return;
+  }
+  const seconds = Math.max(0, Math.ceil((adminScanUndoBatch.expiresAt - Date.now()) / 1000));
+  if (!seconds) {
+    adminScanUndoBatch = null;
+    clearInterval(adminScanUndoTimer);
+    adminScanUndoTimer = null;
+    if (panel) panel.hidden = true;
+    updateAdminScanManagement(loadAdminRecentScans());
+    return;
+  }
+  if (panel) panel.hidden = false;
+  const text = document.getElementById('adminScanUndoText');
+  if (text) text.textContent = `Đã xóa ${adminScanUndoBatch.records.length} lượt. Hoàn tác trong ${seconds} giây; giữ trang này mở.`;
+}
+
+function undoAdminScanDeletion() {
+  if (!adminScanUndoBatch) return;
+  if (Date.now() >= adminScanUndoBatch.expiresAt) {
+    updateAdminScanUndo();
+    return;
+  }
+  try {
+    const current = readAdminScansForDeletion();
+    const ids = new Set(current.map(item => item.id));
+    const restored = current.concat(adminScanUndoBatch.records.filter(item => !ids.has(item.id)))
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Do not trim here: undo must preserve both removed records and newly arrived scans.
+    localStorage.setItem('admin_camera_scan_history_v2', JSON.stringify(restored));
+    adminScanUndoBatch = null;
+    clearInterval(adminScanUndoTimer);
+    adminScanUndoTimer = null;
+    updateAdminScanUndo();
+    renderAdminRecentScansGrouped();
+    toast('ok', 'Đã hoàn tác', 'Đã khôi phục các lượt quét vừa xóa.');
+  } catch (error) {
+    console.warn('Không thể hoàn tác lịch sử quét:', error);
+    toast('error', 'Chưa thể hoàn tác', 'Không thể lưu lịch sử. Hãy thử lại trước khi hết thời gian hoàn tác.');
+  }
 }
 
 function toggleScanDateGroup(dateKey) {
@@ -1579,13 +1737,7 @@ function closeFaceScanDetailModal() {
 }
 
 function clearAdminRecentScans() {
-  if (!confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử quét camera trên thiết bị này?')) {
-    return;
-  }
-  localStorage.removeItem('admin_camera_scan_history_v2');
-  adminGroupOpenState = {};
-  renderAdminRecentScansGrouped();
-  toast('ok', 'Đã xóa lịch sử', 'Đã dọn sạch toàn bộ lịch sử quét.');
+  deleteAdminScans(true);
 }
 
 function playAdminSuccessBeep() {

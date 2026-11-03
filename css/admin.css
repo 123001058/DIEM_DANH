@@ -540,6 +540,25 @@ body {
 
 .count-badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: rgba(0,0,0,0.06); }
 .schedule-list-wrap, .history-list-wrap { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.scan-history-heading, .scan-management-actions, .scan-undo {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scan-management { margin-bottom: 10px; }
+.scan-management p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.scan-management-actions, .scan-undo { display: flex; align-items: center; }
+.scan-management[hidden], .scan-undo[hidden] { display: none; }
+.scan-undo { margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 12px; }
+.scan-undo span { flex: 1; min-width: 140px; }
+.scan-more summary { cursor: pointer; padding: 8px 14px; font-weight: 800; list-style: none; }
+.scan-more[open] { flex-basis: 100%; }
+.scan-select { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; flex-shrink: 0; cursor: pointer; }
+.scan-select input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary, #2563eb); }
+.scan-history-heading button, .scan-management-actions button, .scan-undo button, .scan-more summary { min-height: 44px; white-space: normal; }
+.admin-face-history-card.is-managing { max-height: none !important; }
+.admin-face-history-card.is-managing .admin-face-history-list { min-height: 220px !important; flex-shrink: 0; }
+.scan-date-group-card [id^="scanGroupHeader_"] > div { flex-wrap: wrap; min-width: 0; }
+
 .admin-face-history-list {
   min-height: 0;
   -webkit-overflow-scrolling: touch;
