@@ -56,10 +56,12 @@ void setup() {
   // VGA 640x480: tăng chi tiết ảnh đầu vào AI; cần đo lại FPS trên thiết bị thật.
   config.frame_size   = FRAMESIZE_VGA;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode    = CAMERA_GRAB_LATEST;
+  // Mot framebuffer: driver thu tung frame theo yeu cau thay vi DMA lien tuc
+  // khi khong co client. Camera van cap nguon/XCLK (soft standby, khong Deep Sleep).
+  config.grab_mode    = CAMERA_GRAB_WHEN_EMPTY;
   config.fb_location  = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 14; // Nén tối ưu băng thông Wi-Fi, giảm giật lag triệt để
-  config.fb_count     = 2;
+  config.fb_count     = 1;
 
   // Khởi tạo camera
   esp_err_t err = esp_camera_init(&config);
