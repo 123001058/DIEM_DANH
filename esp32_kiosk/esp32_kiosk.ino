@@ -62,6 +62,8 @@ char pendingCheckinName[64] = "";
 char pendingCheckinMssv[16] = "";
 
 volatile bool pendingNoSessionFlag = false;
+// Cap nhat tu Supabase worker (Core 0), chi cho camera fetch khi co phien.
+volatile bool camSessionOpen = false;
 
 TaskHandle_t camTaskHandle = NULL;
 TaskHandle_t supaTaskHandle = NULL;
@@ -88,6 +90,13 @@ void cameraCaptureWorker(void* pvParameters) {
   const String camUrl = String("http://") + esp_cam_ip + "/capture";
 
   while (true) {
+    // Khong co phien: khong tai /capture va khong lam nong camera vo ich.
+    // Giu nguyen polling Supabase 1000ms va luong ve LCD da dong bang.
+    if (!camSessionOpen) {
+      vTaskDelay(pdMS_TO_TICKS(200));
+      continue;
+    }
+
     bool fetchedOk = false;
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -200,6 +209,7 @@ void supabasePollWorker(void* pvParameters) {
             if (latestCheckin["mssv"].is<String>()) latestCheckinMssv = latestCheckin["mssv"].as<String>();
           }
 
+          camSessionOpen = true;
           bool newSession = (sessionId != currentSessionId);
           if (newSession) {
             currentSessionId = sessionId;
@@ -229,6 +239,7 @@ void supabasePollWorker(void* pvParameters) {
             pendingQrFlag = true;
           }
         } else {
+          camSessionOpen = false;
           if (currentSessionId != "" || currentQrToken != "") {
             Serial.println("[SUPABASE WORKER] Chua mo phien diem danh");
             currentSessionId = "";
