@@ -1012,3 +1012,38 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Rủi ro: tăng byte truyền/giải mã; buffer kiosk 40KB vẫn giữ, frame vượt giới hạn bị bỏ theo code hiện có; chưa chứng minh FPS/độ chính xác thực tế. Nạp firmware LCD tương thích trước khi camera VGA. Không tự flash phần cứng.
 - DoD: build hai firmware thật, kiểm tra hình học từ helper C++ thực bằng host harness, ghi bằng chứng; giữ VERIFYING đến khi nạp và thử camera/LCD, so các ca từng nhầm.
 - TLOG-042: camera và kiosk build PASS, 14 kiểm tra constexpr PASS. Trạng thái VERIFYING; firmware mới chưa được nạp. LCD VGA hiển thị80x60 căn giữa vùng120x80, giữ bố cục. Cần đo buffer/FPS và ca nhận nhầm sau nạp.
+
+### [TASK-042] Triển khai cơ chế Standby / Wakeup tiết kiệm điện cho ESP32-S3-CAM (OV2640) và tối ưu Kiosk / Web Admin
+
+- **Ngày tạo:** 2026-11-03
+- **Mức độ ưu tiên:** High
+- **Trạng thái:** `[VERIFYING]`
+- **Mục tiêu:**
+  1. Triển khai phương án phần mềm cho cơ chế standby / wakeup của ESP32-S3-CAM (OV2640) trong hệ thống điểm danh: camera chuyển sang trạng thái tiết kiệm điện thực sự (Soft Sleep + cam_stop + Modem Sleep) khi không có phiên điểm danh mở và tự động thức dậy khi có yêu cầu hoặc phiên mở, nhằm giảm phát nhiệt mà không dùng thêm phần cứng.
+  2. R1. Trạng thái ACTIVE cho ESP32-S3-CAM: Khi ở chế độ ACTIVE (có phiên mở hoặc đang có client xem stream/chụp hình), giữ nguyên cấu hình camera: `fb_count = 2`, `CAMERA_GRAB_LATEST`, `XCLK = 20 MHz`, và tắt Wi-Fi sleep (`WiFi.setSleep(false)`).
+  3. R2. Trạng thái STANDBY (Tiết kiệm điện thực sự): Khi không có phiên điểm danh nào mở và không có client yêu cầu, đưa cảm biến OV2640 vào chế độ Soft Sleep thông qua thanh ghi `COM2` (sensor bank `0xFF = 0x01`, bật bit 4 `0x10` của `COM2 = 0x09` qua `s->set_reg`), gọi `cam_stop()` dừng GDMA và ngắt VSYNC an toàn, bật Wi-Fi Modem Sleep (`WiFi.setSleep(true)`). Không hạ `XCLK` xuống 1 MHz; cờ hạ xung CPU mặc định tắt.
+  4. R3. Quản lý chuyển trạng thái WAKEUP và Đồng bộ đa luồng: Sử dụng Mutex độc quyền quản lý trạng thái (`ACTIVE`, `STANDBY`, `TRANSITIONING`), theo dõi `active_stream_clients` (cổng 81) và `in_flight_capture_requests` (cổng 80) chống race condition. Cơ chế Wakeup: tắt Wi-Fi sleep, xóa bit Soft Sleep trên COM2, delay ~150 ms chờ ổn định cảm biến, gọi `cam_start()`, xả sạch 2 frame buffer tồn dư và đọc bỏ 2-3 frame mới thu để frame trả về đủ sáng, sắc nét. Auto-wake khi nhận request tới `/capture`, `/stream`, hoặc `/power?mode=active`. Idle timeout 15 giây không có client tự động về STANDBY. Endpoint `/power` hỗ trợ xem và điều khiển trạng thái nguồn.
+  5. R4. Tối ưu Kiosk và Web Admin:
+     - Kiosk (`esp32_kiosk/esp32_kiosk.ino`): Dừng việc gửi request gọi `/capture` liên tục khi kết quả từ Supabase RPC `get_open_session` báo không có phiên mở.
+     - Web Admin (`js/admin/admin.face.js`, `js/admin/admin.tasks.js`): Tự động ngắt kết nối stream tới camera khi phiên điểm danh được đóng (thủ công hoặc tự đóng do hết giờ), không tự động kích hoạt stream khi người dùng chỉ mở tab quản trị nếu chưa có phiên mở, giữ nút bật/tắt thủ công khi cần kiểm tra/đăng ký khuôn mặt mới.
+  6. R5. Bảo toàn 100% các tính năng đóng băng trong `docs/FROZEN_FEATURES.md`.
+- **Phạm vi tác động:**
+  - `esp32_cam_ai/esp32_cam_ai.ino`
+  - `esp32_cam_ai/app_httpd.cpp`
+  - `esp32_cam_ai/board_config.h`
+  - `esp32_kiosk/esp32_kiosk.ino`
+  - `js/admin/admin.face.js`
+  - `js/admin/admin.tasks.js`
+  - `docs/AI_PLAN.md`, `docs/AI_PROGRESS.md`, `docs/AI_TEST_LOG.md`
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] ESP32-S3-CAM biên dịch thành công 100% với `arduino-cli compile --fqbn esp32:esp32:esp32s3 esp32_cam_ai`.
+  - [x] ESP32 Kiosk biên dịch thành công 100% với `arduino-cli compile --fqbn esp32:esp32:esp32 esp32_kiosk`.
+  - [x] Kiosk dừng gọi `/capture` khi `isSessionOpen == false`, đóng kết nối HTTP `camHttp.end()`, và tự động kết nối lại khi có phiên mới.
+  - [x] Camera Soft Sleep OV2640 qua thanh ghi COM2 (0x09 bit 4), gọi `cam_stop()` và `WiFi.setSleep(true)` khi vào STANDBY.
+  - [x] Cơ chế Wakeup: xóa bit Soft Sleep, delay 150ms, gọi `cam_start()`, flush 2 buffer tồn và bỏ 2-3 frame đầu để đảm bảo ảnh sáng rõ nét.
+  - [x] Đồng bộ Mutex và đếm client triệt tiêu xung đột đa luồng giữa stream:81 và capture:80.
+  - [x] Idle timeout 15s tự động chuyển sang STANDBY khi không còn client.
+  - [x] Web Admin ngắt stream khi đóng phiên, không tự bật khi mở tab nếu chưa có phiên mở, giữ nút bật/tắt thủ công.
+  - [x] Toàn bộ file JavaScript hợp lệ cú pháp (`node -c`).
+  - [x] Không làm phát sinh lỗi hồi quy trên các tính năng đã đóng băng (FRZ-001..FRZ-005).
+- **Phương án kiểm thử:** Đã biên dịch cả 2 firmware bằng Arduino CLI; chạy kịch bản unit test C++ / harness mô phỏng chu kỳ sleep/wake state machine (16/16 PASS) và kiểm tra cú pháp JS ghi nhận tại [TLOG-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-043-kiểm-thử-cơ-chế-standby--wakeup-tiết-kiệm-điện-esp32-s3-cam-và-tối-ưu-kiosk--web-admin-task-042). Chờ nạp phần cứng thật để nghiệm thu nhiệt độ và FPS.

@@ -64,6 +64,7 @@ stateDiagram-v2
 | [TASK-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-036-mobile-first-responsive-uiux-optimization-toàn-diện-hệ-thống-lh-navix) | Mobile-First Responsive UI/UX Optimization Toàn Diện (Hệ Thống LH-NaviX) | `[DONE]` | Critical | [TLOG-036](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-036-kiểm-thử-toàn-diện-mobile-first-responsive-uiux-optimization-task-036) (PASS 72/72 viewports, 0 overflow, 11/11 suites PASS) | 2026-11-02 |
 | [TASK-037](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-037) | Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn | `[DONE]` | Critical | [TLOG-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-038) (PASS 21/21 assertions, 11/11 master suites) | 2026-11-03 |
 | [TASK-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-038) | Siết chặt bảo mật Face AI chống nhận nhầm danh tính | `[DONE]` | Critical | [TLOG-039](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-039) (PASS 13/13 assertions, 11/11 master suites) | 2026-11-03 |
+| [TASK-042](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-042-triển-khai-cơ-chế-standby--wakeup-tiết-kiệm-điện-cho-esp32-s3-cam-ov2640-và-tối-ưu-kiosk--web-admin) | Cơ chế Standby / Wakeup tiết kiệm điện ESP32-S3-CAM (OV2640) & Tối ưu Kiosk / Web Admin | `[VERIFYING]` | High | [TLOG-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-045-tinh-chỉnh-driver-native-bank-addressing-thứ-tự-cam_stop--chuẩn-hóa-ip-web-admin-task-042) (Firmware build PASS, Invariants PASS, 257 checks PASS; chờ nạp mạch thật) | 2026-11-04 |
 
 ---
 
@@ -136,3 +137,7 @@ stateDiagram-v2
 ### TASK-041 — `[VERIFYING]` — 2026-11-03
 - Nâng camera VGA 640x480 và thu JPEG vừa vùng LCD hiện có. Cần build và thử phần cứng.
 - TLOG-042: cả hai firmware biên dịch PASS và 14 kiểm tra hình học constexpr PASS. Chờ nạp LCD trước, camera sau; chưa đo hiệu quả nhận diện thực tế. Chưa push/deploy/upload.
+
+### TASK-042 — [VERIFYING] — 2026-11-04
+- Triển khai cơ chế Standby / Wakeup tiết kiệm điện cho ESP32-S3-CAM (OV2640), đồng bộ Mutex, Idle timeout 15s và tối ưu Kiosk / Web Admin.
+- TLOG-045: Cả hai firmware biên dịch PASS 100% bằng Arduino CLI thật, 16/16 kiểm tra logic Invariants PASS, 257/257 master verification checks PASS; chuẩn hóa native bank OV2640 và host IP Web Admin; sẵn sàng nạp phần cứng thật để đo nhiệt độ và FPS.

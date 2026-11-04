@@ -1771,10 +1771,15 @@ function showEmpty(){
   loadTodayHistory();
   loadTodaySchoolSchedule();
 
-  // Tự động ngắt camera AI khi đóng phiên điểm danh
+  // Không còn phiên: xóa trạng thái phiên cũ để module camera không đọc nhầm
+  window.currentSession = null;
+
+  // Tự động ngắt camera AI khi đóng phiên điểm danh (đóng tay hoặc hết giờ)
   if (typeof stopAdminCamera === 'function' && typeof adminCameraActive !== 'undefined' && adminCameraActive) {
     stopAdminCamera();
   }
+  // Báo ESP32-CAM ngủ ngay; nếu lệnh lỡ mất, cam vẫn tự ngủ sau 15s không có client
+  if (typeof sendEspCamPower === 'function') sendEspCamPower('sleep');
 }
 function showDashboard(){
   document.getElementById('emptyState').style.display = 'none';

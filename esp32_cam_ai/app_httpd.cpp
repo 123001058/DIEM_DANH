@@ -4,6 +4,13 @@
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "board_config.h"
+#include <WiFi.h>
+
+extern "C" {
+  // Driver esp32-camera (cam_hal.c) khai bao 2 ham nay la void (da kiem tra bang objdump libespressif__esp32-camera.a)
+  void cam_start(void);
+  void cam_stop(void);
+}
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char *_STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -13,9 +20,218 @@ static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
 
+// =============================================================================
+// QUẢN LÝ NGUỒN TIẾT KIỆM ĐIỆN & ĐỒNG BỘ ĐA LUỒNG (R1, R2, R3)
+// =============================================================================
+typedef enum {
+  CAM_POWER_STANDBY,
+  CAM_POWER_TRANSITIONING,
+  CAM_POWER_ACTIVE
+} cam_power_state_t;
+
+static SemaphoreHandle_t s_power_mutex = NULL;
+static portMUX_TYPE s_client_mux = portMUX_INITIALIZER_UNLOCKED;
+static volatile cam_power_state_t s_power_state = CAM_POWER_ACTIVE;
+static volatile int s_active_stream_clients = 0;
+static volatile int s_in_flight_captures = 0;
+static volatile unsigned long s_last_activity_ms = 0;
+
+// Cấu hình hạ xung CPU (mặc định tắt theo R2 nhằm bảo vệ ngoại vi & mạng)
+#ifndef ENABLE_CPU_FREQ_SCALING
+#define ENABLE_CPU_FREQ_SCALING 0
+#endif
+
+// Ham danh thuc noi bo (yeu cau caller giu s_power_mutex)
+static esp_err_t wakeCameraActiveInternal(void) {
+  if (s_power_state == CAM_POWER_ACTIVE) {
+    s_last_activity_ms = millis();
+    return ESP_OK;
+  }
+
+  s_power_state = CAM_POWER_TRANSITIONING;
+  Serial.println("[POWER] WAKEUP: Kich hoat camera -> ACTIVE...");
+
+#if ENABLE_CPU_FREQ_SCALING
+  setCpuFrequencyMhz(240);
+#endif
+
+  // 1. Tat Wi-Fi sleep de giu ket noi mang on dinh va FPS cao
+  WiFi.setSleep(false);
+
+  // 2. Xoa bit Soft Sleep tren thanh ghi COM2 (0x09) cua cam bien OV2640
+  sensor_t *s = esp_camera_sensor_get();
+  if (s && s->set_reg) {
+    // Bit 8 cua reg = bank (0x100 = Sensor bank). Driver tu chon bank va nho cache, khong ghi tay 0xFF
+    s->set_reg(s, 0x100 | 0x09, 0x10, 0x00); // COM2 bit 4 = 0 (Soft Sleep OFF)
+  }
+
+  // 3. Tri hoan ~150ms cho mach analog va dien ap cam bien on dinh
+  vTaskDelay(pdMS_TO_TICKS(150));
+
+  // 4. Bat lai ngat VSYNC; frame ke tiep tu khoi dong lai GDMA (cam_start la ham void, khong co ma loi)
+  cam_start();
+
+  // 5. Xa sach toi da 2 frame buffer ton du va doc bo them 1 frame moi thu de AEC/AGC can bang do sang
+  // Khong them delay delay nhan tao giua cac frame de dam bao thoi gian wake < 300ms, khong gay timeout tren Kiosk
+  for (int i = 0; i < 3; i++) {
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (fb) {
+      esp_camera_fb_return(fb);
+    } else {
+      break;
+    }
+  }
+
+  s_power_state = CAM_POWER_ACTIVE;
+  s_last_activity_ms = millis();
+  Serial.println("[POWER] Camera da o trang thai ACTIVE (XCLK 20MHz, fb_count=2, No-Sleep)!");
+  return ESP_OK;
+}
+
+// Đánh thức camera về trạng thái ACTIVE cho external callers (/power)
+esp_err_t wakeCameraActive(void) {
+  if (s_power_mutex == NULL) return ESP_FAIL;
+  if (xSemaphoreTake(s_power_mutex, pdMS_TO_TICKS(3000)) != pdTRUE) {
+    Serial.println("[POWER] Timeout cho Mutex khi danh thuc camera!");
+    return ESP_ERR_TIMEOUT;
+  }
+
+  esp_err_t res = wakeCameraActiveInternal();
+  xSemaphoreGive(s_power_mutex);
+  return res;
+}
+
+// Dua camera vao trang thai STANDBY tiet kiem dien
+esp_err_t enterCameraStandby(void) {
+  if (s_power_mutex == NULL) return ESP_FAIL;
+  if (xSemaphoreTake(s_power_mutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+    return ESP_ERR_TIMEOUT;
+  }
+
+  if (s_power_state == CAM_POWER_STANDBY) {
+    xSemaphoreGive(s_power_mutex);
+    return ESP_OK;
+  }
+
+  // Neu con bat ky client stream (cong 81) hoac capture request (cong 80) nao dang chay, khong duoc vao sleep
+  int curStreams = 0;
+  int curCaptures = 0;
+  portENTER_CRITICAL(&s_client_mux);
+  curStreams = s_active_stream_clients;
+  curCaptures = s_in_flight_captures;
+  portEXIT_CRITICAL(&s_client_mux);
+
+  if (curStreams > 0 || curCaptures > 0) {
+    Serial.printf("[POWER] Khong the vao STANDBY vi con client (Stream: %d, Captures: %d)\n", curStreams, curCaptures);
+    xSemaphoreGive(s_power_mutex);
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  s_power_state = CAM_POWER_TRANSITIONING;
+  Serial.println("[POWER] STANDBY: Chuyen camera sang Soft Sleep + cam_stop + Modem Sleep...");
+
+  // 1. Dung GDMA + ngat VSYNC truoc (cam_stop la ham void), tranh cat ngang frame dang ghi
+  cam_stop();
+
+  // 2. Dua cam bien OV2640 vao che do Soft Sleep thong qua thanh ghi COM2
+  sensor_t *s = esp_camera_sensor_get();
+  if (s && s->set_reg) {
+    // Bit 8 cua reg = bank (0x100 = Sensor bank). Driver tu chon bank va nho cache, khong ghi tay 0xFF
+    s->set_reg(s, 0x100 | 0x09, 0x10, 0x10); // COM2 bit 4 = 1 (Soft Sleep ON)
+  }
+
+  // 3. Bat che do Wi-Fi Modem Sleep de tiet kiem dien
+  WiFi.setSleep(true);
+
+#if ENABLE_CPU_FREQ_SCALING
+  setCpuFrequencyMhz(80);
+#endif
+
+  s_power_state = CAM_POWER_STANDBY;
+  Serial.println("[POWER] Camera da vao STANDBY tiet kiem dien thanh cong!");
+
+  xSemaphoreGive(s_power_mutex);
+  return ESP_OK;
+}
+
+// Chuan bi camera truoc khi capture hoac stream (Atomic dang ky client & tu dong danh thuc chong race condition)
+static esp_err_t prepareCameraActive(bool isStream) {
+  if (s_power_mutex == NULL) return ESP_FAIL;
+  if (xSemaphoreTake(s_power_mutex, pdMS_TO_TICKS(3000)) != pdTRUE) {
+    Serial.println("[POWER] Timeout cho Mutex khi dang ky client camera!");
+    return ESP_ERR_TIMEOUT;
+  }
+
+  if (s_power_state != CAM_POWER_ACTIVE) {
+    esp_err_t wakeErr = wakeCameraActiveInternal();
+    if (wakeErr != ESP_OK) {
+      xSemaphoreGive(s_power_mutex);
+      return wakeErr;
+    }
+  }
+
+  portENTER_CRITICAL(&s_client_mux);
+  if (isStream) {
+    s_active_stream_clients++;
+  } else {
+    s_in_flight_captures++;
+  }
+  s_last_activity_ms = millis();
+  portEXIT_CRITICAL(&s_client_mux);
+
+  xSemaphoreGive(s_power_mutex);
+  return ESP_OK;
+}
+
+// Giai phong client sau khi capture hoac stream ket thuc
+static void releaseCameraClient(bool isStream) {
+  portENTER_CRITICAL(&s_client_mux);
+  if (isStream) {
+    if (s_active_stream_clients > 0) s_active_stream_clients--;
+  } else {
+    if (s_in_flight_captures > 0) s_in_flight_captures--;
+  }
+  s_last_activity_ms = millis();
+  portEXIT_CRITICAL(&s_client_mux);
+}
+
+// Kiem tra Idle Timeout (15 giay khong co client -> tu ve STANDBY)
+void checkCameraPowerTimeout(void) {
+  if (s_power_state != CAM_POWER_ACTIVE) return;
+
+  int curStreams = 0;
+  int curCaptures = 0;
+  unsigned long lastAct = 0;
+  portENTER_CRITICAL(&s_client_mux);
+  curStreams = s_active_stream_clients;
+  curCaptures = s_in_flight_captures;
+  lastAct = s_last_activity_ms;
+  portEXIT_CRITICAL(&s_client_mux);
+
+  if (curStreams > 0 || curCaptures > 0) {
+    portENTER_CRITICAL(&s_client_mux);
+    s_last_activity_ms = millis();
+    portEXIT_CRITICAL(&s_client_mux);
+    return;
+  }
+
+  if (millis() - lastAct >= 15000) {
+    Serial.println("[POWER] Het 15s Idle Timeout khong co client nao -> Tu dong vao STANDBY");
+    enterCameraStandby();
+  }
+}
+
 static esp_err_t capture_handler(httpd_req_t *req) {
+  // Tu dong danh thuc va dang ky capture duoi Mutex (chong race condition voi enterCameraStandby)
+  esp_err_t prepErr = prepareCameraActive(false);
+  if (prepErr != ESP_OK) {
+    httpd_resp_send_500(req);
+    return prepErr;
+  }
+
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
+    releaseCameraClient(false);
     httpd_resp_send_500(req);
     return ESP_FAIL;
   }
@@ -29,17 +245,28 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 
   esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
   esp_camera_fb_return(fb);
+
+  releaseCameraClient(false);
   return res;
 }
 
 static esp_err_t stream_handler(httpd_req_t *req) {
+  // Tu dong danh thuc va dang ky stream client duoi Mutex (chong race condition voi enterCameraStandby)
+  esp_err_t prepErr = prepareCameraActive(true);
+  if (prepErr != ESP_OK) {
+    return prepErr;
+  }
+
   camera_fb_t *fb = NULL;
   struct timeval _timestamp;
   esp_err_t res = ESP_OK;
   char part_buf[128];
 
   res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-  if (res != ESP_OK) return res;
+  if (res != ESP_OK) {
+    releaseCameraClient(true);
+    return res;
+  }
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -66,10 +293,14 @@ static esp_err_t stream_handler(httpd_req_t *req) {
 
     if (res != ESP_OK) break;
 
-    // Giảm tải CPU & chống nóng chip: Delay nhẹ 10ms (~30 FPS mượt mà)
+    portENTER_CRITICAL(&s_client_mux);
+    s_last_activity_ms = millis();
+    portEXIT_CRITICAL(&s_client_mux);
+    // Giam tai CPU & chong nong chip: Delay nhe 10ms (~30 FPS muot ma)
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 
+  releaseCameraClient(true);
   return res;
 }
 
@@ -272,6 +503,63 @@ static esp_err_t test_pin_handler(httpd_req_t *req) {
   return httpd_resp_send(req, "{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}", strlen("{\"ok\":false,\"message\":\"Chân không hợp lệ hoặc đang dùng cho Camera\"}"));
 }
 
+static esp_err_t power_handler(httpd_req_t *req) {
+  char query[64] = {0};
+  char mode[16] = {0};
+
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+    httpd_query_key_value(query, "mode", mode, sizeof(mode));
+  }
+
+  // Ho tro parse body neu goi qua POST body JSON/form
+  if (mode[0] == '\0' && req->content_len > 0) {
+    char body[64] = {0};
+    int toRead = (req->content_len < sizeof(body) - 1) ? req->content_len : (sizeof(body) - 1);
+    int ret = httpd_req_recv(req, body, toRead);
+    if (ret > 0) {
+      if (strstr(body, "active") || strstr(body, "wake") || strstr(body, "\"mode\":\"active\"")) {
+        snprintf(mode, sizeof(mode), "active");
+      } else if (strstr(body, "sleep") || strstr(body, "standby") || strstr(body, "\"mode\":\"sleep\"")) {
+        snprintf(mode, sizeof(mode), "sleep");
+      }
+    }
+  }
+
+  if (strcmp(mode, "active") == 0 || strcmp(mode, "wake") == 0 || strcmp(mode, "1") == 0) {
+    wakeCameraActive();
+  } else if (strcmp(mode, "sleep") == 0 || strcmp(mode, "standby") == 0 || strcmp(mode, "0") == 0) {
+    enterCameraStandby();
+  }
+
+  const char *stateStr = (s_power_state == CAM_POWER_ACTIVE) ? "ACTIVE" :
+                         (s_power_state == CAM_POWER_STANDBY) ? "STANDBY" : "TRANSITIONING";
+
+  int curStreams = 0;
+  int curCaptures = 0;
+  unsigned long lastAct = 0;
+  portENTER_CRITICAL(&s_client_mux);
+  curStreams = s_active_stream_clients;
+  curCaptures = s_in_flight_captures;
+  lastAct = s_last_activity_ms;
+  portEXIT_CRITICAL(&s_client_mux);
+
+  unsigned long nowMs = millis();
+  unsigned long idleMs = (s_power_state == CAM_POWER_ACTIVE && nowMs >= lastAct) ? (nowMs - lastAct) : 0UL;
+
+  char jsonBuf[192];
+  snprintf(jsonBuf, sizeof(jsonBuf),
+           "{\"ok\":true,\"state\":\"%s\",\"stream_clients\":%d,\"in_flight_captures\":%d,\"idle_ms\":%lu}",
+           stateStr, curStreams, curCaptures, idleMs);
+
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+
+  return httpd_resp_send(req, jsonBuf, strlen(jsonBuf));
+}
+
 static esp_err_t options_handler(httpd_req_t *req) {
   httpd_resp_set_status(req, "204 No Content");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -283,6 +571,12 @@ static esp_err_t options_handler(httpd_req_t *req) {
 }
 
 void startCameraServer() {
+  if (!s_power_mutex) {
+    s_power_mutex = xSemaphoreCreateMutex();
+  }
+  s_last_activity_ms = millis();
+  s_power_state = CAM_POWER_ACTIVE;
+
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
   config.lru_purge_enable = true;
@@ -298,6 +592,9 @@ void startCameraServer() {
   httpd_uri_t flash_uri = { .uri = "/flash", .method = HTTP_GET, .handler = flash_handler, .user_ctx = NULL };
   httpd_uri_t test_pin_uri = { .uri = "/test_pin", .method = HTTP_GET, .handler = test_pin_handler, .user_ctx = NULL };
   httpd_uri_t rgb_uri = { .uri = "/rgb", .method = HTTP_GET, .handler = rgb_handler, .user_ctx = NULL };
+  httpd_uri_t power_uri = { .uri = "/power", .method = HTTP_GET, .handler = power_handler, .user_ctx = NULL };
+  httpd_uri_t power_post_uri = { .uri = "/power", .method = HTTP_POST, .handler = power_handler, .user_ctx = NULL };
+  httpd_uri_t power_options_uri = { .uri = "/power", .method = HTTP_OPTIONS, .handler = options_handler, .user_ctx = NULL };
 
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
@@ -308,6 +605,9 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &flash_uri);
     httpd_register_uri_handler(camera_httpd, &test_pin_uri);
     httpd_register_uri_handler(camera_httpd, &rgb_uri);
+    httpd_register_uri_handler(camera_httpd, &power_uri);
+    httpd_register_uri_handler(camera_httpd, &power_post_uri);
+    httpd_register_uri_handler(camera_httpd, &power_options_uri);
   }
 
   config.server_port = 81;
@@ -322,5 +622,8 @@ void startCameraServer() {
     httpd_register_uri_handler(stream_httpd, &flash_uri);
     httpd_register_uri_handler(stream_httpd, &test_pin_uri);
     httpd_register_uri_handler(stream_httpd, &rgb_uri);
+    httpd_register_uri_handler(stream_httpd, &power_uri);
+    httpd_register_uri_handler(stream_httpd, &power_post_uri);
+    httpd_register_uri_handler(stream_httpd, &power_options_uri);
   }
 }

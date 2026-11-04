@@ -9,6 +9,7 @@
 WiFiMulti wifiMulti;
 
 void startCameraServer();
+void checkCameraPowerTimeout();
 
 void setup() {
   // Buzzer: Mặc định tắt còi hoàn toàn khi khởi động (an toàn 100%)
@@ -118,5 +119,6 @@ void setup() {
 }
 
 void loop() {
-  delay(10000);
+  checkCameraPowerTimeout();
+  delay(500);
 }

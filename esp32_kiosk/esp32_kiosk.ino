@@ -62,6 +62,8 @@ char pendingCheckinName[64] = "";
 char pendingCheckinMssv[16] = "";
 
 volatile bool pendingNoSessionFlag = false;
+volatile bool isSessionOpen = false;
+bool initialSessionChecked = false;
 
 TaskHandle_t camTaskHandle = NULL;
 TaskHandle_t supaTaskHandle = NULL;
@@ -90,7 +92,8 @@ void cameraCaptureWorker(void* pvParameters) {
   while (true) {
     bool fetchedOk = false;
 
-    if (WiFi.status() == WL_CONNECTED) {
+    // R4: Chỉ gửi request /capture khi có phiên điểm danh mở
+    if (WiFi.status() == WL_CONNECTED && isSessionOpen) {
       // Chon buffer ghi (writeIdx) khong bao gio trung voi buffer Core 1 dang ve (drawingIdx)
       int writeIdx = 0;
       portENTER_CRITICAL(&camMux);
@@ -147,6 +150,13 @@ void cameraCaptureWorker(void* pvParameters) {
         }
       }
       camHttp.end();
+    } else {
+      // Khi không có phiên mở hoặc mất WiFi, đóng kết nối HTTP để giải phóng camera và nghỉ ngơi
+      if (camHttp.connected()) {
+        camHttp.end();
+      }
+      vTaskDelay(pdMS_TO_TICKS(500));
+      continue;
     }
     // Dynamic Pacing: Bo khoang cho thua 35ms; chi nhuong 2ms khi tai thanh cong de dat ~14-20 FPS muot ma
     vTaskDelay(pdMS_TO_TICKS(fetchedOk ? 2 : 25));
@@ -187,6 +197,8 @@ void supabasePollWorker(void* pvParameters) {
         deserializeJson(doc, payload);
         
         if (doc["id"].is<String>() && doc["qr_token"].is<String>()) {
+          isSessionOpen = true;
+          initialSessionChecked = true;
           String sessionId = doc["id"].as<String>();
           String qrToken = doc["qr_token"].as<String>();
 
@@ -229,7 +241,9 @@ void supabasePollWorker(void* pvParameters) {
             pendingQrFlag = true;
           }
         } else {
-          if (currentSessionId != "" || currentQrToken != "") {
+          isSessionOpen = false;
+          if (currentSessionId != "" || currentQrToken != "" || !initialSessionChecked) {
+            initialSessionChecked = true;
             Serial.println("[SUPABASE WORKER] Chua mo phien diem danh");
             currentSessionId = "";
             currentQrToken = "";

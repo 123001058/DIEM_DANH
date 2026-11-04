@@ -85,6 +85,22 @@ function formatEspCaptureUrl(raw) {
   return `http://${host}/capture`;
 }
 
+// Host ESP32-CAM (không kèm cổng): cùng nguồn IP với luồng stream (ô nhập -> localStorage -> mặc định)
+function getEspCamHost() {
+  const ipInput = document.getElementById('adminEspIpInput');
+  const raw = (ipInput ? ipInput.value.trim() : '') || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP;
+  return cleanEspCamIp(raw).split(':')[0];
+}
+
+// Gửi lệnh nguồn tới ESP32-CAM ('active' | 'sleep'); không chặn UI, lỗi mạng bỏ qua.
+// Cam vẫn tự ngủ sau 15s không có client nên lệnh này chỉ để phản hồi nhanh hơn.
+function sendEspCamPower(mode) {
+  try {
+    fetch(`http://${getEspCamHost()}/power?mode=${mode}&_=${Date.now()}`, { mode: 'no-cors' }).catch(() => {});
+  } catch (_) { }
+}
+window.sendEspCamPower = sendEspCamPower;
+
 function updateAdminSoundBtn() {
   const btn = document.getElementById('btnAdminSoundToggle');
   if (!btn) return;
@@ -161,7 +177,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     reloadAdminFaceMatcher();
     renderFaceStudentTable();
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
+    if (!adminCameraActive && !adminUserManuallyStopped && hasActiveSession) {
       startAdminCamera();
     }
     return;
@@ -191,7 +207,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     }
 
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
+    if (!adminCameraActive && !adminUserManuallyStopped && hasActiveSession) {
       startAdminCamera();
     }
   } catch (err) {
@@ -658,6 +674,9 @@ async function startAdminCamera(targetMode) {
   }
   adminUserManuallyStopped = false; // Reset cờ thủ công khi Admin chủ động bấm bật
 
+  // Đánh thức camera sang ACTIVE ngay (nếu đang STANDBY) để frame đầu tới nhanh hơn
+  sendEspCamPower('active');
+
   updateAdminCameraModeUi();
 
   // Chỉ bắt buộc nạp mô hình AI nếu đang ở chế độ 'ai'
@@ -823,9 +842,17 @@ function stopAdminCamera() {
 
   // Dừng luồng stream và ngắt ảnh (xóa thuộc tính src tránh lỗi icon vỡ khung)
   if (img) {
+    img.src = '';
     img.removeAttribute('src');
     img.style.display = 'none';
   }
+
+  // Chỉ gửi lệnh ngủ khi không còn phiên mở; trong phiên Kiosk vẫn đang dùng camera.
+  // Khi đóng phiên, showEmpty() tự gửi lệnh ngủ.
+  const hasOpenSession = Boolean(
+    (typeof currentSession !== 'undefined' && currentSession?.id) || window.currentSession?.id
+  );
+  if (!hasOpenSession) sendEspCamPower('sleep');
   if (video) {
     video.srcObject = null;
     video.style.display = 'none';
