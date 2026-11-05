@@ -36,7 +36,8 @@ const viewTitlesMap = {
   schedules: 'Thời khóa biểu ME',
   feedback: 'Phản hồi ẩn danh',
   'password-reset': 'Reset mật khẩu',
-  zalo: 'Lịch rảnh / bận'
+  zalo: 'Lịch rảnh / bận',
+  performance: 'Đánh giá hiệu suất thành viên'
 };
 
 function openHistoryAndReport() { initializeAttendanceReportDates(); loadAttendanceReport(); }
@@ -96,6 +97,9 @@ function navTo(viewName) {
   else if (viewName === 'tasks') loadAdminTasks();
   else if (viewName === 'feedback') loadAdminFeedback();
   else if (viewName === 'zalo') initZaloScheduleView();
+  else if (viewName === 'performance') {
+    if (typeof initPerformanceView === 'function') initPerformanceView();
+  }
 }
 
 

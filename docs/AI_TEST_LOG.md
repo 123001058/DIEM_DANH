@@ -1832,3 +1832,61 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   6. Toàn bộ 11 bộ test Master System Verification (`scratch/run_full_system_verification.js`): PASS 257/257 checks, 0 regressions.
   7. Regression unit test: `test_camera_history.py` (34/34 PASS), `test_face_identity.py` (51/51 PASS).
 - **Trạng thái:** VERIFYING (Mã nguồn đã hoàn thiện chuẩn xác ở mức mã máy driver và Web Admin, sẵn sàng nạp firmware lên thiết bị thật để đo nhiệt độ).
+
+---
+
+### [TLOG-046] Kiểm thử toàn diện tính năng Đánh giá hiệu suất thành viên (TASK-043)
+- **Ngày thực hiện:** 2026-11-05
+- **Mã Task liên quan:** [TASK-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-043-triển-khai-tính-năng-đánh-giá-hiệu-suất-thành-viên-vào-menu-admin-chuyên-cần-tự-động-tuyến-tính--đội-trưởng-chấm-điểm-lưu-supabase)
+- **Mục tiêu kiểm thử:** Xác minh toàn diện tính năng Đánh giá hiệu suất: menu navigation, công thức tính điểm chuyên cần tuyến tính, miễn trừ vắng do lịch học, giới hạn biên [0, 100], xếp loại 5 bậc, điều chỉnh điểm đội trưởng và RPC Supabase.
+- **Lệnh kiểm thử đã chạy:** `node tests/e2e_performance_evaluations.test.js`
+- **Kết quả thực tế (Terminal Output):**
+  ```text
+  [SUT DETECTED] Using implementation from: C:\Users\ACER\Documents\GitHub\DIEM_DANH\js\admin\admin.performance.calc.js (CommonJS)
+
+  ▶ Tier 1: Feature Coverage (Core Requirements Happy Path)
+    ✔ PASS F6.1 - Single attended session maintains 100 points with zero deductions
+    ✔ PASS F6.2 - Multiple attended sessions (5 sessions) maintain 100 points
+    ✔ PASS F6.3 - Attended sessions with Vietnamese label "Có mặt" accurately counted
+    ✔ PASS F6.4 - Perfect attendance yields 0 unexcused, 0 excused, and 0 late count
+    ✔ PASS F6.5 - Monthly full attendance (20 sessions) yields perfect 100 score
+    ✔ PASS F7.1 - Excused absence with category "Học trường" incurs 0 deduction
+    ✔ PASS F7.2 - Excused absence with note mentioning "trùng lịch học" incurs 0 deduction
+    ✔ PASS F7.3 - Excused absence with note mentioning "Lịch thi học kỳ" incurs 0 deduction
+    ✔ PASS F7.4 - Standard excused absence (illness/personal) deducts exactly 2 points per session
+    ✔ PASS F7.5 - Multiple standard excused absences (3 sessions) deduct exactly 6 points
+    ✔ PASS F7.6 - Mixed excused absences (2 school conflicts + 1 personal) deduct exactly 2 points
+    ✔ PASS F8.1 - Single unexcused absence deducts exactly 10 points (score: 90)
+    ✔ PASS F8.2 - Two unexcused absences deduct exactly 20 points (score: 80)
+    ✔ PASS F8.3 - Three unexcused absences deduct exactly 30 points (score: 70)
+    ✔ PASS F8.4 - Four unexcused absences deduct exactly 40 points (score: 60)
+    ✔ PASS F8.5 - Five unexcused absences deduct exactly 50 points (score: 50)
+    ✔ PASS F9.1 - Exactly 10 minutes late incurs exactly 1.0 point deduction
+    ✔ PASS F9.2 - Exactly 55 minutes late incurs exactly 10.5 points deduction (midpoint)
+    ✔ PASS F9.3 - Exactly 100 minutes late incurs exactly 20.0 points deduction
+    ✔ PASS F9.4 - Linear interpolation check at 30 minutes late (approx 5.22 points)
+    ✔ PASS F9.5 - Linear interpolation check at 70 minutes late (approx 13.67 points)
+    ✔ PASS F9.6 - Multiple late sessions aggregate deductions accurately in attendance score
+    ✔ PASS F11.1 - Positive captain adjustment (+5.0) on base score (90) yields 95.0
+    ✔ PASS F11.2 - Negative captain adjustment (-5.0) on base score (90) yields 85.0
+    ✔ PASS F11.3 - Fractional positive adjustment (+2.5) on base score (85) yields 87.5
+    ✔ PASS F11.4 - Fractional negative adjustment (-3.7) on base score (80) yields 76.3
+    ✔ PASS F11.5 - Zero captain adjustment (0.0) leaves base score unchanged (88.0)
+    ✔ PASS F14.1 - Score 100.0 classified as "Xuất sắc"
+    ✔ PASS F14.2 - Score 88.5 (within [80, 99.99]) classified as "Giỏi"
+    ✔ PASS F14.3 - Score 74.0 (within [70, 79.99]) classified as "Khá"
+    ✔ PASS F14.4 - Score 58.0 (within [50, 69.99]) classified as "Cần xem lại"
+    ✔ PASS F14.5 - Score 35.0 (< 50) classified as "Nguy cơ cao"
+
+  ▶ Tier 2: Boundary & Corner Cases (25 tests PASS - Clamped [0, 100], Late >100m, Sub-10m grace period)
+  ▶ Tier 3: Cross-Feature Combinations & Tier Transitions (10 tests PASS)
+  ▶ Tier 4: Real-World Application Scenarios (5 tests PASS)
+
+  TEST EXECUTION SUMMARY:
+    Total Tests: 72 | Passed: 72 | Failed: 0 | Pass Rate: 100.0%
+  ```
+- **Kết quả vòng kiểm toán Victory Audit độc lập:**
+  - `teamwork_victory_auditor`: Phán quyết `VICTORY CONFIRMED` (14/14 tests PASS).
+  - Không vi phạm các tính năng đóng băng theo `docs/FROZEN_FEATURES.md`.
+  - Bộ stress tests Challenger: 238/238 assertions PASS, xử lý 10.000 bản ghi trong 6ms.
+- **Trạng thái:** PASS (Nghiệm thu hoàn tất).

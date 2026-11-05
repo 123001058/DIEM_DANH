@@ -2395,3 +2395,113 @@ tbody tr:last-child td { border-bottom: none; }
 .kpi-pill.busy.active-pill { background: #b91c1c !important; color: #ffffff !important; box-shadow: 0 0 0 2px #b91c1c, 0 3px 8px rgba(185, 28, 28, 0.35) !important; }
 #matrixFilterButtons .matrix-filter-btn { transition: all 0.15s ease; }
 #matrixFilterButtons .matrix-filter-btn:hover { opacity: 0.9; }
+
+/* ==========================================================
+   MEMBER PERFORMANCE EVALUATION (MILESTONE 3)
+   ========================================================== */
+.perf-header-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.btn-quick-date {
+  padding: 5px 11px;
+  border: none;
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.btn-quick-date:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.04);
+}
+.btn-quick-date.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.perf-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.perf-tier-badge.st-excellent {
+  background: #ecfdf5;
+  color: #10b981;
+  border-color: #a7f3d0;
+}
+.perf-tier-badge.st-good {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+.perf-tier-badge.st-fair {
+  background: #ecfeff;
+  color: #0891b2;
+  border-color: #a5f3fc;
+}
+.perf-tier-badge.st-warn {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.perf-tier-badge.st-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.perf-tier-badge.st-nodata {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.perf-score-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.perf-adjust-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.perf-adjust-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #2563eb;
+  transform: translateY(-1px);
+}
+.perf-adjust-btn.has-adj {
+  border-style: solid;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+

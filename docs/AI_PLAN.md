@@ -1047,3 +1047,23 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Toàn bộ file JavaScript hợp lệ cú pháp (`node -c`).
   - [x] Không làm phát sinh lỗi hồi quy trên các tính năng đã đóng băng (FRZ-001..FRZ-005).
 - **Phương án kiểm thử:** Đã biên dịch cả 2 firmware bằng Arduino CLI; chạy kịch bản unit test C++ / harness mô phỏng chu kỳ sleep/wake state machine (16/16 PASS) và kiểm tra cú pháp JS ghi nhận tại [TLOG-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-043-kiểm-thử-cơ-chế-standby--wakeup-tiết-kiệm-điện-esp32-s3-cam-và-tối-ưu-kiosk--web-admin-task-042). Chờ nạp phần cứng thật để nghiệm thu nhiệt độ và FPS.
+
+### [TASK-043] Triển khai tính năng Đánh giá hiệu suất thành viên vào Menu Admin (Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase)
+- **Mục tiêu:** Thêm mục "Đánh giá hiệu suất" vào menu sidebar admin, hiển thị bảng KPI/thành viên theo nhóm & tháng, tự động tính điểm chuyên cần theo công thức tuyến tính, miễn trừ vắng do lịch học, cho phép đội trưởng/admin điều chỉnh điểm lưu Supabase với RLS an toàn và xếp loại 5 bậc.
+- **Phạm vi tác động:**
+  - `admin.html`: Bổ sung menu item, view `#view-performance`, bảng chi tiết 13 cột và modal `#perfAdjustModal`.
+  - `css/admin.css`: Định kiểu responsive cho view và modal hiệu suất.
+  - `js/admin/admin.core.js`: Đăng ký điều hướng route `performance`.
+  - `js/admin/admin.performance.calc.js`: Module tính toán chuyên cần, phạt muộn tuyến tính, giới hạn biên [0, 100], xếp loại 5 bậc.
+  - `js/admin/admin.performance.js`: Tải dữ liệu, lọc nhóm/tháng, điều khiển bảng, cập nhật điểm tức thời và gọi Supabase RPC.
+  - `supabase/migrations/20261105120000_member_performance_evaluations.sql`: Bảng dữ liệu, RLS và hàm RPC `save_captain_adjustment`.
+  - `tests/e2e_performance_evaluations.test.js`: Bộ kiểm thử E2E 4 tầng độc lập (72/72 ca kiểm thử).
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Thêm view và mục điều hướng "Đánh giá hiệu suất" vào menu sidebar admin.
+  - [x] Tính điểm chuyên cần chuẩn: có mặt 0đ trừ; vắng lịch học 0đ; vắng có phép khác -2đ/lần; vắng không phép -10đ/lần.
+  - [x] Đi muộn tính theo công thức tuyến tính: 10p (-1đ) đến 100p (-20đ), muộn >100p phạt tối đa 20đ và không chuyển thành vắng.
+  - [x] Điểm số kẹp chặt trong khoảng [0, 100] ở mọi tình huống.
+  - [x] Phân loại chính xác 5 bậc: Xuất sắc (100đ), Giỏi (80-99đ), Khá (70-79đ), Cần xem lại (50-69đ), Nguy cơ cao (<50đ).
+  - [x] Đội trưởng/admin có thể nhập điểm điều chỉnh (cộng/trừ), lưu thành công qua Supabase RPC và có fallback localStorage.
+  - [x] Bộ kiểm thử độc lập 72/72 ca test PASS 100%. Vượt qua vòng thẩm định Victory Audit độc lập (VICTORY CONFIRMED).
+- **Phương án kiểm thử:** Bộ kiểm thử E2E độc lập 4 tầng `tests/e2e_performance_evaluations.test.js` ghi nhận tại [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043).

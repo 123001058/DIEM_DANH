@@ -65,12 +65,27 @@ stateDiagram-v2
 | [TASK-037](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-037) | Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn | `[DONE]` | Critical | [TLOG-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-038) (PASS 21/21 assertions, 11/11 master suites) | 2026-11-03 |
 | [TASK-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-038) | Siết chặt bảo mật Face AI chống nhận nhầm danh tính | `[DONE]` | Critical | [TLOG-039](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-039) (PASS 13/13 assertions, 11/11 master suites) | 2026-11-03 |
 | [TASK-042](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-042-triển-khai-cơ-chế-standby--wakeup-tiết-kiệm-điện-cho-esp32-s3-cam-ov2640-và-tối-ưu-kiosk--web-admin) | Cơ chế Standby / Wakeup tiết kiệm điện ESP32-S3-CAM (OV2640) & Tối ưu Kiosk / Web Admin | `[VERIFYING]` | High | [TLOG-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-045-tinh-chỉnh-driver-native-bank-addressing-thứ-tự-cam_stop--chuẩn-hóa-ip-web-admin-task-042) (Firmware build PASS, Invariants PASS, 257 checks PASS; chờ nạp mạch thật) | 2026-11-04 |
+| [TASK-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-043-triển-khai-tính-năng-đánh-giá-hiệu-suất-thành-viên-vào-menu-admin-chuyên-cần-tự-động-tuyến-tính--đội-trưởng-chấm-điểm-lưu-supabase) | Tính năng Đánh giá hiệu suất: Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase | `[DONE]` | High | [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043) (PASS 72/72 tests, Victory Confirmed) | 2026-11-05 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-05 (Triển khai tính năng Đánh giá hiệu suất thành viên - TASK-043)
+- **Agent/Model:** Antigravity / Teamwork Multi-Agent (Dual-Track + Victory Auditor)
+- **Nhiệm vụ:** [TASK-043] (Tính năng Đánh giá hiệu suất: Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase)
+- **Tóm tắt hành động:**
+  - Nhận yêu cầu và cùng người dùng rà soát, làm rõ toàn diện các trường hợp biên (edge cases) và ngoại lệ thực tế (quyền hạn `is_admin`, lưu theo tháng/kỳ, miễn trừ trùng lịch học, kẹp biên [0, 100], phạt muộn tuyến tính 10p - 100p).
+  - Triển khai mô hình Teamwork Multi-Agent Dual-Track:
+    - **Database/RPC (M1):** Tạo migration `supabase/migrations/20261105120000_member_performance_evaluations.sql` định nghĩa bảng `member_performance_evaluations`, RLS và RPC `save_captain_adjustment` có `SECURITY DEFINER` (upsert nguyên tử).
+    - **Engine tính điểm (M2):** Viết `js/admin/admin.performance.calc.js` tính điểm chuyên cần tuyến tính ($1 + (m - 10) \times 19 / 90$), tự động nhận diện miễn trừ lịch học, kẹp biên [0, 100], xếp loại 5 bậc (Xuất sắc: 100, Giỏi: 80-99, Khá: 70-79, Cần xem lại: 50-69, Nguy cơ cao: <50).
+    - **Giao diện Menu Admin (M3):** Bổ sung view `#view-performance` trong `admin.html`, styling CSS responsive trong `css/admin.css`, route điều hướng trong `js/admin/admin.core.js`, bộ lọc nhóm/tháng và modal điều chỉnh điểm tức thời trong `js/admin/admin.performance.js`.
+  - **Kiểm định độc lập & Victory Audit:**
+    - Bộ kiểm thử E2E 4 tầng `tests/e2e_performance_evaluations.test.js`: PASS 72/72 tests (100%).
+    - Hội đồng Challenger/Reviewer/Forensic Auditor: 0 vi phạm, 238/238 stress tests PASS.
+    - Sentinel Victory Auditor độc lập: Phán quyết `VICTORY CONFIRMED` (14/14 tests PASS), bảo vệ tuyệt đối các tính năng đóng băng theo `docs/FROZEN_FEATURES.md`. Ghi nhận TLOG-046. Trạng thái `[DONE]`.
 
 ### Phiên làm việc: 2026-11-03 (Sửa toàn diện logic tính toán và hiển thị đếm thời gian đi muộn - TASK-037)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)

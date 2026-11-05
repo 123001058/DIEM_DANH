@@ -101,6 +101,7 @@
       </span>
       <span class="nav-label">Lịch rảnh / bận</span>
     </button>
+    <button class="sidebar-nav-item" id="nav-performance" onclick="navTo('performance')"><span class="nav-icon">📊</span><span class="nav-label">Đánh giá hiệu suất</span></button>
   </nav>
 
   <div class="sidebar-footer">
@@ -1443,6 +1444,230 @@
       </section>
     </section>
 
+    <!-- ==========================================================
+         VIEW: ĐÁNH GIÁ HIỆU SUẤT THÀNH VIÊN (PERFORMANCE EVALUATION)
+         ========================================================== -->
+    <section class="app-view" id="view-performance">
+      <!-- Toolbar & Bộ lọc khoảng ngày -->
+      <div class="card perf-header-card" style="padding:18px 22px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:42px;height:42px;border-radius:12px;background:#eff6ff;color:#2563eb;display:grid;place-items:center;font-size:22px;flex-shrink:0;">
+              📊
+            </div>
+            <div>
+              <h2 style="font-size:16.5px;font-weight:800;margin:0;color:var(--text);display:flex;align-items:center;gap:8px">
+                Đánh giá hiệu suất thành viên
+                <span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;background:#ede9fe;color:#6d28d9;">Robocon & Xưởng</span>
+              </h2>
+              <p style="font-size:12px;color:var(--muted);margin:2px 0 0">
+                Thống kê chuyên cần tự động, xếp loại 5 bậc và điều chỉnh điểm của đội trưởng
+              </p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="refreshPerformanceView()" title="Tải lại dữ liệu">
+              ↻ Làm mới
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="exportPerformanceExcel()" title="Xuất dữ liệu hiệu suất ra file Excel">
+              📥 Xuất Excel
+            </button>
+          </div>
+        </div>
+
+        <!-- Thanh bộ lọc khoảng ngày đồng bộ theo kiến trúc ứng dụng -->
+        <div class="perf-filter-bar" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">
+            <!-- Nút lọc nhanh -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">Lọc nhanh:</span>
+              <div class="quick-filter-group" style="display:inline-flex;gap:4px;background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--border);">
+                <button type="button" class="btn-quick-date active" id="btnPerfQuickMonth" onclick="setPerfQuickFilter('month')">Tháng này</button>
+                <button type="button" class="btn-quick-date" id="btnPerfQuickSemester" onclick="setPerfQuickFilter('semester')">Học kỳ</button>
+                <button type="button" class="btn-quick-date" id="btnPerfQuickAll" onclick="setPerfQuickFilter('all')">Tất cả</button>
+              </div>
+            </div>
+
+            <!-- Từ ngày -->
+            <label style="font-size:11.5px;font-weight:700;color:var(--text);display:flex;flex-direction:column;gap:4px;">
+              Từ ngày:
+              <input id="perfFromDate" type="date" style="padding:7px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text);font-family:inherit;">
+            </label>
+
+            <!-- Đến ngày -->
+            <label style="font-size:11.5px;font-weight:700;color:var(--text);display:flex;flex-direction:column;gap:4px;">
+              Đến ngày:
+              <input id="perfToDate" type="date" style="padding:7px 10px;border:1px solid var(--border-strong);border-radius:7px;font-size:12.5px;background:var(--surface);color:var(--text);font-family:inherit;">
+            </label>
+
+            <button class="btn btn-primary btn-sm" onclick="applyPerformanceFilter()" style="padding:8px 16px;font-size:12.5px;font-weight:700;">
+              🔍 Lọc đánh giá
+            </button>
+          </div>
+
+          <!-- Thông tin kỳ đánh giá hiện tại -->
+          <div style="font-size:12px;color:var(--muted);font-weight:600;padding:6px 10px;background:var(--surface-2);border-radius:6px;border:1px solid var(--border);" id="perfPeriodInfoBadge">
+            Kỳ đánh giá: <b style="color:var(--text);" id="perfPeriodLabel">Đang tải...</b>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dải 7 thẻ KPI Đánh giá hiệu suất -->
+      <div class="perf-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;margin-bottom:16px;">
+        <!-- Card 1: Tổng quân số -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;">TỔNG THÀNH VIÊN</span>
+            <span class="kpi-icon-badge purple-box" style="width:30px;height:30px;font-size:13px;">👥</span>
+          </div>
+          <div class="kpi-val text-dark" id="perfKpiTotalMembers" style="font-size:26px;margin:6px 0 2px;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Thành viên tham gia</div>
+        </div>
+
+        <!-- Card 2: Xuất sắc (100) -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;color:#10b981;">XUẤT SẮC (100đ)</span>
+            <span class="kpi-icon-badge green-box" style="width:30px;height:30px;font-size:13px;">🌟</span>
+          </div>
+          <div class="kpi-val text-green" id="perfKpiExcellent" style="font-size:26px;margin:6px 0 2px;color:#10b981;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Đạt 100 điểm tuyệt đối</div>
+        </div>
+
+        <!-- Card 3: Giỏi (80-99) -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;color:#2563eb;">GIỎI (80-99đ)</span>
+            <span class="kpi-icon-badge blue-box" style="width:30px;height:30px;font-size:13px;">⭐</span>
+          </div>
+          <div class="kpi-val text-blue" id="perfKpiGood" style="font-size:26px;margin:6px 0 2px;color:#2563eb;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Chuyên cần tích cực</div>
+        </div>
+
+        <!-- Card 4: Khá (70-79) -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;color:#0891b2;">KHÁ (70-79đ)</span>
+            <span class="kpi-icon-badge" style="width:30px;height:30px;font-size:13px;background:#ecfeff;color:#0891b2;">👍</span>
+          </div>
+          <div class="kpi-val" id="perfKpiFair" style="font-size:26px;margin:6px 0 2px;color:#0891b2;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Hoàn thành nhiệm vụ</div>
+        </div>
+
+        <!-- Card 5: Cần xem lại (50-69) -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;color:#d97706;">CẦN XEM LẠI (50-69đ)</span>
+            <span class="kpi-icon-badge" style="width:30px;height:30px;font-size:13px;background:#fffbeb;color:#d97706;">⚠️</span>
+          </div>
+          <div class="kpi-val" id="perfKpiNeedsImprovement" style="font-size:26px;margin:6px 0 2px;color:#d97706;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Vắng / Muộn nhiều</div>
+        </div>
+
+        <!-- Card 6: Nguy cơ cao (<50) -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;color:#dc2626;">NGUY CƠ CAO (&lt;50đ)</span>
+            <span class="kpi-icon-badge pink-box" style="width:30px;height:30px;font-size:13px;">🚨</span>
+          </div>
+          <div class="kpi-val text-red" id="perfKpiHighRisk" style="font-size:26px;margin:6px 0 2px;color:#dc2626;">0</div>
+          <div class="kpi-sub" style="font-size:11px;">Cần can thiệp gấp</div>
+        </div>
+
+        <!-- Card 7: Điểm trung bình -->
+        <div class="card kpi-card" style="padding:14px 16px;">
+          <div class="kpi-top">
+            <span class="kpi-label" style="font-size:11px;">ĐIỂM TRUNG BÌNH</span>
+            <span class="kpi-icon-badge" style="width:30px;height:30px;font-size:13px;background:#f1f5f9;color:#475569;">🎯</span>
+          </div>
+          <div class="kpi-val text-dark" id="perfKpiAverageScore" style="font-size:26px;margin:6px 0 2px;">100</div>
+          <div class="kpi-sub" style="font-size:11px;">Trung bình toàn đội</div>
+        </div>
+      </div>
+
+      <!-- Bảng danh sách thành viên & Tìm kiếm, Bộ lọc nhóm/xếp loại -->
+      <div class="card perf-table-card" style="padding:18px 22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+          <div>
+            <h3 style="font-size:15px;font-weight:800;margin:0;color:var(--text);display:flex;align-items:center;gap:6px;">
+              <span>📋</span> Bảng tổng hợp & Đánh giá hiệu suất
+            </h3>
+            <span style="font-size:12px;color:var(--muted);margin-top:2px;" id="perfTableSummaryText">
+              Đang tải danh sách thành viên...
+            </span>
+          </div>
+
+          <!-- Nhóm công cụ tìm kiếm và lọc cột -->
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <!-- Lọc Nhóm -->
+            <select id="perfTeamFilter" onchange="filterPerformanceTable()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border-strong);font-size:12px;font-weight:600;background:var(--surface);color:var(--text);">
+              <option value="all">👥 Tất cả nhóm</option>
+            </select>
+
+            <!-- Lọc Xếp loại -->
+            <select id="perfTierFilter" onchange="filterPerformanceTable()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border-strong);font-size:12px;font-weight:600;background:var(--surface);color:var(--text);">
+              <option value="all">🏆 Tất cả xếp loại</option>
+              <option value="EXCELLENT">🌟 Xuất sắc (100đ)</option>
+              <option value="GOOD">⭐ Giỏi (80-99đ)</option>
+              <option value="FAIR">👍 Khá (70-79đ)</option>
+              <option value="NEEDS_IMPROVEMENT">⚠️ Cần xem lại (50-69đ)</option>
+              <option value="HIGH_RISK">🚨 Nguy cơ cao (&lt;50đ)</option>
+              <option value="NODATA">⚪ Chưa có dữ liệu</option>
+            </select>
+
+            <!-- Ô tìm kiếm -->
+            <div class="search-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="perfSearchInput" placeholder="Tìm tên, MSSV..." oninput="filterPerformanceTable()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Bảng thành viên -->
+        <div class="tbl-wrap">
+          <div class="tbl-scroll" style="max-height:560px;">
+            <table class="perf-table" style="min-width:1050px;">
+              <thead>
+                <tr>
+                  <th style="width:42px;text-align:center;">STT</th>
+                  <th style="width:105px;">MSSV</th>
+                  <th style="width:190px;">Họ và tên</th>
+                  <th style="width:120px;">Nhóm</th>
+                  <th style="width:70px;text-align:center;" title="Tổng số buổi có mặt">Có mặt</th>
+                  <th style="width:130px;text-align:center;" title="Vắng có phép (-2đ/buổi, miễn trừ nếu trùng lịch học ME)">Có phép</th>
+                  <th style="width:90px;text-align:center;" title="Vắng không phép (-10đ/buổi)">K.Phép</th>
+                  <th style="width:95px;text-align:center;" title="Phút đi muộn tuyến tính (10p=-1đ đến 100p=-20đ)">Muộn (p)</th>
+                  <th style="width:85px;text-align:center;" title="Điểm chuyên cần tự động [0, 100]">Điểm CC</th>
+                  <th style="width:115px;text-align:center;" title="Điểm điều chỉnh cộng/trừ của đội trưởng">ĐT Điều chỉnh</th>
+                  <th style="width:90px;text-align:center;" title="Tổng kết = Clamped(Điểm CC + ĐT Điều chỉnh, [0, 100])">Tổng kết</th>
+                  <th style="width:120px;text-align:center;">Xếp loại</th>
+                  <th style="width:110px;text-align:center;">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="perfTableBody">
+                <tr>
+                  <td colspan="13" style="text-align:center;padding:36px;color:var(--muted);">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                      <span class="spin" style="width:24px;height:24px;"></span>
+                      <span>Đang nạp dữ liệu đánh giá hiệu suất...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Chú thích quy tắc tính điểm -->
+        <div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            📌 <b>Quy tắc tính điểm (R2, R3, R4):</b> Điểm gốc 100 • Vắng có phép -2đ (Trùng lịch học ME: <b>-0đ</b>) • Vắng không phép: <b>-10đ</b> • Đi muộn tuyến tính 10p (-1đ) đến 100p (-20đ, tối đa 20đ) • Tổng điểm = [CC + ĐT], kẹp nghiêm ngặt [0, 100].
+          </div>
+          <div style="font-weight:700;color:var(--text);" id="perfRowCountInfo">0 thành viên</div>
+        </div>
+      </div>
+    </section>
+
 </main>
 </div>
 
@@ -2098,6 +2323,80 @@
   </div>
 </div>
 
+<!-- Modal Đội Trưởng Điều Chỉnh Điểm Hiệu Suất (Milestone 3) -->
+<div class="modal-bg" id="perfAdjustModal" onclick="if(event.target===this)closePerfAdjustModal()">
+  <div class="modal" style="max-width:480px;text-align:left;padding:22px;background:var(--surface);border-radius:14px;box-shadow:var(--shadow-lg);border:1px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:#eff6ff;color:#2563eb;display:grid;place-items:center;font-size:18px;">
+          ✏️
+        </div>
+        <div>
+          <h3 style="margin:0;font-size:15.5px;font-weight:800;color:var(--text);">Điều chỉnh điểm hiệu suất</h3>
+          <p style="margin:2px 0 0;font-size:11.5px;color:var(--muted);" id="perfAdjustSubtitle">Dành cho Đội trưởng &amp; Quản trị viên</p>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closePerfAdjustModal()" style="padding:2px 8px;font-size:13px;">✕</button>
+    </div>
+
+    <!-- Thông tin thành viên -->
+    <div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <div>
+        <div style="font-size:13.5px;font-weight:800;color:var(--text);" id="perfAdjustStudentName">—</div>
+        <div style="font-size:11.5px;color:var(--muted);font-family:monospace;margin-top:2px;">
+          MSSV: <span id="perfAdjustStudentMssv" style="font-weight:700;">—</span> · Nhóm: <span id="perfAdjustStudentTeam" style="font-weight:700;">—</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:700;">Điểm CC gốc:</div>
+        <div style="font-size:16px;font-weight:800;color:var(--text);" id="perfAdjustBaseScore">100</div>
+      </div>
+    </div>
+
+    <input type="hidden" id="perfAdjustTargetMssv" value="">
+
+    <!-- Ô nhập điểm điều chỉnh -->
+    <div class="form-field" style="margin-bottom:12px;">
+      <label for="perfAdjustScoreInput" style="display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:5px;">
+        ĐIỂM ĐIỀU CHỈNH CỦA ĐỘI TRƯỞNG (+ HOẶC -):
+      </label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="number" id="perfAdjustScoreInput" step="0.5" placeholder="Ví dụ: +5 hoặc -10" oninput="updatePerfPreviewScore()" style="flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;font-weight:800;font-family:inherit;background:var(--surface);color:var(--text);outline:none;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('perfAdjustScoreInput').value=0;updatePerfPreviewScore()" title="Đặt về 0">Về 0</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">
+        💡 Nhập số dương (vd: 5) để cộng thưởng, hoặc số âm (vd: -10) để trừ phạt.
+      </div>
+    </div>
+
+    <!-- Lý do / Ghi chú -->
+    <div class="form-field" style="margin-bottom:14px;">
+      <label for="perfAdjustNotesInput" style="display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:5px;">
+        LÝ DO ĐIỀU CHỈNH &amp; GHI CHÚ:
+      </label>
+      <textarea id="perfAdjustNotesInput" rows="2" placeholder="Ví dụ: Tích cực hỗ trợ gia công robot, hoặc chưa hoàn thành nhiệm vụ xưởng..." style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:12.5px;font-family:inherit;resize:vertical;background:var(--surface);color:var(--text);outline:none;"></textarea>
+    </div>
+
+    <!-- Preview tổng điểm sau điều chỉnh -->
+    <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Dự kiến sau điều chỉnh:</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Tự động kẹp trong [0, 100]</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:22px;font-weight:800;color:var(--text);" id="perfAdjustPreviewFinalScore">100</div>
+        <span class="perf-tier-badge st-excellent" id="perfAdjustPreviewTierBadge" style="font-size:12px;padding:3px 10px;">Xuất sắc</span>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" class="btn btn-secondary" onclick="closePerfAdjustModal()">Huỷ</button>
+      <button type="button" class="btn btn-primary" id="btnSavePerfAdjustment" onclick="submitCaptainAdjustment()">💾 Lưu điểm điều chỉnh</button>
+    </div>
+  </div>
+</div>
+
 <!-- Input chọn ảnh trực tiếp khi nhấp vào Avatar Admin -->
 <input type="file" id="adminAvatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleAdminAvatarSelectedDirect(event)">
 
@@ -2109,5 +2408,7 @@
 <script src="js/admin/admin.students.js?v=2"></script>
 <script src="js/admin/admin.attendance.js?v=2"></script>
 <script src="js/admin/admin.face.js?v=12"></script>
+<script src="js/admin/admin.performance.calc.js?v=1"></script>
+<script src="js/admin/admin.performance.js?v=1"></script>
 </body>
 </html>
