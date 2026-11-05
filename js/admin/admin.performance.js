@@ -160,7 +160,7 @@
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="13" style="text-align:center;padding:36px;color:var(--muted);">
+          <td colspan="12" style="text-align:center;padding:36px;color:var(--muted);">
             <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
               <span class="spin" style="width:24px;height:24px;"></span>
               <span>Đang tính toán điểm hiệu suất chuyên cần...</span>
@@ -386,7 +386,7 @@
       if (tbody) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="13" style="text-align:center;padding:32px;color:var(--err);">
+            <td colspan="12" style="text-align:center;padding:32px;color:var(--err);">
               ⚠️ Lỗi khi tải dữ liệu đánh giá: ${err.message || 'Không xác định'}. Vui lòng bấm "Làm mới" để thử lại.
             </td>
           </tr>
@@ -512,7 +512,7 @@
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="13" style="text-align:center;padding:36px;color:var(--muted);">
+          <td colspan="12" style="text-align:center;padding:36px;color:var(--muted);">
             Không tìm thấy thành viên nào phù hợp với bộ lọc hiện tại.
           </td>
         </tr>
@@ -524,19 +524,38 @@
       const cr = item.calcResult;
       const initial = (item.name || '?').trim().slice(-1).toUpperCase();
 
-      // Chi tiết vắng có phép: trùng lịch học (0đ) vs việc riêng (-2đ)
-      let excusedDetailHtml = '0';
+      // Có mặt
+      const presentHtml = cr.presentCount > 0
+        ? `<b style="color:var(--ok);font-size:13.5px;">${cr.presentCount}</b>`
+        : `<span style="color:var(--muted);font-weight:600;">0</span>`;
+
+      // Chi tiết vắng có phép: phân tách rành mạch Lịch học (0đ) vs Việc riêng (-2đ)
+      let excusedDetailHtml = '<span style="color:var(--muted);font-weight:600;">0</span>';
       if (cr.excusedCount > 0) {
         const parts = [];
-        if (cr.excusedSchoolCount > 0) parts.push(`<span style="color:#0891b2" title="Trùng lịch học ME (không trừ điểm)">${cr.excusedSchoolCount} học</span>`);
-        if (cr.excusedOtherCount > 0) parts.push(`<span style="color:#d97706" title="Vắng phép khác (-2đ/lần)">${cr.excusedOtherCount} khác</span>`);
-        excusedDetailHtml = `<b>${cr.excusedCount}</b> <span style="font-size:11px;color:var(--muted)">(${parts.join(', ')})</span>`;
+        if (cr.excusedSchoolCount > 0) {
+          parts.push(`<span class="perf-tag school" title="${cr.excusedSchoolCount} buổi trùng lịch học ME (Miễn trừ: không trừ điểm)">📚 ${cr.excusedSchoolCount} Lịch học</span>`);
+        }
+        if (cr.excusedOtherCount > 0) {
+          parts.push(`<span class="perf-tag other" title="${cr.excusedOtherCount} buổi có phép việc riêng (Trừ -${cr.excusedOtherCount * 2}đ)">⚠️ ${cr.excusedOtherCount} Phép (-${cr.excusedOtherCount * 2}đ)</span>`);
+        }
+        excusedDetailHtml = `<div style="display:inline-flex;flex-direction:column;gap:3px;align-items:center;">${parts.join('')}</div>`;
       }
 
-      // Đi muộn: số phút & số lần
-      let lateHtml = '0p';
+      // Vắng không phép: đỏ nổi bật
+      let unexcusedHtml = '<span style="color:var(--muted);font-weight:600;">0</span>';
+      if (cr.unexcusedCount > 0) {
+        unexcusedHtml = `<span class="perf-tag unexcused" title="${cr.unexcusedCount} buổi vắng không phép (Trừ -${cr.unexcusedCount * 10}đ)">⛔ ${cr.unexcusedCount} (-${cr.unexcusedCount * 10}đ)</span>`;
+      }
+
+      // Đi muộn: số phút & điểm trừ rõ ràng (thay vì viết tắt 1L)
+      let lateHtml = '<span style="color:var(--muted);font-weight:600;">0</span>';
       if (cr.lateCount > 0 || cr.totalLateMinutes > 0) {
-        lateHtml = `<b style="color:#d97706">${cr.totalLateMinutes}p</b> <span style="font-size:11px;color:var(--muted)">(${cr.lateCount}L)</span>`;
+        if (cr.totalLateDeduction > 0) {
+          lateHtml = `<span class="perf-tag late-deduct" title="${cr.lateCount} lần đi muộn, tổng ${cr.totalLateMinutes} phút (Trừ -${cr.totalLateDeduction}đ)">⏰ ${cr.totalLateMinutes}p <small style="opacity:0.9;">(-${cr.totalLateDeduction}đ)</small></span>`;
+        } else {
+          lateHtml = `<span class="perf-tag late-grace" title="${cr.lateCount} lần đi muộn dưới 10 phút (Ân hạn: 0đ trừ)">⏰ ${cr.totalLateMinutes}p <small style="color:var(--muted);">(0đ)</small></span>`;
+        }
       }
 
       // Điểm chuyên cần tự động
@@ -545,36 +564,30 @@
 
       // Điểm điều chỉnh của đội trưởng (+/-)
       const adjVal = item.captainAdjustment;
-      let adjDisplay = '0';
+      let adjDisplay = '+0đ';
       let adjBtnClass = 'perf-adjust-btn';
       if (adjVal > 0) {
-        adjDisplay = `+${adjVal}`;
+        adjDisplay = `+${adjVal}đ`;
         adjBtnClass += ' has-adj';
       } else if (adjVal < 0) {
-        adjDisplay = `${adjVal}`;
-        adjBtnClass += ' has-adj';
+        adjDisplay = `${adjVal}đ`;
+        adjBtnClass += ' neg';
       }
 
-      const noteTooltip = item.captainNotes ? ` title="${escapeHtml(item.captainNotes)}"` : '';
+      const noteTooltip = item.captainNotes ? ` title="${escapeHtml(item.captainNotes)}"` : ' title="Bấm để chấm / điều chỉnh điểm"';
       const adjButtonHtml = `
-        <button type="button" class="${adjBtnClass}" onclick="openCaptainAdjustModal('${escapeJsAttr(item.mssv)}')"[${noteTooltip}]>
+        <button type="button" class="${adjBtnClass}" onclick="openCaptainAdjustModal('${escapeJsAttr(item.mssv)}')"${noteTooltip}>
           <span>${adjDisplay}</span>
-          <span style="font-size:11px;">✏️</span>
+          <span style="font-size:10px;margin-left:2px;">✏️</span>
         </button>
       `;
 
       // Tổng điểm cuối cùng sau điều chỉnh
       const finalColor = item.finalScore >= 80 ? 'var(--ok)' : (item.finalScore >= 70 ? '#0891b2' : (item.finalScore >= 50 ? '#d97706' : '#dc2626'));
-      const finalScoreHtml = `<b style="font-size:14px;color:${finalColor}">${item.finalScore}</b>`;
+      const finalScoreHtml = `<b style="font-size:15px;font-weight:800;color:${finalColor}">${item.finalScore}</b>`;
 
       // Xếp loại 5 bậc trực quan
       const tierBadge = `<span class="perf-tier-badge ${item.tierInfo.badgeClass}">${item.tierInfo.label}</span>`;
-
-      // Trạng thái dữ liệu
-      let statusBadge = '<span style="font-size:11px;font-weight:700;color:var(--ok);background:#ecfdf5;padding:2px 7px;border-radius:99px;">Đã điểm danh</span>';
-      if (!item.hasAttendanceData) {
-        statusBadge = '<span class="perf-tier-badge st-nodata" title="Chưa có dữ liệu điểm danh trong kỳ đánh giá này">Chưa có dữ liệu</span>';
-      }
 
       return `
         <tr>
@@ -585,6 +598,7 @@
               <div class="avt" style="background:#2563eb;color:#fff;">${initial}</div>
               <div>
                 <div class="td-name" style="font-weight:700;">${escapeHtml(item.name)}</div>
+                ${!item.hasAttendanceData ? '<div style="font-size:10px;color:var(--muted);font-weight:600;">(Chưa có dữ liệu)</div>' : ''}
               </div>
             </div>
           </td>
@@ -593,15 +607,14 @@
               ${escapeHtml(item.teamName)}
             </span>
           </td>
-          <td style="text-align:center;font-weight:700;color:var(--ok);">${cr.presentCount}</td>
+          <td style="text-align:center;">${presentHtml}</td>
           <td style="text-align:center;">${excusedDetailHtml}</td>
-          <td style="text-align:center;font-weight:700;color:${cr.unexcusedCount > 0 ? 'var(--err)' : 'var(--muted)'};">${cr.unexcusedCount}</td>
+          <td style="text-align:center;">${unexcusedHtml}</td>
           <td style="text-align:center;">${lateHtml}</td>
           <td style="text-align:center;">${attScoreHtml}</td>
           <td style="text-align:center;">${adjButtonHtml}</td>
           <td style="text-align:center;">${finalScoreHtml}</td>
           <td style="text-align:center;">${tierBadge}</td>
-          <td style="text-align:center;">${statusBadge}</td>
         </tr>
       `;
     }).join('');
