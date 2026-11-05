@@ -252,10 +252,12 @@
             const chunk = sessionIds.slice(i, i + chunkSize);
             const { data: attData, error: attErr } = await supabase
               .from('attendance')
-              .select('id, session_id, mssv, status, category, note, notes, reason, created_at, late_minutes, is_late, is_excused, is_present')
+              .select('id, session_id, mssv, full_name, status, category, note, created_at')
               .in('session_id', chunk);
 
-            if (!attErr && Array.isArray(attData)) {
+            if (attErr) {
+              console.error('[Performance] Lỗi nạp bảng attendance:', attErr);
+            } else if (Array.isArray(attData)) {
               attData.forEach(rec => {
                 const sId = rec.session_id;
                 const sess = sessionsMap.get(sId);
