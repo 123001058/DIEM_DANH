@@ -207,15 +207,6 @@ function toggleAddStudentCard(show) {
     if (input) setTimeout(() => input.focus(), 60);
   }
 }
-function focusAddStudentMssv() {
-  toggleAddStudentCard(true);
-  const input = document.getElementById('inputSearchMssv');
-  if (input) {
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    input.focus();
-  }
-}
-window.focusAddStudentMssv = focusAddStudentMssv;
 
 let collapsedTeamsSet = new Set();
 
@@ -1134,7 +1125,7 @@ function setupRealtime(){
       }
     }).subscribe();
 }
-function renderAll(){ updateStats(); renderTable(); renderFeed(); renderGroupsTableIfVisible(); }
+function renderAll(){ updateStats(); renderTable(); renderGroupsTableIfVisible(); }
 async function refreshAll(){
   await loadSession();
   if (!currentSession){ showEmpty(); return; }

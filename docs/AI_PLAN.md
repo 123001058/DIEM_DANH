@@ -1067,3 +1067,30 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Đội trưởng/admin có thể nhập điểm điều chỉnh (cộng/trừ), lưu thành công qua Supabase RPC và có fallback localStorage.
   - [x] Bộ kiểm thử độc lập 72/72 ca test PASS 100%. Vượt qua vòng thẩm định Victory Audit độc lập (VICTORY CONFIRMED).
 - **Phương án kiểm thử:** Bộ kiểm thử E2E độc lập 4 tầng `tests/e2e_performance_evaluations.test.js` ghi nhận tại [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043).
+
+### [TASK-044] Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ
+
+- **Ngày tạo:** 2026-11-06
+- **Mức độ ưu tiên:** Medium
+- **Mục tiêu:** Xóa các hàm/biến/nhánh DOM không còn được gọi trong frontend, file tạm theo dõi trong git và thư mục build cũ trong `scratch/` (đã gitignore), mà không thay đổi hành vi production và không chạm firmware đóng băng.
+- **Phạm vi tác động:**
+  - `js/admin/admin.students.js`: Xóa hàm `focusAddStudentMssv` + export (production dùng `toggleAddStudentCard()` trực tiếp qua `onclick` trong `admin.html`); bỏ `renderFeed()` khỏi `renderAll()`.
+  - `js/admin/admin.tasks.js`: Xóa hàm `renderFeed` (target `#feedList` đã bị xóa khỏi `admin.html`), biến `_matrixCurrentFilter`, các khối DOM mồ côi trong `updateStats` (`stat*`, `progress*`), `showDashboard` (`overviewSessionCreateBox`), `executeStatusChange` (`tabAuditLog`), `loadTodayHistory` (`todayHistoryWrap`/`todayHistoryList`/`emptyTodayHistoryList`, giữ `historyFullList`), `loadTodaySchoolSchedule` (khung `sched*` đã bị xóa, giữ fetch + `_todayStudentScheduleMap` + `kpiBusyCount`).
+  - `js/admin/admin.leave.js`: Xóa biến không dùng `pRate`, `totalExpected`.
+  - `scratch_extract_all.py`, `scratch_parse.py`, `scratch_out.txt`: Xóa file tạm đã tracked trong git.
+  - `scratch/arduino_build_*`, `scratch/build_*`, `scratch/auditor_build_*`, `scratch/victory_*`, `scratch/identity-log-download-*`: Xóa thư mục build/log cũ (~967MB, đã gitignore). Giữ nguyên các script test trong `scratch/`.
+  - `scratch/test_admin_fixes.js`, `scratch/test_admin_fixes.py`, `scratch/challenger_m1_1.js`, `scratch/stress_test_admin_challenger.js`, `scratch/auditor_m1_test.js`: Cập nhật kiểm tra `focusAddStudentMssv` sang `toggleAddStudentCard` (hàm còn dùng thật).
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - `focusAddStudentMssv` không có caller nào trong HTML/JS production (nút "+ Thêm MSSV" gọi `toggleAddStudentCard()` trực tiếp). Chỉ còn tham chiếu trong 5 file test scratch.
+  - `renderFeed` chỉ được gọi từ `renderAll()`; `#feedList` không còn trong `admin.html` nên hàm luôn `return` ngay.
+  - Các ID `stat*`/`progress*`/`sched*`/`todayHistoryWrap`… không còn phần tử trong `admin.html`; code đều null-guarded nên xóa không đổi hành vi.
+  - `loadTodaySchoolSchedule` vẫn có giá trị thật (fetch lịch + `_todayStudentScheduleMap` nuôi `getStudentScheduleCellHtml` + `kpiBusyCount`); chỉ khung render `sched*` là chết.
+  - Firmware `esp32_kiosk/qr_display.h` thuộc FRZ-001 (LOCKED) nên không chạm dù có hàm thừa.
+  - `scratch/` đã nằm trong `.gitignore` dòng 5; 34 thư mục build/log chiếm ~967MB trên đĩa cục bộ.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Không còn tham chiếu production tới `focusAddStudentMssv`, `renderFeed`, `_matrixCurrentFilter`, `pRate`, `totalExpected`, các ID DOM mồ côi trên.
+  - [x] Toàn bộ file JS thay đổi qua `node -c` (exit 0), không broken reference.
+  - [x] `scratch/run_full_system_verification.js` PASS toàn bộ suites (kèm 5 suite admin đã cập nhật).
+  - [x] `git diff --stat` không chạm `esp32_kiosk/`, `esp32_cam_ai/` và `docs/FROZEN_FEATURES.md`.
+  - [x] File tạm tracked đã xóa; thư mục build cũ trong `scratch/` đã dọn; script test trong `scratch/` còn nguyên.
+- **Phương án kiểm thử:** `node -c` từng file JS; `node scratch/run_full_system_verification.js`; `git diff --check`; grep xác nhận dead symbols đã biến mất.

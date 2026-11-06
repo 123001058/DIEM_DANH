@@ -964,8 +964,6 @@ function renderSessionHistoryCard(s) {
   const lateText = s.late ? ' · <span style="color:#d97706;font-weight:700">' + s.late + ' muộn</span>' : '';
   const excusedText = s.excused ? ' · <span style="color:#7c3aed;font-weight:700">' + s.excused + ' phép</span>' : '';
   const totalSv = s.total || students?.length || 0;
-  const attended = (s.present || 0) + (s.late || 0);
-  const pRate = totalSv ? Math.round(attended * 100 / totalSv) : 0;
 
   return '<div class="today-history-item" style="cursor:pointer;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface);transition:all .15s" onclick="viewPastSession(\'' + s.id + '\')">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
@@ -1079,7 +1077,6 @@ async function loadAttendanceReport(){
   const totalLate = decoratedSessions.reduce((acc, s) => acc + (s.late || 0), 0);
   const totalExcused = decoratedSessions.reduce((acc, s) => acc + (s.excused || 0), 0);
   const totalUnexcused = decoratedSessions.reduce((acc, s) => acc + (s.unexcused || 0), 0);
-  const totalExpected = totalSessions * (totalStudentsCount || 30);
   const tile = (label, value, color) => `
     <div style="padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
       <small style="color:var(--muted);font-size:11px">${label}</small>

@@ -66,12 +66,23 @@ stateDiagram-v2
 | [TASK-038](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-038) | Siết chặt bảo mật Face AI chống nhận nhầm danh tính | `[DONE]` | Critical | [TLOG-039](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-039) (PASS 13/13 assertions, 11/11 master suites) | 2026-11-03 |
 | [TASK-042](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-042-triển-khai-cơ-chế-standby--wakeup-tiết-kiệm-điện-cho-esp32-s3-cam-ov2640-và-tối-ưu-kiosk--web-admin) | Cơ chế Standby / Wakeup tiết kiệm điện ESP32-S3-CAM (OV2640) & Tối ưu Kiosk / Web Admin | `[VERIFYING]` | High | [TLOG-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-045-tinh-chỉnh-driver-native-bank-addressing-thứ-tự-cam_stop--chuẩn-hóa-ip-web-admin-task-042) (Firmware build PASS, Invariants PASS, 257 checks PASS; chờ nạp mạch thật) | 2026-11-04 |
 | [TASK-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-043-triển-khai-tính-năng-đánh-giá-hiệu-suất-thành-viên-vào-menu-admin-chuyên-cần-tự-động-tuyến-tính--đội-trưởng-chấm-điểm-lưu-supabase) | Tính năng Đánh giá hiệu suất: Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase | `[DONE]` | High | [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043) (PASS 72/72 tests, Victory Confirmed) | 2026-11-05 |
+| [TASK-044](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-044-dọn-dẹp-dead-code-js-còn-lại-file-tạm-và-thư-mục-build-cũ) | Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ | `[DONE]` | Medium | [TLOG-047](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-047-dọn-dẹp-dead-code-js-file-tạm-và-thư-mục-build-cũ-task-044) (PASS 258/258) | 2026-11-06 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-06 (Dọn dẹp dead code, biến không dùng và file tạm - TASK-044)
+- **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Nhiệm vụ:** [TASK-044] (Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ)
+- **Tóm tắt hành động:**
+  - Rà soát và xóa bỏ dead code trong `js/admin/admin.students.js` (`focusAddStudentMssv`, lệnh gọi `renderFeed()`), `js/admin/admin.tasks.js` (`renderFeed`, `_matrixCurrentFilter`, các khối selector DOM mồ côi), và `js/admin/admin.leave.js` (biến thừa `attended`, `pRate`, `totalExpected`).
+  - Xóa sạch các file tạm đã theo dõi trong git: `scratch_extract_all.py`, `scratch_parse.py`, `scratch_out.txt`, và thư mục rác `Microsoft/`. Dọn dẹp các thư mục build cũ trong `scratch/`.
+  - Cập nhật 5 test suites trong `scratch/` đồng bộ việc gỡ bỏ `focusAddStudentMssv`.
+  - Bảo toàn 100% tính năng đóng băng theo `docs/FROZEN_FEATURES.md` (FRZ-001 `qr_display.h`, FRZ-003, FRZ-004, FRZ-005).
+  - Chạy toàn bộ master test runner `scratch/run_full_system_verification.js` (11/11 suites PASS, 258/258 checks) và `tests/e2e_performance_evaluations.test.js` (72/72 tests PASS). Ghi nhận TLOG-047. Trạng thái `[DONE]`.
 
 ### Phiên làm việc: 2026-11-05 (Triển khai tính năng Đánh giá hiệu suất thành viên - TASK-043)
 - **Agent/Model:** Antigravity / Teamwork Multi-Agent (Dual-Track + Victory Auditor)

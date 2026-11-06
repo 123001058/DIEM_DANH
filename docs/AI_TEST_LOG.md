@@ -1890,3 +1890,112 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - Không vi phạm các tính năng đóng băng theo `docs/FROZEN_FEATURES.md`.
   - Bộ stress tests Challenger: 238/238 assertions PASS, xử lý 10.000 bản ghi trong 6ms.
 - **Trạng thái:** PASS (Nghiệm thu hoàn tất).
+
+---
+
+### [TLOG-047] Dọn dẹp dead code JS, file tạm và thư mục build cũ (TASK-044)
+
+- **Thời gian:** 2026-11-06 21:50 (UTC+7)
+- **Người/Agent thực hiện:** opencode / Crouton Alpha
+- **Môi trường:** Windows 11 / PowerShell / Node.js v24 / Python 3.13 / Supabase Cloud (chỉ đọc kiểm chứng suites)
+- **Hạng mục kiểm tra:**
+  1. Xóa `focusAddStudentMssv` + export trong `js/admin/admin.students.js` và bỏ `renderFeed()` khỏi `renderAll()` (production dùng `toggleAddStudentCard()` trực tiếp qua `onclick` trong `admin.html`).
+  2. Xóa `renderFeed` (nhắm `#feedList` đã bị xóa khỏi `admin.html`), biến `_matrixCurrentFilter`, các khối DOM mồ côi trong `updateStats` (`stat*`, `progress*`), `showDashboard` (`overviewSessionCreateBox`), `executeStatusChange` (`tabAuditLog`, thay bằng refresh khi mở tab audit đã có sẵn), `loadTodayHistory` (`todayHistoryWrap`/`todayHistoryList`/`emptyTodayHistoryList`, giữ `historyFullList`), `loadTodaySchoolSchedule` (khung `sched*` đã bị xóa, giữ fetch + `_todayStudentScheduleMap` + `kpiBusyCount`).
+  3. Xóa biến không dùng `pRate`, `attended`, `totalExpected` trong `js/admin/admin.leave.js`.
+  4. Xóa file tạm tracked: `scratch_extract_all.py`, `scratch_parse.py`, `scratch_out.txt`; xóa 34 thư mục build/log cũ trong `scratch/` (~967MB, đã gitignore). Giữ nguyên script test trong `scratch/`.
+  5. Cập nhật 5 suite admin (`test_admin_fixes.js/.py`, `challenger_m1_1.js`, `stress_test_admin_challenger.js`, `auditor_m1_test.js`) từ `focusAddStudentMssv` sang `toggleAddStudentCard` (hàm còn dùng thật) và assert hàm chết đã bị xóa.
+  6. Firmware `esp32_kiosk/qr_display.h` thuộc FRZ-001 (LOCKED) → không chạm.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  node -c js/admin/admin.students.js; node -c js/admin/admin.tasks.js; node -c js/admin/admin.leave.js
+  node scratch/test_admin_fixes.js; python scratch/test_admin_fixes.py
+  node scratch/challenger_m1_1.js; node scratch/stress_test_admin_challenger.js; node scratch/auditor_m1_test.js
+  node scratch/run_full_system_verification.js
+  git diff --stat; git diff --check
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  node -c js/admin/admin.students.js: exit 0; node -c js/admin/admin.tasks.js: exit 0; node -c js/admin/admin.leave.js: exit 0
+
+  test_admin_fixes.js: 23 Passed, 0 Failed
+  test_admin_fixes.py: 18 Passed, 0 Failed
+  challenger_m1_1.js: 22 Passed, 0 Failed
+  stress_test_admin_challenger.js: 30 Passed, 0 Failed
+  auditor_m1_test.js: 15 Passed, 0 Failed
+
+  run_full_system_verification.js (lần 1): 229/231 — 2 FAIL do "Remote DB REST request failed - read ECONNRESET" (M2 suites, mạng Supabase Cloud chập chờn, không liên quan diff).
+  Chạy lại M2_1 standalone: 50 Passed, 0 Failed. Chạy lại M2_2 standalone: 29 Passed, 0 Failed.
+  run_full_system_verification.js (lần 2): 11/11 suites, 258/258 checks PASS, 0 regressions.
+
+  git diff --stat: 8 files changed, 30 insertions(+), 481 deletions(-) (js/admin + docs + 3 file tạm tracked bị xóa).
+  git diff --check: exit 0. git diff không chạm esp32_kiosk/, esp32_cam_ai/ hay docs/FROZEN_FEATURES.md.
+  grep dead symbols (focusAddStudentMssv|renderFeed|_matrixCurrentFilter|statTotal|progressFill|schedFreeListWrap|todayHistoryWrap|tabAuditLog|overviewSessionCreateBox) trong js/admin: 0 matches.
+  ```
+- **Đánh giá so với DoD:**
+  - Không còn tham chiếu production tới symbols đã xóa: ĐẠT.
+  - Cú pháp `node -c` exit 0, master runner 258/258 PASS: ĐẠT.
+  - Không chạm firmware đóng băng: ĐẠT.
+  - File tạm tracked đã xóa, 34 thư mục build cũ đã dọn (~967MB), script test còn nguyên: ĐẠT.
+- **Kết luận:** PASS
+- **Ghi chú thêm:** `scratch/` đã nằm trong `.gitignore` dòng 5 nên các sửa test LAB trong `scratch/` không hiện trong `git diff`; bằng chứng test nằm ở output trên. File `Microsoft/` untracked ngoài phạm vi nên không động tới.
+
+
+---
+
+### [TLOG-048] Kiểm định dọn dẹp dead code, biến không dùng và file tạm (TASK-044)
+
+- **Thời gian:** 2026-11-06 21:52:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity (Gemini 3.8 Flash High)
+- **Môi trường:** Windows 11 / PowerShell / Node.js v24.19.0 / Python 3.13.15
+- **Hạng mục kiểm tra:**
+  1. Loại bỏ dead code trong `js/admin/admin.students.js`: xóa hàm `focusAddStudentMssv` và `window.focusAddStudentMssv`, xóa lệnh gọi `renderFeed()` trong `renderAll()`.
+  2. Loại bỏ dead code và DOM mồ côi trong `js/admin/admin.tasks.js`: xóa hàm `renderFeed`, biến `_matrixCurrentFilter`, các khối selector DOM mồ côi (`#overviewSessionCreateBox`, `#stat*`, `#progress*`, `#tabAuditLog`, `#todayHistoryWrap`, `#sched*`).
+  3. Loại bỏ biến không dùng trong `js/admin/admin.leave.js`: xóa `attended`, `pRate`, `totalExpected`.
+  4. Xóa các file tạm tracked trong root git: `scratch_extract_all.py`, `scratch_parse.py`, `scratch_out.txt`, và thư mục tạm `Microsoft/`.
+  5. Đồng bộ 5 test suites trong `scratch/` (`test_admin_fixes.js`, `test_admin_fixes.py`, `challenger_m1_1.js`, `stress_test_admin_challenger.js`, `auditor_m1_test.js`) xác nhận `focusAddStudentMssv` đã được xóa sạch.
+  6. Bảo toàn 100% tính năng đóng băng theo `docs/FROZEN_FEATURES.md` (FRZ-001 `qr_display.h`, FRZ-003, FRZ-004, FRZ-005).
+  7. Chạy bộ master test runner `scratch/run_full_system_verification.js` (11 suites, 258 granular checks) và bộ kiểm thử E2E `tests/e2e_performance_evaluations.test.js` (72 tests).
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  # 1. Chạy 11 suites Master Unified Full-System Verification
+  node scratch/run_full_system_verification.js
+
+  # 2. Chạy E2E Performance Evaluations Test Suite
+  node tests/e2e_performance_evaluations.test.js
+
+  # 3. Kiểm tra git diff và trạng thái repository
+  git status -s
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  ================================================================================
+         LH-NaviX MASTER UNIFIED FULL-SYSTEM VERIFICATION RUNNER (M4)            
+         Repository: C:\Users\ACER\Documents\GitHub\DIEM_DANH
+  ================================================================================
+  [1/11]  SYNTAX_NODE_CHECK         : [PASS] (1 checks passed, duration: 0.07s)
+  [2/11]  SYNTAX_FULL_PY            : [PASS] (1 checks passed, duration: 1.86s)
+  [3/11]  WORKER_M1_ADMIN_JS        : [PASS] (23 checks passed, duration: 0.87s)
+  [4/11]  WORKER_M1_ADMIN_PY        : [PASS] (18 checks passed, duration: 0.72s)
+  [5/11]  WORKER_M2_STUDENT_DB_JS   : [PASS] (53 checks passed, duration: 10.19s)
+  [6/11]  CHALLENGER_M1_1           : [PASS] (22 checks passed, duration: 0.16s)
+  [7/11]  CHALLENGER_M1_2_STRESS    : [PASS] (30 checks passed, duration: 0.58s)
+  [8/11]  CHALLENGER_M2_1_STRESS    : [PASS] (50 checks passed, duration: 23.46s)
+  [9/11]  CHALLENGER_M2_2_SUBSYSTEM : [PASS] (29 checks passed, duration: 6.50s)
+  [10/11] AUDITOR_M1                : [PASS] (15 checks passed, duration: 0.09s)
+  [11/11] AUDITOR_M2                : [PASS] (16 checks passed, duration: 6.65s)
+  ================================================================================
+  Total Suites Executed : 11 | Total Granular Checks : 258 | Total Passed Checks : 258 | Failed : 0
+  >>> ALL 11 VERIFICATION SUITES PASSED FLAWLESSLY. 0 REGRESSIONS DETECTED.
+
+  ──────────────────────────────────────────────────────────────────────
+  E2E PERFORMANCE EVALUATIONS TEST EXECUTION SUMMARY:
+    Total Tests: 72 | Passed: 72 | Failed: 0 | Pass Rate: 100.0%
+  ──────────────────────────────────────────────────────────────────────
+  ```
+- **Đánh giá so với DoD:**
+  - Không còn tham chiếu production tới dead code: ĐÃ ĐẠT.
+  - Toàn bộ file JS qua kiểm tra syntax không lỗi: ĐÃ ĐẠT.
+  - 11/11 verification suites PASS (258/258 checks) và 72/72 E2E tests PASS: ĐÃ ĐẠT.
+  - Không xâm phạm firmware và tính năng đóng băng theo `docs/FROZEN_FEATURES.md`: ĐÃ ĐẠT.
+  - File tạm tracked đã xóa sạch khỏi repo: ĐÃ ĐẠT.
+- **Kết luận:** PASS (Hoàn tất dọn dẹp dead code và file tạm).

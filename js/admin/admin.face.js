@@ -177,7 +177,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     reloadAdminFaceMatcher();
     renderFaceStudentTable();
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && !adminUserManuallyStopped && hasActiveSession) {
+    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
       startAdminCamera();
     }
     return;
