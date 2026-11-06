@@ -531,11 +531,21 @@
       <!-- Card Quét Camera Chính Gọn Gàng -->
       <div class="card admin-face-cam-card" style="padding:16px 20px;margin-bottom:14px;">
         <!-- Banner Cảnh báo Mixed Content khi mở qua HTTPS -->
-        <div id="adminCamHttpsAlert" style="display:none;padding:12px 14px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;margin-bottom:12px;font-size:12.5px;color:#991b1b;line-height:1.45;">
-          <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-            <span>⚠️</span> Đang mở bằng HTTPS (Trình duyệt chặn Camera nội bộ HTTP)
+        <div id="adminCamHttpsAlert" style="display:none;padding:14px 16px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;margin-bottom:14px;font-size:12.5px;color:#991b1b;line-height:1.5;">
+          <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:13.5px;">
+            <span>⚠️</span> Đang mở bằng HTTPS (Trình duyệt chặn kết nối Camera IP nội bộ HTTP - Mixed Content)
           </div>
-          <div>Trình duyệt di động tự động chặn kết nối HTTP nội bộ (<code>192.168.2.169</code>). Để xem trực tiếp trên trang, vui lòng nhấp vào biểu tượng <b>🎚️ bên trái thanh URL ➔ Quyền ➔ Cho phép "Nội dung không an toàn"</b> rồi tải lại trang.</div>
+          <div style="margin-bottom:8px;">Do quy định bảo mật của trình duyệt, trang web HTTPS không thể tự động tải luồng camera HTTP (<code>192.168.2.169</code>). Chọn 1 trong 2 cách để xử lý:</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:8px;">
+            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #fee2e2;">
+              <b>👉 Cách 1 (Nhanh trên trình duyệt):</b><br/>
+              Nhấp icon <b>🎚️ / 🔒 bên trái thanh URL</b> ➔ <b>Cài đặt trang web</b> ➔ Dòng <b>Nội dung không an toàn (Insecure content)</b> chọn <b>Cho phép (Allow)</b> ➔ F5 tải lại.
+            </div>
+            <div style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #fee2e2;">
+              <b>🚀 Cách 2 (Khuyên dùng cho Lab):</b><br/>
+              Chạy file <code>chay_web_lan.bat</code> trong thư mục dự án để mở bằng <b>HTTP Local</b> (<code>http://localhost:8080/admin.html</code>) — không bao giờ bị Mixed Content.
+            </div>
+          </div>
         </div>
 
         <!-- Header tích hợp gọn 1 hàng -->

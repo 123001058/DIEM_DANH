@@ -752,7 +752,7 @@ async function startAdminCamera(targetMode) {
       if (!adminCameraActive) return;
       if (isHttps) {
         if (hudStatus) {
-          hudStatus.innerHTML = `⚠️ Trình duyệt chặn kết nối HTTP tới <b>${streamUrl}</b> do trang mở bằng HTTPS (Mixed Content). Vui lòng mở qua mạng LAN HTTP.`;
+          hudStatus.innerHTML = `⚠️ Trình duyệt chặn kết nối HTTP tới <b>${streamUrl}</b> do trang mở bằng HTTPS (Mixed Content). Vui lòng đổi sang HTTP (chạy <code>chay_web_lan.bat</code>) hoặc bật 'Cho phép nội dung không an toàn' ở icon ổ khóa bên trái URL.`;
         }
         updateAttendanceCamStatusPill('error');
         return;
