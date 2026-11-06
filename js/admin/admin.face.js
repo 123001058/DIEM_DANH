@@ -207,7 +207,7 @@ async function initFaceCamInAdmin(isBackground = false) {
     }
 
     const hasActiveSession = Boolean(window.currentSession?.id || (typeof currentSession !== 'undefined' && currentSession?.id));
-    if (!adminCameraActive && !adminUserManuallyStopped && hasActiveSession) {
+    if (!adminCameraActive && !adminUserManuallyStopped && (hasActiveSession || !isBackground)) {
       startAdminCamera();
     }
   } catch (err) {
