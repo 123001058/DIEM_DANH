@@ -1094,3 +1094,29 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] `git diff --stat` không chạm `esp32_kiosk/`, `esp32_cam_ai/` và `docs/FROZEN_FEATURES.md`.
   - [x] File tạm tracked đã xóa; thư mục build cũ trong `scratch/` đã dọn; script test trong `scratch/` còn nguyên.
 - **Phương án kiểm thử:** `node -c` từng file JS; `node scratch/run_full_system_verification.js`; `git diff --check`; grep xác nhận dead symbols đã biến mất.
+
+### [TASK-045] Đồng bộ IP camera về 192.168.2.168 (web + kiosk LCD)
+
+- **Ngày tạo:** 2026-11-07
+- **Mức độ ưu tiên:** Critical
+- **Mục tiêu:** Đổi IP camera mặc định từ `192.168.2.169` về `192.168.2.168` (IP thật đang chạy được trên web admin) đồng bộ trên web + kiosk LCD, để LCD nhận hình `/capture` khi mở phiên.
+- **Phạm vi tác động:**
+  - `js/admin/admin.face.js`: `DEFAULT_ESP_CAM_IP` `.169` → `.168`; `LEGACY_ESP_CAM_IPS` gỡ `.168`, thêm `.169` (để IP lưu cũ `.169` tự migrate sang `.168`).
+  - `admin.html`: `#adminEspIpInput` value/placeholder và text banner Mixed Content `.169` → `.168`.
+  - `test_facex_raw.html`: `#espIpInput` value/placeholder `.169` → `.168`.
+  - `esp32_kiosk/esp32_kiosk.ino`: `esp_cam_ip` `.169` → `.168` (chỉ đổi đúng 1 dòng IP).
+- **Phân tích kỹ thuật & Hiện trạng:**
+  - Cam thật đang nhận `192.168.2.168` (xác nhận qua Serial + test trực tiếp `http://192.168.2.168:81/stream` chạy được, web admin xem được).
+  - Code đang hardcode `.169` ở cả 4 vị trí trên, nên kiosk poll `http://192.168.2.169/capture` không có ai trả lời → LCD không có hình.
+  - Ngược lại `LEGACY_ESP_CAM_IPS` đang liệt kê `.168` khiến web tự đè `.168` về `.169` (admin.face.js:146-147), làm web cũng lệch.
+- **Rủi ro bảo vệ:** `esp32_kiosk/esp32_kiosk.ino` thuộc FRZ-001 (LOCKED). Chỉ đổi đúng IP, không đụng polling 1000ms, phân vùng LCD, `fillScreen`, `checkin.html?t=`. Người dùng đã ra lệnh sửa tường minh "sửa lại code thành cái này đi" nên đây là ngoại lệ có ủy quyền.
+- **Các bước triển khai:**
+  1. Cập nhật 4 vị trí IP về `.168` + đảo legacy.
+  2. `node -c` JS, `git diff --check`, test kết nối `/capture` + `/power` tại `.168` qua HTTP thật.
+  3. Biên dịch firmware kiosk bằng arduino-cli (nếu có toolchain) và ghi test log.
+- **Tiêu chí nghiệm thu (DoD):**
+  - [ ] Không còn hardcode `.169` ở web/kiosk (grep sạch, chỉ còn `.169` trong docs lịch sử và legacy).
+  - [ ] `node -c` PASS, `git diff --check` sạch.
+  - [ ] Test trực tiếp `http://192.168.2.168/capture` trả ảnh và `/power?mode=active` trả JSON (nếu cam online).
+  - [ ] LCD:kiosk cần nạp lại firmware (người dùng tự nạp Arduino IDE) mới hiện hình; ghi rõ UNKNOWN đến khi nạp thật.
+- **Phương án kiểm thử:** `node -c`, grep IP, `Test-NetConnection`/`Invoke-WebRequest` tới `.168`, `arduino-cli compile` kiosk.

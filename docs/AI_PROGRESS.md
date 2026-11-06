@@ -67,12 +67,35 @@ stateDiagram-v2
 | [TASK-042](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-042-triển-khai-cơ-chế-standby--wakeup-tiết-kiệm-điện-cho-esp32-s3-cam-ov2640-và-tối-ưu-kiosk--web-admin) | Cơ chế Standby / Wakeup tiết kiệm điện ESP32-S3-CAM (OV2640) & Tối ưu Kiosk / Web Admin | `[VERIFYING]` | High | [TLOG-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-045-tinh-chỉnh-driver-native-bank-addressing-thứ-tự-cam_stop--chuẩn-hóa-ip-web-admin-task-042) (Firmware build PASS, Invariants PASS, 257 checks PASS; chờ nạp mạch thật) | 2026-11-04 |
 | [TASK-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-043-triển-khai-tính-năng-đánh-giá-hiệu-suất-thành-viên-vào-menu-admin-chuyên-cần-tự-động-tuyến-tính--đội-trưởng-chấm-điểm-lưu-supabase) | Tính năng Đánh giá hiệu suất: Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase | `[DONE]` | High | [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043) (PASS 72/72 tests, Victory Confirmed) | 2026-11-05 |
 | [TASK-044](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-044-dọn-dẹp-dead-code-js-còn-lại-file-tạm-và-thư-mục-build-cũ) | Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ | `[DONE]` | Medium | [TLOG-047](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-047-dọn-dẹp-dead-code-js-file-tạm-và-thư-mục-build-cũ-task-044) (PASS 258/258) | 2026-11-06 |
+| [TASK-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-045-đồng-bộ-ip-camera-về-1921682168-web--kiosk-lcd) | Đồng bộ IP camera về 192.168.2.168 (web + kiosk LCD) | `[VERIFYING]` | Critical | [TLOG-049](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-049-kiểm-thử-đồng-bộ-ip-1921682168-web-admin-và-kiosk-lcd-task-045) (Web & config PASS; Kiosk LCD chờ nạp board) | 2026-11-07 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-07 (Đồng bộ IP 192.168.2.168 Web Admin & Kiosk LCD - TASK-045)
+- **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)
+- **Nhiệm vụ:** [TASK-045] (Đồng bộ IP camera về 192.168.2.168 cho Web Admin và Kiosk LCD)
+- **Tóm tắt hành động:**
+  - Nhận phản hồi từ người dùng sau khi xác nhận camera ESP32 đang chạy tốt tại IP `192.168.2.168` trên Web Admin.
+  - Cập nhật đồng bộ IP mặc định về `192.168.2.168` trong:
+    - `js/admin/admin.face.js`: gán `DEFAULT_ESP_CAM_IP = '192.168.2.168'`, đưa `.169` vào `LEGACY_ESP_CAM_IPS` để tự động dọn cache cũ.
+    - `admin.html`: đổi IP hiển thị mặc định và văn bản cảnh báo Mixed Content về `192.168.2.168`.
+    - `test_facex_raw.html`: đổi IP mặc định input về `192.168.2.168`.
+    - `esp32_kiosk/esp32_kiosk.ino`: đổi `esp_cam_ip = "192.168.2.168"` (tuân thủ FRZ-001, chỉ sửa 1 dòng cấu hình IP theo ủy quyền của người dùng).
+  - Phân tích và làm rõ nguyên nhân LCD Kiosk chưa nhận hình: board Kiosk thực tế đang chạy firmware nạp cũ trỏ sang `.169`, và Kiosk chỉ kéo `/capture` khi đang có phiên điểm danh mở (`isSessionOpen == true`).
+  - Ghi nhận kiểm thử tại TLOG-049. Trạng thái: `[VERIFYING]` (chờ người dùng nạp lại file `.ino` vào board Kiosk ESP32 qua Arduino IDE).
+
+### Phiên làm việc: 2026-11-07 (Tắt auto-standby + phục hồi driver cam - TASK-045)
+- **Agent/Model:** qoder
+- **Nhiệm vụ:** [TASK-045] Sửa firmware CAM để cam không bao giờ kẹt soft-sleep, đồng bộ IP `.168`.
+- **Tóm tắt hành động:**
+  - `app_httpd.cpp`: thêm `ENABLE_CAM_IDLE_STANDBY 0` (mặc định) → `checkCameraPowerTimeout()` giữ cam luôn ACTIVE; đảo thứ tự `enterCameraStandby()` (ghi COM2 trước, `cam_stop()` sau); thêm `recoverCameraDriver()` (`esp_camera_deinit()` + khởi tạo lại) gọi khi `/capture` fail và khi `/stream` chết do không có frame.
+  - `esp32_cam_ai.ino`: tách `cameraInitPins()` + `applySensorTuning()` dùng chung cho `setup()` và phục hồi lúc chạy.
+  - Xác nhận `esp32_kiosk.ino:17` = `192.168.2.168` và web Admin `DEFAULT_ESP_CAM_IP` = `192.168.2.168`.
+  - Compile thật: `esp32_cam_ai` và `esp32_kiosk` (fqbn `esp32:esp32:esp32s3`) PASS; `node --check admin.face.js` PASS. Ghi nhận TLOG-045. Trạng thái `[VERIFYING]` (chờ nạp board thật).
 
 ### Phiên làm việc: 2026-11-06 (Dọn dẹp dead code, biến không dùng và file tạm - TASK-044)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)

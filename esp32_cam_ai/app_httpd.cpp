@@ -12,6 +12,9 @@ extern "C" {
   void cam_stop(void);
 }
 
+// Dinh nghia trong esp32_cam_ai.ino: khoi tao (lai) driver cam voi dung chan/cau hinh board
+esp_err_t cameraInitPins(void);
+
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char *_STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 static const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
@@ -35,6 +38,12 @@ static volatile cam_power_state_t s_power_state = CAM_POWER_ACTIVE;
 static volatile int s_active_stream_clients = 0;
 static volatile int s_in_flight_captures = 0;
 static volatile unsigned long s_last_activity_ms = 0;
+
+// Standby theo Idle Timeout. Phase-1: tat auto-standby de cam khong bao gio ket I2C/VSYNC;
+// Dat 1 de bat lai (khi da va xong thu tu set_reg/cam_stop trong enterCameraStandby)
+#ifndef ENABLE_CAM_IDLE_STANDBY
+#define ENABLE_CAM_IDLE_STANDBY 0
+#endif
 
 // Cấu hình hạ xung CPU (mặc định tắt theo R2 nhằm bảo vệ ngoại vi & mạng)
 #ifndef ENABLE_CPU_FREQ_SCALING
@@ -130,17 +139,17 @@ esp_err_t enterCameraStandby(void) {
   s_power_state = CAM_POWER_TRANSITIONING;
   Serial.println("[POWER] STANDBY: Chuyen camera sang Soft Sleep + cam_stop + Modem Sleep...");
 
-  // 1. Dung GDMA + ngat VSYNC truoc (cam_stop la ham void), tranh cat ngang frame dang ghi
-  cam_stop();
-
-  // 2. Dua cam bien OV2640 vao che do Soft Sleep thong qua thanh ghi COM2
+  // 2. Dua cam bien OV2640 vao Soft Sleep TRUOC khi dung XCLK: ghi SCCB luon thuc hien duoc khi cam con chay xung
   sensor_t *s = esp_camera_sensor_get();
   if (s && s->set_reg) {
     // Bit 8 cua reg = bank (0x100 = Sensor bank). Driver tu chon bank va nho cache, khong ghi tay 0xFF
     s->set_reg(s, 0x100 | 0x09, 0x10, 0x10); // COM2 bit 4 = 1 (Soft Sleep ON)
   }
 
-  // 3. Bat che do Wi-Fi Modem Sleep de tiet kiem dien
+  // 3. Dung GDMA + ngat VSYNC sau (cam_stop la ham void), tranh cat ngang frame dang ghi
+  cam_stop();
+
+  // 4. Bat che do Wi-Fi Modem Sleep de tiet kiem dien
   WiFi.setSleep(true);
 
 #if ENABLE_CPU_FREQ_SCALING
@@ -197,6 +206,13 @@ static void releaseCameraClient(bool isStream) {
 
 // Kiem tra Idle Timeout (15 giay khong co client -> tu ve STANDBY)
 void checkCameraPowerTimeout(void) {
+#if !ENABLE_CAM_IDLE_STANDBY
+  // Phase-1: giu cam luon ACTIVE (khong goi cam_stop/set_reg khi khong co client)
+  portENTER_CRITICAL(&s_client_mux);
+  s_last_activity_ms = millis();
+  portEXIT_CRITICAL(&s_client_mux);
+  return;
+#endif
   if (s_power_state != CAM_POWER_ACTIVE) return;
 
   int curStreams = 0;
@@ -215,10 +231,41 @@ void checkCameraPowerTimeout(void) {
     return;
   }
 
+#if ENABLE_CAM_IDLE_STANDBY
   if (millis() - lastAct >= 15000) {
     Serial.println("[POWER] Het 15s Idle Timeout khong co client nao -> Tu dong vao STANDBY");
     enterCameraStandby();
   }
+#endif
+}
+
+// Loi thoat cuoi: cam bien ket soft-sleep/khong cap VSYNC -> khoi tao lai toan bo driver
+// (PWDN/XCLK/SCCB) de phuc hoi ma khong can rut nguon. Chi goi khi khong con client nao.
+static bool recoverCameraDriver(void) {
+  if (xSemaphoreTake(s_power_mutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
+    Serial.println("[POWER] Khoi tao lai cam that bai: timeout cho Mutex");
+    return false;
+  }
+  portENTER_CRITICAL(&s_client_mux);
+  bool busy = (s_active_stream_clients > 0 || s_in_flight_captures > 0);
+  portEXIT_CRITICAL(&s_client_mux);
+  if (busy) {
+    xSemaphoreGive(s_power_mutex);
+    return false;
+  }
+
+  Serial.println("[POWER] Camera khong tra frame -> Khoi tao lai driver cam...");
+  esp_camera_deinit();
+  esp_err_t err = cameraInitPins(); // dinh nghia trong esp32_cam_ai.ino
+  if (err == ESP_OK) {
+    s_power_state = CAM_POWER_ACTIVE;
+    WiFi.setSleep(false);
+    s_last_activity_ms = millis();
+  }
+  Serial.printf("[POWER] Khoi tao lai driver cam: %s\n", err == ESP_OK ? "OK" : "THAT BAI");
+
+  xSemaphoreGive(s_power_mutex);
+  return err == ESP_OK;
 }
 
 static esp_err_t capture_handler(httpd_req_t *req) {
@@ -232,6 +279,25 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     releaseCameraClient(false);
+    if (recoverCameraDriver()) {
+      // Dang ky lai capture va lay frame ngay sau khi phuc hoi
+      if (prepareCameraActive(false) == ESP_OK) {
+        fb = esp_camera_fb_get();
+        if (fb) {
+          httpd_resp_set_type(req, "image/jpeg");
+          httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+          httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+          httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+          httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+          httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+          esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
+          esp_camera_fb_return(fb);
+          releaseCameraClient(false);
+          return res;
+        }
+        releaseCameraClient(false);
+      }
+    }
     httpd_resp_send_500(req);
     return ESP_FAIL;
   }
@@ -277,6 +343,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   while (true) {
     fb = esp_camera_fb_get();
     if (!fb) {
+      // Client stream dang chay nen khong the deinit tai day; khoi tao lai khi ket thuc stream
       res = ESP_FAIL;
     } else {
       _timestamp.tv_sec = fb->timestamp.tv_sec;
@@ -301,6 +368,10 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   }
 
   releaseCameraClient(true);
+  if (res == ESP_FAIL) {
+    // Stream chet vi cam khong tra frame -> phuc hoi driver de lan bam sau (mở phiên/ capture) lên hình ngay
+    recoverCameraDriver();
+  }
   return res;
 }
 

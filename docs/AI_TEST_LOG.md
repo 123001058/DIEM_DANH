@@ -1999,3 +1999,85 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - Không xâm phạm firmware và tính năng đóng băng theo `docs/FROZEN_FEATURES.md`: ĐÃ ĐẠT.
   - File tạm tracked đã xóa sạch khỏi repo: ĐÃ ĐẠT.
 - **Kết luận:** PASS (Hoàn tất dọn dẹp dead code và file tạm).
+
+---
+
+### [TLOG-049] Kiểm thử đồng bộ IP 192.168.2.168 (Web Admin và Kiosk LCD) (TASK-045)
+
+- **Thời gian:** 2026-11-07 01:15:00 (UTC+7)
+- **Người/Agent thực hiện:** Antigravity (Gemini 3.8 Flash High)
+- **Môi trường:** Windows 11 / PowerShell 5.1 / Git
+- **Hạng mục kiểm tra:**
+  1. Đồng bộ IP camera `192.168.2.168` trên toàn bộ Frontend: `js/admin/admin.face.js` (`DEFAULT_ESP_CAM_IP = '192.168.2.168'`), `admin.html` (input value/placeholder và Mixed Content alert banner), `test_facex_raw.html`.
+  2. Cập nhật `LEGACY_ESP_CAM_IPS` đưa `192.168.2.169` vào danh sách migrate cũ để tự động chuyển về `192.168.2.168`, gỡ `.168` để không bị đè ngược lại.
+  3. Cập nhật IP trong firmware Kiosk `esp32_kiosk/esp32_kiosk.ino`: `const char* esp_cam_ip = "192.168.2.168";` (chỉ đổi đúng 1 dòng IP, bảo toàn 100% FRZ-001).
+  4. Kiểm tra toàn vẹn Git: `git diff --check` sạch, không có lỗi whitespace hay cú pháp.
+- **Lệnh / Thao tác thực tế đã chạy:**
+  ```powershell
+  # 1. Kiểm tra diff chi tiết của các file sửa đổi
+  git diff --stat
+
+  # 2. Kiểm tra tính toàn vẹn cú pháp git
+  git diff --check
+
+  # 3. Quét kiểm tra tất cả các vị trí xuất hiện IP
+  git grep -n "192.168.2.16" esp32_kiosk/ js/admin/ admin.html test_facex_raw.html
+  ```
+- **Kết quả thực tế (Raw Output):**
+  ```text
+  admin.html                  |  4 ++--
+  docs/AI_PLAN.md             | 26 ++++++++++++++++++++++++++
+  docs/AI_PROGRESS.md         |  1 +
+  esp32_kiosk/esp32_kiosk.ino |  2 +-
+  js/admin/admin.face.js      |  4 ++--
+  test_facex_raw.html         |  2 +-
+  6 files changed, 33 insertions(+), 6 deletions(-)
+
+  git diff --check: exit code 0.
+
+  admin.html:538: (192.168.2.168)
+  admin.html:577: value="192.168.2.168" placeholder="192.168.2.168"
+  esp32_kiosk/esp32_kiosk.ino:17:const char* esp_cam_ip = "192.168.2.168";
+  js/admin/admin.face.js:59:const DEFAULT_ESP_CAM_IP = '192.168.2.168';
+  js/admin/admin.face.js:60:const LEGACY_ESP_CAM_IPS = ['10.96.38.99', '192.168.1.1', '192.168.2.169'];
+  test_facex_raw.html:234: value="192.168.2.168" placeholder="192.168.2.168"
+  ```
+- **Đánh giá so với DoD:**
+  - [x] Đã đổi IP camera mặc định về `192.168.2.168` trên Web Admin và Kiosk: ĐẠT.
+  - [x] Gỡ `.168` khỏi danh sách chặn, chuyển `.169` vào migrate list: ĐẠT.
+  - [x] Bảo toàn FRZ-001 (chỉ sửa 1 dòng IP trong `esp32_kiosk.ino` theo lệnh rõ ràng của người dùng): ĐẠT.
+  - [x] `git diff --check` exit 0, không có trailing whitespace: ĐẠT.
+- **Phân định mức độ nhận thức (Knowledge Levels):**
+  - **KNOWN:** Web Admin xem trực tiếp được stream tại `http://192.168.2.168:81/stream` (người dùng đã xác nhận chạy được).
+  - **LIKELY:** Sau khi nạp firmware mới vào board Kiosk và mở phiên điểm danh trên Web, Kiosk sẽ kéo được ảnh `/capture` từ `192.168.2.168`.
+  - **UNKNOWN:** Màn hình LCD Kiosk vật lý hiện tại chưa nhận hình vì board Kiosk thực tế đang chứa bản nạp cũ (`.169`) và chưa được nạp lại mã nguồn mới qua Arduino IDE.
+- **Kết luận:** VERIFYING (Chờ người dùng nạp lại file `esp32_kiosk.ino` vào board Kiosk ESP32).
+
+---
+
+## TLOG-045 — Tắt auto-standby + phục hồi driver cam, đồng bộ IP .168
+
+- **Thời điểm:** 2026-11-07
+- **Người thực hiện:** qoder
+- **Phạm vi:** `esp32_cam_ai/app_httpd.cpp`, `esp32_cam_ai/esp32_cam_ai.ino` (sửa theo yêu cầu tường minh của admin), xác nhận `esp32_kiosk.ino` và web Admin đã ở `.168`.
+- **Lệnh chạy thật:**
+  ```text
+  arduino-cli compile --fqbn esp32:esp32:esp32s3 esp32_cam_ai
+  → Sketch uses 1080953 bytes (82%) ... Global variables use 56576 bytes (17%)  [EXIT 0]
+
+  arduino-cli compile --fqbn esp32:esp32:esp32s3 esp32_kiosk
+  → Sketch uses 1082705 bytes (82%) ... Global variables use 91904 bytes (28%)  [EXIT 0]
+
+  node --check js/admin/admin.face.js
+  → JS OK  [EXIT 0]
+  ```
+- **Thay đổi chính:**
+  - Thêm macro `ENABLE_CAM_IDLE_STANDBY 0`: `checkCameraPowerTimeout()` giữ cam luôn ACTIVE, không còn gọi `enterCameraStandby()` (nguồn gốc chuỗi lỗi `SCCB_Write Failed addr:0x30` + kẹt VSYNC).
+  - `enterCameraStandby()`: đảo thứ tự — ghi COM2 (Soft Sleep ON) **trước**, `cam_stop()` sau (để bật lại được).
+  - Thêm `recoverCameraDriver()` (`esp_camera_deinit()` + `cameraInitPins()`), gọi khi `/capture` không lấy được frame và khi `/stream` kết thúc ở trạng thái lỗi → cam tự phục hồi, không cần rút nguồn.
+  - Tách `cameraInitPins()` / `applySensorTuning()` trong `.ino` để `setup()` và phục hồi lúc chạy dùng chung cấu hình.
+- **Phân định mức độ nhận thức:**
+  - **KNOWN:** Cả 2 firmware compile pass (bằng chứng output trên); JS không lỗi cú pháp.
+  - **LIKELY:** Sau khi nạp, `/capture` ở `.168` trả ảnh liên tục không cần rút nguồn; Kiosk hiện cam khi mở phiên.
+  - **UNKNOWN:** Chưa test trên phần cứng (agent không tự flash). Chưa xác minh IP `.168` có được DHCP giữ ổn định qua khởi động lại hay không.
+- **Kết luận:** VERIFYING — chờ admin nạp và xác nhận trên thiết bị thật.
