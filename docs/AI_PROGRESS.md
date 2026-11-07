@@ -213,3 +213,5 @@ stateDiagram-v2
 - TLOG-052: người dùng chọn giữ ngủ khi không dùng. Camera thật ACTIVE nhưng /power chờ khoảng 1–4s; chưa quy lỗi riêng wakeup. Không đổi chính sách nguồn, QR, còi, cấu hình hình ảnh hoặc nhận diện.
 - Thêm số đo get/send/RSSI/PS/CPU/cache và frame gửi thành công qua Serial [CAM PERF] mỗi 5s và /power. CAM compile PASS (1084285 bytes flash, 56696 bytes global RAM), invariants và kiểm tra tương thích JSON PASS.
 - Chờ nạp CAM để lấy log phần cứng và xác định nguyên nhân; chưa khẳng định phục hồi FPS, chưa DONE.
+- Đã nhận log CAM phần cứng: PS0/CPU240/get gần0ms nhưng send2.5–5.8s; live /power có lần send7.98s. Máy tính tải ảnh0.5–0.9s. Đang đo stream và đối chiếu Kiosk để phân định nghẽn gửi/nhận; chưa quy lỗi cho ngủ/wakeup.
+- TLOG-053: LCD Fetch4.9–6.4s/Draw122ms; rút LCD vẫn0.42fps. Test wake trả ACTIVE nhưng stream timeout0frame; source cũ vẫn báo thành công nếu không lấy được frame. Đã sửa wake khởi tạo lại driver/kiểm ảnh trước ACTIVE và /power báo lỗi, giữ chức năng ngủ; CAM compile PASS1084521bytes, RAM56696bytes. Chờ nạp/kiểm phần cứng; nguyên nhân toàn bộ send chậm chưa xác định, không DONE.

@@ -10,8 +10,7 @@
 #include <lwip/sockets.h>
 
 extern "C" {
-  // Driver esp32-camera (cam_hal.c) khai bao 2 ham nay la void (da kiem tra bang objdump libespressif__esp32-camera.a)
-  void cam_start(void);
+  // Dung GDMA khi vao standby; wake khoi tao lai driver thay vi chi bat lai VSYNC.
   void cam_stop(void);
 }
 
@@ -155,21 +154,28 @@ static esp_err_t wakeCameraActiveInternal(void) {
     s->set_reg(s, 0x100 | 0x09, 0x10, 0x00); // COM2 bit 4 = 0 (Soft Sleep OFF)
   }
 
-  // 3. Tri hoan ~150ms cho mach analog va dien ap cam bien on dinh
-  vTaskDelay(pdMS_TO_TICKS(150));
+  // Caller dang giu s_power_mutex va chua dang ky client: khong goi recoverCameraDriver()
+  // (ham do cung lay mutex). Khoi tao lai ca DMA/queue, khong tai su dung trang thai cu sau cam_stop().
+  esp_camera_deinit();
+  esp_err_t initErr = cameraInitPins();
+  if (initErr != ESP_OK) {
+    s_power_state = CAM_POWER_STANDBY; // Cho phep request sau thu wake lai.
+    Serial.printf("[POWER] WAKEUP init failed: 0x%x\n", initErr);
+    return initErr;
+  }
 
-  // 4. Bat lai ngat VSYNC; frame ke tiep tu khoi dong lai GDMA (cam_start la ham void, khong co ma loi)
-  cam_start();
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    s_power_state = CAM_POWER_STANDBY;
+    Serial.println("[POWER] WAKEUP khong co frame; khong bao ACTIVE!");
+    return ESP_FAIL;
+  }
+  esp_camera_fb_return(fb);
 
-  // 5. Xa sach toi da 2 frame buffer ton du va doc bo them 1 frame moi thu de AEC/AGC can bang do sang
-  // Khong them delay delay nhan tao giua cac frame de dam bao thoi gian wake < 300ms, khong gay timeout tren Kiosk
-  for (int i = 0; i < 3; i++) {
-    camera_fb_t *fb = esp_camera_fb_get();
-    if (fb) {
-      esp_camera_fb_return(fb);
-    } else {
-      break;
-    }
+  // Anh truoc khi ngu khong duoc tra nhu anh moi sau wake.
+  if (s_frame_cache_mutex && xSemaphoreTake(s_frame_cache_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
+    s_frame_cache_len = 0;
+    xSemaphoreGive(s_frame_cache_mutex);
   }
 
   s_power_state = CAM_POWER_ACTIVE;
@@ -735,10 +741,11 @@ static esp_err_t power_handler(httpd_req_t *req) {
     }
   }
 
+  esp_err_t powerErr = ESP_OK;
   if (strcmp(mode, "active") == 0 || strcmp(mode, "wake") == 0 || strcmp(mode, "1") == 0) {
-    wakeCameraActive();
+    powerErr = wakeCameraActive();
   } else if (strcmp(mode, "sleep") == 0 || strcmp(mode, "standby") == 0 || strcmp(mode, "0") == 0) {
-    enterCameraStandby();
+    powerErr = enterCameraStandby();
   }
 
   const char *stateStr = (s_power_state == CAM_POWER_ACTIVE) ? "ACTIVE" :
@@ -765,10 +772,10 @@ static esp_err_t power_handler(httpd_req_t *req) {
   int psMode = esp_wifi_get_ps(&ps) == ESP_OK ? (int)ps : -1;
   char jsonBuf[512];
   snprintf(jsonBuf, sizeof(jsonBuf),
-           "{\"ok\":true,\"state\":\"%s\",\"stream_clients\":%d,\"in_flight_captures\":%d,\"idle_ms\":%lu,"
+           "{\"ok\":%s,\"error\":%d,\"state\":\"%s\",\"stream_clients\":%d,\"in_flight_captures\":%d,\"idle_ms\":%lu,"
            "\"wifi_rssi\":%ld,\"wifi_ps\":%d,\"cpu_mhz\":%u,\"heap_free\":%u,"
            "\"stream_get_us\":%lu,\"stream_send_us\":%lu,\"capture_get_us\":%lu,\"capture_send_us\":%lu}",
-           stateStr, curStreams, curCaptures, idleMs,
+           powerErr == ESP_OK ? "true" : "false", (int)powerErr, stateStr, curStreams, curCaptures, idleMs,
            (long)WiFi.RSSI(), psMode, (unsigned int)getCpuFrequencyMhz(), (unsigned int)ESP.getFreeHeap(),
            (unsigned long)streamGetUs, (unsigned long)streamSendUs,
            (unsigned long)captureGetUs, (unsigned long)captureSendUs);

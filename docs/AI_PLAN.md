@@ -1184,3 +1184,13 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Chưa sửa cache hoặc rollback phiên bản chỉ vì nghi ngờ: cache hiện giữ mutex qua send và có ngưỡng200ms, là ứng viên cần đo; chưa kết luận đó là nguyên nhân chính.
 - Nghiệm thu phần đo: build CAM PASS; kiểm tra kết quả JSON/giới hạn bộ đệm và invariants FRZ; cần nạp CAM để có log phân định phần cứng. Không báo đã khôi phục FPS.
 - Kết quả: TLOG-052, CAM build PASS, các kiểm tra nguồn/còi/route không đổi và JSON tương thích PASS. Cần nạp firmware đo để có kết luận phần cứng, chưa giảm phạm vi yêu cầu khôi phục độ mượt.
+
+#### TASK-048 — log CAM phần cứng và đối chiếu bên nhận
+- 2026-11-07: người dùng gửi 3 dòng CAM: RSSI=-46dBm, PS=0, CPU=240MHz; get=0.0/0.2/0.0ms, send=3002.6/5763.8/2457.7ms, capture 0.2fps, cache=0/1, stream0fps. Chậm nằm trong gửi HTTP của các capture thành công; không suy ra mọi frame/đường truyền hoặc kết luận router hỏng từ log này.
+- /power thật xác nhận firmware đo đã nạp, RSSI=-49, PS=0, CPU240, heap210620, capture_get_us188, capture_send_us7977762. Máy tính tải 2 ảnh đầy đủ8149/8141bytes trong873/506ms; cần đối chiếu bên nhận/keepalive thay vì rollback wakeup chưa có căn cứ.
+- Trạng thái trở lại IN_PROGRESS để đo MJPEG thật và chờ log Kiosk đã yêu cầu; chỉ sửa khi xác định lỗi hoặc có thử nghiệm phân biệt được nguyên nhân. Giữ yêu cầu ngủ khi không dùng.
+- Log Kiosk người dùng: Fetch6409.5/4921.6ms, Draw122.3/121.9ms,0.2fps. Tải ảnh là nút nghẽn trước vẽ.
+- MJPEG thật khi LCD bật:6frame/10.08s=0.60fps; LCD rút nguồn theo người dùng:4frame/9.52s=0.42fps. Hai lần đo không chứng minh do tranh chấp LCD; không quy router hỏng từ đây.
+- Thử nguồn qua HTTP khi stream_clients=0/in_flight=0: sleep trả STANDBY/PS1; active mất6760ms rồi trả ACTIVE/PS0, nhưng stream tiếp theo timeout sau5s,0frame. Source wake bỏ qua lỗi thanh ghi và vẫn báo ACTIVE dù fb_get trả null. Đây là lỗi xác minh wakeup đã có bằng chứng; không đồng nhất nó với toàn bộ nghẽn send.
+- Sửa CAM: wake khởi tạo lại driver bằng cấu hình hiện có, kiểm chứng một framebuffer hợp lệ trước ACTIVE, xóa cache cũ; báo lỗi /power nếu thao tác nguồn thất bại. Không đổi cơ chế ngủ, QR, còi hay cấu hình hình ảnh. Khởi tạo camera_config_t bằng0 để phần khởi tạo lại có giá trị mặc định xác định. Build và hồi quy; vẫn cần nạp CAM mới để xác nhận tốc độ/wakeup phần cứng.
+- Kết quả: TLOG-053 build CAM PASS, verify_task_046 và kiểm tra JSON/source PASS; `[VERIFYING]` chờ nạp. Lỗi báo ACTIVE sai đã sửa trong source; không kết luận toàn bộ send chậm do wakeup và chưa hứa FPS phục hồi.

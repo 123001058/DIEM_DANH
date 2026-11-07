@@ -2197,3 +2197,35 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   Global variables use 56696 bytes (17%) of dynamic memory, leaving 270984 bytes for local variables. Maximum is 327680 bytes.
   ```
 - Trạng thái: VERIFYING; build PASS, chưa flash/push/deploy; không tuyên bố đã khắc phục độ chậm. Cần nạp CAM rồi đọc /power hoặc các dòng [CAM PERF] cùng điều kiện trước/sau mở camera.
+
+### [TLOG-053] Đối chiếu CAM/LCD, phép đo rút LCD và ngủ/thức (TASK-048)
+- Ngày: 2026-11-07 (UTC+7). Agent: Codex.
+- Log phần cứng do người dùng gửi:
+  ```text
+  CAM RSSI=-46 PS=0 CPU=240 | Capture 0.2fps get=0.0ms send=3002.6ms cache=0/1
+  CAM RSSI=-46 PS=0 CPU=240 | Capture 0.2fps get=0.2ms send=5763.8ms cache=0/1
+  CAM RSSI=-46 PS=0 CPU=240 | Capture 0.2fps get=0.0ms send=2457.7ms cache=0/1
+  LCD FPS0.2 | Fetch6409.5ms n1 | Draw122.3ms n1
+  LCD FPS0.2 | Fetch4921.6ms n1 | Draw121.9ms n1
+  ```
+- HTTP urllib thật: /power 5123ms, ACTIVE/PS0/CPU240/RSSI-49/heap210620, capture_get_us188, capture_send_us7977762; 2 JPEG đầy đủ 8149/8141bytes trong873/506ms.
+- MJPEG đọc trực tiếp bằng Python urllib, tách multipart Content-Length và chỉ đếm body đủ: khi LCD còn bật 6 frame/10.08s=0.60fps,46929bytes; arrival_s [3.420,5.350,5.969,6.694,6.788,10.077]. /power sau đó stream_get_us6038, stream_send_us3267678, capture_send_us4512668.
+- HTTP keepalive đối chiếu bằng http.client, không tắt chính sách máy tính: Connection close 3248/1133/3781ms; keepalive 531/676/1739ms, cả6 JPEG đầy đủ. Không kết luận keepalive là nguyên nhân duy nhất.
+- Người dùng xác nhận đã rút riêng LCD. Đo lại: /power303ms, ACTIVE/PS0/RSSI-51; JPEG8191/7887bytes trong1974/1413ms; stream4frame/9.52s=0.42fps,31511bytes, arrivals [3.601,5.811,5.831,6.972]; stream_get_us2580, stream_send_us3639235. LCD không phải nguyên nhân duy nhất; thí nghiệm không chứng minh router hỏng.
+- Thử sleep/wake chỉ khi /power stream_clients=0/in_flight=0, LCD vẫn rút: /sleep712ms -> STANDBY/PS1; /active6760ms -> ACTIVE/PS0. MJPEG sau wake timeout (5s socket timeout),0frame hoàn chỉnh, /power trả stream_clients1. Đây là thất bại tải ảnh, chưa chứng minh riêng cảm biến chết vì đường truyền cũng đang chậm.
+- Kiểm tra tiếp: /power về stream_clients0 và các timing cuối đều0 (có dấu hiệu board đã khởi động lại, chưa có Serial/panic log để phân định nguyên nhân); /capture vẫn trả200,6065bytes,ffd9 trong930ms, get40us/send587661us. Không gọi toàn bộ đường camera là mất hoàn toàn.
+- Phát hiện source chắc chắn: wake cũ bỏ qua kết quả thanh ghi, fb_get null chỉ break nhưng vẫn ACTIVE; /power bỏ qua return của thao tác nguồn, luôn ok=true. Sửa driver wake để khởi tạo lại DMA/queue bằng cameraInitPins, kiểm tra framebuffer trước ACTIVE, xóa cache cũ; /power phản ánh lỗi. Hai camera_config_t được zero-init. Chưa khẳng định sửa này khôi phục toàn bộ FPS hoặc chứng minh nguyên nhân send chậm.
+- Giữ nguyên logic standby, cấm ngủ khi có client, auto-standby flag, tham số ảnh, QR/polling/LCD/còi. Đã báo người dùng có thể cấp nguồn lại LCD sau phép đo.
+- `node scratch/verify_task_046.js`: exit0, PASS tất cả tầng và FRZ invariants.
+- Python so sánh source HEAD: PASS nguyên đoạn standby/client accounting, buzzer/flash/pin/RGB và HTTP routes. Kiểm tra source thứ tự deinit -> init -> fb_get -> ACTIVE và nhánh lỗi trả về PASS (kiểm tra tĩnh, không phải chạy wake trên firmware mới).
+- Python kiểm format JSON thật: true/error0 và false/error-2147483648 parse PASS,320/331bytes gồm NUL dưới512; field cũ giữ đủ.
+- `git diff --check`: exit0.
+- KNOWN: nút nghẽn quan sát ở gửi/nhận ảnh, không nằm ở vẽ LCD; PS0/CPU240 trong các mẫu, vẫn chậm khi rút LCD. Wake cũ có lỗi báo thành công dù chưa xác minh ảnh.
+- LIKELY: reset đầy đủ driver khi wake tránh tái sử dụng trạng thái DMA/queue không phục hồi; cần xác minh bản nạp mới.
+- UNKNOWN: nguyên nhân cuối cùng làm send mất nhiều giây (TCP/Wi-Fi/bên nhận/firmware), có reboot sau wake hay không, FPS sau sửa và thời gian wake mới. Chưa có thí nghiệm đổi mạng hoặc packet trace.
+- Biên dịch thật: `arduino-cli compile --jobs 4 --fqbn esp32:esp32:esp32s3 esp32_cam_ai`, exit0.
+  ```text
+  Sketch uses 1084521 bytes (82%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 56696 bytes (17%) of dynamic memory, leaving 270984 bytes for local variables. Maximum is 327680 bytes.
+  ```
+- Trạng thái: VERIFYING, build và kiểm tra source/JSON PASS; chưa nạp bản sửa, không DONE, không tuyên bố hết chậm. Cần nghiệm thu wake lặp và FPS/get/send trên bản nạp mới; nếu send vẫn nhiều giây cần thí nghiệm mạng khác để phân định đường truyền.
