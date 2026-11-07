@@ -2171,3 +2171,29 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   ```
 - `node scratch/verify_task_046.js` exit 0: PASS tầng CAM, Kiosk, web và invariants FRZ-001/004/005. Đây là kiểm tra mã, không thay thế xác nhận LCD thật.
 - Trạng thái: VERIFYING, firmware build PASS; web monitor có ảnh thật PASS; chưa flash/push/deploy, chờ nạp Kiosk và kiểm chứng LCD/phiên đăng nhập thật.
+
+### [TLOG-052] Đối chiếu standby/wakeup và bổ sung đo hiệu năng CAM (TASK-048)
+- Ngày: 2026-11-07 (UTC+7). Agent: Codex.
+- Người dùng xác nhận có hình nhưng chậm, chọn rõ "Giữ ngủ khi không dùng". Không xóa chức năng nguồn, không tự nâng trạng thái nghiệm thu FPS.
+- HTTP Python urllib thật: /power header/total 1111/1112ms, ACTIVE, stream_clients=1; /capture 3156/3316ms 7536 bytes và 3300/3344ms 7475 bytes; /power tiếp theo 3429ms ACTIVE stream_clients=1. Đây là tổng độ trễ qua mạng/chờ xử lý, chưa phải đo riêng cảm biến.
+- Python socket.create_connection + GET /power (không mở stream mới): connect_ms/first_byte_ms sau connect lần lượt (162,982), (99,4665), (41,2952), (48,2875); tất cả HTTP/1.1 200 OK.
+- `ping -n 6 -w 1500 192.168.2.168`: 6/6 nhận, 0 mất, 19..160ms, trung bình 71ms. Đây là đường máy tính tới CAM, chưa phải Kiosk tới CAM.
+- Đọc git history c540a11 (trước quản lý nguồn) và d99b400/967a7d2 (thêm nguồn/cache). Source hiện ENABLE_CAM_IDLE_STANDBY=0, ENABLE_CPU_FREQ_SCALING=0; wakeup delay 150ms chỉ chạy nếu trạng thái chưa ACTIVE; web còn gửi sleep khi dừng mà không có phiên. Không quy toàn bộ chậm liên tục cho delay 150ms.
+- Đọc Arduino core 3.3.12 WiFiGeneric.cpp: setSleep trước STA start lưu _sleepEnabled, STA.cpp áp dụng lúc khởi động; không đổi thứ tự setup theo giả thuyết "setSleep trước WiFi bị bỏ qua".
+- Nguồn: https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/wifi-driver/wifi-performance-and-power-save.html — modem sleep có thể tăng trễ Wi-Fi, cần đo esp_wifi_get_ps thực tế.
+- Thay đổi: app_httpd.cpp thêm thống kê frame gửi thành công, thời gian esp_camera_fb_get và httpd_resp_send/chunk; Serial [CAM PERF] mỗi 5s có lưu lượng, RSSI, PS, CPU, cache hits; /power giữ field cũ, thêm wifi_rssi/wifi_ps/cpu_mhz/heap_free và thời gian lấy/gửi frame cuối. ino gọi báo cáo trong loop.
+- Giới hạn số đo mới: FPS là số response/frame gửi thành công theo khoảng báo cáo, không phải FPS vẽ/AI hoặc ảnh mới độc lập khi capture dùng cache. Timing get chỉ đo fb_get, send chỉ đo lời gọi gửi HTTP, không bao gồm hàng đợi trước handler hoặc hiển thị ở client. Chưa chạy firmware mới trên board.
+- `node scratch/verify_task_046.js` exit 0: PASS tầng CAM/Kiosk/web, FRZ-001/004/005 invariants.
+- Python so sánh source với HEAD: PASS standby/wakeup và idle policy không đổi; PASS buzzer/flash/pin/RGB handlers không đổi; PASS route registration không đổi.
+- Python đọc chuỗi format JSON thật, ghép và thử giá trị biên 32bit: JSON parse PASS, 310 bytes gồm NUL dưới 512 bytes; field cũ còn đủ. Không gọi đây là test HTTP firmware mới.
+- `git diff --check` exit 0.
+- Ghi log bằng exec_command bị công cụ chặn (blocked by policy); chuyển sang apply_patch, không yêu cầu quyền bổ sung.
+- KNOWN: chậm tồn tại khi state ACTIVE; /power không lấy framebuffer cũng chờ lâu; chưa xác định nghẽn chính ở Wi-Fi, server, framebuffer hay nguồn thực tế.
+- LIKELY: số đo get/send/PS sẽ phân định nguyên nhân sau nạp CAM, không cần loại chức năng ngủ.
+- UNKNOWN: PS thực tế/RSSI CAM, thời gian get/send phần cứng, chênh FPS trước/sau trên cùng điều kiện.
+- Biên dịch thật: `arduino-cli compile --jobs 4 --fqbn esp32:esp32:esp32s3 esp32_cam_ai` (CLI đi kèm Arduino IDE), exit 0.
+  ```text
+  Sketch uses 1084285 bytes (82%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 56696 bytes (17%) of dynamic memory, leaving 270984 bytes for local variables. Maximum is 327680 bytes.
+  ```
+- Trạng thái: VERIFYING; build PASS, chưa flash/push/deploy; không tuyên bố đã khắc phục độ chậm. Cần nạp CAM rồi đọc /power hoặc các dòng [CAM PERF] cùng điều kiện trước/sau mở camera.

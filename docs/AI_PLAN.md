@@ -1167,3 +1167,20 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Kiểm thử: compile kiosk ESP32 thật; test HTTP local + ảnh camera trong trình duyệt kiểm thử mới, đo ảnh hoàn chỉnh; ghi rõ chưa nạp thiết bị/chưa xác nhận LCD.
 
 - Kết quả TASK-047: TLOG-051, firmware build PASS; camera vật lý hiện trên browser HTTP local PASS. Chờ người dùng đăng nhập bản local và nạp firmware Kiosk để nghiệm thu trên LCD, không tự đánh dấu DONE.
+
+### [TASK-048] Chẩn đoán chậm frame sau thay đổi standby/wakeup
+- Ngày: 2026-11-07. Trạng thái: `[VERIFYING]`.
+- Người dùng xác nhận đã có hình, nhưng báo trước standby/wakeup camera/web/LCD mượt hơn. Không coi việc có hình là nghiệm thu tốc độ.
+- Mục tiêu: đo đường mạng/HTTP, đối chiếu lịch sử source để tách wakeup một lần với giảm FPS liên tục; sửa nguyên nhân có bằng chứng, xác nhận yêu cầu giữ/bỏ standby.
+- Phạm vi: esp32_cam_ai/app_httpd.cpp, esp32_cam_ai.ino, js/admin/admin.face.js nếu cần cho chính sách nguồn; tài liệu. Bảo toàn FRZ-001/004/005, không đổi ngưỡng nhận diện hoặc QR.
+- Hiện trạng: source auto-standby=0; /power thật ACTIVE, stream_clients=1; /power vài KB nhỏ cũng mất ~1.1–3.4s, /capture ~3.3s. Chưa đủ bằng chứng quy lỗi cảm biến hay wakeup.
+- DoD: log phép đo thực và so sánh source; thay đổi có build/test phù hợp; không tuyên bố khôi phục FPS nếu chưa đo firmware mới trên thiết bị.
+
+#### TASK-048 — quyết định và triển khai chẩn đoán
+- Người dùng chọn rõ: giữ ngủ khi không dùng. Không xóa standby/wakeup hoặc tự bật lại auto-standby đang tắt do lỗi I2C trước đây.
+- Thực đo: ping 19..160ms, trung bình 71ms, 0/6 mất; TCP connect 41..162ms nhưng /power first-byte sau connect 982/4665/2952/2875ms. /power ACTIVE stream_clients=1; chưa chứng minh thực tế Wi-Fi PS=NONE.
+- Đối chiếu Arduino core thật 3.3.12: setSleep(false) trước STA start được lưu và áp dụng lúc start; không sửa thứ tự khởi tạo bằng giả định. Wakeup delay150ms chỉ nằm trên nhánh từ STANDBY, không chạy từng frame khi ACTIVE.
+- Thêm đo lường tối thiểu ở firmware CAM: thống kê lấy framebuffer và gửi JPEG, số frame gửi thành công theo khoảng thực; Serial mỗi5s, /power thêm RSSI/PS/CPU/heap và timing cuối. Không in thông tin từng frame, không đổi delay/độ phân giải/chất lượng/AI hoặc chính sách ngủ.
+- Chưa sửa cache hoặc rollback phiên bản chỉ vì nghi ngờ: cache hiện giữ mutex qua send và có ngưỡng200ms, là ứng viên cần đo; chưa kết luận đó là nguyên nhân chính.
+- Nghiệm thu phần đo: build CAM PASS; kiểm tra kết quả JSON/giới hạn bộ đệm và invariants FRZ; cần nạp CAM để có log phân định phần cứng. Không báo đã khôi phục FPS.
+- Kết quả: TLOG-052, CAM build PASS, các kiểm tra nguồn/còi/route không đổi và JSON tương thích PASS. Cần nạp firmware đo để có kết luận phần cứng, chưa giảm phạm vi yêu cầu khôi phục độ mượt.

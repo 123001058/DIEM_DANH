@@ -6,6 +6,7 @@
 #include "img_converters.h"
 #include "board_config.h"
 #include <WiFi.h>
+#include "esp_wifi.h"
 #include <lwip/sockets.h>
 
 extern "C" {
@@ -65,6 +66,59 @@ static volatile cam_power_state_t s_power_state = CAM_POWER_ACTIVE;
 static volatile int s_active_stream_clients = 0;
 static volatile int s_in_flight_captures = 0;
 static volatile unsigned long s_last_activity_ms = 0;
+
+// Do toc do gui thanh cong, tach thoi gian cho frame va gui mang; khong tinh FPS suy luan web.
+struct CameraTiming {
+  uint32_t frames;
+  uint32_t cached;
+  uint64_t get_us;
+  uint64_t send_us;
+  uint32_t last_get_us;
+  uint32_t last_send_us;
+};
+static CameraTiming s_stream_timing = {};
+static CameraTiming s_capture_timing = {};
+
+static void recordCameraTiming(bool stream, uint32_t getUs, uint32_t sendUs, bool cached = false) {
+  portENTER_CRITICAL(&s_client_mux);
+  CameraTiming &timing = stream ? s_stream_timing : s_capture_timing;
+  timing.frames++;
+  timing.cached += cached ? 1 : 0;
+  timing.get_us += getUs;
+  timing.send_us += sendUs;
+  timing.last_get_us = getUs;
+  timing.last_send_us = sendUs;
+  portEXIT_CRITICAL(&s_client_mux);
+}
+
+void reportCameraPerformance(void) {
+  static uint32_t lastReportMs = millis();
+  uint32_t nowMs = millis();
+  uint32_t elapsedMs = nowMs - lastReportMs;
+  if (elapsedMs < 5000) return;
+  lastReportMs = nowMs;
+  CameraTiming stream, capture;
+  portENTER_CRITICAL(&s_client_mux);
+  stream = s_stream_timing;
+  capture = s_capture_timing;
+  s_stream_timing.frames = s_stream_timing.cached = 0;
+  s_stream_timing.get_us = s_stream_timing.send_us = 0;
+  s_capture_timing.frames = s_capture_timing.cached = 0;
+  s_capture_timing.get_us = s_capture_timing.send_us = 0;
+  portEXIT_CRITICAL(&s_client_mux);
+  if (!stream.frames && !capture.frames) return;
+  wifi_ps_type_t ps;
+  int psMode = esp_wifi_get_ps(&ps) == ESP_OK ? (int)ps : -1;
+  Serial.printf("[CAM PERF] RSSI=%lddBm PS=%d CPU=%uMHz | Stream %.1ffps get=%.1fms send=%.1fms | Capture %.1ffps get=%.1fms send=%.1fms cache=%lu/%lu\n",
+                (long)WiFi.RSSI(), psMode, (unsigned int)getCpuFrequencyMhz(),
+                stream.frames * 1000.0 / elapsedMs,
+                stream.frames ? stream.get_us / 1000.0 / stream.frames : 0.0,
+                stream.frames ? stream.send_us / 1000.0 / stream.frames : 0.0,
+                capture.frames * 1000.0 / elapsedMs,
+                capture.frames ? capture.get_us / 1000.0 / capture.frames : 0.0,
+                capture.frames ? capture.send_us / 1000.0 / capture.frames : 0.0,
+                (unsigned long)capture.cached, (unsigned long)capture.frames);
+}
 
 // Standby theo Idle Timeout. Phase-1: tat auto-standby de cam khong bao gio ket I2C/VSYNC;
 // Dat 1 de bat lai (khi da va xong thu tu set_reg/cam_stop trong enterCameraStandby)
@@ -322,8 +376,11 @@ static esp_err_t capture_handler(httpd_req_t *req) {
         httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
         httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
         httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+        uint32_t sendStartUs = micros();
         esp_err_t cachedRes = httpd_resp_send(req, (const char *)s_frame_cache_buf, s_frame_cache_len);
+        uint32_t sendUs = micros() - sendStartUs;
         xSemaphoreGive(s_frame_cache_mutex);
+        if (cachedRes == ESP_OK) recordCameraTiming(false, 0, sendUs, true);
         releaseCameraClient(false);
         return cachedRes;
       }
@@ -331,13 +388,17 @@ static esp_err_t capture_handler(httpd_req_t *req) {
     }
   }
 
+  uint32_t getStartUs = micros();
   camera_fb_t *fb = esp_camera_fb_get();
+  uint32_t getUs = micros() - getStartUs;
   if (!fb) {
     releaseCameraClient(false);
     if (recoverCameraDriver()) {
       // Dang ky lai capture va lay frame ngay sau khi phuc hoi
       if (prepareCameraActive(false) == ESP_OK) {
+        getStartUs = micros();
         fb = esp_camera_fb_get();
+        getUs = micros() - getStartUs;
         if (fb) {
           updateSharedFrameCache(fb->buf, fb->len);
           httpd_resp_set_type(req, "image/jpeg");
@@ -346,7 +407,9 @@ static esp_err_t capture_handler(httpd_req_t *req) {
           httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
           httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
           httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+          uint32_t sendStartUs = micros();
           esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
+          if (res == ESP_OK) recordCameraTiming(false, getUs, micros() - sendStartUs);
           esp_camera_fb_return(fb);
           releaseCameraClient(false);
           return res;
@@ -367,7 +430,9 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
 
+  uint32_t sendStartUs = micros();
   esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
+  if (res == ESP_OK) recordCameraTiming(false, getUs, micros() - sendStartUs);
   esp_camera_fb_return(fb);
 
   releaseCameraClient(false);
@@ -402,7 +467,9 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   httpd_resp_set_hdr(req, "X-Framerate", "30");
 
   while (true) {
+    uint32_t getStartUs = micros();
     fb = esp_camera_fb_get();
+    uint32_t getUs = micros() - getStartUs;
     if (!fb) {
       consecutiveNullFrames++;
       if (consecutiveNullFrames < 3) {
@@ -421,8 +488,10 @@ static esp_err_t stream_handler(httpd_req_t *req) {
       size_t hlen = snprintf(part_buf, sizeof(part_buf), "%s" "Content-Type: image/jpeg\r\nContent-Length: %u\r\nX-Timestamp: %d.%06d\r\n\r\n",
                              _STREAM_BOUNDARY, fb->len, (int)_timestamp.tv_sec, (int)_timestamp.tv_usec);
       
+      uint32_t sendStartUs = micros();
       res = httpd_resp_send_chunk(req, part_buf, hlen);
       if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+      if (res == ESP_OK) recordCameraTiming(true, getUs, micros() - sendStartUs);
       
       esp_camera_fb_return(fb);
       fb = NULL;
@@ -678,19 +747,31 @@ static esp_err_t power_handler(httpd_req_t *req) {
   int curStreams = 0;
   int curCaptures = 0;
   unsigned long lastAct = 0;
+  uint32_t streamGetUs, streamSendUs, captureGetUs, captureSendUs;
   portENTER_CRITICAL(&s_client_mux);
   curStreams = s_active_stream_clients;
   curCaptures = s_in_flight_captures;
   lastAct = s_last_activity_ms;
+  streamGetUs = s_stream_timing.last_get_us;
+  streamSendUs = s_stream_timing.last_send_us;
+  captureGetUs = s_capture_timing.last_get_us;
+  captureSendUs = s_capture_timing.last_send_us;
   portEXIT_CRITICAL(&s_client_mux);
 
   unsigned long nowMs = millis();
   unsigned long idleMs = (s_power_state == CAM_POWER_ACTIVE && nowMs >= lastAct) ? (nowMs - lastAct) : 0UL;
 
-  char jsonBuf[192];
+  wifi_ps_type_t ps;
+  int psMode = esp_wifi_get_ps(&ps) == ESP_OK ? (int)ps : -1;
+  char jsonBuf[512];
   snprintf(jsonBuf, sizeof(jsonBuf),
-           "{\"ok\":true,\"state\":\"%s\",\"stream_clients\":%d,\"in_flight_captures\":%d,\"idle_ms\":%lu}",
-           stateStr, curStreams, curCaptures, idleMs);
+           "{\"ok\":true,\"state\":\"%s\",\"stream_clients\":%d,\"in_flight_captures\":%d,\"idle_ms\":%lu,"
+           "\"wifi_rssi\":%ld,\"wifi_ps\":%d,\"cpu_mhz\":%u,\"heap_free\":%u,"
+           "\"stream_get_us\":%lu,\"stream_send_us\":%lu,\"capture_get_us\":%lu,\"capture_send_us\":%lu}",
+           stateStr, curStreams, curCaptures, idleMs,
+           (long)WiFi.RSSI(), psMode, (unsigned int)getCpuFrequencyMhz(), (unsigned int)ESP.getFreeHeap(),
+           (unsigned long)streamGetUs, (unsigned long)streamSendUs,
+           (unsigned long)captureGetUs, (unsigned long)captureSendUs);
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");

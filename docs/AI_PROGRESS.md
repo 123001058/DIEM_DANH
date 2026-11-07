@@ -208,3 +208,8 @@ stateDiagram-v2
 - TLOG-051: camera .168 ACTIVE, JPEG/MJPEG thật PASS; browser HTTP local dùng production monitor hiện ảnh 480x320, canvas đọc được, không lỗi console. Server local đang chạy tại http://localhost:8080/admin.html.
 - Đã sửa camera worker Kiosk: HTTP/body read timeout 3000ms thay 400/450ms do tải ảnh thực 1.3–2.7s; thêm log lỗi [CAM] mỗi 5s. Firmware compile PASS (1100016 bytes flash, 94160 bytes global RAM), verify_task_046 và git diff --check PASS. QR/polling/layout/buzzer giữ nguyên.
 - Chưa nạp Kiosk, chưa xác minh LCD vật lý hoặc đăng nhập/AI end-to-end; không DONE. Log người dùng cung cấp là của CAM; một dòng I2C timeout chưa chứng minh nguyên nhân mất hình.
+
+### TASK-048 — `[VERIFYING]` — 2026-11-07
+- TLOG-052: người dùng chọn giữ ngủ khi không dùng. Camera thật ACTIVE nhưng /power chờ khoảng 1–4s; chưa quy lỗi riêng wakeup. Không đổi chính sách nguồn, QR, còi, cấu hình hình ảnh hoặc nhận diện.
+- Thêm số đo get/send/RSSI/PS/CPU/cache và frame gửi thành công qua Serial [CAM PERF] mỗi 5s và /power. CAM compile PASS (1084285 bytes flash, 56696 bytes global RAM), invariants và kiểm tra tương thích JSON PASS.
+- Chờ nạp CAM để lấy log phần cứng và xác định nguyên nhân; chưa khẳng định phục hồi FPS, chưa DONE.

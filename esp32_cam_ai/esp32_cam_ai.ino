@@ -10,6 +10,7 @@ WiFiMulti wifiMulti;
 
 void startCameraServer();
 void checkCameraPowerTimeout();
+void reportCameraPerformance();
 
 // Cấu hình cảm biến OV2640 tối ưu cho mô hình Face AI & Liveness
 // (dung chung cho setup() va cameraInitPins() khi phuc hoi cam luc chay)
@@ -158,5 +159,6 @@ void setup() {
 
 void loop() {
   checkCameraPowerTimeout();
+  reportCameraPerformance();
   delay(500);
 }
