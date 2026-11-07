@@ -203,3 +203,8 @@ stateDiagram-v2
 ### TASK-042 — [VERIFYING] — 2026-11-04
 - Triển khai cơ chế Standby / Wakeup tiết kiệm điện cho ESP32-S3-CAM (OV2640), đồng bộ Mutex, Idle timeout 15s và tối ưu Kiosk / Web Admin.
 - TLOG-045: Cả hai firmware biên dịch PASS 100% bằng Arduino CLI thật, 16/16 kiểm tra logic Invariants PASS, 257/257 master verification checks PASS; chuẩn hóa native bank OV2640 và host IP Web Admin; sẵn sàng nạp phần cứng thật để đo nhiệt độ và FPS.
+
+### TASK-047 — `[VERIFYING]` — 2026-11-07
+- TLOG-051: camera .168 ACTIVE, JPEG/MJPEG thật PASS; browser HTTP local dùng production monitor hiện ảnh 480x320, canvas đọc được, không lỗi console. Server local đang chạy tại http://localhost:8080/admin.html.
+- Đã sửa camera worker Kiosk: HTTP/body read timeout 3000ms thay 400/450ms do tải ảnh thực 1.3–2.7s; thêm log lỗi [CAM] mỗi 5s. Firmware compile PASS (1100016 bytes flash, 94160 bytes global RAM), verify_task_046 và git diff --check PASS. QR/polling/layout/buzzer giữ nguyên.
+- Chưa nạp Kiosk, chưa xác minh LCD vật lý hoặc đăng nhập/AI end-to-end; không DONE. Log người dùng cung cấp là của CAM; một dòng I2C timeout chưa chứng minh nguyên nhân mất hình.

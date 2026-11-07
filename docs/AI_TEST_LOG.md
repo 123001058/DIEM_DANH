@@ -2138,3 +2138,36 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - **LIKELY:** Khi nạp firmware mới lên 2 mạch ESP32 và mở phiên điểm danh, hiện tượng tranh chấp DMA queue giữa cổng 81 và cổng 80 sẽ biến mất hoàn toàn nhờ Shared Frame Cache; đồng thời trình duyệt sẽ vẽ luồng MJPEG mượt hơn hẳn nhờ giải phóng Main Thread 85ms giữa các chu kỳ AI.
   - **UNKNOWN:** Tốc độ FPS thực tế trên phần cứng sau khi nạp (chờ người dùng nạp code vào `esp32_cam_ai` và `esp32_kiosk` qua Arduino IDE).
 - **Kết luận:** VERIFYING (Chờ người dùng nạp firmware mới lên 2 board ESP32).
+
+
+### [TLOG-051] Camera thật, HTTP local và sửa thời gian chờ Kiosk (TASK-047)
+- Ngày: 2026-11-07 (UTC+7). Agent: Codex.
+- Dữ kiện người dùng: ảnh web hiển thị lỗi luồng HTTP khi trang HTTPS; Serial CAM báo một dòng i2c.master probe timeout, sau đó OV2640 init thành công, Wi-Fi Robocon Sinh Vien, IP .168. Đây là log CAM, chưa có log Kiosk.
+- Kiểm tra thật bằng urllib.request + PIL (Python):
+  - Lần đầu: .168/status HTTP 404 (endpoint không tồn tại); .168/capture HTTP 200 image/jpeg; .168:81/stream HTTP 200 multipart/x-mixed-replace; .169/status timeout 6.14s.
+  - /power HTTP 200: {"ok":true,"state":"ACTIVE","stream_clients":0,"in_flight_captures":0,"idle_ms":3}.
+  - 8 ảnh /capture giải mã PIL đầy đủ 480x320, Content-Length khớp, kết thúc ffd9; tổng tải [2225,1339,1456,231,2303,1570,1536,2045] ms, 12096..12382 bytes.
+  - Kiểm tra sau ảnh người dùng: /power ACTIVE; 2 JPEG đầy đủ 11312/11121 bytes trong 1547/1999ms.
+  - Đo riêng header_ms/total_ms/bytes: (2542,2731,12269), (185,428,12067), (2332,2404,12095); cả 3 ảnh kết thúc ffd9.
+- Phát hiện: nguồn hiện đặt HTTP read timeout 400ms và body deadline 450ms; nhiều mẫu tải thực vượt hạn. Đây là bằng chứng giới hạn không phù hợp trên mạng máy tính, chưa phải đo trực tiếp từ board LCD.
+- Sửa: cameraCaptureWorker dùng captureTimeoutMs=3000 cho socket/HTTP read và hạn đọc body, thêm log [CAM] HTTP/length/read/elapsed tối đa mỗi 5s. Không đổi QR, polling Supabase, LCD drawing, buzzer, firmware CAM hoặc JS.
+- Web nội bộ: khởi động Python http.server tại 127.0.0.1:8080, thư mục repo; Invoke-WebRequest http://localhost:8080/admin.html trả 200. Server nền ẩn, stdout/stderr trong scratch/camera_local_web.*.log.
+- Kiểm thử browser thật: `python -u scratch/check_camera_live_task047.py` exit 0. Harness dùng admin.html và admin.face.js thật, loại script auth/network, gọi startAdminCamera('monitor'), kết nối camera vật lý (không mô phỏng ảnh). Chrome headless profile mới, không tắt chính sách bảo mật.
+  ```text
+  LIVE_BROWSER {"canvasReadable": true, "height": 320, "hud": "🟢 Chế độ Chỉ xem: Đang phát luồng trực tiếp (http://192.168.2.168:81/stream)", "mode": "mjpeg", "protocol": "http:", "src": "http://192.168.2.168:81/stream", "width": 480}
+  BROWSER_ERRORS []
+  PASS: production monitor renders real ESP32 MJPEG from localhost; canvas readable. Auth, AI inference and LCD not exercised.
+  ```
+- Kiểm tra diff: `git diff --check` exit 0; Python so sánh git HEAD xác minh phần trước cameraCaptureWorker và từ supabasePollWorker trở đi nguyên vẹn. PASS: chỉ camera worker thay đổi, QR/polling/LCD giữ nguyên.
+- Giới hạn/các kiểm tra không thành công: Computer Use lượt trước tự dừng vì không xác minh được URL Chrome đủ tin cậy; không thay cài đặt trình duyệt, không tiếp tục thao tác UI. Python serial.tools không có (No module named serial); Win32_SerialPort chỉ liệt kê COM4 USB Serial Device, chưa mở/nạp port. Không coi đây là log Kiosk.
+- Nguồn đối chiếu: MDN https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content (HTTP ảnh có host IP bị chặn từ HTTPS); Espressif https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/i2c.html (probe timeout cần kiểm tra bus/pull-ups, không tự suy ra lỗi dây từ một dòng log).
+- KNOWN: CAM phát JPEG/MJPEG thật, trang HTTP local render được MJPEG và đọc canvas không tainted; source sửa thời gian chờ, không đụng các luồng đóng băng.
+- LIKELY: hạn chờ mới giảm việc bỏ ảnh do mạng chậm trên Kiosk; web local dùng được sau người dùng đăng nhập.
+- UNKNOWN: firmware đang nạp trên LCD có trùng source không; kết quả nạp bản sửa và hình LCD thật; đăng nhập/AI điểm danh end-to-end của web local; nguyên nhân dòng I2C riêng lẻ. Không tuyên bố camera phần cứng hoàn toàn hết lỗi.
+- Biên dịch thật: `& 'C:/Program Files/Arduino IDE/resources/app/lib/backend/resources/arduino-cli.exe' compile --jobs 4 --fqbn esp32:esp32:esp32 esp32_kiosk` exit 0.
+  ```text
+  Sketch uses 1100016 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 94160 bytes (28%) of dynamic memory, leaving 233520 bytes for local variables. Maximum is 327680 bytes.
+  ```
+- `node scratch/verify_task_046.js` exit 0: PASS tầng CAM, Kiosk, web và invariants FRZ-001/004/005. Đây là kiểm tra mã, không thay thế xác nhận LCD thật.
+- Trạng thái: VERIFYING, firmware build PASS; web monitor có ảnh thật PASS; chưa flash/push/deploy, chờ nạp Kiosk và kiểm chứng LCD/phiên đăng nhập thật.

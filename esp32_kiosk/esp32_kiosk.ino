@@ -81,7 +81,10 @@ void drawNoOpenSession() {
 void cameraCaptureWorker(void* pvParameters) {
   WiFiClient camClient;
   HTTPClient camHttp;
-  camClient.setTimeout(350);
+  // Mang thuc te co luc can hon 2s cho mot anh; khong loai frame hop le sau 400ms.
+  const uint32_t captureTimeoutMs = 3000;
+  uint32_t lastErrorLogMs = 0;
+  camClient.setTimeout(captureTimeoutMs);
   camClient.setNoDelay(true); // Tat Nagle algorithm de gui/nhan goi TCP tuc thi
 
   // Bat HTTP Keep-Alive de khong ton thoi gian bat tay TCP lai moi frame
@@ -113,18 +116,18 @@ void cameraCaptureWorker(void* pvParameters) {
 
       uint32_t tFetchStart = micros();
       camHttp.begin(camClient, camUrl);
-      camHttp.setTimeout(400);
+      camHttp.setTimeout(captureTimeoutMs);
       
       int code = camHttp.GET();
+      int len = camHttp.getSize();
+      size_t bytesRead = 0;
       if (code == HTTP_CODE_OK) {
         camClient.setNoDelay(true); // Dam bao TCP_NODELAY duoc bat tren socket fd dang mo thuc te
-        int len = camHttp.getSize();
         if (len > 0 && len <= CAM_BUF_SIZE) {
           WiFiClient* stream = camHttp.getStreamPtr();
-          size_t bytesRead = 0;
           uint32_t startRead = millis();
           uint8_t emptySpins = 0;
-          while (camHttp.connected() && bytesRead < (size_t)len && (millis() - startRead < 450)) {
+          while (camHttp.connected() && bytesRead < (size_t)len && (millis() - startRead < captureTimeoutMs)) {
             size_t avail = stream->available();
             if (avail > 0) {
               emptySpins = 0;
@@ -155,6 +158,12 @@ void cameraCaptureWorker(void* pvParameters) {
             fetchedOk = true;
           }
         }
+      }
+      if (!fetchedOk && millis() - lastErrorLogMs >= 5000) {
+        lastErrorLogMs = millis();
+        Serial.printf("[CAM] %s HTTP=%d length=%d read=%u elapsed=%lums\n",
+                      camUrl.c_str(), code, len, (unsigned int)bytesRead,
+                      (unsigned long)((micros() - tFetchStart) / 1000));
       }
       camHttp.end();
     } else {

@@ -1151,3 +1151,19 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] `node -c js/admin/admin.face.js` hợp lệ cú pháp 100%.
   - [x] Toàn bộ test suites (`tests/test_face_identity.py`, `tests/test_camera_history.py`, `scratch/verify_task_046.js`, `scratch/auditor_m2_independent_check.js`) chạy PASS 100%.
   - [x] Ghi nhận bằng chứng kiểm thử vào `docs/AI_TEST_LOG.md` (TLOG-050).
+
+### [TASK-047] Chẩn đoán camera không hiện trên web và LCD khi mở điểm danh
+- Ngày: 2026-11-07. Trạng thái: `[VERIFYING]`.
+- Hiện trạng đã kiểm tra: máy tính Wi-Fi 192.168.2.101; camera .168 trả HTTP 200 image/jpeg tại /capture và MJPEG tại :81/stream; .169 timeout. Không kết luận firmware đang nạp trùng source chỉ từ compile cũ.
+- Mục tiêu: xác định điểm đứt thực tế ở web/LCD, sửa tối thiểu khi có bằng chứng.
+- Phạm vi dự kiến: chẩn đoán HTTP camera, trạng thái web đang mở, cấu hình/Serial Kiosk nếu có; docs AI_PLAN/AI_PROGRESS/AI_TEST_LOG. Chỉ sửa mã camera/web/kiosk liên quan khi xác định nguyên nhân.
+- Rủi ro: board cũ hoặc IP DHCP khác; web chặn HTTP; timeout tải ảnh; thiếu quyền truy cập Serial. Giữ nguyên QR polling 1000ms, payload QR, phân vùng LCD và buzzer/mute thuộc FRZ-001/004/005.
+- Nghiệm thu: ghi kết quả request thật, xác minh ảnh JPEG hoàn chỉnh và thời gian tải, đối chiếu web và Kiosk; mọi sửa code phải có kiểm thử phù hợp. Chỉ DONE khi web và LCD thật đã xác nhận; nếu thiếu chứng cứ phần cứng giữ VERIFYING.
+
+#### TASK-047 — cập nhật sau ảnh/log người dùng
+- Web: ảnh hiển thị cảnh báo HTTPS -> HTTP và ảnh lỗi; handler hiện gán chung lỗi HTTPS thành Mixed Content nên không coi banner là console proof, nhưng chính sách browser chặn ảnh HTTP host IP từ HTTPS đã được đối chiếu MDN. Giải pháp dùng bản HTTP tại localhost, không đổi cài đặt bảo mật trình duyệt.
+- Camera: /power ACTIVE; tải JPEG 480x320 đầy đủ 11312/11121 bytes trong 1547/1999ms; log người dùng ghi init và Wi-Fi OK. Một dòng probe I2C timeout chưa chứng minh camera chết hoặc phải sửa dây.
+- Sửa tối thiểu trong esp32_kiosk/esp32_kiosk.ino: thống nhất HTTP timeout và hạn đọc body 3000ms (lớn hơn các mẫu đo 2303ms), thêm log lỗi tối đa mỗi 5s gồm HTTP code/độ dài/bytes/thời gian. Camera worker riêng nên không thay polling Supabase 1000ms, QR/layout hay buzzer.
+- Kiểm thử: compile kiosk ESP32 thật; test HTTP local + ảnh camera trong trình duyệt kiểm thử mới, đo ảnh hoàn chỉnh; ghi rõ chưa nạp thiết bị/chưa xác nhận LCD.
+
+- Kết quả TASK-047: TLOG-051, firmware build PASS; camera vật lý hiện trên browser HTTP local PASS. Chờ người dùng đăng nhập bản local và nạp firmware Kiosk để nghiệm thu trên LCD, không tự đánh dấu DONE.
