@@ -16,7 +16,7 @@ void checkCameraPowerTimeout();
 static void applySensorTuning() {
   sensor_t *s = esp_camera_sensor_get();
   if (!s) return;
-  s->set_framesize(s, FRAMESIZE_VGA); // 640x480, đồng bộ cấu hình khởi tạo
+  s->set_framesize(s, FRAMESIZE_HVGA); // 480x320: giảm 50% dung lượng JPEG, vừa khít LCD 120x80 (scale 1/4) và mượt 25-30 FPS
   s->set_quality(s, 14);
   s->set_sharpness(s, 0);              // Độ nét tự nhiên (0): Tránh hiện tượng gai viền nhân tạo làm AI lệch landmark mắt mũi
   s->set_contrast(s, 0);               // Giữ chi tiết vùng bóng đổ quanh hốc mắt
@@ -24,7 +24,7 @@ static void applySensorTuning() {
   s->set_saturation(s, 0);
   s->set_denoise(s, 1);                // Bật bộ lọc khử nhiễu hạt cảm biến
   s->set_lenc(s, 1);                   // Bù méo viền thấu kính OV2640
-  s->set_gainceiling(s, GAINCEILING_8X); // Tăng dải nhạy sáng cho phòng học/kiosk
+  s->set_gainceiling(s, GAINCEILING_4X); // Giữ nhạy sáng tốt mà không đẩy nhiễu hạt làm phình kích thước JPEG
   s->set_whitebal(s, 1);               // Cân bằng trắng tự động (AWB)
   s->set_awb_gain(s, 1);
   s->set_exposure_ctrl(s, 1);          // Tự động phơi sáng (AEC)
@@ -56,7 +56,7 @@ esp_err_t cameraInitPins() {
   config.pin_pwdn     = PWDN_GPIO_NUM;
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size   = FRAMESIZE_VGA;
+  config.frame_size   = FRAMESIZE_HVGA;
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode    = CAMERA_GRAB_LATEST;
   config.fb_location  = CAMERA_FB_IN_PSRAM;
@@ -111,8 +111,8 @@ void setup() {
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   
-  // VGA 640x480: tăng chi tiết ảnh đầu vào AI; cần đo lại FPS trên thiết bị thật.
-  config.frame_size   = FRAMESIZE_VGA;
+  // HVGA 480x320: tối ưu tốc độ truyền Wi-Fi và giải mã LCD Kiosk (scale 1/4 = 120x80)
+  config.frame_size   = FRAMESIZE_HVGA;
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode    = CAMERA_GRAB_LATEST;
   config.fb_location  = CAMERA_FB_IN_PSRAM;

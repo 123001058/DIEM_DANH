@@ -2,9 +2,11 @@
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
+#include "esp_heap_caps.h"
 #include "img_converters.h"
 #include "board_config.h"
 #include <WiFi.h>
+#include <lwip/sockets.h>
 
 extern "C" {
   // Driver esp32-camera (cam_hal.c) khai bao 2 ham nay la void (da kiem tra bang objdump libespressif__esp32-camera.a)
@@ -22,6 +24,31 @@ static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+
+// Bộ đệm Shared Latest Frame Cache trong PSRAM/RAM (chống tranh chấp DMA giữa cổng 81 /stream và cổng 80 /capture)
+#define SHARED_FRAME_CACHE_MAX 40960
+static uint8_t *s_frame_cache_buf = NULL;
+static size_t s_frame_cache_len = 0;
+static unsigned long s_frame_cache_ms = 0;
+static SemaphoreHandle_t s_frame_cache_mutex = NULL;
+
+static inline void enableSocketNoDelay(httpd_req_t *req) {
+  int fd = httpd_req_to_sockfd(req);
+  if (fd >= 0) {
+    int nodelay = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
+  }
+}
+
+static void updateSharedFrameCache(const uint8_t *buf, size_t len) {
+  if (!buf || len == 0 || len > SHARED_FRAME_CACHE_MAX || !s_frame_cache_buf || !s_frame_cache_mutex) return;
+  if (xSemaphoreTake(s_frame_cache_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+    memcpy(s_frame_cache_buf, buf, len);
+    s_frame_cache_len = len;
+    s_frame_cache_ms = millis();
+    xSemaphoreGive(s_frame_cache_mutex);
+  }
+}
 
 // =============================================================================
 // QUẢN LÝ NGUỒN TIẾT KIỆM ĐIỆN & ĐỒNG BỘ ĐA LUỒNG (R1, R2, R3)
@@ -269,11 +296,39 @@ static bool recoverCameraDriver(void) {
 }
 
 static esp_err_t capture_handler(httpd_req_t *req) {
+  enableSocketNoDelay(req);
+
   // Tu dong danh thuc va dang ky capture duoi Mutex (chong race condition voi enterCameraStandby)
   esp_err_t prepErr = prepareCameraActive(false);
   if (prepErr != ESP_OK) {
     httpd_resp_send_500(req);
     return prepErr;
+  }
+
+  // Neu luong /stream (cong 81) dang chay va co san frame moi trong Shared Cache (< 200ms),
+  // tra ngay tu RAM ma KHONG goi esp_camera_fb_get() de triet tieu 100% tranh chap DMA va chia doi FPS!
+  int activeStreams = 0;
+  portENTER_CRITICAL(&s_client_mux);
+  activeStreams = s_active_stream_clients;
+  portEXIT_CRITICAL(&s_client_mux);
+
+  if (activeStreams > 0 && s_frame_cache_buf && s_frame_cache_mutex) {
+    if (xSemaphoreTake(s_frame_cache_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
+      unsigned long ageMs = millis() - s_frame_cache_ms;
+      if (s_frame_cache_len > 0 && ageMs <= 200) {
+        httpd_resp_set_type(req, "image/jpeg");
+        httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+        esp_err_t cachedRes = httpd_resp_send(req, (const char *)s_frame_cache_buf, s_frame_cache_len);
+        xSemaphoreGive(s_frame_cache_mutex);
+        releaseCameraClient(false);
+        return cachedRes;
+      }
+      xSemaphoreGive(s_frame_cache_mutex);
+    }
   }
 
   camera_fb_t *fb = esp_camera_fb_get();
@@ -284,6 +339,7 @@ static esp_err_t capture_handler(httpd_req_t *req) {
       if (prepareCameraActive(false) == ESP_OK) {
         fb = esp_camera_fb_get();
         if (fb) {
+          updateSharedFrameCache(fb->buf, fb->len);
           httpd_resp_set_type(req, "image/jpeg");
           httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
           httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -302,6 +358,8 @@ static esp_err_t capture_handler(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
+  updateSharedFrameCache(fb->buf, fb->len);
+
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -317,6 +375,8 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 }
 
 static esp_err_t stream_handler(httpd_req_t *req) {
+  enableSocketNoDelay(req);
+
   // Tu dong danh thuc va dang ky stream client duoi Mutex (chong race condition voi enterCameraStandby)
   esp_err_t prepErr = prepareCameraActive(true);
   if (prepErr != ESP_OK) {
@@ -326,7 +386,8 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t *fb = NULL;
   struct timeval _timestamp;
   esp_err_t res = ESP_OK;
-  char part_buf[128];
+  char part_buf[160];
+  int consecutiveNullFrames = 0;
 
   res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
   if (res != ESP_OK) {
@@ -343,15 +404,24 @@ static esp_err_t stream_handler(httpd_req_t *req) {
   while (true) {
     fb = esp_camera_fb_get();
     if (!fb) {
-      // Client stream dang chay nen khong the deinit tai day; khoi tao lai khi ket thuc stream
+      consecutiveNullFrames++;
+      if (consecutiveNullFrames < 3) {
+        vTaskDelay(pdMS_TO_TICKS(5));
+        continue;
+      }
+      // Chi thoat khi 3 lan lien tiep khong lay duoc frame
       res = ESP_FAIL;
     } else {
+      consecutiveNullFrames = 0;
+      updateSharedFrameCache(fb->buf, fb->len);
+
       _timestamp.tv_sec = fb->timestamp.tv_sec;
       _timestamp.tv_usec = fb->timestamp.tv_usec;
-      size_t hlen = snprintf(part_buf, 128, _STREAM_PART, fb->len, _timestamp.tv_sec, _timestamp.tv_usec);
+      // Gop boundary va header part vao 1 chunk duy nhat de giam so syscall TCP send()
+      size_t hlen = snprintf(part_buf, sizeof(part_buf), "%s" "Content-Type: image/jpeg\r\nContent-Length: %u\r\nX-Timestamp: %d.%06d\r\n\r\n",
+                             _STREAM_BOUNDARY, fb->len, (int)_timestamp.tv_sec, (int)_timestamp.tv_usec);
       
-      res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-      if (res == ESP_OK) res = httpd_resp_send_chunk(req, part_buf, hlen);
+      res = httpd_resp_send_chunk(req, part_buf, hlen);
       if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
       
       esp_camera_fb_return(fb);
@@ -363,8 +433,8 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     portENTER_CRITICAL(&s_client_mux);
     s_last_activity_ms = millis();
     portEXIT_CRITICAL(&s_client_mux);
-    // Giam tai CPU & chong nong chip: Delay nhe 10ms (~30 FPS muot ma)
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // Nhuong 1 tick (1ms) cho IDLE/Watchdog ma khong gay tre nhip VSYNC
+    vTaskDelay(pdMS_TO_TICKS(1));
   }
 
   releaseCameraClient(true);
@@ -644,6 +714,15 @@ static esp_err_t options_handler(httpd_req_t *req) {
 void startCameraServer() {
   if (!s_power_mutex) {
     s_power_mutex = xSemaphoreCreateMutex();
+  }
+  if (!s_frame_cache_mutex) {
+    s_frame_cache_mutex = xSemaphoreCreateMutex();
+  }
+  if (!s_frame_cache_buf) {
+    s_frame_cache_buf = (uint8_t *)heap_caps_malloc(SHARED_FRAME_CACHE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_frame_cache_buf) {
+      s_frame_cache_buf = (uint8_t *)malloc(SHARED_FRAME_CACHE_MAX);
+    }
   }
   s_last_activity_ms = millis();
   s_power_state = CAM_POWER_ACTIVE;

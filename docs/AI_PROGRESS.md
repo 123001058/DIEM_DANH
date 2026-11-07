@@ -68,12 +68,25 @@ stateDiagram-v2
 | [TASK-043](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-043-triển-khai-tính-năng-đánh-giá-hiệu-suất-thành-viên-vào-menu-admin-chuyên-cần-tự-động-tuyến-tính--đội-trưởng-chấm-điểm-lưu-supabase) | Tính năng Đánh giá hiệu suất: Chuyên cần tự động tuyến tính & Đội trưởng chấm điểm lưu Supabase | `[DONE]` | High | [TLOG-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-046-kiểm-thử-toàn-diện-tính-năng-đánh-giá-hiệu-suất-thành-viên-task-043) (PASS 72/72 tests, Victory Confirmed) | 2026-11-05 |
 | [TASK-044](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-044-dọn-dẹp-dead-code-js-còn-lại-file-tạm-và-thư-mục-build-cũ) | Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ | `[DONE]` | Medium | [TLOG-047](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-047-dọn-dẹp-dead-code-js-file-tạm-và-thư-mục-build-cũ-task-044) (PASS 258/258) | 2026-11-06 |
 | [TASK-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-045-đồng-bộ-ip-camera-về-1921682168-web--kiosk-lcd) | Đồng bộ IP camera về 192.168.2.168 (web + kiosk LCD) | `[VERIFYING]` | Critical | [TLOG-049](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-049-kiểm-thử-đồng-bộ-ip-1921682168-web-admin-và-kiosk-lcd-task-045) (Web & config PASS; Kiosk LCD chờ nạp board) | 2026-11-07 |
+| [TASK-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-046-khắc-phục-triệt-để-hiện-tượng-lag-frame-camera-trên-cả-web-admin-và-esp32-kiosk-lcd) | Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD | `[VERIFYING]` | Critical | [TLOG-050](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-050-kiểm-thử-chống-lag-khung-hình-camera-đa-tầng-esp32-s3-cam-esp32-kiosk-lcd--web-admin-task-046) (2 Firmware builds PASS, 85 E2E checks PASS; chờ nạp mạch thật) | 2026-11-07 |
 
 ---
 
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)
+
+### Phiên làm việc: 2026-11-07 (Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD - TASK-046)
+- **Agent/Model:** Antigravity / Thinking Partner (Using `agency-embedded-firmware-engineer`, `agency-performance-benchmarker`, `systematic-debugging`)
+- **Nhiệm vụ:** [TASK-046] (Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD)
+- **Tóm tắt hành động:**
+  - Chẩn đoán 4 nguyên nhân gốc rễ gây lag khung hình trên cả Web và Kiosk LCD:
+    1. **Tranh chấp hàng đợi DMA (`fb_count = 2`):** Cổng 81 (`/stream` cho Web) và cổng 80 (`/capture` cho Kiosk LCD) cùng gọi `esp_camera_fb_get()`, vừa cướp xen kẽ frame của nhau (làm chia đôi FPS), vừa khóa cứng cả 2 buffer DMA trong lúc truyền Wi-Fi khiến cảm biến OV2640 mất nhịp VSYNC.
+    2. **Phình dung lượng ảnh do VGA + Gain 8X:** `FRAMESIZE_VGA` (640×480) + `GAINCEILING_8X` sinh ảnh JPEG 25–45 KB (vượt ngưỡng `CAM_BUF_SIZE = 40960` của Kiosk khi nhiễu sáng làm rớt frame) và bắt Kiosk giải mã 4.800 khối MCU ở tỉ lệ 1/8 (80×60) thay vì 2.400 khối MCU ở tỉ lệ 1/4 (120×80).
+    3. **Lỗi `TCP_NODELAY` trong ESP32 Core 3.3.12:** Gọi `camClient.setNoDelay(true)` trước khi socket kết nối bị lỗi `fd == -1` (Nagle vẫn bật), cộng thêm `esp_http_server` trên Cam chưa bật `TCP_NODELAY` và chia nhỏ 9 gói tin TCP mỗi frame.
+    4. **Nghẽn Main Thread trình duyệt:** Vòng lặp AI (`runAdminDetectionLoop`) chạy `TinyFaceDetector` (`inputSize: 416`) + `ResNet-34` + `MiniFASNet` nối đuôi nhau 0ms nghỉ, chiếm gần 100% Main Thread khiến trình duyệt không kịp vẽ luồng MJPEG `<img>`.
+  - Triển khai bản vá đồng bộ trên 3 tầng (`esp32_cam_ai`, `esp32_kiosk`, `js/admin/admin.face.js`) và tăng cache-buster `admin.html` (`admin.face.js?v=13`).
+  - Biên dịch thành công cả 2 firmware bằng `arduino-cli` (Exit code 0) và vượt qua toàn bộ kiểm thử tự động (`verify_task_046.js`, `auditor_m2_independent_check.js`, `test_camera_history.py`, `test_face_identity.py`). Ghi nhận tại TLOG-050. Trạng thái: `[VERIFYING]` (chờ người dùng nạp firmware mới vào 2 mạch ESP32).
 
 ### Phiên làm việc: 2026-11-07 (Đồng bộ IP 192.168.2.168 Web Admin & Kiosk LCD - TASK-045)
 - **Agent/Model:** Antigravity / Thinking Partner (Gemini 3.8 Flash High)

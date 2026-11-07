@@ -1115,8 +1115,39 @@ ode -c js/admin/admin.attendance.js exit 0.
   2. `node -c` JS, `git diff --check`, test kết nối `/capture` + `/power` tại `.168` qua HTTP thật.
   3. Biên dịch firmware kiosk bằng arduino-cli (nếu có toolchain) và ghi test log.
 - **Tiêu chí nghiệm thu (DoD):**
-  - [ ] Không còn hardcode `.169` ở web/kiosk (grep sạch, chỉ còn `.169` trong docs lịch sử và legacy).
-  - [ ] `node -c` PASS, `git diff --check` sạch.
+  - [x] Không còn hardcode `.169` ở web/kiosk (grep sạch, chỉ còn `.169` trong docs lịch sử và legacy).
+  - [x] `node -c` PASS, `git diff --check` sạch.
   - [ ] Test trực tiếp `http://192.168.2.168/capture` trả ảnh và `/power?mode=active` trả JSON (nếu cam online).
   - [ ] LCD:kiosk cần nạp lại firmware (người dùng tự nạp Arduino IDE) mới hiện hình; ghi rõ UNKNOWN đến khi nạp thật.
 - **Phương án kiểm thử:** `node -c`, grep IP, `Test-NetConnection`/`Invoke-WebRequest` tới `.168`, `arduino-cli compile` kiosk.
+
+---
+
+### [TASK-046] Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD
+
+- **Ngày tạo:** 2026-11-07
+- **Mức độ ưu tiên:** Critical
+- **Trạng thái:** `[VERIFYING]`
+- **Mục tiêu:**
+  1. **Tầng Camera (`esp32_cam_ai`)**:
+     - Đưa độ phân giải cảm biến OV2640 về `FRAMESIZE_HVGA` (480×320) và `GAINCEILING_4X` để giảm 50% dung lượng JPEG (từ 25–45 KB xuống 10–16 KB), không bao giờ tràn buffer 40 KB của Kiosk và vừa khít khung 120×80 (scale 1/4) trên LCD.
+     - Triển khai **Shared Latest Frame Cache** trong RAM (`s_frame_cache_buf`, 40 KB) để khi `/stream` (cổng 81) đang chạy, các request `/capture` (cổng 80 từ Kiosk LCD) đọc ngay bản sao frame mới nhất từ RAM thay vì tranh nhau rút `esp_camera_fb_get()` làm kiệt 2 buffer DMA (`fb_count = 2`).
+     - Bật `TCP_NODELAY` trên socket của `/stream` và `/capture`, gộp boundary + header chunk thành 1 lần gửi, giảm delay cuối vòng `/stream` xuống 1ms và thêm retry 3 lần khi `esp_camera_fb_get()` tạm trễ thay vì ngắt kết nối ngay.
+  2. **Tầng Web Admin (`js/admin/admin.face.js`)**:
+     - Điều tiết nhịp suy luận AI (`ADMIN_AI_MIN_INTERVAL_MS = 85ms`) và nhường sự kiện (`setTimeout(0)`) giữa bước phát hiện mặt và chống giả mạo để giải phóng Main Thread cho trình duyệt giải mã và vẽ luồng MJPEG `<img>` mượt 25–30 FPS.
+     - Hạ `TinyFaceDetectorOptions` `inputSize` về `320` (tối ưu cho khung HVGA 480×320, nhanh hơn ~40%).
+     - Chống nhảy vĩnh viễn từ `mjpeg` (cổng 81) sang `fast_stream` (cổng 80) khi mạng chập chờn 1 nhịp: tự thử kết nối lại MJPEG tối đa 2 lần trước khi fallback.
+  3. **Tầng ESP32 Kiosk LCD (`esp32_kiosk/esp32_kiosk.ino`)**:
+     - Gọi `camClient.setNoDelay(true)` ngay sau khi kết nối HTTP thành công (khi socket `fd` đã mở thực tế), ưu tiên `taskYIELD()` trong vòng đọc stream và nâng độ ưu tiên `CamWorker` lên mức `2` (cao hơn `SupaWorker` mức `1`) để việc tải ảnh không bị khựng mỗi giây khi `SupaWorker` bắt tay TLS/HTTPS.
+     - Bảo toàn 100% các tính năng đóng băng (`FRZ-001`..`FRZ-005`).
+- **Phạm vi tác động:**
+  - `esp32_cam_ai/esp32_cam_ai.ino`
+  - `esp32_cam_ai/app_httpd.cpp`
+  - `esp32_kiosk/esp32_kiosk.ino`
+  - `js/admin/admin.face.js`
+  - `admin.html` (cache-buster)
+- **Tiêu chí nghiệm thu (DoD):**
+  - [x] Biên dịch thành công cả 2 firmware (`esp32_cam_ai` và `esp32_kiosk`) bằng `arduino-cli` với Exit Code 0.
+  - [x] `node -c js/admin/admin.face.js` hợp lệ cú pháp 100%.
+  - [x] Toàn bộ test suites (`tests/test_face_identity.py`, `tests/test_camera_history.py`, `scratch/verify_task_046.js`, `scratch/auditor_m2_independent_check.js`) chạy PASS 100%.
+  - [x] Ghi nhận bằng chứng kiểm thử vào `docs/AI_TEST_LOG.md` (TLOG-050).

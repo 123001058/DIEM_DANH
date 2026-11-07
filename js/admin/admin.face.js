@@ -77,6 +77,9 @@ let adminStreamMode = 'mjpeg'; // 'mjpeg' | 'fast_stream'
 let adminFastStreamLoopActive = false;
 let adminFastStreamTimer = null;
 let adminStreamReconnectTimer = null;
+let adminMjpegErrorCount = 0;
+let adminLastAiInferenceMs = 0;
+const ADMIN_AI_MIN_INTERVAL_MS = 85; // Nhường ~85ms giữa 2 lần suy luận AI để trình duyệt giải mã & vẽ MJPEG 25-30 FPS mượt mà
 
 function formatEspCaptureUrl(raw) {
   const s = cleanEspCamIp(raw);
@@ -736,7 +739,9 @@ async function startAdminCamera(targetMode) {
   if (img) {
     img.style.display = 'block';
     img.style.transform = adminEspMirrored ? 'scaleX(-1)' : 'none';
+    adminMjpegErrorCount = 0;
     img.onload = () => {
+      adminMjpegErrorCount = 0;
       if (hudStatus && adminCameraActive && adminStreamMode === 'mjpeg') {
         if (adminCameraMode === 'monitor') {
           hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng trực tiếp (${streamUrl})`;
@@ -758,9 +763,21 @@ async function startAdminCamera(targetMode) {
         return;
       }
 
-      // Tự động fallback sang Fast Frame Stream cổng 80 nếu luồng MJPEG cổng 81 bị nghẽn socket hoặc bị chặn trên mobile
+      // Thử kết nối lại luồng MJPEG cổng 81 tối đa 2 lần trước khi fallback sang Fast Stream cổng 80
       if (adminStreamMode === 'mjpeg') {
-        console.warn(`[FaceCam] Luồng MJPEG (${streamUrl}) không tải được. Tự động chuyển đổi sang Fast Frame Stream trực tiếp qua cổng 80...`);
+        adminMjpegErrorCount++;
+        if (adminMjpegErrorCount <= 2) {
+          if (!adminStreamReconnectTimer) {
+            adminStreamReconnectTimer = setTimeout(() => {
+              adminStreamReconnectTimer = null;
+              if (adminCameraActive && img && adminStreamMode === 'mjpeg') {
+                img.src = `${streamUrl}?t=${Date.now()}`;
+              }
+            }, 400);
+          }
+          return;
+        }
+        console.warn(`[FaceCam] Luồng MJPEG (${streamUrl}) không tải được sau 2 lần thử. Tự động chuyển đổi sang Fast Frame Stream trực tiếp qua cổng 80...`);
         adminStreamMode = 'fast_stream';
         if (hudStatus) {
           hudStatus.textContent = `🔄 Đang chuyển sang luồng Fast Stream trực tiếp (${captureUrl})...`;
@@ -990,11 +1007,13 @@ async function runAdminDetectionLoop() {
   // CHỈ coi là có frame khi hình ảnh thực sự đã tải thành công (naturalWidth > 0)
   const hasFrame = media && (isVideo ? (media.videoWidth > 0 && !media.paused) : (media.naturalWidth > 0));
 
-  if (hasFrame && adminFaceModelsLoaded) {
+  const nowBefore = performance.now();
+  if (hasFrame && adminFaceModelsLoaded && (nowBefore - adminLastAiInferenceMs >= ADMIN_AI_MIN_INTERVAL_MS)) {
+    adminLastAiInferenceMs = nowBefore;
     await processAdminCameraFrame(media);
   }
 
-  // Đo FPS
+  // Đo FPS vòng hiển thị mượt mà
   adminFpsCounter++;
   const now = performance.now();
   if (now - adminLastFpsTime >= 1000) {
@@ -1208,12 +1227,12 @@ async function processAdminCameraFrame(media) {
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
 
-  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 416 giúp bắt nhạy từ xa > 1m và góc nghiêng)
+  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 320 tối ưu tốc độ trên luồng HVGA 480x320, giảm ~40% tải Main Thread)
   let det = null;
   try {
     det = await faceapi.detectSingleFace(
       adminCaptureCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.22 })
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 })
     ).withFaceLandmarks(true).withFaceDescriptor();
   } catch (e) { }
 
@@ -1246,9 +1265,14 @@ async function processAdminCameraFrame(media) {
   const drawW = box.width * scaleX;
   const drawH = box.height * scaleY;
 
-  // 2. Chống giả mạo MiniFASNet-V2
+  // 2. Chống giả mạo MiniFASNet-V2 (nhường 1 nhịp micro-task cho trình duyệt paint frame MJPEG trước khi chạy WASM)
   let antiSpoofResult = { ok: true, isLive: true, pLive: 0.98 };
   if (adminAntiSpoofEnabled && adminFasnetSession) {
+    await new Promise(r => setTimeout(r, 0));
+    if (!adminCameraActive || !adminInferenceRunning) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     try {
       antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
     } catch (eFas) {

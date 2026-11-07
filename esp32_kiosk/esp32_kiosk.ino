@@ -117,19 +117,26 @@ void cameraCaptureWorker(void* pvParameters) {
       
       int code = camHttp.GET();
       if (code == HTTP_CODE_OK) {
+        camClient.setNoDelay(true); // Dam bao TCP_NODELAY duoc bat tren socket fd dang mo thuc te
         int len = camHttp.getSize();
         if (len > 0 && len <= CAM_BUF_SIZE) {
           WiFiClient* stream = camHttp.getStreamPtr();
           size_t bytesRead = 0;
           uint32_t startRead = millis();
+          uint8_t emptySpins = 0;
           while (camHttp.connected() && bytesRead < (size_t)len && (millis() - startRead < 450)) {
             size_t avail = stream->available();
             if (avail > 0) {
+              emptySpins = 0;
               size_t toRead = (avail > ((size_t)len - bytesRead)) ? ((size_t)len - bytesRead) : avail;
               size_t got = stream->readBytes(camBuf[writeIdx] + bytesRead, toRead);
               bytesRead += got;
             } else {
-              vTaskDelay(pdMS_TO_TICKS(1));
+              if (++emptySpins <= 4) {
+                taskYIELD();
+              } else {
+                vTaskDelay(pdMS_TO_TICKS(1));
+              }
             }
           }
           if (bytesRead == (size_t)len) {
@@ -293,13 +300,13 @@ void setup() {
   Serial.println("\n[KIOSK] WiFi OK (No-Sleep)! Khoi tao giao dien chia doi...");
   drawSplitCameraLayout();
 
-  // 1. Task keo anh Camera toc do cao tren Core 0 (4KB stack)
+  // 1. Task keo anh Camera toc do cao tren Core 0 (4KB stack, Priority 2 > SupaWorker de khong bi khung khi bat tay TLS)
   xTaskCreatePinnedToCore(
     cameraCaptureWorker,
     "CamWorker",
     4096,
     NULL,
-    1,
+    2,
     &camTaskHandle,
     0
   );
