@@ -1274,3 +1274,41 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Sửa `esp32_kiosk/esp32_kiosk.ino` để giới hạn thời gian chờ trên một khung preview và ưu tiên nối lại cổng 82 đã từng hoạt động. Giữ fallback cho firmware CAM cũ. Sửa `esp32_cam_ai/app_httpd.cpp` để tính thời gian gửi vào chu kỳ phát ảnh cổng 82, và `esp32_cam_ai/esp32_cam_ai.ino` để quét lại các mạng đã cấu hình khi tự nối Wi-Fi thất bại kéo dài.
 - Rủi ro: ngắt kết nối quá sớm khi gói TCP đến muộn, mất khả năng dùng firmware CAM cũ, quét Wi-Fi làm gián đoạn đường truyền đang hoạt động. Không thay đổi bố cục LCD, chu kỳ QR, còi hoặc chất lượng ảnh dùng cho AI.
 - Nghiệm thu: build và nạp đúng hai bo, đo lại bằng COM10 và HTTP, xác minh preview nhận nhiều JPEG, tự nối lại sau khởi động lại CAM và vẫn có fallback khi không có cổng 82. Ghi rõ phạm vi kiểm thử rớt Wi-Fi.
+
+### [TASK-051] Lập baseline hồi quy Web Điểm Danh trước tối ưu
+
+- **Ngày:** 2026-11-09. **Trạng thái:** `[VERIFYING]`.
+- **Mục tiêu:** Chạy các suite hiện có và chuẩn bị checklist kiểm thử thủ công cho đăng nhập, QR điểm danh, duyệt đơn nghỉ và ma trận lịch học trước các tối ưu Web.
+- **Phạm vi:** Chỉ kiểm thử và ghi nhận kết quả; không sửa mã nguồn hoặc file test.
+- **Tiêu chí nghiệm thu:**
+  - [x] Chạy cả ba suite trong `tests/`, ghi rõ lệnh và số kiểm tra.
+  - [ ] Kiểm tra thủ công đăng nhập/đăng xuất theo vai trò, QR hợp lệ/hết hạn/trùng, duyệt/từ chối đơn nghỉ và ma trận lịch học ở desktop/mobile.
+  - [ ] Kiểm tra console, lỗi mạng/reconnect và trạng thái sau tải lại trên các luồng trên.
+- **Giới hạn:** Các suite hiện hữu kiểm tra tính điểm hiệu suất, lịch sử camera và FaceMatcher bằng fixture/dữ liệu tổng hợp; chúng không chứng minh luồng Supabase thật, camera vật lý hoặc bốn luồng nghiệp vụ thủ công.
+
+### [TASK-052] Vá bảo mật XSS, chuẩn hóa cache-buster và dọn dẹp mã nguồn Web Frontend (Gói P0)
+
+- **Ngày:** 2026-11-09. **Trạng thái:** `[VERIFYING]`.
+- **Mục tiêu:** Thực hiện trọn vẹn 5 hạng mục gói P0 do Qoder và Opencode review, loại bỏ triệt để nguy cơ Stored XSS trong quản lý nhiệm vụ / ma trận Zalo, đồng bộ cache-buster `config.js?v=9` trên toàn bộ 7 file HTML, dọn dead code shadowing trong `js/config.js`, và bổ sung guard chống duplicate channel Realtime trong `checkin.html`.
+- **Phạm vi file sửa:**
+  1. `js/admin/admin.tasks.js`: Escape `r.name`, `r.mssv`, `data-name` trong `loadZaloScheduleMatrix` (table + mobile); escape `title`, `text` trong `toast()`; escape `t.due_date`, `t.id` trong thẻ task.
+  2. 7 file HTML (`admin.html`, `change-password.html`, `checkin.html`, `face-sinhvien.html`, `index.html`, `lichhoc.html`, `sync_faces_to_cloud.html`): Đồng bộ gọi `js/config.js?v=9`. Riêng `admin.html:2416` bump `admin.tasks.js?v=3` theo review Qoder để trình duyệt nhận ngay bản vá XSS.
+  3. `js/config.js`: Xóa bỏ biến `validStudents` và hàm `loadStudents()` thừa (không còn ai gọi, tránh shadowing hàm `loadStudents()` thực tế trong `admin.tasks.js`).
+  4. `checkin.html`: Bổ sung cờ `isCheckinInitialized`, lưu handle `sessionChangesChannel`, dọn subscription cũ trước khi tạo mới và cleanup qua `beforeunload`.
+- **Tiêu chí nghiệm thu:**
+  - [x] `node --check` toàn bộ 14 file JS trong `js/` và `js/admin/` PASS 100%.
+  - [x] `git diff --check` sạch 100%, không dính lỗi thụt lề hay trailing whitespace.
+  - [x] Chạy hồi quy 3 test suite trong `tests/` (`e2e_performance_evaluations.test.js`, `test_camera_history.py`, `test_face_identity.py`) PASS 157/157 checks.
+  - [ ] GitHub Copilot rà soát checklist hồi quy và kiểm thử thủ công trên trình duyệt.
+- **Tuân thủ vùng đóng băng:** Không can thiệp vào FRZ-001 (LCD split/QR), FRZ-003 (reset password), FRZ-004 (Buzzer LOW) hay FRZ-005 (Buzzer Debounce).
+
+### [TASK-053] Tối ưu hóa Kiosk Keep-Alive & Ổn định đường truyền CAM (Gói 2 - DỰ KIẾN / CHỜ DUYỆT)
+
+- **Trạng thái:** `[TODO]` (Giữ nguyên chờ duyệt; KHÔNG triển khai cho tới khi CAM đo xong baseline).
+- **Trình tự thực hiện bắt buộc:** Phải đo xong và thu thập đủ log Serial 60s của ESP32-CAM Phương án B (TLOG-055 / AC1–AC4) trước khi nạp/thay đổi Kiosk để tránh gây nhiễu kết quả đo đạc.
+- **Định hướng kỹ thuật:** Ưu tiên giữ keep-alive trên `/capture` (diff tối thiểu, ít rủi ro) thay vì vội đổi sang `/stream :82`.
+- **Bộ tiêu chí nghiệm thu định lượng (AC cho Gói 2):**
+  - [ ] AC2.1: 5/5 lần Kiosk kéo `/capture` thành công với độ trễ `< 1.0s`.
+  - [ ] AC2.2: Không xuất hiện mã lỗi `HTTP=-1` hoặc `HTTP=-11` trên Serial Kiosk (COM10).
+  - [ ] AC2.3: Tỉ lệ `read == length` đạt $\ge 90\%$ trong 60 giây quan sát liên tục.
+  - [ ] AC2.4: Bảo toàn 100% bố cục LCD phân đôi và chu kỳ polling Supabase 1000ms theo FRZ-001.

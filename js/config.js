@@ -32,19 +32,3 @@ function escapeJsAttr(v) {
     .replace(/'/g, "\\'")
     .replace(/\r?\n/g, ' '));
 }
-
-// 3. Quản lý danh sách sinh viên từ file JSON
-let validStudents = [];
-
-async function loadStudents() {
-  try {
-    const { data, error } = await window.supabase.from('students').select('*').order('mssv');
-    if (error) throw error;
-    validStudents = data || [];
-    return validStudents;
-  } catch (e) {
-    console.error('[loadStudents] Lỗi:', e);
-    validStudents = [];
-    return [];
-  }
-}

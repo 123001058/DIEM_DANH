@@ -69,12 +69,19 @@ stateDiagram-v2
 | [TASK-044](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-044-dọn-dẹp-dead-code-js-còn-lại-file-tạm-và-thư-mục-build-cũ) | Dọn dẹp dead code JS còn lại, file tạm và thư mục build cũ | `[DONE]` | Medium | [TLOG-047](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-047-dọn-dẹp-dead-code-js-file-tạm-và-thư-mục-build-cũ-task-044) (PASS 258/258) | 2026-11-06 |
 | [TASK-045](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-045-đồng-bộ-ip-camera-về-1921682168-web--kiosk-lcd) | Đồng bộ IP camera về 192.168.2.168 (web + kiosk LCD) | `[VERIFYING]` | Critical | [TLOG-049](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-049-kiểm-thử-đồng-bộ-ip-1921682168-web-admin-và-kiosk-lcd-task-045) (Web & config PASS; Kiosk LCD chờ nạp board) | 2026-11-07 |
 | [TASK-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-046-khắc-phục-triệt-để-hiện-tượng-lag-frame-camera-trên-cả-web-admin-và-esp32-kiosk-lcd) | Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD | `[VERIFYING]` | Critical | [TLOG-050](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-050-kiểm-thử-chống-lag-khung-hình-camera-đa-tầng-esp32-s3-cam-esp32-kiosk-lcd--web-admin-task-046) (2 Firmware builds PASS, 85 E2E checks PASS; chờ nạp mạch thật) | 2026-11-07 |
+| [TASK-051](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-051-lập-baseline-hồi-quy-web-điểm-danh-trước-tối-ưu) | Lập baseline hồi quy Web Điểm Danh trước tối ưu | `[VERIFYING]` | High | [TLOG-062](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-062-baseline-suite-và-checklist-hồi-quy-web-task-051) (157 checks PASS; chờ kiểm thử luồng nghiệp vụ thủ công) | 2026-11-09 |
+| [TASK-052](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-052-vá-bảo-mật-xss-chuẩn-hóa-cache-buster-và-dọn-dẹp-mã-nguồn-web-frontend-gói-p0) | Vá bảo mật XSS, chuẩn hóa cache-buster và dọn dẹp mã nguồn Web Frontend (Gói P0) | `[VERIFYING]` | Critical | [TLOG-063](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-063-kiểm-thử-vá-bảo-mật-xss-chuẩn-hóa-cache-buster-và-dọn-dead-code-frontend-task-052) (157 checks PASS; Copilot xác nhận lại kiểm tra tự động; chờ hồi quy UI thủ công) | 2026-11-09 |
 
 ---
 
-### TASK-049 — `[IN_PROGRESS]` — 2026-11-09
+### TASK-052 — `[VERIFYING]` — 2026-11-09
 
-- Xử lý recovery khi CAM mất frame và probe cảm biến thất bại. Phạm vi và tiêu chí trong [AI_PLAN.md](AI_PLAN.md#task-049-dừng-vòng-lặp-dò-cảm-biến-khi-esp32-s3-cam-mất-khung-hình).
+- Đã triển khai trọn vẹn 5 hạng mục gói P0 do Qoder và Opencode review: vá Stored XSS trong `admin.tasks.js` (matrix Zalo, toast, due_date), thống nhất `config.js?v=9` trên 7 file HTML, bump `admin.tasks.js?v=3` trong `admin.html:2416` (theo review của Qoder), dọn dead code `validStudents`/`loadStudents` trong `config.js`, và bổ sung guard chống double-init + dọn Realtime channel trong `checkin.html`.
+- `node --check` 14/14 JS PASS, `git diff --check` PASS, 3 test suites tự động đạt 157/157 checks. Copilot đã chạy lại và xác nhận các kiểm tra này; 7/7 trang tham chiếu `config.js?v=9`, Admin tham chiếu `admin.tasks.js?v=3`, và 4 inline script trong `checkin.html` hợp cú pháp. Ghi nhận tại [TLOG-063](AI_TEST_LOG.md#tlog-063-kiểm-thử-vá-bảo-mật-xss-chuẩn-hóa-cache-buster-và-dọn-dead-code-frontend-task-052). Các luồng đăng nhập, QR, duyệt nghỉ, ma trận TKB và reconnect vẫn chờ hồi quy thủ công trên trình duyệt có phiên Supabase thật.
+
+### TASK-049 — `[VERIFYING]` — 2026-11-09
+
+- Đã nạp bản sửa recovery vào COM4, kiểm tra boot và JPEG. Test C++ xác nhận giới hạn retry và trạng thái lỗi. [TLOG-061](AI_TEST_LOG.md#tlog-061-khôi-phục-cam-khi-dò-ov2640-hoặc-lấy-frame-thất-bại-task-049) ghi kết quả và giới hạn chưa tái hiện SCCB timeout vật lý.
 
 ### TASK-050 — `[IN_PROGRESS]` — 2026-11-09
 
@@ -263,3 +270,7 @@ stateDiagram-v2
 
 ### TASK-048 — `[VERIFYING]` — 2026-11-08
 - [TLOG-060](AI_TEST_LOG.md#tlog-060-luồng-preview-liên-tục-cho-lcd-kiosk-task-048): LCD ưu tiên MJPEG cổng 82 để căn mặt liên tục, dùng cache khi Web Admin chạy cổng 81. Build hai bo và kiểm tra PC PASS. USB không nhận bo tại thời điểm thử, chờ nạp CAM rồi Kiosk và đo FPS trên LCD thật.
+
+### TASK-051 — `[VERIFYING]` — 2026-11-09
+- Baseline tự động: `node tests/e2e_performance_evaluations.test.js` PASS 72/72; `python tests/test_camera_history.py` PASS 34/34; `python tests/test_face_identity.py` PASS 51/51. Chi tiết tại [TLOG-062](AI_TEST_LOG.md#tlog-062-baseline-suite-và-checklist-hồi-quy-web-task-051).
+- Checklist đăng nhập, QR điểm danh, duyệt nghỉ và ma trận TKB đã lập; các luồng Supabase/browser thật vẫn cần kiểm tra thủ công. Hai suite Selenium in `ConnectionResetError [WinError 10054]` ở server worker khi teardown dù lệnh kết thúc exit 0; ghi nhận là nhiễu teardown, không tính là test assertion thất bại.

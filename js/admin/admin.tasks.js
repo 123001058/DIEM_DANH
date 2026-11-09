@@ -160,10 +160,10 @@ async function loadAdminTasks() {
     const people = (t.assignees || []).map(a => `${escapeHtml(a.name || a.mssv)} (${escapeHtml(a.status)})`).join(', ') || 'Không có thành viên';
 
     return `
-      <article class="task-card" data-id="${t.id}" data-type="${type}" data-group="${t.team_id || ''}" data-status="${status}" data-priority="${t.priority}">
+      <article class="task-card" data-id="${escapeHtml(t.id)}" data-type="${escapeHtml(type)}" data-group="${escapeHtml(t.team_id || '')}" data-status="${escapeHtml(status)}" data-priority="${escapeHtml(t.priority)}">
         <div class="task-card-top">
           <span class="task-title">${escapeHtml(t.title)}</span>
-          <span class="task-badge-priority priority-${t.priority}">${{ high: 'Cao 🔥', med: 'Trung bình', low: 'Thấp' }[t.priority]}</span>
+          <span class="task-badge-priority priority-${escapeHtml(t.priority)}">${{ high: 'Cao 🔥', med: 'Trung bình', low: 'Thấp' }[t.priority]}</span>
         </div>
         <p class="task-desc">${escapeHtml(t.description || 'Không có mô tả chi tiết.')}</p>
         <div class="task-meta-grid">
@@ -181,14 +181,14 @@ async function loadAdminTasks() {
           </div>
           <div class="task-meta-row">
             <span class="task-meta-lbl">Hạn chót</span>
-            <span class="task-meta-val">${t.due_date || '—'}</span>
+            <span class="task-meta-val">${escapeHtml(t.due_date || '—')}</span>
           </div>
         </div>
         <div class="task-card-footer">
-          <span class="task-status-chip status-${status}">${statusLabel}</span>
+          <span class="task-status-chip status-${escapeHtml(status)}">${statusLabel}</span>
           <span style="display:flex;gap:6px">
-            <button class="btn btn-sm" onclick="showTaskDetailById('${t.id}')">Chi tiết</button>
-            <button class="btn btn-sm btn-danger" title="Xóa nhiệm vụ" aria-label="Xóa nhiệm vụ" onclick="deleteAdminTask('${t.id}')">🗑️ Xóa</button>
+            <button class="btn btn-sm" onclick="showTaskDetailById('${escapeJsAttr(t.id)}')">Chi tiết</button>
+            <button class="btn btn-sm btn-danger" title="Xóa nhiệm vụ" aria-label="Xóa nhiệm vụ" onclick="deleteAdminTask('${escapeJsAttr(t.id)}')">🗑️ Xóa</button>
           </span>
         </div>
       </article>
@@ -804,17 +804,17 @@ async function loadZaloScheduleMatrix(dateKey){
         const hasBusy = !r.periods.morning.isFree || !r.periods.afternoon.isFree || !r.periods.evening.isFree;
         const isAllDayFree = r.periods.morning.isFree && r.periods.afternoon.isFree && r.periods.evening.isFree;
 
-        return `<tr class="matrix-row" 
-          data-name="${(r.name || '').toLowerCase()}" 
-          data-mssv="${r.mssv}"
+        return `<tr class="matrix-row"
+          data-name="${escapeHtml((r.name || '').toLowerCase())}"
+          data-mssv="${escapeHtml(r.mssv)}"
           data-free-all-day="${isAllDayFree}"
           data-free-morning="${r.periods.morning.isFree}"
           data-free-afternoon="${r.periods.afternoon.isFree}"
           data-free-evening="${r.periods.evening.isFree}"
           data-has-busy="${hasBusy}">
-          <td class="matrix-stt" style="text-align:center;color:var(--muted);font-weight:700">${r.index}</td>
-          <td style="font-family:monospace;font-weight:700">${r.mssv}</td>
-          <td style="font-weight:700">${r.name}</td>
+          <td class="matrix-stt" style="text-align:center;color:var(--muted);font-weight:700">${escapeHtml(r.index)}</td>
+          <td style="font-family:monospace;font-weight:700">${escapeHtml(r.mssv)}</td>
+          <td style="font-weight:700">${escapeHtml(r.name)}</td>
           <td class="col-shift col-shift-morning">${renderCell(r.periods.morning)}</td>
           <td class="col-shift col-shift-afternoon">${renderCell(r.periods.afternoon)}</td>
           <td class="col-shift col-shift-evening">${renderCell(r.periods.evening)}</td>
@@ -832,9 +832,9 @@ async function loadZaloScheduleMatrix(dateKey){
           const initial = (r.name || r.mssv).trim().split(' ').pop().slice(0, 2).toUpperCase() || 'SV';
 
           return `
-            <div class="zalo-student-card" 
-              data-name="${(r.name || '').toLowerCase()}" 
-              data-mssv="${r.mssv}"
+            <div class="zalo-student-card"
+              data-name="${escapeHtml((r.name || '').toLowerCase())}"
+              data-mssv="${escapeHtml(r.mssv)}"
               data-free-all-day="${isAllDayFree}"
               data-free-morning="${r.periods.morning.isFree}"
               data-free-afternoon="${r.periods.afternoon.isFree}"
@@ -1385,8 +1385,8 @@ function toast(type, title, text, duration = 4200){
   el.innerHTML = `
     <div class="toast-ic">${icons[type] || 'ℹ'}</div>
     <div class="toast-body">
-      <div class="toast-title">${title}</div>
-      ${text ? `<div class="toast-text">${text}</div>` : ''}
+      <div class="toast-title">${escapeHtml(title)}</div>
+      ${text ? `<div class="toast-text">${escapeHtml(text)}</div>` : ''}
     </div>
     <button class="toast-close" type="button" aria-label="Đóng">✕</button>
     <div class="toast-progress-bar"></div>

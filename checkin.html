@@ -934,7 +934,7 @@ body.student-menu-open { overflow: hidden; }
 </style>
 <script src="js/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js?v=5"></script>
+<script src="js/config.js?v=9"></script>
 </head>
 <body>
 <div class="bg-grid"></div>
@@ -1746,7 +1746,12 @@ async function claimGlobalTask(id){const {data,error}=await supabase.rpc('claim_
 async function releaseGlobalTask(id){const {data,error}=await supabase.rpc('release_my_global_task',{p_task_id:id});if(error||!data?.ok){showResult('warning',escapeHtml(error?.message||data?.message||'Không hủy nhận được nhiệm vụ.'));await loadMyTasks();return;}await loadMyTasks();showResult('success','Đã hủy nhận nhiệm vụ. Sinh viên khác có thể nhận làm.');}
 async function createLeaderTask(){const title=document.getElementById('leaderTaskTitle').value.trim(),team=document.getElementById('leaderTaskTeam').value;if(!title)return showResult('warning','Nhập tên nhiệm vụ trước.');const {data,error}=await supabase.rpc('create_team_task',{p_title:title,p_description:document.getElementById('leaderTaskDesc').value,p_scope:'group',p_team_id:team,p_assignee_mssv:null,p_priority:'med',p_due_date:null});if(error||!data?.ok)return showResult('error',escapeHtml(error?.message||data?.message||'Không giao được nhiệm vụ.'));document.getElementById('leaderTaskTitle').value='';document.getElementById('leaderTaskDesc').value='';await loadMyTasks();showResult('success','Đã giao nhiệm vụ chung cho cả nhóm.');}
 async function submitStudentFeedbackFromCheckin(){const content=document.getElementById('fbContentInput').value.trim();if(!content)return showResult('warning','Vui lòng nhập nội dung phản hồi.');const btn=document.getElementById('fbSubmitButton');btn.disabled=true;try{const {data,error}=await supabase.rpc('submit_anonymous_feedback',{p_type:document.getElementById('fbTypeInput').value,p_content:content});if(error||!data?.ok)throw new Error(error?.message||data?.message||'Gửi phản hồi thất bại.');document.getElementById('fbContentInput').value='';showResult('success','Đã gửi phản hồi ẩn danh. Mã theo dõi: '+escapeHtml(data.code));}catch(e){showResult('error',escapeHtml(e.message));}finally{btn.disabled=false;}}
+let isCheckinInitialized = false;
+let sessionChangesChannel = null;
+
 async function init(){
+  if (isCheckinInitialized) return;
+  isCheckinInitialized = true;
   deviceId = getDeviceId();
   const leaveDateInput=document.getElementById('leaveDate');
   if(leaveDateInput){const d=new Date();const pad=n=>String(n).padStart(2,'0');leaveDateInput.min=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
@@ -1768,7 +1773,10 @@ async function init(){
   setInterval(loadSession, 15000);
   setInterval(() => { if(document.visibilityState==='visible'){loadMyTasks();loadStudentRules();loadMyLeaveRequests();loadStudentLeaveNotifications();} }, 60*1000);
   document.getElementById('note').addEventListener('keydown', e => { if (e.key === 'Enter') doCheckin(); });
-  supabase.channel('session_changes')
+  if (sessionChangesChannel) {
+    try { supabase.removeChannel(sessionChangesChannel); } catch (_) {}
+  }
+  sessionChangesChannel = supabase.channel('session_changes')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions' }, payload => {
       if (currentSession && payload.new.id === currentSession.id){
         if (payload.new.qr_born_at !== currentSession.qr_born_at){
@@ -1777,8 +1785,15 @@ async function init(){
         }
         if (payload.new.is_open === false){ currentSession = null; loadSession(); }
       }
-    }).subscribe();
+    });
+  sessionChangesChannel.subscribe();
 }
+
+window.addEventListener('beforeunload', () => {
+  if (sessionChangesChannel) {
+    try { supabase.removeChannel(sessionChangesChannel); } catch (_) {}
+  }
+});
 init();
 </script>
 </body>
