@@ -13,7 +13,7 @@ const char* ssid = "Robocon Sinh Vien";
 const char* password = "tamsotam";
 const char* web_domain = "https://123001058.github.io/DIEM_DANH";
 
-// 2. Thong tin Camera ESP32-CAM noi bo (cong 80: /capture)
+// 2. Thong tin Camera ESP32-CAM noi bo (82: preview, 80: capture du phong)
 const char* esp_cam_ip = "192.168.2.168";
 
 // 3. Thong tin Supabase Cloud
@@ -78,29 +78,73 @@ void drawNoOpenSession() {
 // =============================================================================
 // TASK 1 (Core 0): Keo anh Camera song song voi Bo dem kep Ping-Pong A/B
 // =============================================================================
+static size_t readPreviewPartSize(WiFiClient& client) {
+  static const char prefix[] = "\r\n--lcdframe\r\nContent-Type: image/jpeg\r\nContent-Length: ";
+  char received[sizeof(prefix) - 1];
+  if (client.readBytes(received, sizeof(received)) != sizeof(received) ||
+      memcmp(received, prefix, sizeof(received)) != 0) return 0;
+
+  size_t len = 0;
+  for (int digits = 0; digits <= 5; ++digits) {
+    char ch;
+    if (client.readBytes(&ch, 1) != 1) return 0;
+    if (ch == '\r') {
+      char end[3];
+      if (len && client.readBytes(end, sizeof(end)) == sizeof(end) && memcmp(end, "\n\r\n", sizeof(end)) == 0) {
+        return len;
+      }
+      return 0;
+    }
+    if (digits == 5 || ch < '0' || ch > '9') return 0;
+    len = len * 10 + ch - '0';
+    if (len > CAM_BUF_SIZE) return 0;
+  }
+  return 0;
+}
+
 void cameraCaptureWorker(void* pvParameters) {
   WiFiClient camClient;
   HTTPClient camHttp;
-  // Mang thuc te co luc can hon 2s cho mot anh; khong loai frame hop le sau 400ms.
+  // Gioi han thoi gian cho du lieu tiep theo, ke ca khi tong thoi gian tai anh dai hon.
   const uint32_t captureTimeoutMs = 3000;
   uint32_t lastErrorLogMs = 0;
-  camClient.setTimeout(captureTimeoutMs);
-  camClient.setNoDelay(true); // Tat Nagle algorithm de gui/nhan goi TCP tuc thi
-
-  // Bat HTTP Keep-Alive de khong ton thoi gian bat tay TCP lai moi frame
-  camHttp.setReuse(true);
-
-  const String camUrl = String("http://") + esp_cam_ip + "/capture";
+  camHttp.setTimeout(captureTimeoutMs);
+  const String camHost = String("http://") + esp_cam_ip;
+  const String captureUrl = camHost + ":80/capture";
+  const String previewUrl = camHost + ":82/stream";
+  const String sleepUrl = camHost + ":80/power?mode=sleep";
+  bool previewOpen = false;
+  bool usedPreviewThisSession = false;
+  uint32_t nextPreviewMs = millis();
 
   while (true) {
     bool fetchedOk = false;
 
-    // R4: Chỉ gửi request /capture khi có phiên điểm danh mở
+    // R4: Chi tai anh khi co phien diem danh mo.
     if (WiFi.status() == WL_CONNECTED && isSessionOpen) {
+      if (!previewOpen && static_cast<int32_t>(millis() - nextPreviewMs) >= 0) {
+        camClient.stop(); // Socket du phong co the van mo tren cong 80.
+        camHttp.setReuse(false);
+        camHttp.setConnectTimeout(1200);
+        previewOpen = camHttp.begin(camClient, previewUrl) && camHttp.GET() == HTTP_CODE_OK;
+        if (previewOpen) {
+          usedPreviewThisSession = true;
+          camClient.setNoDelay(true);
+          Serial.println("[CAM] LCD preview connected (:82/stream)");
+        } else {
+          camClient.stop();
+          camHttp.end();
+          nextPreviewMs = millis() + 5000;
+        }
+      }
+      if (!isSessionOpen || WiFi.status() != WL_CONNECTED) continue;
+
       // Chon buffer ghi (writeIdx) khong bao gio trung voi buffer Core 1 dang ve (drawingIdx)
-      int writeIdx = 0;
+      int writeIdx = -1;
       portENTER_CRITICAL(&camMux);
-      if (drawingIdx != -1) {
+      if (!camBuf[1]) {
+        if (drawingIdx == -1) writeIdx = 0;
+      } else if (drawingIdx != -1) {
         writeIdx = 1 - drawingIdx;
       } else if (latestReadyIdx != -1) {
         writeIdx = 1 - latestReadyIdx;
@@ -108,73 +152,93 @@ void cameraCaptureWorker(void* pvParameters) {
         writeIdx = 0;
       }
       // Neu buffer chuan bi ghi dang giu anh cu chua kip ve -> Bo anh cu truoc khi ghi de tranh race
-      if (latestReadyIdx == writeIdx) {
+      if (writeIdx >= 0 && latestReadyIdx == writeIdx) {
         latestReadyIdx = -1;
         perfDroppedFrames++;
       }
       portEXIT_CRITICAL(&camMux);
+      if (writeIdx < 0) {
+        vTaskDelay(pdMS_TO_TICKS(2));
+        continue;
+      }
 
       uint32_t tFetchStart = micros();
-      camHttp.begin(camClient, camUrl);
-      camHttp.setTimeout(captureTimeoutMs);
-      
-      int code = camHttp.GET();
-      int len = camHttp.getSize();
+      const bool readingPreview = previewOpen;
+      int code = HTTP_CODE_OK;
+      int len;
+      if (readingPreview) {
+        len = static_cast<int>(readPreviewPartSize(camClient));
+      } else {
+        camHttp.setReuse(true);
+        camHttp.setConnectTimeout(5000);
+        code = camHttp.begin(camClient, captureUrl) ? camHttp.GET() : HTTPC_ERROR_NOT_CONNECTED;
+        len = camHttp.getSize();
+        if (code == HTTP_CODE_OK) camClient.setNoDelay(true);
+      }
       size_t bytesRead = 0;
-      if (code == HTTP_CODE_OK) {
-        camClient.setNoDelay(true); // Dam bao TCP_NODELAY duoc bat tren socket fd dang mo thuc te
-        if (len > 0 && len <= CAM_BUF_SIZE) {
-          WiFiClient* stream = camHttp.getStreamPtr();
-          uint32_t startRead = millis();
-          uint8_t emptySpins = 0;
-          while (camHttp.connected() && bytesRead < (size_t)len && (millis() - startRead < captureTimeoutMs)) {
-            size_t avail = stream->available();
-            if (avail > 0) {
-              emptySpins = 0;
-              size_t toRead = (avail > ((size_t)len - bytesRead)) ? ((size_t)len - bytesRead) : avail;
-              size_t got = stream->readBytes(camBuf[writeIdx] + bytesRead, toRead);
-              bytesRead += got;
-            } else {
-              if (++emptySpins <= 4) {
-                taskYIELD();
-              } else {
-                vTaskDelay(pdMS_TO_TICKS(1));
-              }
-            }
-          }
-          if (bytesRead == (size_t)len) {
-            uint32_t fetchUs = micros() - tFetchStart;
-            portENTER_CRITICAL(&camMux);
-            if (latestReadyIdx != -1) {
-              // Co anh cu o buffer kia chua kip ve -> Bo anh cu, uu tien anh moi nhat vua tai xong
-              perfDroppedFrames++;
-            }
-            camLen[writeIdx] = bytesRead;
-            latestReadyIdx = writeIdx; // Bao cho Core 1 ve ngay anh moi nhat nay
-            perfFetchSumUs += fetchUs;
-            if (fetchUs > perfFetchMaxUs) perfFetchMaxUs = fetchUs;
-            perfFetchCount++;
-            portEXIT_CRITICAL(&camMux);
-            fetchedOk = true;
-          }
+      if (code == HTTP_CODE_OK && len > 0 && len <= CAM_BUF_SIZE) {
+        bytesRead = camClient.readBytes(camBuf[writeIdx], static_cast<size_t>(len));
+        fetchedOk = bytesRead == static_cast<size_t>(len);
+        if (fetchedOk && readingPreview) {
+          const uint8_t* jpeg = camBuf[writeIdx];
+          fetchedOk = len >= 4 && jpeg[0] == 0xff && jpeg[1] == 0xd8 &&
+                      jpeg[len - 2] == 0xff && jpeg[len - 1] == 0xd9;
+        }
+      }
+      if (fetchedOk && isSessionOpen && WiFi.status() == WL_CONNECTED) {
+        uint32_t fetchUs = micros() - tFetchStart;
+        portENTER_CRITICAL(&camMux);
+        if (latestReadyIdx != -1) {
+          // Co anh cu o buffer kia chua kip ve -> Bo anh cu, uu tien anh moi nhat vua tai xong
+          perfDroppedFrames++;
+        }
+        camLen[writeIdx] = bytesRead;
+        latestReadyIdx = writeIdx; // Bao cho Core 1 ve ngay anh moi nhat nay
+        perfFetchSumUs += fetchUs;
+        if (fetchUs > perfFetchMaxUs) perfFetchMaxUs = fetchUs;
+        perfFetchCount++;
+        portEXIT_CRITICAL(&camMux);
+      } else {
+        // Body thieu/loi co the con byte tren socket, phai mo ket noi moi lan sau.
+        camClient.stop();
+        if (readingPreview) {
+          previewOpen = false;
+          nextPreviewMs = millis();
         }
       }
       if (!fetchedOk && millis() - lastErrorLogMs >= 5000) {
         lastErrorLogMs = millis();
         Serial.printf("[CAM] %s HTTP=%d length=%d read=%u elapsed=%lums\n",
-                      camUrl.c_str(), code, len, (unsigned int)bytesRead,
+                      (readingPreview ? previewUrl : captureUrl).c_str(), code, len, (unsigned int)bytesRead,
                       (unsigned long)((micros() - tFetchStart) / 1000));
       }
-      camHttp.end();
+      if (!previewOpen) camHttp.end();
+      if (readingPreview && !previewOpen) {
+        vTaskDelay(pdMS_TO_TICKS(250)); // Retry preview before waiting for a slow snapshot.
+        continue;
+      }
     } else {
-      // Khi không có phiên mở hoặc mất WiFi, đóng kết nối HTTP để giải phóng camera và nghỉ ngơi
-      if (camHttp.connected()) {
-        camHttp.end();
+      // Khi dong phien hoac mat WiFi, giai phong socket ke ca khi dang Keep-Alive.
+      camClient.stop();
+      if (previewOpen) camHttp.end();
+      previewOpen = false;
+      nextPreviewMs = millis();
+      if (usedPreviewThisSession && !isSessionOpen && WiFi.status() == WL_CONNECTED) {
+        // The browser's sleep request can arrive while the LCD stream is still closing.
+        usedPreviewThisSession = false;
+        vTaskDelay(pdMS_TO_TICKS(300));
+        if (!isSessionOpen && WiFi.status() == WL_CONNECTED) {
+          camHttp.setReuse(false);
+          camHttp.setConnectTimeout(1200);
+          if (camHttp.begin(camClient, sleepUrl)) camHttp.GET();
+          camHttp.end();
+          camClient.stop();
+        }
       }
       vTaskDelay(pdMS_TO_TICKS(500));
       continue;
     }
-    // Dynamic Pacing: Bo khoang cho thua 35ms; chi nhuong 2ms khi tai thanh cong de dat ~14-20 FPS muot ma
+    // Nhuong CPU cho SupaWorker giua cac frame, ke ca khi socket con du lieu.
     vTaskDelay(pdMS_TO_TICKS(fetchedOk ? 2 : 25));
   }
 }
@@ -284,9 +348,6 @@ void setup() {
 
   // Cap phat Buffer B (40KB) 1 lan duy nhat luc khoi dong tren SRAM Heap (khong bao gio gay phan manh)
   camBuf[1] = (uint8_t*)heap_caps_malloc(CAM_BUF_SIZE, MALLOC_CAP_8BIT);
-  if (!camBuf[1]) {
-    camBuf[1] = camBufA; // Fallback an toan neu thieu RAM
-  }
   
   tft.init();
   tft.setRotation(1);

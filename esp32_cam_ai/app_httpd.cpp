@@ -8,6 +8,7 @@
 #include <WiFi.h>
 #include "esp_wifi.h"
 #include <lwip/sockets.h>
+#include <errno.h>
 
 extern "C" {
   // Dung GDMA khi vao standby; wake khoi tao lai driver thay vi chi bat lai VSYNC.
@@ -24,6 +25,7 @@ static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+static httpd_handle_t kiosk_httpd = NULL;
 
 // Bộ đệm Shared Latest Frame Cache trong PSRAM/RAM (chống tranh chấp DMA giữa cổng 81 /stream và cổng 80 /capture)
 #define SHARED_FRAME_CACHE_MAX 40960
@@ -154,15 +156,10 @@ static esp_err_t wakeCameraActiveInternal(void) {
     s->set_reg(s, 0x100 | 0x09, 0x10, 0x00); // COM2 bit 4 = 0 (Soft Sleep OFF)
   }
 
-  // Caller dang giu s_power_mutex va chua dang ky client: khong goi recoverCameraDriver()
-  // (ham do cung lay mutex). Khoi tao lai ca DMA/queue, khong tai su dung trang thai cu sau cam_stop().
-  esp_camera_deinit();
-  esp_err_t initErr = cameraInitPins();
-  if (initErr != ESP_OK) {
-    s_power_state = CAM_POWER_STANDBY; // Cho phep request sau thu wake lai.
-    Serial.printf("[POWER] WAKEUP init failed: 0x%x\n", initErr);
-    return initErr;
-  }
+  // Phuong an B (Standby mem): Giu nguyen pipeline GDMA, khong goi esp_camera_deinit()
+  // hay cameraInitPins() de triet tieu hoan toan dong dinh gay brownout reset.
+  // Cho 50ms de mach analog va xung noi cua cam bien on dinh sau khi thoat Soft Sleep.
+  vTaskDelay(pdMS_TO_TICKS(50));
 
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
@@ -224,27 +221,24 @@ esp_err_t enterCameraStandby(void) {
   }
 
   s_power_state = CAM_POWER_TRANSITIONING;
-  Serial.println("[POWER] STANDBY: Chuyen camera sang Soft Sleep + cam_stop + Modem Sleep...");
+  Serial.println("[POWER] STANDBY: Chuyen cam bien OV2640 sang Soft Sleep de giam nhiet...");
 
-  // 2. Dua cam bien OV2640 vao Soft Sleep TRUOC khi dung XCLK: ghi SCCB luon thuc hien duoc khi cam con chay xung
+  // 2. Dua cam bien OV2640 vao Soft Sleep: ghi COM2 bit 4 = 1 de ngat mach analog giup mat cam bien
   sensor_t *s = esp_camera_sensor_get();
   if (s && s->set_reg) {
     // Bit 8 cua reg = bank (0x100 = Sensor bank). Driver tu chon bank va nho cache, khong ghi tay 0xFF
     s->set_reg(s, 0x100 | 0x09, 0x10, 0x10); // COM2 bit 4 = 1 (Soft Sleep ON)
   }
 
-  // 3. Dung GDMA + ngat VSYNC sau (cam_stop la ham void), tranh cat ngang frame dang ghi
-  cam_stop();
-
-  // 4. Bat che do Wi-Fi Modem Sleep de tiet kiem dien
-  WiFi.setSleep(true);
+  // Phuong an B: KHONG goi cam_stop() de giu nguyen GDMA/VSYNC, khong can re-init khi wake.
+  // KHONG bat WiFi.setSleep(true) de giu ket noi mang thong suot 100%, khong rot socket.
 
 #if ENABLE_CPU_FREQ_SCALING
   setCpuFrequencyMhz(80);
 #endif
 
   s_power_state = CAM_POWER_STANDBY;
-  Serial.println("[POWER] Camera da vao STANDBY tiet kiem dien thanh cong!");
+  Serial.println("[POWER] Camera da vao STANDBY Soft Sleep thanh cong (giu GDMA & Wi-Fi)!");
 
   xSemaphoreGive(s_power_mutex);
   return ESP_OK;
@@ -372,26 +366,34 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   activeStreams = s_active_stream_clients;
   portEXIT_CRITICAL(&s_client_mux);
 
+  uint8_t *cachedFrame = NULL;
+  size_t cachedLen = 0;
   if (activeStreams > 0 && s_frame_cache_buf && s_frame_cache_mutex) {
     if (xSemaphoreTake(s_frame_cache_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
       unsigned long ageMs = millis() - s_frame_cache_ms;
       if (s_frame_cache_len > 0 && ageMs <= 200) {
-        httpd_resp_set_type(req, "image/jpeg");
-        httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
-        httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
-        uint32_t sendStartUs = micros();
-        esp_err_t cachedRes = httpd_resp_send(req, (const char *)s_frame_cache_buf, s_frame_cache_len);
-        uint32_t sendUs = micros() - sendStartUs;
-        xSemaphoreGive(s_frame_cache_mutex);
-        if (cachedRes == ESP_OK) recordCameraTiming(false, 0, sendUs, true);
-        releaseCameraClient(false);
-        return cachedRes;
+        cachedLen = s_frame_cache_len;
+        cachedFrame = (uint8_t *)heap_caps_malloc(cachedLen, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (cachedFrame) memcpy(cachedFrame, s_frame_cache_buf, cachedLen);
       }
       xSemaphoreGive(s_frame_cache_mutex);
     }
+  }
+  // A slow snapshot must not hold the cache lock needed by either stream.
+  if (cachedFrame) {
+    httpd_resp_set_type(req, "image/jpeg");
+    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, OPTIONS");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Private-Network", "true");
+    uint32_t sendStartUs = micros();
+    esp_err_t cachedRes = httpd_resp_send(req, (const char *)cachedFrame, cachedLen);
+    uint32_t sendUs = micros() - sendStartUs;
+    free(cachedFrame);
+    if (cachedRes == ESP_OK) recordCameraTiming(false, 0, sendUs, true);
+    releaseCameraClient(false);
+    return cachedRes;
   }
 
   uint32_t getStartUs = micros();
@@ -518,6 +520,91 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     recoverCameraDriver();
   }
   return res;
+}
+
+static bool sendKioskBytes(httpd_req_t *req, const char *data, size_t len) {
+  while (len > 0) {
+    int sent = httpd_send(req, data, len);
+    if (sent <= 0) return false;
+    data += sent;
+    len -= sent;
+  }
+  return true;
+}
+
+static esp_err_t kiosk_stream_handler(httpd_req_t *req) {
+  uint8_t *jpeg = (uint8_t *)heap_caps_malloc(SHARED_FRAME_CACHE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!jpeg) return httpd_resp_send_500(req);
+  if (prepareCameraActive(true) != ESP_OK) {
+    free(jpeg);
+    return httpd_resp_send_500(req);
+  }
+
+  enableSocketNoDelay(req);
+  const int socket = httpd_req_to_sockfd(req);
+  // Connection-close framing keeps the MIME parts directly readable on the Kiosk.
+  static const char response[] = "HTTP/1.1 200 OK\r\n"
+    "Content-Type: multipart/x-mixed-replace; boundary=lcdframe\r\n"
+    "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+  bool sentHeaders = false;
+  unsigned long lastCacheMs = 0;
+  unsigned long lastFrameMs = millis();
+
+  while (true) {
+    char pending;
+    const int received = recv(socket, &pending, 1, MSG_PEEK | MSG_DONTWAIT);
+    if (received == 0 || (received < 0 && errno != EWOULDBLOCK && errno != EAGAIN)) break;
+
+    portENTER_CRITICAL(&s_client_mux);
+    const bool webStreaming = s_active_stream_clients > 1;
+    portEXIT_CRITICAL(&s_client_mux);
+
+    size_t len = 0;
+    if (webStreaming) {
+      if (s_frame_cache_buf && s_frame_cache_mutex &&
+          xSemaphoreTake(s_frame_cache_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        if (s_frame_cache_ms != lastCacheMs && millis() - s_frame_cache_ms <= 200) {
+          len = s_frame_cache_len;
+          memcpy(jpeg, s_frame_cache_buf, len);
+          lastCacheMs = s_frame_cache_ms;
+        }
+        xSemaphoreGive(s_frame_cache_mutex);
+      }
+    } else {
+      camera_fb_t *fb = esp_camera_fb_get();
+      if (!fb) break;
+      if (fb->len <= SHARED_FRAME_CACHE_MAX) {
+        len = fb->len;
+        memcpy(jpeg, fb->buf, len);
+        updateSharedFrameCache(jpeg, len);
+      }
+      esp_camera_fb_return(fb);
+    }
+
+    if (!len) {
+      if (millis() - lastFrameMs >= 2000) break;
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+
+    // Let the Kiosk fall back to snapshots if no first frame can be produced.
+    if (!sentHeaders) {
+      if (!sendKioskBytes(req, response, sizeof(response) - 1)) break;
+      sentHeaders = true;
+    }
+    char part[96];
+    const int headerLen = snprintf(part, sizeof(part),
+      "\r\n--lcdframe\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", (unsigned int)len);
+    if (headerLen <= 0 || static_cast<size_t>(headerLen) >= sizeof(part) ||
+        !sendKioskBytes(req, part, headerLen) || !sendKioskBytes(req, (const char *)jpeg, len)) break;
+    lastFrameMs = millis();
+    // The LCD takes about 125ms to draw. Feed recent images without flooding Wi-Fi.
+    vTaskDelay(pdMS_TO_TICKS(80));
+  }
+
+  free(jpeg);
+  releaseCameraClient(true);
+  return ESP_FAIL; // Close the socket after the final MIME part or a send error.
 }
 
 static esp_err_t index_handler(httpd_req_t *req) {
@@ -863,5 +950,20 @@ void startCameraServer() {
     httpd_register_uri_handler(stream_httpd, &power_uri);
     httpd_register_uri_handler(stream_httpd, &power_post_uri);
     httpd_register_uri_handler(stream_httpd, &power_options_uri);
+  }
+
+  config.server_port = 82;
+  config.ctrl_port = 32770;
+  config.max_uri_handlers = 1;
+  config.max_open_sockets = 1;
+  config.send_wait_timeout = 1;
+  const httpd_uri_t kiosk_uri = { .uri = "/stream", .method = HTTP_GET, .handler = kiosk_stream_handler, .user_ctx = NULL };
+  if (httpd_start(&kiosk_httpd, &config) == ESP_OK) {
+    if (httpd_register_uri_handler(kiosk_httpd, &kiosk_uri) == ESP_OK) {
+      Serial.println("[CAM] Kiosk preview ready on :82/stream");
+    } else {
+      httpd_stop(kiosk_httpd);
+      kiosk_httpd = NULL;
+    }
   }
 }

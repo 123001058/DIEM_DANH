@@ -2229,3 +2229,119 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   Global variables use 56696 bytes (17%) of dynamic memory, leaving 270984 bytes for local variables. Maximum is 327680 bytes.
   ```
 - Trạng thái: VERIFYING, build và kiểm tra source/JSON PASS; chưa nạp bản sửa, không DONE, không tuyên bố hết chậm. Cần nghiệm thu wake lặp và FPS/get/send trên bản nạp mới; nếu send vẫn nhiều giây cần thí nghiệm mạng khác để phân định đường truyền.
+
+### [TLOG-054] Nạp firmware CAM/Kiosk và kiểm tra kết nối sau nạp (TASK-045/046/048)
+- Ngày: 2026-11-08 (UTC+7).
+- Mapping do người dùng xác nhận: ESP32-S3 CAM COM4; ESP32 Kiosk/LCD COM10.
+- Lệnh chạy:
+  ```powershell
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 4 --upload --port COM4 --fqbn 'esp32:esp32:esp32s3:PSRAM=enabled,UploadSpeed=115200' esp32_cam_ai
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 4 --upload --port COM10 --fqbn 'esp32:esp32:esp32:UploadSpeed=115200' esp32_kiosk
+  ```
+- Kết quả nạp:
+  - CAM: build PASS (1,087,539 bytes chương trình; 56,772 bytes global RAM). Esptool xác nhận ESP32-S3, PSRAM nhúng 8MB; ghi bootloader/partition/app và xác minh hash thành công; hard reset, exit 0.
+  - Kiosk: build PASS (1,100,048 bytes chương trình; 94,160 bytes global RAM). Esptool xác nhận ESP32-D0WD-V3; ghi bootloader/partition/app và xác minh hash thành công; hard reset, exit 0.
+- Kiểm tra thực tế sau nạp:
+  - `curl.exe` tới `http://192.168.2.168/capture`, 5 lần với timeout 15s: 5/5 `code=000`, `size=0`, JPEG không hợp lệ; mỗi lần hết 15s mà không nhận được phản hồi.
+  - `ping.exe -n 3 -w 1500 192.168.2.168`: hai lần timeout, lần còn lại báo `Destination host unreachable` từ `192.168.2.101`.
+  - Serial Kiosk COM10 trong 15s ghi 3 chu kỳ `HTTP=-1`, `elapsed=5002ms`; `[CAM PERF] FPS=0.0`, `Fetch n=0`, `Draw n=0`.
+  - Đọc COM4 trong hai khoảng 15s và 10s không thu được dòng Serial; chưa xác nhận được boot log hay trạng thái Wi-Fi của CAM.
+  - `git diff --check`: exit 0; không sửa mã nguồn hoặc file test.
+- Đánh giá: build/flash cả hai bo PASS; AC1/AC3 chưa đạt vì CAM không thể truy cập sau nạp. Chưa kết luận nguyên nhân (boot, Wi-Fi, nguồn hoặc mạng); TASK-045/046/048 tiếp tục `[VERIFYING]`, không chuyển `[DONE]`. Cần kiểm tra Serial CAM lúc khởi động và xác nhận CAM vào đúng Wi-Fi/IP trước khi chạy lại AC1/AC3.
+
+### [TLOG-055] Triển khai Phương án B: Standby mềm SCCB cho OV2640, loại bỏ deinit/cam_stop/WiFi-sleep để triệt tiêu Boot Loop & Sụt áp (TASK-048)
+- Ngày: 2026-11-08 (UTC+7). Agent: Antigravity (Coder chính).
+- Bối cảnh & Nguồn gốc đề xuất:
+  - Sau khi nạp firmware mới (TLOG-054), người dùng phản ánh ESP32-CAM bị bật/tắt liên tục (boot loop). Phân tích mã nguồn xác định nguyên nhân kép: `enterCameraStandby` gọi `cam_stop()` và `WiFi.setSleep(true)` gây ngắt GDMA/rớt sóng Wi-Fi; `wakeCameraActiveInternal` gọi `esp_camera_deinit()` + `cameraInitPins()` làm nạp lại driver OV2640 từ đầu khi Wi-Fi đang phát sóng, gây dòng đỉnh >500mA dẫn tới Brownout Reset (sụt áp) lặp lại liên tục.
+  - Phân định phương án giữa các Reviewer: Opencode khuyến nghị Phase-1 đưa CAM về Always Active hoàn toàn (standby no-op) để đạt độ ổn định tuyệt đối; Qoder đề xuất **Phương án B (Standby mềm SCCB)** nhằm bảo toàn yêu cầu cốt lõi của Admin là chống nóng/hạ nhiệt cho cảm biến khi không mở phiên. Phương án B lệch 1 điểm so với P1 của Opencode (vẫn kích hoạt soft-sleep thanh ghi COM2 cho sensor, nhưng triệt tiêu toàn bộ deinit/reinit, `cam_stop()` và `WiFi.setSleep(true)`). Chờ Admin Nguyễn Khánh Hòa xác nhận lựa chọn trước khi nạp.
+- Biện pháp khắc phục đã triển khai trong mã nguồn (Phương án B):
+  - File sửa: `esp32_cam_ai/app_httpd.cpp` (+6 / -24 dòng).
+  - Standby: Chỉ đưa OV2640 vào Soft Sleep qua thanh ghi SCCB COM2 (`0x100 | 0x09`, bit 4 = 1) để ngắt mạch analog giảm nhiệt cho sensor. Bỏ `cam_stop()` (giữ nguyên GDMA/VSYNC) và bỏ `WiFi.setSleep(true)` (giữ kết nối Wi-Fi thông suốt 100%).
+  - Wakeup: Xóa bit Soft Sleep COM2 (bit 4 = 0), thêm `vTaskDelay(pdMS_TO_TICKS(50))` để sensor ổn định xung clock. Bỏ toàn bộ `esp_camera_deinit()` và `cameraInitPins()`. Lấy 1 frame thăm dò và xả cache.
+  - Bảo lưu & Tính năng đóng băng: `ENABLE_CAM_IDLE_STANDBY=0`, giữ `recoverCameraDriver` làm chốt chặn cuối cùng, bảo toàn FRZ-001 (Kiosk layout), FRZ-004 (Còi GPIO14), endpoint `/power`.
+  - Cập nhật tài liệu đóng băng (doc-only): Cập nhật mô tả FRZ-001 trong `docs/FROZEN_FEATURES.md` phản ánh chính xác bố cục chia đôi LCD Kiosk thực tế (Camera trái 0..159, QR phải 160..319; không chạm mã nguồn Kiosk).
+- Đánh giá 3 rủi ro kỹ thuật cần kiểm chứng trên phần cứng thật:
+  1. *Rủi ro chốt chặn recover:* `recoverCameraDriver` vẫn còn `esp_camera_deinit() + cameraInitPins()` (app_httpd.cpp:337-338) làm chốt chặn cuối khi `fb_get` NULL (`capture_handler:394` và stream chết 3 frame `:510`). Nếu sensor vừa thức chưa kịp phát VSYNC mà probe đã thành công giả $\rightarrow$ `fb_get` sau đó NULL $\rightarrow$ kích hoạt recover deinit $\rightarrow$ nguy cơ sụt áp. Cần quan sát log Serial xem có xuất hiện `[POWER] Camera khong tra frame -> Khoi tao lai driver cam...` ngay sau `WAKEUP` không.
+  2. *Rủi ro khóa Mutex:* `wakeCameraActiveInternal` giữ `s_power_mutex` trong lúc probe `fb_get`. Nếu sensor chậm phát VSYNC, mọi request song song khác sẽ bị treo theo mutex. Cần đo thời gian request `/capture` đầu tiên ngay sau sleep.
+  3. *Rủi ro phơi sáng AEC/AGC:* 50ms delay + 1 frame probe sau soft-sleep có thể chưa đủ để cảm biến cân bằng sáng tự động $\rightarrow$ khung hình đầu tiên sau wake có thể tối, ảnh hưởng độ nhạy nhận diện khuôn mặt. Cần kiểm tra thực tế.
+- Kết quả kiểm tra tĩnh & biên dịch thực tế:
+  - Lệnh build: `& 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --fqbn esp32:esp32:esp32s3:PSRAM=opi --config-dir 'C:\Users\ACER\AppData\Local\Arduino15' esp32_cam_ai`
+  - Kết quả build: Exit code 0 (Flash: 1,089,743 bytes - 83%; RAM: 57,180 bytes - 17%).
+  - `git diff --check`: Exit code 0, diff sạch.
+- Trạng thái: `[VERIFYING]` (Mã nguồn đã hoàn tất và biên dịch PASS 100%, sẵn sàng nạp lên COM4; chỉ chuyển trạng thái sau khi thu thập đủ log Serial 60s không boot loop, 5/5 curl JPEG hợp lệ và kiểm tra 3 chu kỳ sleep/wake trên phần cứng thật).
+
+### [TLOG-056] Nhận JPEG theo Content-Length và tái sử dụng kết nối Kiosk (TASK-048)
+
+- Ngày: 2026-11-08 (UTC+7). Môi trường: Windows / Arduino-ESP32 3.3.12 / MSVC / Chrome Selenium.
+- Đối chiếu log: `get=0.1ms` đo lấy framebuffer, `send=3278.5ms` đo thời gian gửi HTTP trung bình của các phản hồi thành công, `Capture 1.5fps` đếm phản hồi thành công theo thời gian cửa sổ và `cache=0/8` là 0 trong 8 lần dùng cache. `Stream 0.0fps` chỉ cho biết không ghi nhận frame stream thành công trong cửa sổ. Chưa có packet trace để quy chậm cho TCP ACK hoặc TLS.
+- Build firmware: Arduino CLI đi kèm Arduino IDE, `compile --jobs 4 --fqbn esp32:esp32:esp32 esp32_kiosk`, exit 0.
+  ```text
+  Sketch uses 1099844 bytes (83%) of program storage space. Maximum is 1310720 bytes.
+  Global variables use 94160 bytes (28%) of dynamic memory, leaving 233520 bytes for local variables. Maximum is 327680 bytes.
+  ```
+- Kiểm tra C++ trên PC bằng `cl /nologo /EHsc /std:c++17 camera_capture_test.cpp` và `camera_capture_test.exe`, dùng worker thực tế cùng các hàm `end/disconnect/connected/readBytes` từ core cài đặt, với transport và thời gian giả lập. Exit 0, 12/12 ca. Trích stdout:
+  ```text
+  PASS complete fragmented body after 3300ms
+  PASS second response reuses TCP
+  PASS short body idles for 3000ms then closes TCP
+  PASS next response reconnects, honors Connection close
+  PASS closed session releases idle socket
+  PASS session closes while receiving, no publish
+  PASS Wi-Fi drops while receiving, no publish
+  ```
+- `node --check js/admin/admin.face.js` và kiểm tra so sánh với HEAD: PASS. Diff Kiosk chỉ nằm trong camera worker; các đoạn LCD, polling Supabase, QR và file Web Admin khớp HEAD. `git diff --check` exit 0.
+- `node scratch/verify_task_046.js` gốc exit 1 tại `ERR_ASSERTION K1` vì yêu cầu hai lần `setNoDelay` (bao gồm lần gọi trước khi có socket); K2 cũ cũng yêu cầu vòng `taskYIELD` đã thay bằng `readBytes`. Chạy lại bản kiểm tra trong bộ nhớ với K1/K2 theo hợp đồng nhận body mới; lần đầu lỗi `SyntaxError: Unexpected token '^'` do escape của đoạn thay tạm, lần sửa chạy exit 0, các kiểm tra camera/web/FRZ còn lại PASS. File scratch gốc không bị sửa.
+- `python scratch/check_camera_live_task047.py` với camera thật: `selenium.common.exceptions.TimeoutException`, không có frame sau 25s. Chạy cùng mã Web Admin trên Chrome với server MJPEG kiểm thử tại localhost: lần đầu hiện ảnh 480×320 nhưng console báo `ERR_CONNECTION_REFUSED` tại `/power` do thiếu endpoint kiểm thử. Thêm endpoint kiểm thử cổng 80, chạy lại exit 0, `BROWSER_ERRORS []`, canvas đọc được và camera mock ghi đúng `GET /power` cùng `GET :81/stream`, không có GET `/capture`.
+- Kết nối camera thật bằng `curl.exe --max-time` tới `192.168.2.168/power`, `/capture` và `:81/stream`: timeout, HTTP 000, thời gian TCP connect 0. Ping có `Destination host unreachable` và timeout. Đọc Serial 115200 trong 12s: COM4 chỉ trả `ESP-ROM:esp32s3-20210327`; COM10 chạy firmware hiện có báo `HTTP=-1 length=-1 read=0 elapsed=5002ms` và `FPS: 0.0`.
+- **KNOWN:** Worker mới qua các ca logic nhận body/reuse/reconnect trên PC. Web ưu tiên MJPEG cổng 81 trong Chrome với nguồn thử. Địa chỉ camera không truy cập được trong lần đo này, Kiosk hiện tại lỗi trước bước nhận body.
+- **LIKELY:** Timeout theo khoảng ngừng nhận có thể giữ lại frame đến chậm nhưng vẫn còn tiến triển. Hiệu quả tốc độ cần đo trên Wi-Fi và thiết bị thật.
+- **UNKNOWN:** Lý do camera không truy cập được, nguyên nhân toàn bộ thời gian gửi cao, FPS và `send` sau khi nạp bản mới. Chưa nạp bản sửa Kiosk.
+- **Kết luận:** Build, logic worker và đường MJPEG ưu tiên PASS trong môi trường kiểm thử. Nghiệm thu thiết bị thật PARTIAL, TASK-048 giữ `[VERIFYING]`. Khi camera truy cập lại được, xác nhận `/power` và JPEG trước, nạp Kiosk rồi thu 30–60s log CAM/Kiosk với Web Admin tắt, sau đó bật MJPEG để đối chiếu.
+
+### [TLOG-057] Kiểm tra nhanh USB, Wi-Fi và reboot của CAM/Kiosk (TASK-048)
+
+- Ngày: 2026-11-08 (UTC+7). Máy kiểm tra Wi-Fi `192.168.2.101/24`, camera `192.168.2.168`. Đọc trạng thái, không gửi lệnh chuyển nguồn hoặc nạp firmware.
+- Arduino CLI `board list` và `Get-PnpDevice`: cả hai cổng hiện diện, Windows báo OK. CAM COM4 là USB Serial/JTAG Espressif `303A:1001`, Kiosk COM10 qua CH340 `1A86:7523`.
+- `ping.exe -n 3 -w 700 192.168.2.168`: 3/3, 5–14 ms. `curl.exe --max-time 4 http://192.168.2.168/power`: HTTP 200, 96 ms, ACTIVE, RSSI -46 dBm, PS 0, stream_clients 1.
+- Python `http.client` GET `/power` 7 lần, timeout 3s, nghỉ 3s giữa lần: 6 HTTP 200 (2314, 1474, 84, 101, 88, 2220 ms), mẫu 2 `TimeoutError: timed out`. Mọi mẫu thành công ACTIVE, RSSI -46 đến -47 dBm. Một phần cửa sổ đo trùng hai request JPEG, một timeout HTTP chưa xác định rớt Wi-Fi hay reboot.
+- Python `http.client` GET `/capture` hai lần: 2/2 HTTP 200, JPEG đủ Content-Length và SOI/EOI, 10378 và 10567 bytes, tổng 2306 và 1492 ms.
+- Serial 115200 bằng `System.IO.Ports.SerialPort`, DTR/RTS tắt. COM4 báo `Access to the path 'COM4' is denied.` ở hai lần thử; chưa đọc được boot/reset reason. COM10 in log hiệu năng đều mỗi khoảng 5s, nhận QR mới và sự kiện điểm danh từ Supabase. Sau khi có QR, 3 kỳ liên tiếp: FPS 0.2/0.4/0.2, Fetch 2111.3/2998.9/2986.1 ms, Draw 128.7/128.2/127.5 ms. Không có boot banner lặp trong cửa sổ 20s.
+- **KNOWN:** CAM và Kiosk đều có kết nối Wi-Fi trong lần đo. Có lúc HTTP CAM timeout, các JPEG thử mất 1.5–2.3s, Kiosk đang chạy nhưng tải ảnh mất 2.1–3.0s. **UNKNOWN:** CAM có reset ở thời điểm khác hay không và nguyên nhân mất kết nối trước đó. Kết luận kiểm tra nhanh PARTIAL, giữ `[VERIFYING]`.
+
+### [TLOG-058] Đo riêng độ trễ chờ JPEG và thời gian vẽ LCD (TASK-048)
+
+- Ngày: 2026-11-08 (UTC+7). Không đổi cấu hình trong phép đo. CAM ACTIVE, một viewer MJPEG, RSSI -45 đến -48 dBm.
+- Đọc Serial COM10, 115200 trong 26s: 5 kỳ có 0.2–0.6 FPS, trung bình Fetch 2249.3–3010.6 ms, Draw 125.7–127.0 ms, Dropped 0. COM4 vẫn báo `Access to the path 'COM4' is denied.`
+- Python `http.client` tách thời gian `getresponse()` và `read()`, kiểm tra bằng Pillow: 4/4 JPEG HTTP 200, giải mã RGB 480×320 đủ EOI. Đợi header 2988/2895/3021/1497 ms, nhận body 17/9/12/12 ms. Hai request gửi header `Connection: close` vẫn nhận phản hồi cho phép reuse, nên chưa dùng lượt này để kết luận so sánh socket.
+- Chạy lại 4 request xen kẽ, tạo và đóng socket thật ở mỗi mẫu `fresh`, xác nhận mẫu persistent thứ hai có `reused=True`. TCP 79/173/0/5 ms, đợi header 180/24/16/27 ms, body 17/28/25/18 ms. Cả bốn JPEG đầy đủ. Cả socket mới và reuse đều nhanh trong cửa sổ này, cho thấy độ trễ cổng 80 dao động.
+- Đọc `/power`: các mẫu đầu/cuối mất 2198/3038 ms, mẫu sau 775 ms. Các lần này CAM báo `stream_send_us` tương ứng 18.8/31.7/18.4 ms, `capture_send_us` khoảng 2939–2979 ms. Không coi thời gian send là FPS trình duyệt.
+- COM10 có hai kỳ 0 frame trong lần đọc 12s. Kiểm tra RPC đọc `get_open_session` bằng yêu cầu như Kiosk: HTTP 200, phiên mở, 1186 ms. Trong lần đọc 18s kế tiếp, COM10 vẫn có log định kỳ, nhận QR mới và tự có lại ảnh 0.2 rồi 0.4 FPS, Fetch 2829.6/2267.1 ms; cuối cửa sổ nhận sự kiện điểm danh. Không thấy boot banner lặp hoặc mã lỗi ảnh trong các cửa sổ này. RPC từ PC không xác nhận riêng tình trạng Wi-Fi Kiosk lúc 0 frame.
+- Đối chiếu `drawSplitCameraFrame` và `cameraFrameScale`: JPEG 480×320 thu 1/4 thành 120×80, giữ tỉ lệ. **KNOWN:** chậm chủ yếu trước khi nhận header của `/capture`, LCD có khoảng 0 frame rồi phục hồi. **UNKNOWN:** lần mất ảnh do Wi-Fi Kiosk, trạng thái phiên mà Kiosk nhận được hay đường HTTP. Giữ TASK-048 `[VERIFYING]`.
+
+### [TLOG-059] Đo lại sau khi người dùng nạp Kiosk mới (TASK-048)
+
+- Ngày: 2026-11-08 (UTC+7). Người dùng xác nhận đã nạp Kiosk mới. Không nạp lại trong phiên đo.
+- Mở COM10 trực tiếp bằng `System.IO.Ports.SerialPort` bị `Access to the path 'COM10' is denied.` Arduino IDE đang mở Serial Monitor COM10 ở 115200 baud. Quan sát tại cửa sổ này thấy `WiFi OK`, các kỳ 0.2–0.4 FPS, Fetch gần 3 giây ở các kỳ chậm và Draw khoảng 126–128 ms.
+- Python `http.client` với socket mới mỗi request: `/capture` 2/2 HTTP 200, JPEG hoàn chỉnh 10126 bytes. TCP 8/20 ms, chờ header 1469/3004 ms, đọc body 11/13 ms.
+- `/power` 2/2 HTTP 200: TCP 16/8 ms, chờ header 2345/2984 ms, body 0 ms theo độ phân giải đo. CAM ACTIVE, 1 viewer MJPEG, RSSI -47/-46 dBm, `stream_send_us=11998/17591`, `capture_send_us=2923042/2922156`.
+- **KNOWN:** Sau khi nạp Kiosk mới, độ trễ đường `/capture` vẫn tái hiện cả từ PC và phù hợp với Fetch của LCD. Phần đọc body và vẽ diễn ra nhanh hơn nhiều. **UNKNOWN:** nguyên nhân cụ thể gây chờ cổng 80, gồm thời gian chờ xử lý request hoặc ghi socket. TASK-048 giữ `[VERIFYING]`.
+
+### [TLOG-060] Luồng preview liên tục cho LCD Kiosk (TASK-048)
+
+- Ngày: 2026-11-08 (UTC+7). Tách MJPEG cổng 82 khỏi HTTP snapshot cổng 80 và luồng Web cổng 81. Kiosk giữ kết nối để nhận nhiều JPEG, ưu tiên ảnh mới nhất và mở lại nếu luồng đứt.
+- Build cuối Arduino CLI, exit 0 cả hai:
+  - `compile --jobs 3 --fqbn esp32:esp32:esp32s3:PSRAM=opi esp32_cam_ai`: Flash 1091139/1310720 bytes (83%), RAM global 57188/327680 bytes (17%).
+  - `compile --jobs 3 --fqbn esp32:esp32:esp32 esp32_kiosk`: Flash 1101256/1310720 bytes (84%), RAM global 94160/327680 bytes (28%).
+- C++ trên PC với MSVC `cl /nologo /std:c++17 /EHsc preview.cpp`, chạy handler CAM và parser Kiosk thực tế với socket, cache, DMA và thời gian giả lập. Exit 0:
+  ```text
+  PASS shared Web frames, multiple JPEGs, partial socket writes and EOF
+  PASS standalone capture releases framebuffer before sending
+  PASS transition after Web viewer disconnects
+  PASS no HTTP 200 before a usable first frame in either mode
+  PASS send failure releases camera lease
+  PASS parser rejects invalid size, framing and truncated header
+  ```
+- C++ trên PC với `cl /nologo /std:c++17 /EHsc worker.cpp`, chạy worker thật với transport giả lập. Exit 0, một GET cho nhiều frame, nối lại preview sau EOF, đóng socket trước yêu cầu sleep khi phiên kết thúc, và dùng `/capture` dự phòng với Keep-Alive khi CAM cũ.
+- So sánh mã nguồn với HEAD bằng Python: handler Web MJPEG, còi, logic QR, polling Supabase 1000ms, vòng vẽ LCD và Web Admin giữ nguyên. Xác minh mutex cache được trả trước khi gửi snapshot cache. `node --check js/admin/admin.face.js` và `git diff --check` exit 0.
+- Thiết bị đang chạy cũ: `/power` HTTP 200 (1.37s), `:82/stream` curl exit 7, `Could not connect to server`. Arduino CLI `board list` hai lần trả `No boards found.` và Windows không tìm thấy thiết bị cổng COM hiện diện. Chưa nạp firmware mới hoặc đo FPS thực tế.
+- **KNOWN:** Build và mô phỏng nhận liên tục, chuyển nguồn, ngắt, retry và fallback PASS. **UNKNOWN:** FPS và thời gian gián đoạn trên hai bo thật, hành vi ngủ/thức dưới tải thật. Giữ `[VERIFYING]`. Khi có USB, nạp CAM trước, Kiosk sau, mở phiên và kiểm tra `[CAM] LCD preview connected (:82/stream)` cùng log FPS với Web Admin đang quét.

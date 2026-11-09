@@ -12,7 +12,7 @@
 
 | Mã Tính Năng | Tên Tính Năng | File Mã Nguồn Khóa | Trạng Thái | Mô Tả & Lưu Ý Cấm Chạm |
 |---|---|---|---|---|
-| **FRZ-001** | Hiển thị mã QR động Kiosk song song thông báo | `esp32_kiosk/esp32_kiosk.ino`, `esp32_kiosk/qr_display.h` | 🔒 **LOCKED** | Phân vùng LCD 320x240: QR cột trái (0..214), thông báo cột phải (214..320). Không dùng `fillScreen` tráo đổi. Giữ nguyên chu kỳ polling 1000ms và URL rút gọn `checkin.html?t=`. |
+| **FRZ-001** | Bố cục chia đôi LCD Kiosk: Camera Live bên trái (0..159) & QR động bên phải (160..319) song song thông báo | `esp32_kiosk/esp32_kiosk.ino`, `esp32_kiosk/qr_display.h` | 🔒 **LOCKED** | Phân vùng LCD 320x240 chia đôi: Nửa trái (0..159) hiển thị Camera AI 120x80 và banner thông báo điểm danh nửa dưới; Nửa phải (160..319) hiển thị mã QR động. Không dùng `fillScreen` tráo đổi. Giữ nguyên chu kỳ polling 1000ms và URL rút gọn `checkin.html?t=`. |
 | **FRZ-003** | Reset mật khẩu sinh viên Admin | `supabase/functions/admin-reset-password/index.ts`, `js/admin/admin.tasks.js` | 🔒 **LOCKED** | Cho phép Admin reset mật khẩu cho toàn bộ sinh viên (kể cả MSSV trong danh sách quản trị). Không thêm lại cột thừa `is_admin` vào bảng `profiles`. |
 | **FRZ-004** | Chuẩn hóa Còi Buzzer Active LOW chân GPIO 14 | `esp32_cam_ai/board_config.h`, `esp32_cam_ai/app_httpd.cpp` | 🔒 **LOCKED** | Còi kích mức LOW (`BUZZER_ON = LOW`, `BUZZER_OFF = HIGH`). Không kéo chân 14 về LOW lúc khởi động. |
 | **FRZ-005** | Chống kêu còi liên hồi (Debounce) & Nút Mute Loa/Còi | `js/admin/admin.face.js`, `admin.html` | 🔒 **LOCKED** | Giới hạn tối thiểu 4000ms giữa 2 lần phát âm thanh. Nút Bật/Tắt âm thanh điều khiển còi ESP32 qua chân 14. |

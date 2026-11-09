@@ -215,3 +215,43 @@ stateDiagram-v2
 - Chờ nạp CAM để lấy log phần cứng và xác định nguyên nhân; chưa khẳng định phục hồi FPS, chưa DONE.
 - Đã nhận log CAM phần cứng: PS0/CPU240/get gần0ms nhưng send2.5–5.8s; live /power có lần send7.98s. Máy tính tải ảnh0.5–0.9s. Đang đo stream và đối chiếu Kiosk để phân định nghẽn gửi/nhận; chưa quy lỗi cho ngủ/wakeup.
 - TLOG-053: LCD Fetch4.9–6.4s/Draw122ms; rút LCD vẫn0.42fps. Test wake trả ACTIVE nhưng stream timeout0frame; source cũ vẫn báo thành công nếu không lấy được frame. Đã sửa wake khởi tạo lại driver/kiểm ảnh trước ACTIVE và /power báo lỗi, giữ chức năng ngủ; CAM compile PASS1084521bytes, RAM56696bytes. Chờ nạp/kiểm phần cứng; nguyên nhân toàn bộ send chậm chưa xác định, không DONE.
+
+### Phiên làm việc: 2026-11-08 (Tiếp thu Opencode & Qoder Review: Chuẩn hóa AC1–AC4, Cây quyết định 4 nhánh & Taxonomy curl)
+- **Agent/Model:** Antigravity / Coder chính
+- **Nhiệm vụ:** [TASK-045], [TASK-046], [TASK-048]
+- **Tóm tắt hành động:**
+  - Tiếp thu toàn bộ nhận xét và phản biện kỹ thuật từ @Opencode và @Qoder về việc định lượng tiêu chí nghiệm thu và quy trình thu thập bằng chứng.
+  - Chuẩn hóa bộ tiêu chí định lượng AC1 – AC4 vào `docs/AI_PLAN.md`:
+    - AC1: Đo định lượng tách pha curl taxonomy (`connect`, `ttfb`, `total < 1.0s`, kích thước 10–16 KB, 5/5 lần đạt).
+    - AC2: Kiểm soát môi trường không tranh chấp (tắt stream port 81), gọi `/power` $\ge 3$ lần, theo dõi boot loop trên Serial CAM.
+    - AC3: Kiosk `read == length` $\ge 90\%$, không fail 3 lần liên tiếp; ghi nhận khoảng cách 2 board tới AP và vật cản (do Kiosk không in RSSI).
+    - AC4: Bắt buộc có bản ghi `TLOG-xxx` trước khi chuyển sang `[DONE]`.
+  - Bổ sung cây quyết định 4 nhánh toàn diện (Nhánh A: PC OK, Kiosk FAIL; Nhánh B: Cả 2 cùng FAIL; Nhánh C: PC FAIL, Kiosk OK; Nhánh D: Cả 2 flaky rớt frame ngẫu nhiên).
+  - Khẳng định tuân thủ tuyệt đối quy tắc đóng băng **FRZ-001**: không can thiệp layout (Camera trái 0..159, QR phải 160..319), giữ nguyên chu kỳ polling 1000ms và URL `checkin.html?t=`. Duy trì trạng thái `[VERIFYING]`.
+
+### Phiên làm việc: 2026-11-08 (Nạp firmware hai bo và kiểm tra sau nạp)
+- **Nhiệm vụ:** [TASK-045], [TASK-046], [TASK-048]
+- **Kết quả:** Nạp CAM ESP32-S3 COM4 với PSRAM bật và Kiosk ESP32 COM10; cả hai build/upload và xác minh hash flash PASS. Kiosk Serial vẫn báo `HTTP=-1`/0 frame; 5 lần PC GET `/capture` timeout, CAM Serial không có output trong lần đọc.
+- **Bằng chứng:** [TLOG-054](AI_TEST_LOG.md#tlog-054-nạp-firmware-camkiosk-và-kiểm-tra-kết-nối-sau-nạp-task-04546048).
+- **Trạng thái:** TASK-045/046/048 giữ `[VERIFYING]`. Chưa xác nhận CAM boot/Wi-Fi hoặc LCD hoạt động; cần đọc Serial CAM từ lúc khởi động và kiểm tra lại kết nối trước khi nghiệm thu.
+
+### Phiên làm việc: 2026-11-08 (Triển khai Phương án B: Standby mềm SCCB cho OV2640, triệt tiêu Reset Loop)
+- **Agent/Model:** Antigravity / Coder chính
+- **Nhiệm vụ:** [TASK-048]
+- **Hành động & Kết quả:**
+  - Nguồn gốc phương án: Qoder đề xuất **Phương án B (Standby mềm SCCB)** nhằm bảo toàn mục tiêu chống nóng cho cảm biến CAM của Admin. Phương án này lệch 1 điểm so với khuyến nghị Phase-1 của Opencode (Opencode khuyến nghị P1 no-op hoàn toàn, không sleep để đạt độ mượt tuyệt đối; Phương án B giữ soft-sleep thanh ghi COM2 cho sensor OV2640, nhưng triệt tiêu toàn bộ `cam_stop()`, `WiFi.setSleep(true)` và `esp_camera_deinit()` / `cameraInitPins()` khi wake). Hiện trạng mã nguồn đang ở Phương án B và chờ Admin Nguyễn Khánh Hòa xác nhận lựa chọn trước khi nạp.
+  - Sửa `esp32_cam_ai/app_httpd.cpp`: loại bỏ hoàn toàn `esp_camera_deinit()` / `cameraInitPins()` trong `wakeCameraActiveInternal()` (thay bằng delay 50ms ổn định clock và probe frame); loại bỏ `cam_stop()` và `WiFi.setSleep(true)` trong `enterCameraStandby()`.
+  - Đồng bộ tài liệu đóng băng: Hiệu chỉnh mô tả FRZ-001 trong `docs/FROZEN_FEATURES.md` cho khớp với bố cục chia đôi LCD Kiosk thực tế (Camera trái 0..159, QR phải 160..319; doc-only update, không sửa code Kiosk).
+  - Biên dịch thành công 100% bằng `arduino-cli` (Exit code 0, Flash 1,089,743 bytes - 83%, RAM 57,180 bytes - 17%).
+- **Bằng chứng:** [TLOG-055](AI_TEST_LOG.md#tlog-055-triển-khai-phương-án-b-standby-mềm-sccb-cho-ov2640-loại-bỏ-deinitcam_stopwifi-sleep-để-triệt-tiêu-boot-loop--sụt-áp-task-048).
+- **Trạng thái:** TASK-048 giữ `[VERIFYING]` (chờ Admin xác nhận và nạp COM4 để kiểm tra log Serial/curl thực tế).
+
+### TASK-048 — `[VERIFYING]` — 2026-11-08
+- Kiosk đọc đúng độ dài JPEG vào buffer có sẵn, tiếp tục Keep-Alive với phản hồi hoàn chỉnh và đóng socket khi lỗi hoặc ngừng tải. Build ESP32 và 12 ca logic trên PC PASS. Web Admin ưu tiên MJPEG cổng 81 trong bài thử Chrome.
+- [TLOG-056](AI_TEST_LOG.md#tlog-056-nhận-jpeg-theo-content-length-và-tái-sử-dụng-kết-nối-kiosk-task-048): camera thật `.168` timeout khi kết nối, COM10 báo `HTTP=-1`. Chờ Antigravity xác nhận camera online và đo lại FPS, thời gian gửi, tỉ lệ nhận đủ JPEG với firmware Kiosk mới trên thiết bị.
+- [TLOG-057](AI_TEST_LOG.md#tlog-057-kiểm-tra-nhanh-usb-wi-fi-và-reboot-của-camkiosk-task-048): CAM `.168` đã phản hồi lại, 2/2 JPEG đủ, một lần `/power` timeout trong 7 mẫu. Kiosk nhận QR và sự kiện Supabase, không thấy reset trong 20s quan sát, ảnh LCD 0.2–0.4 FPS. COM4 từ chối truy cập nên chưa xác minh nguyên nhân reset CAM. Giữ `[VERIFYING]`.
+- [TLOG-058](AI_TEST_LOG.md#tlog-058-đo-riêng-độ-trễ-chờ-jpeg-và-thời-gian-vẽ-lcd-task-048): lúc chậm, PC chờ header `/capture` 1.5–3.0s, sau đó nhận đủ JPEG trong 9–17ms. LCD vẽ khoảng 126ms và đạt 0.2–0.6 FPS. Quan sát LCD 0 frame rồi tự nhận lại QR và ảnh. Chưa xác nhận rớt Wi-Fi hay reset, giữ `[VERIFYING]`.
+- [TLOG-059](AI_TEST_LOG.md#tlog-059-đo-lại-sau-khi-người-dùng-nạp-kiosk-mới-task-048): người dùng đã nạp Kiosk mới. Serial COM10 vẫn thấy 0.2–0.4 FPS với Fetch gần 3s; PC mở TCP 8–20ms, chờ header `/capture` 1.47–3.00s, đọc JPEG 11–13ms. Cần xử lý độ trễ cổng 80, giữ `[VERIFYING]`.
+
+### TASK-048 — `[VERIFYING]` — 2026-11-08
+- [TLOG-060](AI_TEST_LOG.md#tlog-060-luồng-preview-liên-tục-cho-lcd-kiosk-task-048): LCD ưu tiên MJPEG cổng 82 để căn mặt liên tục, dùng cache khi Web Admin chạy cổng 81. Build hai bo và kiểm tra PC PASS. USB không nhận bo tại thời điểm thử, chờ nạp CAM rồi Kiosk và đo FPS trên LCD thật.

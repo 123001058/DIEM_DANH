@@ -1194,3 +1194,68 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Thử nguồn qua HTTP khi stream_clients=0/in_flight=0: sleep trả STANDBY/PS1; active mất6760ms rồi trả ACTIVE/PS0, nhưng stream tiếp theo timeout sau5s,0frame. Source wake bỏ qua lỗi thanh ghi và vẫn báo ACTIVE dù fb_get trả null. Đây là lỗi xác minh wakeup đã có bằng chứng; không đồng nhất nó với toàn bộ nghẽn send.
 - Sửa CAM: wake khởi tạo lại driver bằng cấu hình hiện có, kiểm chứng một framebuffer hợp lệ trước ACTIVE, xóa cache cũ; báo lỗi /power nếu thao tác nguồn thất bại. Không đổi cơ chế ngủ, QR, còi hay cấu hình hình ảnh. Khởi tạo camera_config_t bằng0 để phần khởi tạo lại có giá trị mặc định xác định. Build và hồi quy; vẫn cần nạp CAM mới để xác nhận tốc độ/wakeup phần cứng.
 - Kết quả: TLOG-053 build CAM PASS, verify_task_046 và kiểm tra JSON/source PASS; `[VERIFYING]` chờ nạp. Lỗi báo ACTIVE sai đã sửa trong source; không kết luận toàn bộ send chậm do wakeup và chưa hứa FPS phục hồi.
+
+#### TASK-048 — Kế hoạch chẩn đoán định lượng tách lớp (Đồng thuận Opencode Review)
+- Ngày: 2026-11-08. Trạng thái: `[VERIFYING]`.
+- Đồng thuận hiện trạng: Log Kiosk `HTTP=200 length=13243 read=119 elapsed=9626ms` và `[CAM PERF] Fetch n=0 | Draw n=0` xác thực việc body bị đứt giữa chừng dẫn đến timeout (~9.6s), không có khung hình hoàn chỉnh nào nạp thành công vào bộ đệm giải mã LCD.
+- Scope Guard (Bảo vệ tính năng đóng băng FRZ-001):
+  - Giữ nguyên 100% bố cục LCD chia đôi trong `esp32_kiosk/qr_display.h`: Nửa trái (0..159) camera AI live 120x80 + banner thông báo điểm danh; Nửa phải (160..319) mã QR động.
+  - Tuyệt đối không thay đổi chu kỳ polling 1000ms, không đổi URL QR `checkin.html?t=`.
+  - Không thực hiện bất kỳ sửa đổi mò mẫm/suy đoán nào (no speculative fix) trước khi có bằng chứng log cô lập biến số.
+- Bộ tiêu chí nghiệm thu định lượng (Acceptance Criteria):
+  - [ ] **AC1 (Kiểm thử CAM độc lập từ PC & Đo đạc Taxonomy chuẩn):** Trên máy tính cùng mạng Wi-Fi `Robocon Sinh Vien`, thực hiện lệnh curl đo định lượng tách pha tối thiểu 5 lần liên tiếp:
+    ```cmd
+    curl.exe -s -o "%TEMP%\cam.jpg" -w "code=%{http_code} size=%{size_download} connect=%{time_connect}s ttfb=%{time_starttransfer}s total=%{time_total}s\n" http://192.168.2.168/capture
+    ```
+    - Tiêu chí PASS: 5/5 lần đạt HTTP 200, `size_download` đúng kích thước JPEG (10–16 KB), `total < 1.0s`, ảnh `%TEMP%\cam.jpg` mở nét bình thường.
+    - Taxonomy đối chiếu Kiosk:
+      - `connect` lớn (>1s) $\leftrightarrow$ Trùng lỗi `HTTP=-1` của Kiosk (chưa bắt tay TCP).
+      - `ttfb` lớn (>2s) $\leftrightarrow$ Trùng lỗi `HTTP=-11` của Kiosk (timeout chờ header).
+      - `ttfb` nhỏ nhưng `size` thiếu $\leftrightarrow$ Trùng lỗi `read < length` của Kiosk (đứt giữa chừng khi đọc body).
+  - [ ] **AC2 (Kiểm soát môi trường không tranh chấp & Xác minh CAM):** Đảm bảo tắt tab Web Admin Live Stream (cổng 81) trong suốt quá trình test. Gọi `http://192.168.2.168/power` tối thiểu 3 lần để tránh kết luận sai lệch do reboot ngẫu nhiên; thu thập Serial CAM để xác nhận: không boot loop, không auto-standby, không lỗi capture/recovery, CPU 240MHz, PS=0.
+  - [ ] **AC3 (Kiosk nhận đủ body hình & Ngưỡng chống Flaky):** Kiosk chỉ kéo capture khi `isSessionOpen == true`. Thu thập Serial Kiosk liên tục 30–60s ghi nhận:
+    - Tỷ lệ `read == length` phải $\ge 90\%$ trên tổng số request.
+    - Không có chuỗi 3 lần fail liên tiếp.
+    - `[CAM PERF]` có `Fetch n > 0`, `Draw n > 0`.
+    - Do Kiosk không in RSSI ra Serial, người kiểm thử ghi nhận khoảng cách 2 board tới AP và vật cản xung quanh.
+  - [ ] **AC4 (Bằng chứng trước khi đóng task):** Chỉ chuyển trạng thái TASK-045/046 sang `[DONE]` khi có bản ghi thực nghiệm `TLOG-xxx` thành công trong `docs/AI_TEST_LOG.md`. Nếu thiếu dữ liệu phần cứng, duy trì `[VERIFYING]`.
+- Cây quyết định phân loại nguyên nhân 4 nhánh toàn diện:
+  - **Nhánh A (PC OK, Kiosk FAIL):** PC tải <1s (ttfb nhỏ, connect nhanh), nhưng Kiosk bị `read < length` hoặc timeout 9.6s $\rightarrow$ Nghẽn tại client Kiosk (Wi-Fi Kiosk yếu do anten/vật cản, timeout đọc socket client, hoặc tranh chấp luồng `WiFiClient`).
+  - **Nhánh B (PC FAIL, Kiosk FAIL):** Cả PC và Kiosk đều tải chậm/đứt gói $\rightarrow$ Nghẽn tại server CAM (nguồn sụt áp brownout, Wi-Fi CAM yếu, driver OV2640 hoặc tắc nghẽn hàng đợi). Kiểm tra lặp boot banner trên Serial CAM hoặc 404 `/power` $\ge 3$ lần.
+  - **Nhánh C (PC FAIL, Kiosk OK):** PC tải chập chờn nhưng Kiosk kéo mượt $\rightarrow$ Lệch vị trí RF/vật cản tới Access Point giữa PC và Kiosk.
+  - **Nhánh D (Cả 2 đều rớt frame ngẫu nhiên / Flaky):** Tỷ lệ thành công dao động, thỉnh thoảng rớt $\rightarrow$ Đối chiếu ngưỡng $\ge 90\%$ và kiểm tra nhiễu kênh Wi-Fi 2.4GHz tại hiện trường.
+
+#### TASK-048 — Cập nhật phương án xử lý Boot Loop & Chống nóng phần cứng
+- **Vấn đề phát sinh sau TLOG-054:** Nạp firmware mới khiến CAM bị bật/tắt liên tục. Nguyên nhân: `enterCameraStandby` gọi `cam_stop()` + `WiFi.setSleep(true)`, và `wakeCameraActiveInternal` gọi `esp_camera_deinit()` + `cameraInitPins()` làm dòng đỉnh >500mA gây Brownout Reset.
+- **Hai phương án kỹ thuật:**
+  - **Phương án A (Opencode Phase-1 - Fallback):** Vô hiệu hóa hoàn toàn cơ chế standby (no-op), CAM luôn ACTIVE 100%. Ưu điểm: Tuyệt đối mượt, không bao giờ sụt áp do chuyển trạng thái. Nhược điểm: Nhiệt độ chip/sensor giữ nguyên mức cũ (không hạ nhiệt theo mong muốn của Admin).
+  - **Phương án B (Qoder đề xuất - Khuyến nghị):** Standby mềm qua SCCB (`0x100 | 0x09`, bit 4 = 1). Tắt mạch analog OV2640 khi nhàn rỗi (hạ nhiệt cảm biến); loại bỏ triệt để `cam_stop()`, `WiFi.setSleep(true)` và `esp_camera_deinit() / cameraInitPins()` khi wake. Thức dậy trong 50ms không gây dòng đỉnh.
+- **Đánh giá rủi ro phần cứng cần kiểm chứng (TLOG-055):**
+  1. *Chốt chặn recover:* `recoverCameraDriver` vẫn giữ deinit/init làm đường cứu hộ khi `fb_get` NULL. Cần xác nhận probe frame sau wake không kích hoạt nhầm recover.
+  2. *Khóa Mutex:* Wake giữ `s_power_mutex` trong lúc probe; cần đo thời gian `/capture` nhịp đầu sau sleep.
+  3. *AEC/AGC:* Delay 50ms + 1 frame probe cần kiểm tra xem ảnh đầu sau wake có đủ độ sáng cho Face AI không.
+- **Hiện trạng:** Đã triển khai code Phương án B trong `esp32_cam_ai/app_httpd.cpp` (build PASS) và chờ Admin xác nhận trước khi nạp COM4.
+
+#### TASK-048 — Sửa nhận JPEG trên Kiosk, bàn giao Antigravity (2026-11-08)
+- Log mới cho thấy thời gian gửi HTTP cao trên các mẫu thành công. `get` đo thời gian lấy framebuffer đã sẵn sàng, `send` đo `httpd_resp_send`, còn FPS đếm phản hồi thành công theo cửa sổ riêng. Log chưa cô lập TCP ACK, TLS hay lý do không có frame stream thành công.
+- Phạm vi: vòng nhận `/capture` trong `esp32_kiosk/esp32_kiosk.ino` và ba tài liệu quản trị. Arduino-ESP32 3.3.12 dùng `end()` để dọn trạng thái HTTP và vẫn giữ socket khi phản hồi cho phép reuse. Giữ hợp đồng này, đọc đúng `Content-Length` trực tiếp vào bộ đệm sẵn có, đóng socket khi phản hồi lỗi/thiếu hoặc khi ngừng tải.
+- Giữ mức 3000 ms cho chờ header và chờ dữ liệu bị gián đoạn. Khi body tiếp tục đến, tổng thời gian tải có thể vượt 3000 ms. Chỉ giao frame đủ độ dài cho LCD khi phiên còn mở và Wi-Fi còn kết nối.
+- Web Admin đã mở MJPEG cổng 81 trước, chỉ chuyển sang `/capture` sau các lần thử lại thất bại. Giữ fallback, Phương án B và các ranh giới đóng băng của QR, LCD, còi.
+- Nghiệm thu: build ESP32 Kiosk, kiểm tra gửi tiếp trên socket hợp lệ, đóng và phục hồi sau ảnh thiếu hoặc khi phiên đóng, xác minh đường ưu tiên MJPEG trên trình duyệt. Đo `send`, FPS và tỉ lệ ảnh đủ trên hai bo thật trước khi đóng TASK-048.
+
+#### TASK-048 — Kiểm tra nhanh hiện tượng chập chờn trên hai bo (2026-11-08)
+- Đối chiếu nhận diện USB, Serial COM4/COM10 và HTTP từ LAN để tách reboot, mất Wi-Fi và chậm tải ảnh. Chỉ đọc trạng thái và lấy mẫu JPEG, không thay cấu hình hay firmware.
+- Dùng log khởi động lặp để xác nhận reboot nếu thu được. Dùng phản hồi IP/HTTP của CAM và log polling Supabase của Kiosk để xác nhận kết nối trong cửa sổ quan sát. Ghi rõ giới hạn khi Serial bị khóa hoặc thời gian quan sát ngắn.
+
+#### TASK-048 — Tách độ trễ tải ảnh và vẽ trên LCD (2026-11-08)
+- Người dùng xác nhận camera đã quét liên tục, LCD thỉnh thoảng có dấu hiệu mất kết nối và hiển thị lag. Kiểm tra luồng `/capture` LCD riêng với MJPEG cổng 81 đang phục vụ Web Admin. Giữ phiên quét đang chạy.
+- Tiêu chí chẩn đoán: đo riêng TCP, chờ header, đọc body và vẽ LCD. So sánh socket mới với socket dùng lại. Kiểm tra JPEG giải mã đúng kích thước và ghi rõ có quan sát được lần kết nối lại hay không. Chỉ sửa firmware khi có bằng chứng về nguyên nhân trong phạm vi LCD.
+
+#### TASK-048 — Đối chiếu sau khi người dùng nạp firmware Kiosk mới (2026-11-08)
+- Đọc Serial Kiosk đang chạy và đo TCP, header, body của `/power` và `/capture` trong cùng giai đoạn. Kiểm tra liệu nút nghẽn còn ở đường ảnh cổng 80 khi Web Admin vẫn đang xem MJPEG.
+
+#### TASK-048 — Xem trước liên tục để căn mặt trên LCD (2026-11-08)
+- Nút nghẽn thực nghiệm là chờ HTTP cổng 80 lặp lại mỗi ảnh (TLOG-059). Thêm MJPEG chuyên dụng cổng 82 ở `esp32_cam_ai/app_httpd.cpp`, giữ riêng luồng AI cổng 81. Kiosk ưu tiên kết nối dài và chỉ dùng `/capture` khi firmware camera cũ hoặc luồng bị gián đoạn.
+- LCD lấy ảnh mới nhất từ cache khi Web Admin đang stream, hoặc tự lấy framebuffer khi dùng một mình. Không giữ mutex cache hay framebuffer trong lúc gửi preview. Giới hạn một kết nối preview, dùng bộ đệm PSRAM riêng. Bỏ ảnh cũ ở Kiosk nếu LCD chưa vẽ kịp. Phân vùng 120×80, QR, polling, còi, chế độ ngủ và AI vẫn theo hợp đồng cũ.
+- Snapshot `/capture` sao chép JPEG cache trước khi gửi để một phản hồi chậm không chặn cập nhật frame cho LCD. Khi phiên đóng, Kiosk ngắt preview rồi yêu cầu sleep một lần để bù trường hợp lệnh từ Web đến lúc socket LCD chưa đóng. Camera vẫn từ chối sleep khi có client hoạt động.
+- Nghiệm thu: build hai bo, kiểm thử nhiều JPEG trên một kết nối và frame lỗi/đứt luồng, xác minh mã Web/QR đóng băng. Trên hai bo thật cần LCD có hình liên tục cả khi Web Admin quét, tự hồi phục khi mất mạng và dừng preview khi đóng phiên. So sánh FPS và thời gian giữa các frame, giới hạn thực tế của bước vẽ khoảng 126 ms/frame.
