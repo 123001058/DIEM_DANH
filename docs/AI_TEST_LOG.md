@@ -2429,3 +2429,8 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - Lệnh: `git diff --check` — PASS; chỉ có cảnh báo Git về chuyển LF sang CRLF trên working copy.
   - Đối chiếu HTML: tìm `js/config.js?v=9` trên các file `*.html` cho đúng 7 kết quả; `admin.html` tải `js/admin/admin.tasks.js?v=3` tại dòng 2416.
   - **Chưa chạy được:** Hồi quy UI đăng nhập/đăng xuất, QR hợp lệ/hết hạn/trùng, duyệt/từ chối đơn nghỉ, ma trận TKB desktop/mobile, console/network và reconnect; lượt này không có trình duyệt đăng nhập/phiên Supabase thật. Giữ `TASK-052` ở `[VERIFYING]`.
+- **Xác minh trước commit bởi GitHub Copilot (2026-11-09 16:02 UTC+7):**
+  - `Get-ChildItem -Path 'js\*.js','js\admin\*.js'` kết hợp `node --check` — PASS 14/14 file; `git diff --cached --check` — PASS.
+  - `node tests/e2e_performance_evaluations.test.js` — 72/72 PASS; `python tests/test_camera_history.py` — 34/34 PASS; `python tests/test_face_identity.py` — 51/51 PASS; các lệnh kết thúc exit 0.
+  - Hai suite Python tiếp tục in `ConnectionResetError [WinError 10054]` khi HTTP server worker teardown; không có assertion thất bại.
+  - Hồi quy UI với phiên Supabase thật vẫn chưa chạy; giữ `TASK-052` ở `[VERIFYING]`.
