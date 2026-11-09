@@ -8,8 +8,9 @@
 // ===========================
 WiFiMulti wifiMulti;
 
-void startCameraServer();
+void startCameraServer(bool cameraReady);
 void checkCameraPowerTimeout();
+void serviceCameraRecovery();
 void reportCameraPerformance();
 
 // Cấu hình cảm biến OV2640 tối ưu cho mô hình Face AI & Liveness
@@ -35,7 +36,7 @@ static void applySensorTuning() {
   s->set_wpc(s, 1);                    // Khử điểm ảnh trắng chết (White Pixel Correction)
 }
 
-// Khoi tao lai driver cam luc chay (dung khi cam bien ket soft-sleep khong cap VSYNC)
+// Dung chung luc khoi dong va khi phuc hoi cam bien.
 esp_err_t cameraInitPins() {
   camera_config_t config = {};
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -57,11 +58,11 @@ esp_err_t cameraInitPins() {
   config.pin_pwdn     = PWDN_GPIO_NUM;
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size   = FRAMESIZE_HVGA;
+  config.frame_size   = FRAMESIZE_HVGA; // 480x320, LCD giải mã 1/4 thành 120x80
   config.pixel_format = PIXFORMAT_JPEG;
   config.grab_mode    = CAMERA_GRAB_LATEST;
   config.fb_location  = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 14;
+  config.jpeg_quality = 14; // Nén tối ưu băng thông Wi-Fi
   config.fb_count     = 2;
 
   esp_err_t err = esp_camera_init(&config);
@@ -91,44 +92,13 @@ void setup() {
   Serial.println("  ESP32-S3 CAM AI - LH-NaviX KIOSK");
   Serial.println("========================================");
 
-  camera_config_t config = {};
-  config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer   = LEDC_TIMER_0;
-  config.pin_d0       = Y2_GPIO_NUM;
-  config.pin_d1       = Y3_GPIO_NUM;
-  config.pin_d2       = Y4_GPIO_NUM;
-  config.pin_d3       = Y5_GPIO_NUM;
-  config.pin_d4       = Y6_GPIO_NUM;
-  config.pin_d5       = Y7_GPIO_NUM;
-  config.pin_d6       = Y8_GPIO_NUM;
-  config.pin_d7       = Y9_GPIO_NUM;
-  config.pin_xclk     = XCLK_GPIO_NUM;
-  config.pin_pclk     = PCLK_GPIO_NUM;
-  config.pin_vsync    = VSYNC_GPIO_NUM;
-  config.pin_href     = HREF_GPIO_NUM;
-  config.pin_sccb_sda = SIOD_GPIO_NUM;
-  config.pin_sccb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn     = PWDN_GPIO_NUM;
-  config.pin_reset    = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
-  
-  // HVGA 480x320: tối ưu tốc độ truyền Wi-Fi và giải mã LCD Kiosk (scale 1/4 = 120x80)
-  config.frame_size   = FRAMESIZE_HVGA;
-  config.pixel_format = PIXFORMAT_JPEG;
-  config.grab_mode    = CAMERA_GRAB_LATEST;
-  config.fb_location  = CAMERA_FB_IN_PSRAM;
-  config.jpeg_quality = 14; // Nén tối ưu băng thông Wi-Fi, giảm giật lag triệt để
-  config.fb_count     = 2;
-
   // Khởi tạo camera
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("❌ Camera init failed with error 0x%x\n", err);
-    while (true) { delay(1000); }
+  const esp_err_t err = cameraInitPins();
+  if (err == ESP_OK) {
+    Serial.println("✓ Camera OV2640 khoi tao thanh cong!");
+  } else {
+    Serial.printf("[POWER] Camera khoi tao that bai: %s. Se thu phuc hoi.\n", esp_err_to_name(err));
   }
-  Serial.println("✓ Camera OV2640 khoi tao thanh cong!");
-
-  applySensorTuning();
 
   // Cấu hình danh sách Wi-Fi tự động nhận diện
   wifiMulti.addAP("Ny Lem Coffee", "travabanh");      // Wi-Fi quán cafe hiện tại
@@ -146,7 +116,7 @@ void setup() {
   Serial.println(WiFi.SSID());
 
   // Bật Web server stream
-  startCameraServer();
+  startCameraServer(err == ESP_OK);
 
   Serial.println("----------------------------------------");
   Serial.print("👉 DIA CHI IP CUA ESP32: http://");
@@ -157,7 +127,31 @@ void setup() {
   Serial.println("========================================\n");
 }
 
+static void maintainCameraWiFi() {
+  static bool wasConnected = true;
+  static uint32_t lastAttemptMs = millis();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wasConnected) {
+      WiFi.setSleep(false);
+      Serial.print("[WIFI] Da noi lai. IP: ");
+      Serial.println(WiFi.localIP());
+    }
+    wasConnected = true;
+    lastAttemptMs = millis();
+    return;
+  }
+
+  wasConnected = false;
+  // De Arduino tu noi lai AP hien tai truoc. Chi quet mang khac khi mat ket noi dai.
+  if (millis() - lastAttemptMs < 15000) return;
+  Serial.println("[WIFI] Mat ket noi. Dang quet lai mang da cau hinh...");
+  wifiMulti.run(3500);
+  lastAttemptMs = millis();
+}
+
 void loop() {
+  maintainCameraWiFi();
+  serviceCameraRecovery();
   checkCameraPowerTimeout();
   reportCameraPerformance();
   delay(500);

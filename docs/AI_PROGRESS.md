@@ -72,6 +72,14 @@ stateDiagram-v2
 
 ---
 
+### TASK-049 — `[IN_PROGRESS]` — 2026-11-09
+
+- Xử lý recovery khi CAM mất frame và probe cảm biến thất bại. Phạm vi và tiêu chí trong [AI_PLAN.md](AI_PLAN.md#task-049-dừng-vòng-lặp-dò-cảm-biến-khi-esp32-s3-cam-mất-khung-hình).
+
+### TASK-050 — `[IN_PROGRESS]` — 2026-11-09
+
+- Giữ luồng LCD qua các lần đứt JPEG và Wi-Fi. Phạm vi và tiêu chí trong [AI_PLAN.md](AI_PLAN.md#task-050-giữ-luồng-lcd-khi-wi-fi-chập-chờn).
+
 ### TASK-031 — `[DONE]` — Kiểm định toàn diện E2E hệ thống và kiểm toán Supabase Backend (2026-10-31); TLOG-031 PASS 100% (257 assertions passed trên 11 test suites).
 
 ## 3. NHẬT KÝ CÁC PHIÊN LÀM VIỆC (SESSION ACTIVITY LOGS)

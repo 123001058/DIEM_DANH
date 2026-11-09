@@ -78,19 +78,38 @@ void drawNoOpenSession() {
 // =============================================================================
 // TASK 1 (Core 0): Keo anh Camera song song voi Bo dem kep Ping-Pong A/B
 // =============================================================================
-static size_t readPreviewPartSize(WiFiClient& client) {
+static constexpr uint32_t kPreviewFrameTimeoutMs = 1800;
+
+// Cung mot han cho header va JPEG. Bo frame do dang ngay khi socket dong.
+static size_t readPreviewBytes(WiFiClient& client, char* buffer, size_t len, uint32_t startedMs) {
+  size_t received = 0;
+  while (received < len && isSessionOpen && millis() - startedMs < kPreviewFrameTimeoutMs) {
+    const int count = client.read(reinterpret_cast<uint8_t*>(buffer + received), len - received);
+    if (count < 0) break;
+    if (count > 0) {
+      received += count;
+      continue;
+    }
+    if (!client.connected() || WiFi.status() != WL_CONNECTED) break;
+    vTaskDelay(1);
+  }
+  return received;
+}
+
+static size_t readPreviewPartSize(WiFiClient& client, uint32_t startedMs) {
   static const char prefix[] = "\r\n--lcdframe\r\nContent-Type: image/jpeg\r\nContent-Length: ";
   char received[sizeof(prefix) - 1];
-  if (client.readBytes(received, sizeof(received)) != sizeof(received) ||
+  if (readPreviewBytes(client, received, sizeof(received), startedMs) != sizeof(received) ||
       memcmp(received, prefix, sizeof(received)) != 0) return 0;
 
   size_t len = 0;
   for (int digits = 0; digits <= 5; ++digits) {
     char ch;
-    if (client.readBytes(&ch, 1) != 1) return 0;
+    if (readPreviewBytes(client, &ch, 1, startedMs) != 1) return 0;
     if (ch == '\r') {
       char end[3];
-      if (len && client.readBytes(end, sizeof(end)) == sizeof(end) && memcmp(end, "\n\r\n", sizeof(end)) == 0) {
+      if (len && readPreviewBytes(client, end, sizeof(end), startedMs) == sizeof(end) &&
+          memcmp(end, "\n\r\n", sizeof(end)) == 0) {
         return len;
       }
       return 0;
@@ -115,6 +134,9 @@ void cameraCaptureWorker(void* pvParameters) {
   const String sleepUrl = camHost + ":80/power?mode=sleep";
   bool previewOpen = false;
   bool usedPreviewThisSession = false;
+  bool previewSupported = false;
+  int previewFailures = 0;
+  constexpr int kPreviewFastRetries = 2;
   uint32_t nextPreviewMs = millis();
 
   while (true) {
@@ -126,14 +148,22 @@ void cameraCaptureWorker(void* pvParameters) {
         camClient.stop(); // Socket du phong co the van mo tren cong 80.
         camHttp.setReuse(false);
         camHttp.setConnectTimeout(1200);
+        camHttp.setTimeout(kPreviewFrameTimeoutMs);
         previewOpen = camHttp.begin(camClient, previewUrl) && camHttp.GET() == HTTP_CODE_OK;
         if (previewOpen) {
           usedPreviewThisSession = true;
+          previewSupported = true;
           camClient.setNoDelay(true);
           Serial.println("[CAM] LCD preview connected (:82/stream)");
         } else {
           camClient.stop();
           camHttp.end();
+          // Uu tien noi lai luong da biet hoat dong, ke ca khi CAM vua khoi dong lai.
+          if (previewSupported && previewFailures < kPreviewFastRetries) {
+            ++previewFailures;
+            vTaskDelay(pdMS_TO_TICKS(250));
+            continue;
+          }
           nextPreviewMs = millis() + 5000;
         }
       }
@@ -163,21 +193,25 @@ void cameraCaptureWorker(void* pvParameters) {
       }
 
       uint32_t tFetchStart = micros();
+      const uint32_t frameStartedMs = millis();
       const bool readingPreview = previewOpen;
       int code = HTTP_CODE_OK;
       int len;
       if (readingPreview) {
-        len = static_cast<int>(readPreviewPartSize(camClient));
+        len = static_cast<int>(readPreviewPartSize(camClient, frameStartedMs));
       } else {
         camHttp.setReuse(true);
         camHttp.setConnectTimeout(5000);
+        camHttp.setTimeout(captureTimeoutMs);
         code = camHttp.begin(camClient, captureUrl) ? camHttp.GET() : HTTPC_ERROR_NOT_CONNECTED;
         len = camHttp.getSize();
         if (code == HTTP_CODE_OK) camClient.setNoDelay(true);
       }
       size_t bytesRead = 0;
       if (code == HTTP_CODE_OK && len > 0 && len <= CAM_BUF_SIZE) {
-        bytesRead = camClient.readBytes(camBuf[writeIdx], static_cast<size_t>(len));
+        bytesRead = readingPreview
+          ? readPreviewBytes(camClient, reinterpret_cast<char*>(camBuf[writeIdx]), len, frameStartedMs)
+          : camClient.readBytes(camBuf[writeIdx], static_cast<size_t>(len));
         fetchedOk = bytesRead == static_cast<size_t>(len);
         if (fetchedOk && readingPreview) {
           const uint8_t* jpeg = camBuf[writeIdx];
@@ -186,6 +220,7 @@ void cameraCaptureWorker(void* pvParameters) {
         }
       }
       if (fetchedOk && isSessionOpen && WiFi.status() == WL_CONNECTED) {
+        if (readingPreview) previewFailures = 0;
         uint32_t fetchUs = micros() - tFetchStart;
         portENTER_CRITICAL(&camMux);
         if (latestReadyIdx != -1) {
@@ -204,6 +239,11 @@ void cameraCaptureWorker(void* pvParameters) {
         if (readingPreview) {
           previewOpen = false;
           nextPreviewMs = millis();
+          if (previewFailures < kPreviewFastRetries) {
+            ++previewFailures;
+          } else {
+            nextPreviewMs += 5000;
+          }
         }
       }
       if (!fetchedOk && millis() - lastErrorLogMs >= 5000) {
@@ -214,7 +254,7 @@ void cameraCaptureWorker(void* pvParameters) {
       }
       if (!previewOpen) camHttp.end();
       if (readingPreview && !previewOpen) {
-        vTaskDelay(pdMS_TO_TICKS(250)); // Retry preview before waiting for a slow snapshot.
+        vTaskDelay(pdMS_TO_TICKS(250));
         continue;
       }
     } else {
@@ -222,6 +262,7 @@ void cameraCaptureWorker(void* pvParameters) {
       camClient.stop();
       if (previewOpen) camHttp.end();
       previewOpen = false;
+      previewFailures = 0;
       nextPreviewMs = millis();
       if (usedPreviewThisSession && !isSessionOpen && WiFi.status() == WL_CONNECTED) {
         // The browser's sleep request can arrive while the LCD stream is still closing.
@@ -230,6 +271,7 @@ void cameraCaptureWorker(void* pvParameters) {
         if (!isSessionOpen && WiFi.status() == WL_CONNECTED) {
           camHttp.setReuse(false);
           camHttp.setConnectTimeout(1200);
+          camHttp.setTimeout(captureTimeoutMs);
           if (camHttp.begin(camClient, sleepUrl)) camHttp.GET();
           camHttp.end();
           camClient.stop();

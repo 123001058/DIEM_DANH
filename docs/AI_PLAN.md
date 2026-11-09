@@ -1259,3 +1259,18 @@ ode -c js/admin/admin.attendance.js exit 0.
 - LCD lấy ảnh mới nhất từ cache khi Web Admin đang stream, hoặc tự lấy framebuffer khi dùng một mình. Không giữ mutex cache hay framebuffer trong lúc gửi preview. Giới hạn một kết nối preview, dùng bộ đệm PSRAM riêng. Bỏ ảnh cũ ở Kiosk nếu LCD chưa vẽ kịp. Phân vùng 120×80, QR, polling, còi, chế độ ngủ và AI vẫn theo hợp đồng cũ.
 - Snapshot `/capture` sao chép JPEG cache trước khi gửi để một phản hồi chậm không chặn cập nhật frame cho LCD. Khi phiên đóng, Kiosk ngắt preview rồi yêu cầu sleep một lần để bù trường hợp lệnh từ Web đến lúc socket LCD chưa đóng. Camera vẫn từ chối sleep khi có client hoạt động.
 - Nghiệm thu: build hai bo, kiểm thử nhiều JPEG trên một kết nối và frame lỗi/đứt luồng, xác minh mã Web/QR đóng băng. Trên hai bo thật cần LCD có hình liên tục cả khi Web Admin quét, tự hồi phục khi mất mạng và dừng preview khi đóng phiên. So sánh FPS và thời gian giữa các frame, giới hạn thực tế của bước vẽ khoảng 126 ms/frame.
+
+### [TASK-049] Dừng vòng lặp dò cảm biến khi ESP32-S3-CAM mất khung hình
+
+- Log báo `0x106` và SCCB/I2C timeout sau khi đang chạy. Trong `esp32_cam_ai/app_httpd.cpp`, recovery thất bại có thể để trạng thái ACTIVE. Request kế tiếp lại đọc driver lỗi và dò cảm biến; đường stream còn có thể kích hoạt recovery do lỗi gửi socket.
+- Sửa `esp32_cam_ai/app_httpd.cpp` và `esp32_cam_ai/esp32_cam_ai.ino`. Chuyển recovery sang vòng lặp CAM, chỉ chạy khi không còn client, giới hạn số lần thử và giãn cách giữa các lần. Chỉ báo ACTIVE khi lấy được frame mới. Giữ cấu hình camera, luồng sleep/wake, giao thức LCD/QR và còi FRZ-004.
+- Khi lần khởi tạo đầu tiên thất bại, vẫn kết nối Wi-Fi và chạy recovery thay cho vòng chờ reset. Đo luồng preview cổng 82 và số frame LCD thực sự vẽ được để phân biệt kẹt cảm biến, đứt JPEG và giới hạn giải mã/vẽ.
+- Rủi ro cần kiểm tra: deinit khi còn framebuffer, cache trước khi mất frame, lỗi gửi mạng bị nhầm với lỗi cảm biến và timeout dò SCCB kéo dài.
+- Nghiệm thu: build ESP32-S3 với OPI PSRAM. Kiểm tra camera, sleep/wake và JPEG qua bo COM4 nếu truy cập được. Kiểm tra recovery khi thiếu frame, thử lại có giới hạn và lỗi socket không kích hoạt recovery. Ghi rõ giới hạn nếu chưa tái hiện được lỗi vật lý.
+
+### [TASK-050] Giữ luồng LCD khi Wi-Fi chập chờn
+
+- Log COM10 xác nhận đã nối cổng 82, lúc tốt vẽ 4,6–5,6 FPS với 128–131 ms để vẽ mỗi JPEG. Lúc chậm, Fetch lên đến 1,6 s trung bình trong một kỳ và có JPEG chỉ nhận 5744/9505 byte sau gần 6 s. Khi CAM khởi động lại, Kiosk lấy từng ảnh cổng 80 trước khi khôi phục preview.
+- Sửa `esp32_kiosk/esp32_kiosk.ino` để giới hạn thời gian chờ trên một khung preview và ưu tiên nối lại cổng 82 đã từng hoạt động. Giữ fallback cho firmware CAM cũ. Sửa `esp32_cam_ai/app_httpd.cpp` để tính thời gian gửi vào chu kỳ phát ảnh cổng 82, và `esp32_cam_ai/esp32_cam_ai.ino` để quét lại các mạng đã cấu hình khi tự nối Wi-Fi thất bại kéo dài.
+- Rủi ro: ngắt kết nối quá sớm khi gói TCP đến muộn, mất khả năng dùng firmware CAM cũ, quét Wi-Fi làm gián đoạn đường truyền đang hoạt động. Không thay đổi bố cục LCD, chu kỳ QR, còi hoặc chất lượng ảnh dùng cho AI.
+- Nghiệm thu: build và nạp đúng hai bo, đo lại bằng COM10 và HTTP, xác minh preview nhận nhiều JPEG, tự nối lại sau khởi động lại CAM và vẫn có fallback khi không có cổng 82. Ghi rõ phạm vi kiểm thử rớt Wi-Fi.
