@@ -843,7 +843,9 @@ static esp_err_t power_handler(httpd_req_t *req) {
   if (strcmp(mode, "active") == 0 || strcmp(mode, "wake") == 0 || strcmp(mode, "1") == 0) {
     powerErr = wakeCameraActive();
   } else if (strcmp(mode, "sleep") == 0 || strcmp(mode, "standby") == 0 || strcmp(mode, "0") == 0) {
-    powerErr = enterCameraStandby();
+    // Always-Active: khong dua sensor vao Soft Sleep, duy tri trang thai ACTIVE de san sang truyen frame ngay lap tuc
+    Serial.println("[POWER] Always-Active: Bo qua lenh sleep/standby, duy tri camera ACTIVE");
+    powerErr = ESP_OK;
   }
 
   const cam_power_state_t state = s_power_state;

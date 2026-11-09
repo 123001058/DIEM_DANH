@@ -1777,8 +1777,6 @@ function showEmpty(){
   if (typeof stopAdminCamera === 'function' && typeof adminCameraActive !== 'undefined' && adminCameraActive) {
     stopAdminCamera();
   }
-  // Báo ESP32-CAM ngủ ngay; nếu lệnh lỡ mất, cam vẫn tự ngủ sau 15s không có client
-  if (typeof sendEspCamPower === 'function') sendEspCamPower('sleep');
 }
 function showDashboard(){
   document.getElementById('emptyState').style.display = 'none';

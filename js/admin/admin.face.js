@@ -864,12 +864,6 @@ function stopAdminCamera() {
     img.style.display = 'none';
   }
 
-  // Chỉ gửi lệnh ngủ khi không còn phiên mở; trong phiên Kiosk vẫn đang dùng camera.
-  // Khi đóng phiên, showEmpty() tự gửi lệnh ngủ.
-  const hasOpenSession = Boolean(
-    (typeof currentSession !== 'undefined' && currentSession?.id) || window.currentSession?.id
-  );
-  if (!hasOpenSession) sendEspCamPower('sleep');
   if (video) {
     video.srcObject = null;
     video.style.display = 'none';

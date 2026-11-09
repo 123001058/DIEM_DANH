@@ -1312,3 +1312,28 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [ ] AC2.2: Không xuất hiện mã lỗi `HTTP=-1` hoặc `HTTP=-11` trên Serial Kiosk (COM10).
   - [ ] AC2.3: Tỉ lệ `read == length` đạt $\ge 90\%$ trong 60 giây quan sát liên tục.
   - [ ] AC2.4: Bảo toàn 100% bố cục LCD phân đôi và chu kỳ polling Supabase 1000ms theo FRZ-001.
+
+### [TASK-054] Triển khai chế độ Always-Active đồng bộ Web Admin, Kiosk LCD & ESP32-CAM
+
+- **Trạng thái:** `[VERIFYING]`.
+- **Mục tiêu:** CAM luôn bật sẵn sàng (cảm biến giữ clock, Wi-Fi và web server duy trì 24/7, chỉ truyền dữ liệu frame khi Web hoặc Kiosk có phiên hoạt động). Loại bỏ toàn bộ các lệnh/handler đưa CAM vào soft sleep, triệt tiêu độ trễ wakeup khi mở phiên.
+- **Phạm vi tác động:**
+  - `js/admin/admin.face.js`: Loại bỏ `sendEspCamPower('sleep')` khi tắt camera (`:872`). Giữ nguyên `sendEspCamPower('active')` (`:681`).
+  - `js/admin/admin.tasks.js`: Loại bỏ `sendEspCamPower('sleep')` khi đóng phiên trong `showEmpty()` (`:1781`).
+  - `admin.html`: Nâng cache-buster lên `admin.tasks.js?v=4` và `admin.face.js?v=14`.
+  - `esp32_kiosk/esp32_kiosk.ino`: Loại bỏ gửi `sleepUrl` khi đóng phiên (`:267-279`). Xóa khai báo `sleepUrl` thừa.
+  - `esp32_cam_ai/app_httpd.cpp`: Handler `/power?mode=sleep` chuyển thành no-op (chỉ log, không gọi `enterCameraStandby()`, duy trì trạng thái `ACTIVE`).
+- **Tuân thủ ranh giới đóng băng FRZ-001 (Ngoại lệ được Admin phê duyệt):**
+  - Giữ nguyên 100% bố cục chia đôi LCD Kiosk: Nửa trái Camera AI (0..159) và banner thông báo điểm danh nửa dưới; Nửa phải mã QR động (160..319).
+  - Giữ nguyên 100% chu kỳ polling Supabase ngầm 1000ms (`vTaskDelay(pdMS_TO_TICKS(1000))`).
+  - Giữ nguyên 100% định dạng URL rút gọn `checkin.html?t=`.
+  - Tuyệt đối không can thiệp logic tráo màn hình (`fillScreen`).
+- **Tiêu chí nghiệm thu định lượng (Acceptance Criteria):**
+  - [x] Không còn bất kỳ call-site Web Admin hoặc Kiosk gửi lệnh `sleep` tới ESP32-CAM.
+  - [x] Endpoint `/power?mode=sleep` trên CAM không can thiệp thanh ghi soft-sleep của OV2640, giữ `ACTIVE`.
+  - [x] Cache-buster `admin.tasks.js?v=4` và `admin.face.js?v=14` áp dụng trên `admin.html`.
+  - [x] `node --check` 2 file JS hợp lệ cú pháp (Exit code 0).
+  - [x] Toàn bộ 3 suite kiểm thử hồi quy tự động đạt 157/157 checks PASS.
+  - [x] Cả 2 firmware `esp32_kiosk` và `esp32_cam_ai` biên dịch thành công 100% bằng `arduino-cli` (Exit code 0).
+  - [x] `git diff --check` đạt 0 lỗi format / trailing whitespace.
+  - [ ] Nạp firmware thực tế lên bo CAM (COM4) và Kiosk (COM10), kiểm tra độ trễ mở phiên (<0.5s), theo dõi nhiệt độ và độ ổn định (không reset/drop frame) trong 30-60 phút. Giữ `[VERIFYING]` cho đến khi có dữ liệu phần cứng.

@@ -2434,3 +2434,43 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   - `node tests/e2e_performance_evaluations.test.js` — 72/72 PASS; `python tests/test_camera_history.py` — 34/34 PASS; `python tests/test_face_identity.py` — 51/51 PASS; các lệnh kết thúc exit 0.
   - Hai suite Python tiếp tục in `ConnectionResetError [WinError 10054]` khi HTTP server worker teardown; không có assertion thất bại.
   - Hồi quy UI với phiên Supabase thật vẫn chưa chạy; giữ `TASK-052` ở `[VERIFYING]`.
+
+### [TLOG-064] Kiểm thử chế độ Always-Active đồng bộ Web Admin, Kiosk LCD & ESP32-CAM (TASK-054)
+
+- **Ngày:** 2026-11-09.
+- **Phạm vi:** Triển khai Always-Active toàn diện:
+  1. Web Admin: gỡ bỏ `sendEspCamPower('sleep')` trong `admin.face.js:872` và `admin.tasks.js:1781`; giữ `sendEspCamPower('active')` tại `:681`; nâng cache-buster `admin.html` lên `admin.tasks.js?v=4` và `admin.face.js?v=14`.
+  2. Kiosk LCD (`esp32_kiosk.ino`): loại bỏ gửi `sleepUrl` khi đóng phiên (`:267-279`), xóa biến `sleepUrl` thừa; bảo toàn 100% bố cục chia đôi LCD, chu kỳ polling Supabase 1000ms và URL `checkin.html?t=` theo FRZ-001.
+  3. ESP32-CAM (`esp32_cam_ai/app_httpd.cpp`): handler `/power?mode=sleep` chuyển thành no-op (chỉ in log, duy trì trạng thái `ACTIVE`, không can thiệp thanh ghi soft-sleep của OV2640).
+- **Lệnh kiểm tra:**
+  ```powershell
+  node --check js/admin/admin.face.js
+  node --check js/admin/admin.tasks.js
+  node tests/e2e_performance_evaluations.test.js
+  python tests/test_camera_history.py
+  python tests/test_face_identity.py
+  git diff --check
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 4 --fqbn esp32:esp32:esp32 --libraries "C:\Users\ACER\Documents\Arduino\libraries" --config-dir 'C:\Users\ACER\AppData\Local\Arduino15' esp32_kiosk
+  & 'C:\Program Files\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe' compile --jobs 4 --fqbn esp32:esp32:esp32s3:PSRAM=opi --config-dir 'C:\Users\ACER\AppData\Local\Arduino15' esp32_cam_ai
+  ```
+- **Kết quả thực tế:**
+  - `node --check js/admin/admin.face.js` và `node --check js/admin/admin.tasks.js` — PASS (cả hai exit 0).
+  - `node tests/e2e_performance_evaluations.test.js` — PASS 72/72.
+  - `python tests/test_camera_history.py` — PASS 34/34.
+  - `python tests/test_face_identity.py` — PASS 51/51.
+  - `git diff --check` — PASS (exit 0; không có lỗi format / trailing whitespace).
+  - `git grep -n "sendEspCamPower('sleep')" -- js/admin` — 0 kết quả (đã sạch hoàn toàn call-site sleep).
+  - Biên dịch `esp32_kiosk` bằng `arduino-cli`:
+    - Exit code: 0
+    - Program storage: 1,101,204 bytes (84% / max 1,310,720 bytes)
+    - Dynamic memory: 94,160 bytes (28% / max 327,680 bytes, còn 233,520 bytes)
+  - Biên dịch `esp32_cam_ai` bằng `arduino-cli`:
+    - Exit code: 0
+    - Program storage: 1,091,319 bytes (83% / max 1,310,720 bytes)
+    - Dynamic memory: 57,212 bytes (17% / max 327,680 bytes, còn 270,468 bytes)
+  - Tất cả các lệnh kiểm tra kết thúc exit 0; tổng ba suite regression: **157/157 PASS**.
+- **Cần kiểm tra thủ công sau khi nạp:** Trên thiết bị thật CAM COM4 và Kiosk COM10:
+  1. Bấm mở phiên trên Web Admin $\rightarrow$ kiểm tra frame xuất hiện tức thì (< 0.5s) trên Web và LCD Kiosk.
+  2. Bấm đóng phiên $\rightarrow$ kiểm tra Kiosk không gửi sleep, CAM không bị soft sleep.
+  3. Theo dõi nhiệt độ chip và độ ổn định mạch (không reset, không drop frame) khi để chế độ chờ 30-60 phút.
+  4. Trạng thái giữ `[VERIFYING]` cho đến khi có dữ liệu phần cứng thực nghiệm.

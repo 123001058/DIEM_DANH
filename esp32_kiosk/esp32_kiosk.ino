@@ -131,7 +131,6 @@ void cameraCaptureWorker(void* pvParameters) {
   const String camHost = String("http://") + esp_cam_ip;
   const String captureUrl = camHost + ":80/capture";
   const String previewUrl = camHost + ":82/stream";
-  const String sleepUrl = camHost + ":80/power?mode=sleep";
   bool previewOpen = false;
   bool usedPreviewThisSession = false;
   bool previewSupported = false;
@@ -264,18 +263,9 @@ void cameraCaptureWorker(void* pvParameters) {
       previewOpen = false;
       previewFailures = 0;
       nextPreviewMs = millis();
-      if (usedPreviewThisSession && !isSessionOpen && WiFi.status() == WL_CONNECTED) {
-        // The browser's sleep request can arrive while the LCD stream is still closing.
+      if (usedPreviewThisSession && !isSessionOpen) {
         usedPreviewThisSession = false;
-        vTaskDelay(pdMS_TO_TICKS(300));
-        if (!isSessionOpen && WiFi.status() == WL_CONNECTED) {
-          camHttp.setReuse(false);
-          camHttp.setConnectTimeout(1200);
-          camHttp.setTimeout(captureTimeoutMs);
-          if (camHttp.begin(camClient, sleepUrl)) camHttp.GET();
-          camHttp.end();
-          camClient.stop();
-        }
+        // Always-Active: Kiosk khong gui lenh sleep khi dong phien, giu CAM luon san sang
       }
       vTaskDelay(pdMS_TO_TICKS(500));
       continue;

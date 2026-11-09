@@ -71,6 +71,7 @@ stateDiagram-v2
 | [TASK-046](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-046-khắc-phục-triệt-để-hiện-tượng-lag-frame-camera-trên-cả-web-admin-và-esp32-kiosk-lcd) | Khắc phục triệt để hiện tượng lag frame Camera trên cả Web Admin và ESP32 Kiosk LCD | `[VERIFYING]` | Critical | [TLOG-050](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-050-kiểm-thử-chống-lag-khung-hình-camera-đa-tầng-esp32-s3-cam-esp32-kiosk-lcd--web-admin-task-046) (2 Firmware builds PASS, 85 E2E checks PASS; chờ nạp mạch thật) | 2026-11-07 |
 | [TASK-051](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-051-lập-baseline-hồi-quy-web-điểm-danh-trước-tối-ưu) | Lập baseline hồi quy Web Điểm Danh trước tối ưu | `[VERIFYING]` | High | [TLOG-062](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-062-baseline-suite-và-checklist-hồi-quy-web-task-051) (157 checks PASS; chờ kiểm thử luồng nghiệp vụ thủ công) | 2026-11-09 |
 | [TASK-052](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-052-vá-bảo-mật-xss-chuẩn-hóa-cache-buster-và-dọn-dẹp-mã-nguồn-web-frontend-gói-p0) | Vá bảo mật XSS, chuẩn hóa cache-buster và dọn dẹp mã nguồn Web Frontend (Gói P0) | `[VERIFYING]` | Critical | [TLOG-063](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-063-kiểm-thử-vá-bảo-mật-xss-chuẩn-hóa-cache-buster-và-dọn-dead-code-frontend-task-052) (157 checks PASS; Copilot xác nhận lại kiểm tra tự động; chờ hồi quy UI thủ công) | 2026-11-09 |
+| [TASK-054](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_PLAN.md#task-054-triển-khai-chế-độ-always-active-đồng-bộ-web-admin-kiosk-lcd-và-esp32-cam) | Triển khai chế độ Always-Active đồng bộ Web Admin, Kiosk LCD & ESP32-CAM | `[VERIFYING]` | High | [TLOG-064](file:///c:/Users/ACER/Documents/GitHub/DIEM_DANH/docs/AI_TEST_LOG.md#tlog-064-kiểm-thử-chế-độ-always-active-đồng-bộ-web-admin-kiosk-lcd--esp32-cam-task-054) (157 checks PASS, 2 firmware builds PASS; chờ nạp mạch thật) | 2026-11-09 |
 
 ---
 
@@ -274,3 +275,11 @@ stateDiagram-v2
 ### TASK-051 — `[VERIFYING]` — 2026-11-09
 - Baseline tự động: `node tests/e2e_performance_evaluations.test.js` PASS 72/72; `python tests/test_camera_history.py` PASS 34/34; `python tests/test_face_identity.py` PASS 51/51. Chi tiết tại [TLOG-062](AI_TEST_LOG.md#tlog-062-baseline-suite-và-checklist-hồi-quy-web-task-051).
 - Checklist đăng nhập, QR điểm danh, duyệt nghỉ và ma trận TKB đã lập; các luồng Supabase/browser thật vẫn cần kiểm tra thủ công. Hai suite Selenium in `ConnectionResetError [WinError 10054]` ở server worker khi teardown dù lệnh kết thúc exit 0; ghi nhận là nhiễu teardown, không tính là test assertion thất bại.
+
+### TASK-054 — `[VERIFYING]` — 2026-11-09
+- Triển khai trọn gói chế độ Always-Active đồng bộ Web Admin, Kiosk LCD và ESP32-CAM theo chỉ đạo của Admin Nguyễn Khánh Hòa:
+  - Web Admin: gỡ bỏ toàn bộ lệnh gửi sleep trong `admin.face.js` (`:872`) và `admin.tasks.js` (`:1781`); giữ lệnh `active` tại `:681`; áp dụng cache-buster `admin.tasks.js?v=4` và `admin.face.js?v=14` trong `admin.html`.
+  - Kiosk LCD (`esp32_kiosk.ino`): loại bỏ hoàn toàn khối gửi `sleepUrl` khi đóng phiên; giữ nguyên 100% bố cục chia đôi LCD, chu kỳ polling Supabase 1000ms và URL `checkin.html?t=` theo quy chuẩn FRZ-001.
+  - ESP32-CAM (`app_httpd.cpp`): handler `/power?mode=sleep` chuyển thành no-op (chỉ log, duy trì trạng thái `ACTIVE`, không can thiệp thanh ghi cảm biến OV2640).
+- Kết quả kiểm tra: `node --check` PASS; 3 bộ test suites tự động PASS 157/157 checks; `arduino-cli compile` cả 2 firmware `esp32_kiosk` và `esp32_cam_ai` đạt Exit code 0; `git diff --check` sạch 0 lỗi. Ghi nhận tại [TLOG-064](AI_TEST_LOG.md#tlog-064-kiểm-thử-chế-độ-always-active-đồng-bộ-web-admin-kiosk-lcd--esp32-cam-task-054).
+- Trạng thái: `[VERIFYING]` (chờ người dùng nạp firmware thực tế lên COM4 và COM10 để đo đạc độ trễ mở phiên, theo dõi nhiệt độ và độ ổn định liên tục).
