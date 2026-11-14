@@ -2549,3 +2549,19 @@ Global variables use 57404 bytes (17%) of dynamic memory, leaving 270276 bytes f
 - UNKNOWN: khả năng phục hồi GDMA/VSYNC sau COM2 sleep trên bo, thời gian lên hình, giảm nhiệt và 10 vòng đóng/mở thật. Giữ VERIFYING; không khẳng định tiết kiệm nhiệt hoặc hình thật đã PASS.
 - Test người dùng: CAM COM4 chọn ESP32S3 Dev Module + OPI PSRAM, nạp; mở phiên xem Web/LCD; đóng phiên và đóng mọi tab stream, đợi log STANDBY sau ít nhất 30s; mở lại xác nhận ACTIVE và ảnh mới, lặp nhiều vòng. Còn tab xem thì CAM phải thức.
 - Rollback: đổi ENABLE_CAM_IDLE_STANDBY từ 1 sang 0 trong board_config.h và nạp lại CAM với OPI PSRAM; không cần sửa/nạp Kiosk.
+
+
+### [TLOG-069] Rollback auto-idle CAM sau log I2C timeout (TASK-059)
+- 2026-11-14. Ảnh người dùng báo i2c.master probe device timeout, Camera probe failed 0x106 ESP_ERR_NOT_SUPPORTED, recovery 1/3 và 2/3. Không thấy toàn bộ boot hoặc STANDBY/WAKEUP trước lỗi nên chưa kết luận nguyên nhân.
+- Đổi board_config.h ENABLE_CAM_IDLE_STANDBY=0; harness chấp nhận default 0/1, vẫn compile và chạy cả hai biến thể. Không đổi IP, pin, PSRAM, chất lượng ảnh hoặc cơ chế phục hồi.
+- `python tests/test_cam_idle_standby.py`: exit 0; 7 nhóm PASS, gồm `PASS rollback flag 0 keeps sensor continuously ACTIVE`.
+- `git diff --check`: exit 0; chỉ cảnh báo chuẩn hóa LF/CRLF của test Python. Chưa build toàn bộ firmware trong lượt rollback này, chưa nạp hoặc reset CAM.
+- KNOWN: code default tắt ngủ idle, harness production C++ chứng minh không ghi sleep từ idle timer ở chế độ 0. UNKNOWN: nguồn gốc mất liên lạc sensor và hình thật sau nạp lại. Giữ VERIFYING.
+- Người dùng cần nạp lại CAM COM4 với OPI PSRAM rồi ngắt/cấp nguồn lại để thử từ khởi động sạch; nếu vẫn lỗi lấy log ngay từ boot.
+
+
+### [TLOG-070] Bật lại ngủ mềm 30s (TASK-060)
+- 2026-11-14: người dùng đính chính quên Reset và yêu cầu bật lại. Đặt ENABLE_CAM_IDLE_STANDBY=1; không sửa logic khác.
+- `python tests/test_cam_idle_standby.py`: exit 0, 7 nhóm PASS: 30s/wake/cache, bảo vệ Web/LCD, capture/wake, race trước mutex, lỗi sensor/wake, rollover, rollback flag 0.
+- `git diff --check`: exit 0, cảnh báo LF/CRLF ở file test Python.
+- KNOWN: cờ bật lại và logic C++ PASS; cùng cấu hình nguồn đã build ở TLOG-068. Không build toàn bộ hoặc upload trong lượt này. UNKNOWN: ảnh/sleep/wake thật và nguyên nhân log I2C trước đó chưa kiểm độc lập; giữ VERIFYING.

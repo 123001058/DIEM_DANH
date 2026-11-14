@@ -299,3 +299,11 @@ stateDiagram-v2
 
 ### TASK-058 — `[VERIFYING]` — 2026-11-14
 - TLOG-068: 7 nhóm kiểm thử C++ production logic PASS (gồm rollback flag 0); build CAM OPI PASS, flash 1087375 bytes/RAM 57404 bytes. Chờ người dùng nạp CAM COM4 để thử 30s idle, wake/ảnh mới và giảm nhiệt; chưa upload.
+
+
+### TASK-059 — `[VERIFYING]` — 2026-11-14
+- TLOG-069: đã đặt ENABLE_CAM_IDLE_STANDBY=0; 7 nhóm logic C++ PASS, diff check PASS. Chưa build/nạp lại firmware hoặc xác minh sensor/ảnh thật. Nguyên nhân I2C timeout chưa xác định.
+
+
+### TASK-060 — `[VERIFYING]` — 2026-11-14
+- Đã bật lại ENABLE_CAM_IDLE_STANDBY=1 theo đính chính người dùng; TLOG-070: 7 nhóm logic C++ và diff check PASS. Chưa upload hoặc kiểm chứng phần cứng.

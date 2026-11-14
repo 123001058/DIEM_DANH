@@ -20,7 +20,8 @@ production = '\n'.join(function(name) for name in [
     'wakeCameraActiveInternal', 'wakeCameraActive', 'enterCameraStandby',
     'prepareCameraActive', 'releaseCameraClient', 'checkCameraPowerTimeout'])
 timeout = re.search(r'static constexpr unsigned long kCameraIdleStandbyMs = \d+;', source).group()
-assert '#define ENABLE_CAM_IDLE_STANDBY 1' in (ROOT / 'esp32_cam_ai/board_config.h').read_text(encoding='utf-8')
+assert re.search(r'^#define ENABLE_CAM_IDLE_STANDBY [01]$',
+                 (ROOT / 'esp32_cam_ai/board_config.h').read_text(encoding='utf-8'), re.M)
 
 stub = r'''
 #include <cassert>

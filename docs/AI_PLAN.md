@@ -1366,3 +1366,14 @@ ode -c js/admin/admin.attendance.js exit 0.
 - Chống race: kiểm lại thời gian idle và client dưới power mutex trước khi ghi thanh ghi ngủ, tránh ngủ ngay sau request mới.
 - DoD: không ngủ khi còn Web/LCD/capture; ngủ sau 30s kể từ hoạt động cuối; request mới đánh thức; kiểm lỗi wake; build CAM OPI; rollback bằng ENABLE_CAM_IDLE_STANDBY=0 khôi phục idle Always-Active.
 - Rủi ro: standby mềm cũ chưa được nghiệm thu phần cứng, GDMA/VSYNC có thể không phục hồi; giữ VERIFYING chờ người dùng thử. Chỉ sửa source/build, không tự upload. Giữ FRZ-001/004/005.
+
+
+### [TASK-059] Quay về CAM chạy liên tục sau log lỗi cảm biến
+- 2026-11-14. Thực hiện yêu cầu rollback có điều kiện của người dùng ở TASK-058 sau ảnh log I2C timeout/probe failed 0x106. Không đủ log trước đó để kết luận ngủ mềm là nguyên nhân.
+- Sửa duy nhất cờ ENABLE_CAM_IDLE_STANDBY=0 và cho phép harness chạy với default 0 hoặc 1; giữ IP .169, các tham số cảm biến, QR/LCD/buzzer.
+- DoD: kiểm thử logic production ở cả hai chế độ PASS, diff sạch; cần người dùng nạp lại CAM và kiểm chứng ảnh thật. Không tự upload.
+
+
+### [TASK-060] Bật lại thử nghiệm ngủ mềm theo xác nhận người dùng
+- 2026-11-14: người dùng đính chính quên nhấn Reset và yêu cầu bật lại. Chỉ đổi ENABLE_CAM_IDLE_STANDBY=1 trong board_config.h; giữ timeout 30s và logic hiện hữu.
+- DoD: harness cả hai chế độ PASS, diff check PASS. Không upload; trạng thái phần cứng chờ người dùng thử, chưa kết luận nguyên nhân log trước.
