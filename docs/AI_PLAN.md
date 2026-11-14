@@ -1337,3 +1337,23 @@ ode -c js/admin/admin.attendance.js exit 0.
   - [x] Cả 2 firmware `esp32_kiosk` và `esp32_cam_ai` biên dịch thành công 100% bằng `arduino-cli` (Exit code 0).
   - [x] `git diff --check` đạt 0 lỗi format / trailing whitespace.
   - [ ] Nạp firmware thực tế lên bo CAM (COM4) và Kiosk (COM10), kiểm tra độ trễ mở phiên (<0.5s), theo dõi nhiệt độ và độ ổn định (không reset/drop frame) trong 30-60 phút. Giữ `[VERIFYING]` cho đến khi có dữ liệu phần cứng.
+
+
+### [TASK-055] Chẩn đoán đường ảnh CAM tới Web và LCD (2026-11-14)
+- Phạm vi: chỉ đọc code, thử HTTP camera 192.168.2.168; không sửa/nạp firmware hoặc thay vùng đóng băng.
+- File khảo sát: js/admin/admin.face.js, admin.html, esp32_cam_ai/app_httpd.cpp, esp32_kiosk/esp32_kiosk.ino và qr_display.h. Chỉ cập nhật ba tài liệu quản trị.
+- DoD: chỉ rõ điểm phát/nhận/vẽ ảnh và điều kiện mở phiên; ghi kết quả kết nối thực tế, phân biệt KNOWN/LIKELY/UNKNOWN. Không coi việc tìm được code là đã sửa xong phần cứng.
+- Rủi ro: stream đang mở có thể chiếm kết nối; thử đọc ngắn, đóng ngay sau mẫu đầu, không thay cấu hình thiết bị.
+
+
+### [TASK-056] Đồng bộ IP CAM thực tế 192.168.2.169 cho Web/LCD
+- Ngày: 2026-11-14. Người dùng xác nhận log CAM .169 và yêu cầu sửa code.
+- Sửa: default/legacy IP trong js/admin/admin.face.js; IP hiển thị và cache-buster trong admin.html; esp_cam_ip trong esp32_kiosk/esp32_kiosk.ino.
+- DoD: mặc định .169; IP .168 đã lưu được chuyển qua cơ chế migration hiện hữu; giữ IP tùy chỉnh khác; URL stream/capture đúng; JS syntax, kiểm tra hành vi IP và build Kiosk PASS.
+- Chỉ đổi địa chỉ kết nối; giữ bố cục LCD, QR, polling, buzzer và firmware CAM. HTTPS chặn HTTP vẫn cần cấu hình trình duyệt hoặc chạy web HTTP; code không tự bỏ được bảo mật trình duyệt.
+- Không nạp bo/push/deploy trong yêu cầu sửa code này. Xác minh ảnh thật sau nạp giữ VERIFYING.
+
+
+### [TASK-057] Chẩn đoán CAM frame buffer malloc failed (2026-11-14)
+- Mục tiêu: đối chiếu diff và cấu hình build thực tế để giải thích lỗi mới sau đổi IP. Chỉ đọc firmware, build.options.json và cập nhật tài liệu; không nạp bo hay hạ cấu hình ảnh.
+- DoD: có bằng chứng về file CAM có/không thay đổi, nơi cấp phát frame và PSRAM trong bản build IDE gần nhất; phân biệt cấu hình build với trạng thái đã flash.

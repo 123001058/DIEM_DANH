@@ -14,7 +14,7 @@ const char* password = "tamsotam";
 const char* web_domain = "https://123001058.github.io/DIEM_DANH";
 
 // 2. Thong tin Camera ESP32-CAM noi bo (82: preview, 80: capture du phong)
-const char* esp_cam_ip = "192.168.2.168";
+const char* esp_cam_ip = "192.168.2.169";
 
 // 3. Thong tin Supabase Cloud
 const char* supabase_url = "https://nhjkpknhybenkxwadvzv.supabase.co/rest/v1/rpc/get_open_session";

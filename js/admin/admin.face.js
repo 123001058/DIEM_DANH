@@ -56,8 +56,8 @@ let enrollPendingPhoto = null; // { dataUrl, descriptor, detection }
 // 2. KHỞI TẠO MÔ HÌNH AI (ONNX MiniFASNet-V2 & Face-API)
 // =====================================================================
 // IP mặc định của ESP32-CAM (đổi ở đây khi router cấp IP khác)
-const DEFAULT_ESP_CAM_IP = '192.168.2.168';
-const LEGACY_ESP_CAM_IPS = ['10.96.38.99', '192.168.1.1', '192.168.2.169'];
+const DEFAULT_ESP_CAM_IP = '192.168.2.169';
+const LEGACY_ESP_CAM_IPS = ['10.96.38.99', '192.168.1.1', '192.168.2.168'];
 
 function cleanEspCamIp(raw) {
   let s = (raw || '').trim();

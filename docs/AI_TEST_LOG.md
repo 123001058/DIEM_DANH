@@ -2474,3 +2474,51 @@ ode -c: Exit code 0 (Không lỗi cú pháp).
   2. Bấm đóng phiên $\rightarrow$ kiểm tra Kiosk không gửi sleep, CAM không bị soft sleep.
   3. Theo dõi nhiệt độ chip và độ ổn định mạch (không reset, không drop frame) khi để chế độ chờ 30-60 phút.
   4. Trạng thái giữ `[VERIFYING]` cho đến khi có dữ liệu phần cứng thực nghiệm.
+
+
+### [TLOG-065] Truy vết đường ảnh Web/LCD và thử HTTP (TASK-055)
+- Ngày: 2026-11-14 (Asia/Saigon). Không sửa mã nguồn, không nạp hoặc reset thiết bị.
+- Thực thi: Python urllib.request với ProxyHandler({}), timeout=4 giây, lần lượt GET /power, /capture, :81/stream, :82/stream tại 192.168.2.168; chỉ đọc tối đa 256 byte, đóng kết nối sau mẫu.
+- Output thực tế (tiến trình exit 0 vì có bắt ngoại lệ; cả bốn phép thử kết nối FAIL):
+```text
+http://192.168.2.168/power URLError <urlopen error timed out> elapsed=4.03s
+http://192.168.2.168/capture URLError <urlopen error timed out> elapsed=4.00s
+http://192.168.2.168:81/stream URLError <urlopen error timed out> elapsed=4.01s
+http://192.168.2.168:82/stream URLError <urlopen error timed out> elapsed=4.01s
+```
+- KNOWN từ đối chiếu source: Web gán img.src tại admin.face.js:802, URL cổng 81 tại :990, phần tử hiển thị admin.html:608. CAM cung cấp stream_handler (:456), kiosk_stream_handler (:537), capture_handler (:384). Kiosk tải tại cameraCaptureWorker (:124), chỉ khi WiFi kết nối và isSessionOpen (:145), vẽ tại :472 qua qr_display.h:448/472.
+- KNOWN: bộ đếm FPS tăng mỗi vòng requestAnimationFrame kể cả không có frame (admin.face.js:1011); HUD báo camera hoạt động sau khi tải model (:208), chưa xác nhận ảnh. Cảnh báo HTTPS xuất hiện theo protocol, tự nó chưa chứng minh request bị Mixed Content chặn.
+- LIKELY: HTTPS/HTTP là một khả năng gây mất ảnh riêng trên Web. Không giải thích trực tiếp việc LCD mất ảnh.
+- UNKNOWN: IP/WiFi/nguồn CAM hiện tại, cổng 82 trên firmware đang nạp, trạng thái phiên mà Kiosk nhận, console/network browser và Serial thật. Ảnh đính kèm thứ hai có hình nhưng không có URL/thời điểm để xác nhận endpoint hiện tại.
+- Kết quả: xác định được điểm code; kết nối thiết bị chưa đạt, giữ VERIFYING.
+
+
+### [TLOG-066] Đồng bộ IP CAM .169 cho Web/LCD (TASK-056)
+- Ngày: 2026-11-14, Asia/Saigon. Sửa default IP, danh sách IP cũ, HTML và IP Kiosk; cache-buster admin.face.js v15.
+- `node --check js/admin/admin.face.js`: exit 0.
+- Node stdin dùng vm/assert chạy đoạn khởi tạo IP production, cleanEspCamIp và hai hàm URL: exit 0. Output:
+```text
+PASS saved IP null => 192.168.2.169
+PASS saved IP 192.168.2.168 => 192.168.2.169
+PASS saved IP 192.168.2.169 => 192.168.2.169
+PASS saved IP 192.168.2.200 => 192.168.2.200
+PASS stream/capture URLs, Kiosk IP and HTML cache version
+```
+- Arduino CLI: `compile --jobs 4 --fqbn esp32:esp32:esp32 --libraries C:\Users\ACER\Documents\Arduino\libraries --config-dir C:\Users\ACER\AppData\Local\Arduino15 esp32_kiosk`: exit 0.
+```text
+Sketch uses 1101204 bytes (84%) of program storage space. Maximum is 1310720 bytes.
+Global variables use 94160 bytes (28%) of dynamic memory, leaving 233520 bytes for local variables. Maximum is 327680 bytes.
+```
+- `git diff --check`: exit 0; Git cảnh báo chuẩn hóa LF/CRLF trên admin.html và admin.face.js. Diff nguồn chỉ đổi IP/legacy IP/cache version, không đổi bố cục, polling, QR hay buzzer.
+- KNOWN: cú pháp JS, migration IP .168 đã lưu, bảo toàn IP tùy chỉnh, URL mặc định và build Kiosk PASS.
+- UNKNOWN: browser đăng nhập và hình LCD thật sau nạp chưa thử. Chưa upload bo, push/deploy; HTTPS vẫn cần quyền tải HTTP hoặc web local HTTP. Giữ VERIFYING.
+
+
+### [TLOG-067] Chẩn đoán PSRAM bị tắt trong build CAM mới nhất (TASK-057)
+- Ngày: 2026-11-14. `git diff -- esp32_cam_ai`: exit 0, không có diff. Không sửa/nạp CAM trong phiên này.
+- `rg -n 'fb_location|fb_count' esp32_cam_ai`: cameraInitPins đặt CAMERA_FB_IN_PSRAM ở esp32_cam_ai.ino:64 và fb_count=2 ở :66.
+- PowerShell đọc build.options.json trong LOCALAPPDATA/arduino/sketches, sort LastWriteTime giảm dần: bản esp32_cam_ai lúc 09:49:59 ngày 14/11/2026 có FQBN esp32:esp32:esp32s3 với FlashSize=16M, CDCOnBoot=cdc, PSRAM=disabled.
+- Log người dùng: cam_dma_config frame buffer malloc failed; Camera config failed 0xffffffff; ESP_FAIL ngay lần khởi tạo đầu và recovery.
+- KNOWN: build CAM gần nhất tắt PSRAM trong khi source yêu cầu bộ đệm ở PSRAM; diff thay IP không chạm firmware CAM. TLOG-061 từng xác nhận bo CAM có 8 MB PSRAM và hoạt động với OPI.
+- LIKELY: firmware vừa nạp dùng cấu hình PSRAM disabled này, gây lỗi cấp phát. UNKNOWN: chưa đọc flash hoặc nạp lại OPI để xác minh trên bo.
+- Hướng khắc phục: Arduino IDE chọn Tools > PSRAM > OPI PSRAM cho ESP32-S3 CAM rồi biên dịch/nạp lại esp32_cam_ai vào COM4. Không áp dụng cấu hình này cho Kiosk ESP32 thường. Giữ VERIFYING tới khi khởi tạo và ảnh thật PASS.

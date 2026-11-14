@@ -283,3 +283,15 @@ stateDiagram-v2
   - ESP32-CAM (`app_httpd.cpp`): handler `/power?mode=sleep` chuyển thành no-op (chỉ log, duy trì trạng thái `ACTIVE`, không can thiệp thanh ghi cảm biến OV2640).
 - Kết quả kiểm tra: `node --check` PASS; 3 bộ test suites tự động PASS 157/157 checks; `arduino-cli compile` cả 2 firmware `esp32_kiosk` và `esp32_cam_ai` đạt Exit code 0; `git diff --check` sạch 0 lỗi. Ghi nhận tại [TLOG-064](AI_TEST_LOG.md#tlog-064-kiểm-thử-chế-độ-always-active-đồng-bộ-web-admin-kiosk-lcd--esp32-cam-task-054).
 - Trạng thái: `[VERIFYING]` (chờ người dùng nạp firmware thực tế lên COM4 và COM10 để đo đạc độ trễ mở phiên, theo dõi nhiệt độ và độ ổn định liên tục).
+
+
+### TASK-055 — `[VERIFYING]` — 2026-11-14
+- Đã chỉ rõ các điểm phát/nhận/vẽ ảnh Web/LCD; TLOG-065: cả bốn endpoint camera timeout 4s. Chưa xác định lỗi thiết bị hoặc browser, chưa sửa code/nạp bo.
+
+
+### TASK-056 — `[VERIFYING]` — 2026-11-14
+- Đã đồng bộ IP .169 cho Web/LCD, migration IP .168 và cache-buster v15. TLOG-066: JS syntax, kiểm tra hành vi IP/URL và build Kiosk PASS. Chưa nạp bo/deploy hoặc kiểm chứng ảnh thật; HTTPS cần cấu hình trình duyệt hoặc dùng HTTP local.
+
+
+### TASK-057 — `[VERIFYING]` — 2026-11-14
+- TLOG-067: build CAM IDE 09:49:59 để PSRAM=disabled, source yêu cầu PSRAM. Diff CAM rỗng. Cần bật OPI PSRAM và nạp đúng CAM COM4 để kiểm chứng; chưa thay source/nạp bo.
