@@ -121,11 +121,11 @@ void reportCameraPerformance(void) {
                 (unsigned long)capture.cached, (unsigned long)capture.frames);
 }
 
-// Standby theo Idle Timeout. Phase-1: tat auto-standby de cam khong bao gio ket I2C/VSYNC;
-// Dat 1 de bat lai (khi da va xong thu tu set_reg/cam_stop trong enterCameraStandby)
+// Cong tac thu ngu mem nam trong board_config.h; 0 giu camera chay lien tuc.
 #ifndef ENABLE_CAM_IDLE_STANDBY
 #define ENABLE_CAM_IDLE_STANDBY 0
 #endif
+static constexpr unsigned long kCameraIdleStandbyMs = 30000;
 
 // Cấu hình hạ xung CPU (mặc định tắt theo R2 nhằm bảo vệ ngoại vi & mạng)
 #ifndef ENABLE_CPU_FREQ_SCALING
@@ -215,15 +215,23 @@ esp_err_t enterCameraStandby(void) {
   // Neu con bat ky client stream (cong 81) hoac capture request (cong 80) nao dang chay, khong duoc vao sleep
   int curStreams = 0;
   int curCaptures = 0;
+  unsigned long lastAct = 0;
   portENTER_CRITICAL(&s_client_mux);
   curStreams = s_active_stream_clients;
   curCaptures = s_in_flight_captures;
+  lastAct = s_last_activity_ms;
   portEXIT_CRITICAL(&s_client_mux);
 
   if (curStreams > 0 || curCaptures > 0) {
     Serial.printf("[POWER] Khong the vao STANDBY vi con client (Stream: %d, Captures: %d)\n", curStreams, curCaptures);
     xSemaphoreGive(s_power_mutex);
     return ESP_ERR_INVALID_STATE;
+  }
+
+  // Request co the vua ket thuc trong luc timer dang cho power mutex.
+  if (millis() - lastAct < kCameraIdleStandbyMs) {
+    xSemaphoreGive(s_power_mutex);
+    return ESP_OK;
   }
 
   s_power_state = CAM_POWER_TRANSITIONING;
@@ -300,7 +308,7 @@ static void releaseCameraClient(bool isStream, bool noFrame = false) {
   if (noFrame) xSemaphoreGive(s_power_mutex);
 }
 
-// Kiem tra Idle Timeout (15 giay khong co client -> tu ve STANDBY)
+// Ngu mem sau 30 giay khong con stream Web/LCD hoac request capture.
 void checkCameraPowerTimeout(void) {
 #if !ENABLE_CAM_IDLE_STANDBY
   // Phase-1: giu cam luon ACTIVE (khong goi cam_stop/set_reg khi khong co client)
@@ -328,8 +336,8 @@ void checkCameraPowerTimeout(void) {
   }
 
 #if ENABLE_CAM_IDLE_STANDBY
-  if (millis() - lastAct >= 15000) {
-    Serial.println("[POWER] Het 15s Idle Timeout khong co client nao -> Tu dong vao STANDBY");
+  if (millis() - lastAct >= kCameraIdleStandbyMs) {
+    Serial.println("[POWER] Het 30s khong co client -> Thu vao STANDBY");
     enterCameraStandby();
   }
 #endif

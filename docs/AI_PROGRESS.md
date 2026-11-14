@@ -295,3 +295,7 @@ stateDiagram-v2
 
 ### TASK-057 — `[VERIFYING]` — 2026-11-14
 - TLOG-067: build CAM IDE 09:49:59 để PSRAM=disabled, source yêu cầu PSRAM. Diff CAM rỗng. Cần bật OPI PSRAM và nạp đúng CAM COM4 để kiểm chứng; chưa thay source/nạp bo.
+
+
+### TASK-058 — `[VERIFYING]` — 2026-11-14
+- TLOG-068: 7 nhóm kiểm thử C++ production logic PASS (gồm rollback flag 0); build CAM OPI PASS, flash 1087375 bytes/RAM 57404 bytes. Chờ người dùng nạp CAM COM4 để thử 30s idle, wake/ảnh mới và giảm nhiệt; chưa upload.

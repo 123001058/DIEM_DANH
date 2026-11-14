@@ -1357,3 +1357,12 @@ ode -c js/admin/admin.attendance.js exit 0.
 ### [TASK-057] Chẩn đoán CAM frame buffer malloc failed (2026-11-14)
 - Mục tiêu: đối chiếu diff và cấu hình build thực tế để giải thích lỗi mới sau đổi IP. Chỉ đọc firmware, build.options.json và cập nhật tài liệu; không nạp bo hay hạ cấu hình ảnh.
 - DoD: có bằng chứng về file CAM có/không thay đổi, nơi cấp phát frame và PSRAM trong bản build IDE gần nhất; phân biệt cấu hình build với trạng thái đã flash.
+
+
+### [TASK-058] Thử ngủ mềm CAM sau 30 giây không còn client
+- Ngày: 2026-11-14; người dùng yêu cầu thử và quay lại Always-Active nếu không ổn.
+- File: esp32_cam_ai/board_config.h (công tắc thử nghiệm), app_httpd.cpp (30s idle, kiểm tra lại idle dưới mutex), tests/test_cam_idle_standby.py (harness C++ logic production), ba tài liệu quản trị.
+- Dùng lại standby mềm COM2 và wake hiện hữu; giữ Wi-Fi, CPU, bộ đệm/driver; không deep-sleep/deinit lúc ngủ. Stream/capture tự wake; Web/Kiosk đã dừng stream khi đóng phiên. CAM xác định idle bằng số client, không tự đọc Supabase.
+- Chống race: kiểm lại thời gian idle và client dưới power mutex trước khi ghi thanh ghi ngủ, tránh ngủ ngay sau request mới.
+- DoD: không ngủ khi còn Web/LCD/capture; ngủ sau 30s kể từ hoạt động cuối; request mới đánh thức; kiểm lỗi wake; build CAM OPI; rollback bằng ENABLE_CAM_IDLE_STANDBY=0 khôi phục idle Always-Active.
+- Rủi ro: standby mềm cũ chưa được nghiệm thu phần cứng, GDMA/VSYNC có thể không phục hồi; giữ VERIFYING chờ người dùng thử. Chỉ sửa source/build, không tự upload. Giữ FRZ-001/004/005.

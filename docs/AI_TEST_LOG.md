@@ -2522,3 +2522,30 @@ Global variables use 94160 bytes (28%) of dynamic memory, leaving 233520 bytes f
 - KNOWN: build CAM gần nhất tắt PSRAM trong khi source yêu cầu bộ đệm ở PSRAM; diff thay IP không chạm firmware CAM. TLOG-061 từng xác nhận bo CAM có 8 MB PSRAM và hoạt động với OPI.
 - LIKELY: firmware vừa nạp dùng cấu hình PSRAM disabled này, gây lỗi cấp phát. UNKNOWN: chưa đọc flash hoặc nạp lại OPI để xác minh trên bo.
 - Hướng khắc phục: Arduino IDE chọn Tools > PSRAM > OPI PSRAM cho ESP32-S3 CAM rồi biên dịch/nạp lại esp32_cam_ai vào COM4. Không áp dụng cấu hình này cho Kiosk ESP32 thường. Giữ VERIFYING tới khi khởi tạo và ảnh thật PASS.
+
+
+### [TLOG-068] Thử idle standby 30s và rollback Always-Active (TASK-058)
+- Ngày: 2026-11-14, Asia/Saigon. Chỉ sửa/build; chưa nạp CAM hoặc kiểm ảnh thật.
+- Thay đổi: board_config.h bật ENABLE_CAM_IDLE_STANDBY=1 (đổi 0 để quay lại chạy liên tục); app_httpd.cpp dùng timeout 30000ms và kiểm lại idle dưới power mutex trước sleep. Giữ sleep/wake mềm COM2 hiện hữu, Wi-Fi, CPU và driver; không sửa FRZ layout/polling/QR/buzzer.
+- `python tests/test_cam_idle_standby.py` lần đầu exit 1: UnicodeDecodeError cp1252 khi đọc board_config.h. Sửa harness đọc UTF-8, chạy lại exit 0. Harness trích 6 hàm C++ production, compile MSVC và thực thi với clock/sensor/mutex giả; không phải kiểm thử phần cứng. Output thực tế:
+```text
+power.cpp
+PASS 30s boundary, stream wake, cache invalidation
+PASS Web/LCD clients protect sleep until last disconnect plus 30s
+PASS capture protects sleep and wakes sensor
+PASS request finishing before timer acquires mutex resets idle
+PASS failed sensor/wake does not claim ACTIVE or leak client/lock
+PASS 32-bit clock rollover
+power.cpp
+PASS rollback flag 0 keeps sensor continuously ACTIVE
+```
+- Arduino CLI `compile --jobs 4 --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,CDCOnBoot=cdc --libraries C:\Users\ACER\Documents\Arduino\libraries --config-dir C:\Users\ACER\AppData\Local\Arduino15 esp32_cam_ai`: exit 0.
+```text
+Sketch uses 1087375 bytes (82%) of program storage space. Maximum is 1310720 bytes.
+Global variables use 57404 bytes (17%) of dynamic memory, leaving 270276 bytes for local variables. Maximum is 327680 bytes.
+```
+- `git diff --check`: exit 0.
+- KNOWN: 7 nhóm ca logic và build CAM OPI PASS; chỉ cờ auto-idle đưa vào sleep, /power sleep vẫn không ép ngủ ngay. HTTP stream/capture tự wake qua prepareCameraActive; last client disconnect làm mới bộ đếm 30s.
+- UNKNOWN: khả năng phục hồi GDMA/VSYNC sau COM2 sleep trên bo, thời gian lên hình, giảm nhiệt và 10 vòng đóng/mở thật. Giữ VERIFYING; không khẳng định tiết kiệm nhiệt hoặc hình thật đã PASS.
+- Test người dùng: CAM COM4 chọn ESP32S3 Dev Module + OPI PSRAM, nạp; mở phiên xem Web/LCD; đóng phiên và đóng mọi tab stream, đợi log STANDBY sau ít nhất 30s; mở lại xác nhận ACTIVE và ảnh mới, lặp nhiều vòng. Còn tab xem thì CAM phải thức.
+- Rollback: đổi ENABLE_CAM_IDLE_STANDBY từ 1 sang 0 trong board_config.h và nạp lại CAM với OPI PSRAM; không cần sửa/nạp Kiosk.
