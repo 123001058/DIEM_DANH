@@ -1377,3 +1377,15 @@ ode -c js/admin/admin.attendance.js exit 0.
 ### [TASK-060] Bật lại thử nghiệm ngủ mềm theo xác nhận người dùng
 - 2026-11-14: người dùng đính chính quên nhấn Reset và yêu cầu bật lại. Chỉ đổi ENABLE_CAM_IDLE_STANDBY=1 trong board_config.h; giữ timeout 30s và logic hiện hữu.
 - DoD: harness cả hai chế độ PASS, diff check PASS. Không upload; trạng thái phần cứng chờ người dùng thử, chưa kết luận nguyên nhân log trước.
+
+### [TASK-061] Chẩn đoán mất ảnh sau lỗi STANDBY (2026-11-18)
+- Trạng thái: [IN_PROGRESS]. Phạm vi: đối chiếu log người dùng với standby/recovery và đường HTTP; thử đọc /power tại IP Web hiện cấu hình. Chỉ cập nhật tài liệu, không đổi cờ ngủ hoặc nạp bo.
+- File đối chiếu: esp32_cam_ai/board_config.h, app_httpd.cpp, esp32_cam_ai.ino và js/admin/admin.face.js.
+- DoD: xác định nhánh lỗi thật trong source, ghi bằng chứng kết nối, phân biệt nguyên nhân trực tiếp với nguyên nhân phần cứng còn chưa biết. Giữ vùng đóng băng.
+
+### [TASK-062] Sửa ảnh chỉ đổi khi tải lại và địa chỉ CAM (2026-11-18)
+- [IN_PROGRESS]. Người dùng xác nhận trang .168 chỉ đổi ảnh khi tải lại; HTTP /power .168 thực tế trả UNAVAILABLE, RSSI -26dBm, HTTP 200 trong 0.065218s.
+- Phạm vi: sửa index_handler dùng URL MJPEG tuyệt đối theo hostname, fallback ảnh chụp tự làm mới khi cần; đổi default/migration Web .169 về .168 và cache version; rollback thử ngủ bằng cờ 0. Không đổi Kiosk, QR, còi, pin hay tham số ảnh.
+- DoD: kiểm tra hành vi script HTML trích từ production, JS syntax, harness power và build S3/OPI; xác minh phần cứng riêng, không DONE khi chưa nạp/ảnh thật.
+- Rủi ro: tắt ngủ làm camera chạy liên tục; chỉ là rollback thử nghiệm, chưa chứng minh gốc lỗi I2C. IP DHCP còn có thể đổi.
+- Bổ sung phạm vi theo xác nhận đóng Serial Monitor của người dùng: nạp CAM COM4 bằng build S3/OPI TLOG-072, kiểm chứng HTTP/ảnh thật và idle >30s; ghi kết quả TLOG-073. Web Admin đăng nhập và độ ổn định dài hạn chỉ kết luận nếu đã thử thực tế.

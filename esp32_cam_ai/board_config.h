@@ -4,7 +4,7 @@
 #define CAMERA_MODEL_ESP32S3_EYE
 // Thu ngu mem sau 30s khong con client. Doi thanh 0 va nap lai de chay lien tuc.
 #ifndef ENABLE_CAM_IDLE_STANDBY
-#define ENABLE_CAM_IDLE_STANDBY 1
+#define ENABLE_CAM_IDLE_STANDBY 0
 #endif
 // Cấu hình còi Buzzer (Chân G14)
 #define BUZZER_PIN 14

@@ -2565,3 +2565,35 @@ Global variables use 57404 bytes (17%) of dynamic memory, leaving 270276 bytes f
 - `python tests/test_cam_idle_standby.py`: exit 0, 7 nhóm PASS: 30s/wake/cache, bảo vệ Web/LCD, capture/wake, race trước mutex, lỗi sensor/wake, rollover, rollback flag 0.
 - `git diff --check`: exit 0, cảnh báo LF/CRLF ở file test Python.
 - KNOWN: cờ bật lại và logic C++ PASS; cùng cấu hình nguồn đã build ở TLOG-068. Không build toàn bộ hoặc upload trong lượt này. UNKNOWN: ảnh/sleep/wake thật và nguyên nhân log I2C trước đó chưa kiểm độc lập; giữ VERIFYING.
+
+### [TLOG-071] Chẩn đoán log STANDBY thất bại / I2C timeout (TASK-061)
+- Ngày: 2026-11-18, Asia/Saigon. Không sửa source, build hoặc upload.
+- Đọc source và chạy rg: ENABLE_CAM_IDLE_STANDBY=1; enterCameraStandby ghi COM2 thất bại thì đặt CAM_POWER_UNAVAILABLE; prepareCameraActive từ chối trạng thái này; capture/stream trả HTTP 503. serviceCameraRecovery deinit/init và thử tối đa 3 lần.
+- Log người dùng: sau 30s không client, thử STANDBY, Khong bat duoc Soft Sleep, Phuc hoi camera 1/3 rồi i2c.master probe device timeout. KNOWN: nhánh thất bại tại thao tác ngủ, không phải log ngủ thành công. Chưa biết sensor đã mất liên lạc trước thao tác này hay thao tác ngủ gây mất liên lạc.
+- Thực thi: curl.exe --max-time 5 --silent --show-error --write-out '\nHTTP=%{http_code} connect=%{time_connect}s total=%{time_total}s\n' http://192.168.2.169/power
+- Exit 28 của curl (PowerShell tool exit 1); stdout HTTP=000 connect=0.000000s total=5.013089s; stderr curl: (28) Connection timed out after 5012 milliseconds. Không nhận HTTP 503 thực tế; kết nối TCP chưa thành công.
+- KNOWN: IP Web mặc định .169; ở lần thử hiện tại địa chỉ này không truy cập được từ máy tính. UNKNOWN: IP DHCP hiện tại, nguồn/cáp cảm biến, log boot đầy đủ, cấu hình IDE đang chọn và ảnh thật sau reset. Không suy ra Wi-Fi mất chỉ từ timeout.
+- Khuyến nghị kiểm chứng: ngắt/cấp lại nguồn, lấy log boot tới IP và camera init; mở /capture tại IP vừa in trước mốc 30s. Nếu chỉ mất ảnh sau idle thì thử rollback ENABLE_CAM_IDLE_STANDBY=0 và nạp lại CAM với cấu hình S3/OPI đã xác minh trước đây. Không tự thực hiện rollback trong phiên chẩn đoán này.
+- Kết quả: xác định nhánh lỗi source; kiểm tra kết nối FAIL. Giữ VERIFYING, chưa xác nhận khắc phục.
+
+### [TLOG-072] Sửa trang CAM chỉ đổi ảnh khi reload và IP Web (TASK-062)
+- 2026-11-18 Asia/Saigon. Source: index_handler dùng URL :81/stream tương đối sai và onerror chỉ lấy một /capture. Đã đổi sang URL tuyệt đối theo location.hostname, fallback tự lấy ảnh tiếp sau load 200ms / lỗi 1000ms; không tạo timer capture khi MJPEG hoạt động.
+- Web default .168 theo ảnh người dùng và phản hồi thực; migration .169 -> .168, bảo toàn IP tùy chỉnh khác; admin.face.js cache v16. Rollback ENABLE_CAM_IDLE_STANDBY=0; không đổi Kiosk/còi/pin/chất lượng ảnh.
+- curl /power .168: HTTP=200 total=0.065218s, state=UNAVAILABLE, error=259, stream_clients=0, wifi_rssi=-26, wifi_ps=0, cpu_mhz=240. curl .168:81/stream: HTTP=503 total=0.091681s, body Camera unavailable. KNOWN: Wi-Fi/HTTP đang truy cập được, thiết bị hiện từ chối cấp ảnh; chưa chứng minh gốc lỗi SCCB.
+- Đọc Serial Python thất bại: ModuleNotFoundError: No module named 'serial'. Thử System.IO.Ports.SerialPort COM4 thất bại: Access to the path 'COM4' is denied. Chưa có log boot mới; đã yêu cầu người dùng đóng Serial Monitor để giải phóng cổng.
+- node --check js/admin/admin.face.js: exit 0.
+- Node vm/assert trích HTML/script trực tiếp từ index_handler production: exit 0. Output: PASS production page: absolute MJPEG URL, no snapshot timer during stream, recurring snapshot fallback, delayed retry. PASS Web default IP, migration list, custom IP, cache version. Đây là kiểm thử script với document/timer giả, không phải browser hoặc sensor thật.
+- python tests/test_cam_idle_standby.py: exit 0, 7 nhóm PASS: boundary/wake/cache, Web/LCD clients, capture, race, failed sensor/wake, rollover, rollback flag 0.
+- Arduino CLI compile --jobs 4 --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,CDCOnBoot=cdc --libraries C:/Users/ACER/Documents/Arduino/libraries --config-dir C:/Users/ACER/AppData/Local/Arduino15 esp32_cam_ai: exit 0. Flash 1086943 bytes (82%), globals 57404 bytes (17%), remaining 270276 bytes.
+- git diff --check: exit 0, chỉ cảnh báo LF/CRLF. Chưa upload, chưa kiểm thử browser bản mới hoặc ảnh chuyển động trên thiết bị. KNOWN: build/logic PASS. UNKNOWN: phục hồi sensor/ảnh thật sau nạp và cấp nguồn lại. Giữ VERIFYING.
+
+### [TLOG-073] Nạp CAM COM4 và kiểm chứng ảnh thật (TASK-062)
+- 2026-11-18 Asia/Saigon. Người dùng xác nhận đã đóng Serial Monitor; nạp build TLOG-072 bằng Arduino CLI upload --port COM4 --fqbn esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,CDCOnBoot=cdc --config-dir C:/Users/ACER/AppData/Local/Arduino15 esp32_cam_ai.
+- Upload exit 0: nhận ESP32-S3 revision v0.2, Embedded PSRAM 8MB; app binary 1087088 bytes, ghi 7.2s, Hash of data verified cho bootloader/partitions/boot_app0/app; Hard resetting via RTS pin; COM4 trở lại.
+- Đọc COM4 bằng System.IO.Ports.SerialPort 115200 sau upload: Camera OV2640 khoi tao thanh cong; Wi-Fi kết nối; IP 192.168.2.168; luồng :81/stream; Kiosk preview ready :82/stream. Có dòng E (230) esp_core_dump_flash: Core dump data check failed ngay boot; ghi nhận nguyên văn, chưa xác định nguyên nhân và không sửa flash core dump. Sau đó init/HTTP/ảnh PASS, không thấy vòng reset trong mẫu đã đọc.
+- GET /power sau boot: ok=true,error=0,state=ACTIVE,wifi_ps=0,cpu_mhz=240. Trước nạp TLOG-072 cùng bo báo UNAVAILABLE; không kết luận từ đó mọi lỗi I2C đã được xử lý tận gốc.
+- Browser IAB mở trang firmware thật http://192.168.2.168/: screenshot hiện ảnh trần nhà; DOM img currentSrc=http://192.168.2.168:81/stream, naturalWidth=480,naturalHeight=320. Console error/warn trả []. Đóng tab thử sau kiểm tra.
+- Python urllib mở MJPEG thật cổng81: HTTP200, multipart/x-mixed-replace. Đọc 12 frame JPEG theo Content-Length; 12/12 đủ độ dài, SOI/EOI đúng, SHA256 khác nhau 12/12; elapsed 0.639s, timestamp đầu 69.930404/cuối 70.530186. Chứng minh ảnh mới liên tiếp trên cùng kết nối, không reload trang.
+- Đóng stream thử, chờ 35 giây rồi /power: ACTIVE,ok=true,stream_clients=0,in_flight_captures=0,wifi_rssi=-37. idle_ms=308 do chế độ flag0 cập nhật thời gian mỗi loop, không dùng số này để suy thời gian nghỉ. GET /capture sau chờ: HTTP200, JPEG15354 bytes, SOI/EOI PASS; script exit0. Không có kiểm soát tuyệt đối client ngoài máy thử trong toàn khoảng chờ.
+- Serial mẫu sau đó: [CAM PERF] Stream11.0fps get14.1ms send61.2ms; Stream17.8fps get10.7ms send44.4ms. Đây là các cửa sổ đo thực, không cam kết FPS duy trì hoặc ước lượng FPS từ 12 frame.
+- KNOWN: firmware mới đã nạp và hash PASS, sensor init/ảnh browser/MJPEG liên tiếp/ảnh sau35s PASS. UNKNOWN: web Admin có đăng nhập trên hosting (source sửa IP/cache chưa deploy), Kiosk LCD và ổn định/nhiệt dài hạn. Không upload Kiosk, không push/deploy Web.

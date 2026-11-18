@@ -307,3 +307,23 @@ stateDiagram-v2
 
 ### TASK-060 — `[VERIFYING]` — 2026-11-14
 - Đã bật lại ENABLE_CAM_IDLE_STANDBY=1 theo đính chính người dùng; TLOG-070: 7 nhóm logic C++ và diff check PASS. Chưa upload hoặc kiểm chứng phần cứng.
+
+### TASK-061 — [IN_PROGRESS] — 2026-11-18
+- Đang đối chiếu log STANDBY thất bại và I2C probe timeout; không tự tắt lại thử nghiệm ngủ đã được người dùng bật ở TASK-060.
+
+### TASK-061 — [VERIFYING] — 2026-11-18
+- TLOG-071: log khớp nhánh standby thất bại -> UNAVAILABLE -> recovery; HTTP /power tại .169 timeout 5s, chưa nhận phản hồi từ thiết bị. Không sửa/nạp firmware; cần IP/log boot và kiểm ảnh trước/sau 30s để xác định gốc lỗi.
+
+### TASK-062 — [IN_PROGRESS] — 2026-11-18
+- Sửa URL trang CAM/fallback, IP Web theo thiết bị .168 thực tế và rollback auto-idle lỗi. Chờ test/build, chưa nạp.
+
+### TASK-062 — [VERIFYING] — 2026-11-18
+- TLOG-072: sửa URL MJPEG trang CAM và fallback tự cập nhật, default/migration IP Web .168, cache v16; tắt auto-idle 30s. Build CAM S3/OPI, 7 nhóm power harness, Node production-script checks và diff check PASS.
+- CAM thật .168 /power trả UNAVAILABLE, :81/stream trả HTTP503; COM4 bị giữ. Chờ đóng Serial Monitor, nạp CAM và xác minh ảnh thật/browser; chưa upload hoặc DONE.
+
+### TASK-062 — [IN_PROGRESS] — 2026-11-18 — Nạp và kiểm chứng
+- Người dùng báo đã đóng Serial Monitor. Tiếp tục nạp bản build S3/OPI đã PASS ở TLOG-072 vào COM4, đọc Serial/IP, thử /power, JPEG và MJPEG, kiểm tra sau hơn 30s idle. Không nạp Kiosk hoặc deploy Web.
+
+### TASK-062 — [VERIFYING] — 2026-11-18 — CAM đã nạp và có ảnh thật
+- TLOG-073: upload COM4/hash PASS; OV2640 init thành công, .168 ACTIVE. Browser thật hiện MJPEG480x320, console error/warn rỗng; đọc12/12 JPEG khác nhau trên cùng kết nối trong0.639s. Sau35s vẫn ACTIVE và /capture trả JPEG15354bytes HTTP200.
+- Hoàn tất nạp/kiểm chứng CAM; giữ VERIFYING cho Web Admin đăng nhập/hosting, Kiosk và độ ổn định dài hạn chưa thử. Source Web đã sửa IP/cache nhưng chưa push/deploy. Không thay vùng đóng băng.

@@ -633,8 +633,13 @@ static esp_err_t index_handler(httpd_req_t *req) {
     "img{max-width:95vw;max-height:85vh;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.8);}"
     "p{color:#94a3b8;font-size:14px;margin-top:12px;}</style></head>"
     "<body><h2>ESP32-S3 CAM AI - LH-NaviX</h2>"
-    "<img src=':81/stream' onerror=\"this.src='/capture?t='+Date.now();\">"
-    "<p>Stream cổng 81 · Độ phân giải VGA sắc nét</p></body></html>";
+    "<img id='camera' alt='Camera dang ket noi'>"
+    "<p>Stream cổng 81 · 480x320</p>"
+    "<script>const image=document.getElementById('camera');let snapshots=false;"
+    "function capture(){image.src='/capture?t='+Date.now();}"
+    "image.onload=function(){if(snapshots)setTimeout(capture,200);};"
+    "image.onerror=function(){snapshots=true;setTimeout(capture,1000);};"
+    "image.src=location.protocol+'//'+location.hostname+':81/stream';</script></body></html>";
 
   httpd_resp_set_type(req, "text/html");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
