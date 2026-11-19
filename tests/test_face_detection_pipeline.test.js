@@ -13,27 +13,34 @@ function environment() {
   const snapshot={width:480,height:320};
   const calls=[], events=[], results=[];
   let internal=async()=>{};
+  let nextIdentity=null;
   const ctx=vm.createContext({
+    performance,
     document:{createElement:()=>({})},
     setTimeout: callback=>queueMicrotask(callback),
+    adminCaptureCanvas:snapshot, adminFaceMatcher:{},
+    evaluateAdminFaceIdentity:()=>nextIdentity,
     faceapi:{
+      nets:{faceLandmark68Net:{isLoaded:false}},
       TinyFaceDetectorOptions: class { constructor(value){Object.assign(this,value);} },
       detectSingleFace: async (image,options)=>{
         assert.equal(options.scoreThreshold,0.22); calls.push(options.inputSize);
         return await results.shift();
       },
       DetectSingleFaceLandmarksTask: class {
-        constructor(parent,image,tiny){this.parent=parent;assert.equal(tiny,true);assert.equal(image,snapshot);}
-        async withFaceDescriptor(){const {detection}=await this.parent;events.push('descriptor');return {detection,descriptor:new Float32Array(128)};}
+        constructor(parent,image,tiny){this.parent=parent;this.tiny=tiny;assert.equal(image,snapshot);}
+        async withFaceDescriptor(){const {detection}=await this.parent;events.push(this.tiny?'descriptor':'refine');return {detection,descriptor:new Float32Array(128)};}
       }
     },
     processAdminCameraFrameInternal: async (...args)=>internal(...args)
   });
-  vm.runInContext('let adminFaceDetectorInputSize=320,adminFaceFrameBusy=false,adminCameraActive=true,adminInferenceRunning=true,adminEspStreamGeneration=1;\n'+[
-    'detectAdminFaceWithDescriptor','warmupAdminFaceDetector','processAdminCameraFrame'
+  vm.runInContext('let adminFaceDetectorInputSize=320,adminFaceFrameBusy=false,adminCameraActive=true,adminInferenceRunning=true,adminEspStreamGeneration=1,adminFailedRefinement=null;\n'+[
+    'detectAdminFaceWithDescriptor','warmupAdminFaceDetector','refineAdminAmbiguousIdentity','processAdminCameraFrame'
   ].map(fn).join('\n'),ctx);
   return {snapshot,calls,events,results,run:s=>vm.runInContext(s,ctx),
     detect:callback=>ctx.detectAdminFaceWithDescriptor(snapshot,callback||(()=>events.push('box')),1),
+    refine:identity=>ctx.refineAdminAmbiguousIdentity({detection:{}},identity,1,{}),
+    setIdentity:identity=>{nextIdentity=identity;},
     process:()=>ctx.processAdminCameraFrame(snapshot),setInternal:value=>{internal=value;}};
 }
 
@@ -79,4 +86,44 @@ function environment() {
   e=environment();await e.run('warmupAdminFaceDetector()');
   assert.deepEqual(e.calls,[320,416]);assert.equal(e.events.length,0);
   console.log('PASS both detector shapes warm during loading without identity or attendance');
+
+  e=environment();const ambiguous={reason:'ambiguous',accepted:false,best:{mssv:'A'}};
+  assert.equal(await e.refine(ambiguous),null);
+  e.run('faceapi.nets.faceLandmark68Net.isLoaded=true');
+  e.setIdentity({accepted:true,best:{mssv:'A'}});
+  const refined=await e.refine(ambiguous);
+  assert.equal(refined.identity.best.mssv,'A');assert.deepEqual(e.events,['refine']);
+  await e.refine(ambiguous);assert.deepEqual(e.events,['refine','refine']);
+  e.setIdentity({accepted:true,best:{mssv:'B'}});
+  assert.equal(await e.refine(ambiguous),null);
+  e.setIdentity({accepted:false,best:{mssv:'A'},reason:'ambiguous'});
+  const attempts=e.events.length;
+  assert.equal(await e.refine(ambiguous),null);
+  assert.equal(e.events.length,attempts);
+  console.log('PASS precise alignment may resolve ambiguity only for the same confident winner');
+  console.log('PASS failed refinement is rate limited without reusing successful evidence');
+
+  e.run('adminEspStreamGeneration++');
+  e.setIdentity({accepted:true,best:{mssv:'A'}});
+  assert.equal(await e.refine(ambiguous),null);
+  console.log('PASS precise alignment never accepts a stale result or missing model');
+
+  e=environment();
+  e.run('faceapi.nets.faceLandmark68Net.isLoaded=true;faceapi.nets.faceLandmark68Net.detectLandmarks=async()=>{throw Error("warmup unavailable")};');
+  await e.run('warmupAdminFaceDetector()');
+  console.log('PASS optional precise-model warmup failure does not block the fast detector');
+
+  let scores=new Float32Array([.1,.8,.1]);
+  const fas=vm.createContext({performance,
+    adminFasnetSession:{inputNames:['input'],outputNames:['output'],run:async()=>({output:{data:scores}})},
+    adminSpoofTensorBuffer:new Float32Array(3*80*80),fillSpoofTensorFaceX(){},
+    ort:{Tensor:class{}}
+  });
+  vm.runInContext(fn('runMiniFasnetInference'),fas);
+  assert((await fas.runMiniFasnetInference({},{})).isLive);
+  scores=new Float32Array([.5,.5,0]);assert.equal((await fas.runMiniFasnetInference({},{})).isLive,false);
+  scores=new Float32Array([NaN,1,0]);await assert.rejects(fas.runMiniFasnetInference({},{}),/invalid class scores/);
+  scores=new Float32Array([0,1]);await assert.rejects(fas.runMiniFasnetInference({},{}),/invalid class scores/);
+  fas.adminFasnetSession=null;assert.equal((await fas.runMiniFasnetInference({},{})).ok,false);
+  console.log('PASS liveness validates class scores and never treats invalid output as a real face');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,0 +1,334 @@
+{
+  "backend": "webgl",
+  "cascade": {
+    "deltaNorm": 0.2920986889127902,
+    "finalReason": "accepted",
+    "initialReason": "ambiguous",
+    "totalMs": 221.29999999701977,
+    "writes": 1
+  },
+  "descriptorDelta": 0,
+  "detections": [
+    {
+      "found": true,
+      "ms": 20.900000005960464,
+      "scale": 1,
+      "size": 320
+    },
+    {
+      "found": true,
+      "ms": 22.100000008940697,
+      "scale": 0.75,
+      "size": 320
+    },
+    {
+      "found": false,
+      "ms": 21.69999998807907,
+      "scale": 0.5,
+      "size": 320
+    },
+    {
+      "found": true,
+      "ms": 29,
+      "scale": 1,
+      "size": 416
+    },
+    {
+      "found": true,
+      "ms": 28.400000005960464,
+      "scale": 0.75,
+      "size": 416
+    },
+    {
+      "found": true,
+      "ms": 27.799999997019768,
+      "scale": 0.5,
+      "size": 416
+    }
+  ],
+  "detectorWarmupMs": 2013.7000000029802,
+  "smallRecoveryMs": 78.1000000089407,
+  "taskConstructor": "function",
+  "times": [
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 27.700000002980232,
+      "mode": "before",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": null,
+      "totalMs": 77
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 26.700000002980232,
+      "mode": "after",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": {
+        "captureMs": 0.09999999403953552,
+        "descriptorMs": 31.299999997019768,
+        "detectMs": 26.600000008940697,
+        "matchMs": 0.09999999403953552,
+        "refineMs": 0,
+        "spoofMs": 3.7999999970197678,
+        "started": 8340.90000000596,
+        "totalMs": 70.5
+      },
+      "totalMs": 70.70000000298023
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 29.799999997019768,
+      "mode": "before",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": null,
+      "totalMs": 74.70000000298023
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 25.399999991059303,
+      "mode": "after",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": {
+        "captureMs": 0.09999999403953552,
+        "descriptorMs": 32.29999999701977,
+        "detectMs": 25.299999997019768,
+        "matchMs": 0.10000000894069672,
+        "refineMs": 0,
+        "spoofMs": 3.5,
+        "started": 8486.300000011921,
+        "totalMs": 71.19999998807907
+      },
+      "totalMs": 71.19999998807907
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 32.5,
+      "mode": "before",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": null,
+      "totalMs": 75.09999999403954
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 31.5,
+      "mode": "after",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 32.400000005960464,
+        "detectMs": 31.400000005960464,
+        "matchMs": 0.09999999403953552,
+        "refineMs": 0,
+        "spoofMs": 4.0999999940395355,
+        "started": 8632.70000000298,
+        "totalMs": 77.20000000298023
+      },
+      "totalMs": 77.20000000298023
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 28.099999994039536,
+      "mode": "before",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": null,
+      "totalMs": 66.59999999403954
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 20.30000001192093,
+      "mode": "after",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 21,
+        "detectMs": 20.30000001192093,
+        "matchMs": 0,
+        "refineMs": 0,
+        "spoofMs": 3.7000000029802322,
+        "started": 8776.5,
+        "totalMs": 55.20000000298023
+      },
+      "totalMs": 55.30000001192093
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 20.899999991059303,
+      "mode": "before",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": null,
+      "totalMs": 59.099999994039536
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 23.099999994039536,
+      "mode": "after",
+      "reason": "accepted",
+      "scenario": "clear",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 19.399999991059303,
+        "detectMs": 23,
+        "matchMs": 0.10000000894069672,
+        "refineMs": 0,
+        "spoofMs": 3.8999999910593033,
+        "started": 8890.90000000596,
+        "totalMs": 56.599999994039536
+      },
+      "totalMs": 56.599999994039536
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 20,
+      "mode": "before",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": null,
+      "totalMs": 54.20000000298023
+    },
+    {
+      "fasCalls": 0,
+      "firstBoxMs": 23.100000008940697,
+      "mode": "after",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 20.099999994039536,
+        "detectMs": 23.100000008940697,
+        "matchMs": 0,
+        "refineMs": 17.5,
+        "spoofMs": 0,
+        "started": 9001.70000000298,
+        "totalMs": 65.40000000596046
+      },
+      "totalMs": 66.5
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 23,
+      "mode": "before",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": null,
+      "totalMs": 52.900000005960464
+    },
+    {
+      "fasCalls": 0,
+      "firstBoxMs": 24.100000008940697,
+      "mode": "after",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 15.900000005960464,
+        "detectMs": 24,
+        "matchMs": 0.09999999403953552,
+        "refineMs": 0,
+        "spoofMs": 0,
+        "started": 9121.300000011921,
+        "totalMs": 44.8999999910593
+      },
+      "totalMs": 45.1000000089407
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 23.899999991059303,
+      "mode": "before",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": null,
+      "totalMs": 55.599999994039536
+    },
+    {
+      "fasCalls": 0,
+      "firstBoxMs": 23.099999994039536,
+      "mode": "after",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 21.599999994039536,
+        "detectMs": 23.099999994039536,
+        "matchMs": 0,
+        "refineMs": 0,
+        "spoofMs": 0,
+        "started": 9221.90000000596,
+        "totalMs": 50.400000005960464
+      },
+      "totalMs": 50.599999994039536
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 23.200000002980232,
+      "mode": "before",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": null,
+      "totalMs": 57.30000001192093
+    },
+    {
+      "fasCalls": 0,
+      "firstBoxMs": 21.399999991059303,
+      "mode": "after",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": {
+        "captureMs": 0.09999999403953552,
+        "descriptorMs": 16.900000005960464,
+        "detectMs": 21.299999997019768,
+        "matchMs": 0.09999999403953552,
+        "refineMs": 0,
+        "spoofMs": 0,
+        "started": 9329.800000011921,
+        "totalMs": 43.19999998807907
+      },
+      "totalMs": 43.19999998807907
+    },
+    {
+      "fasCalls": 1,
+      "firstBoxMs": 22.100000008940697,
+      "mode": "before",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": null,
+      "totalMs": 50.6000000089407
+    },
+    {
+      "fasCalls": 0,
+      "firstBoxMs": 24.200000002980232,
+      "mode": "after",
+      "reason": "ambiguous",
+      "scenario": "ambiguous",
+      "stages": {
+        "captureMs": 0,
+        "descriptorMs": 16.599999994039536,
+        "detectMs": 24.200000002980232,
+        "matchMs": 0,
+        "refineMs": 0,
+        "spoofMs": 0,
+        "started": 9423.60000000894,
+        "totalMs": 45.3999999910593
+      },
+      "totalMs": 45.70000000298023
+    }
+  ],
+  "writes": 1,
+  "fixture": "https://raw.githubusercontent.com/vladmandic/face-api/master/demo/sample1.jpg",
+  "baseline_commit": "83a6f3d",
+  "scope": "Chrome headless/WebGL, warm models, public image and constructed descriptor galleries. The cascade control verifies software behavior, not real-person recognition accuracy. Writes are a fixture callback, never database attendance.",
+  "hashes": {
+    "face_landmark_68_model.bin": "4611ef65c87d836d03d684b30eec4d195d8b219fa1dd58fc58945831c6b9299b",
+    "face_landmark_68_tiny_model.bin": "b98e9f2f7da76f8a6dda9741a36ed485b224b889d552de2b2c1bb16217f67bfc",
+    "face_recognition_model.bin": "b413e420d6840b2775fba32008db6f3cddb07d485967fb42cfcf379c16a8c589",
+    "tiny_face_detector_model.bin": "b7503ce7df31039b1c43316a9b865cab6a70dd748cc602d3fa28b551503c3871"
+  }
+}

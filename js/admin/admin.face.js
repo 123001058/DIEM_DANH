@@ -272,7 +272,10 @@ async function initFaceCamInAdmin(isBackground = false) {
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL).catch(error => {
+        console.warn('[FaceCam] Tinh chỉnh mặt chưa sẵn sàng; vẫn giữ kiểm tra danh tính:', error.message);
+      })
     ]);
     await Promise.all([syncAdminFacesFromSupabase(false), warmupAdminFaceDetector()]);
     adminFaceModelsLoaded = true;
@@ -406,6 +409,9 @@ async function runMiniFasnetInference(srcCanvas, box) {
   const latency = (performance.now() - t0).toFixed(1);
 
   const raw = results[adminFasnetSession.outputNames[0]].data;
+  if (raw.length !== 3 || !Array.from(raw).every(Number.isFinite)) {
+    throw new Error('MiniFASNet returned invalid class scores.');
+  }
 
   // Xác minh Output là Logits hay Xác suất
   const sumRaw = raw[0] + raw[1] + raw[2];
@@ -717,10 +723,8 @@ function startFastFrameStream(captureUrl) {
       isFetching = false;
       if (generation === adminEspStreamGeneration && adminCameraActive && adminFastStreamLoopActive && img) {
         img.src = frameImg.src;
-        if (hudStatus && adminCameraActive) {
-          hudStatus.innerHTML = (adminCameraMode === 'monitor')
-            ? `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng Fast Stream (${captureUrl})`
-            : `🟢 <b>Chế độ Điểm danh AI</b>: Đang phát luồng Fast Stream (${captureUrl})`;
+        if (hudStatus && adminCameraMode === 'monitor') {
+          hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng Fast Stream (${captureUrl})`;
         }
         updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
         adminFastStreamTimer = setTimeout(fetchNextFrame, 50); // ~20 FPS mượt mà
@@ -776,14 +780,9 @@ function connectAdminEspStream(rawIp) {
     adminMjpegErrorCount = 0;
     img.onload = () => {
       adminMjpegErrorCount = 0;
-      if (hudStatus && adminCameraActive && adminStreamMode === 'mjpeg') {
-        if (adminCameraMode === 'monitor') {
-          hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng trực tiếp (${streamUrl})`;
-          hudStatus.style.color = '#38bdf8';
-        } else {
-          hudStatus.innerHTML = `🟢 <b>Chế độ Điểm danh AI</b>: Đang quét luồng (${streamUrl})`;
-          hudStatus.style.color = 'var(--ok)';
-        }
+      if (hudStatus && adminCameraActive && adminStreamMode === 'mjpeg' && adminCameraMode === 'monitor') {
+        hudStatus.innerHTML = `🟢 <b>Chế độ Chỉ xem</b>: Đang phát luồng trực tiếp (${streamUrl})`;
+        hudStatus.style.color = '#38bdf8';
       }
       updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
     };
@@ -1136,6 +1135,7 @@ const REQUIRED_CONFIRM_FRAMES = 4; // 4 lượt xử lý liên tiếp đạt đi
 const ADMIN_FACE_MIN_MARGIN = 0.05;
 let adminFaceDetectorInputSize = 320;
 let adminFaceFrameBusy = false;
+let adminFailedRefinement = null;
 
 async function warmupAdminFaceDetector() {
   const snapshot = document.createElement('canvas');
@@ -1146,9 +1146,23 @@ async function warmupAdminFaceDetector() {
     await faceapi.detectSingleFace(snapshot,
       new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
   }
+  const face = document.createElement('canvas');
+  face.width = face.height = 150;
+  if (faceapi.nets?.faceLandmark68Net?.isLoaded) {
+    try {
+      await faceapi.nets.faceLandmark68Net.detectLandmarks(face);
+    } catch (error) {
+      console.warn('[FaceCam] Chưa khởi động được bước tinh chỉnh:', error.message);
+    }
+  }
+  if (faceapi.nets?.faceLandmark68TinyNet?.isLoaded) {
+    await faceapi.nets.faceLandmark68TinyNet.detectLandmarks(face);
+    await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(face);
+  }
 }
 
-async function detectAdminFaceWithDescriptor(snapshot, onDetection, generation) {
+async function detectAdminFaceWithDescriptor(snapshot, onDetection, generation, timings = null) {
+  const started = timings ? performance.now() : 0;
   let inputSize = adminFaceDetectorInputSize;
   let detection = await faceapi.detectSingleFace(snapshot,
     new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
@@ -1159,6 +1173,7 @@ async function detectAdminFaceWithDescriptor(snapshot, onDetection, generation) 
       new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
   }
   if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) return null;
+  if (timings) timings.detectMs = performance.now() - started;
   adminFaceDetectorInputSize = detection ? inputSize : 320;
   if (!detection) return null;
   onDetection(detection.box);
@@ -1166,8 +1181,40 @@ async function detectAdminFaceWithDescriptor(snapshot, onDetection, generation) 
   await new Promise(resolve => setTimeout(resolve, 0));
   if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) return null;
   // Reuse this detection with the library's unchanged landmark/alignment/descriptor path.
-  return new faceapi.DetectSingleFaceLandmarksTask(Promise.resolve({ detection }), snapshot, true)
+  const descriptorStarted = timings ? performance.now() : 0;
+  const result = await new faceapi.DetectSingleFaceLandmarksTask(Promise.resolve({ detection }), snapshot, true)
     .withFaceDescriptor();
+  if (timings) timings.descriptorMs = performance.now() - descriptorStarted;
+  return result;
+}
+
+async function refineAdminAmbiguousIdentity(det, identity, generation, timings) {
+  if (identity.reason !== 'ambiguous' || !identity.best || !faceapi.nets?.faceLandmark68Net?.isLoaded) return null;
+  const started = performance.now();
+  if (adminFailedRefinement?.generation === generation && adminFailedRefinement.mssv === identity.best.mssv &&
+      started - adminFailedRefinement.at < 500) return null;
+  let resolved = false;
+  try {
+    const refined = await new faceapi.DetectSingleFaceLandmarksTask(
+      Promise.resolve({ detection: det.detection }), adminCaptureCanvas, false).withFaceDescriptor();
+    if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration || !refined) return null;
+    const next = evaluateAdminFaceIdentity(adminFaceMatcher, refined.descriptor);
+    // A different winner or a still-small margin is uncertainty, never a shortcut to attendance.
+    if (next.accepted && next.best.mssv === identity.best.mssv) {
+      resolved = true;
+      adminFailedRefinement = null;
+      return { det: refined, identity: next };
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    timings.refineMs = performance.now() - started;
+    // Retry failed refinement at most twice a second; successful evidence is never reused.
+    if (!resolved && adminCameraActive && adminInferenceRunning && generation === adminEspStreamGeneration) {
+      adminFailedRefinement = { generation, mssv: identity.best.mssv, at: performance.now() };
+    }
+  }
 }
 
 function evaluateAdminFaceIdentity(matcher, descriptor) {
@@ -1225,7 +1272,8 @@ function adminIdentityReason(reason) {
     insufficient_identities: 'Chưa đủ hai MSSV để kiểm tra chênh lệch',
     ambiguous: 'Hai danh tính quá sát nhau — chưa chốt',
     accepted: 'Qua điều kiện danh tính; còn cần đủ 4 lượt và kiểm tra giả mạo',
-    spoof: 'Bị chặn bởi kiểm tra giả mạo', stopped: 'Camera đã dừng'
+    spoof: 'Bị chặn bởi kiểm tra giả mạo', liveness_unavailable: 'Chưa xác minh được người thật',
+    stopped: 'Camera đã dừng'
   };
   return reasons[reason] || reason;
 }
@@ -1246,9 +1294,13 @@ function loadAdminIdentityLog() {
 function formatAdminIdentitySample(row) {
   const describe = candidate => candidate && Number.isFinite(candidate.distance)
     ? `${candidate.label}: ${candidate.distance.toFixed(4)}` : '—';
+  const timing = row.timings;
+  const speed = timing ? `\nThời gian xử lý ảnh (ms): lấy ${timing.captureMs} · dò ${timing.detectMs} · đặc trưng ${timing.descriptorMs} · so khớp ${timing.matchMs} · tinh chỉnh ${timing.refineMs || 0} · người thật ${timing.spoofMs} · tổng ${timing.totalMs}` : '';
+  const live = row.liveness ? `\nKiểm tra người thật: ${row.liveness.state}` +
+    (Number.isFinite(row.liveness.pLive) ? ` · LIVE ${(row.liveness.pLive * 100).toFixed(1)}%` : '') : '';
   return `Gần nhất: ${describe(row.best)}\nThứ hai: ${describe(row.second)}\n` +
     `Chênh lệch: ${Number.isFinite(row.margin) ? row.margin.toFixed(4) : '—'} · Ngưỡng thử nghiệm: ${row.minMargin}\n` +
-    `Kết quả: ${adminIdentityReason(row.reason)}`;
+    `Kết quả: ${adminIdentityReason(row.reason)}` + live + speed;
 }
 
 function paintAdminIdentityDiagnostics(force = false) {
@@ -1283,13 +1335,23 @@ function paintAdminIdentityDiagnostics(force = false) {
     (adminIdentityStorageFailed ? 'Không lưu được trên trình duyệt; hãy tải log trước khi đóng trang.' : 'Đã lưu trên trình duyệt này.');
 }
 
-function renderAdminIdentityDiagnostics(result, reason = result.reason) {
+function renderAdminIdentityDiagnostics(result, reason = result.reason, timings = null, liveness = null) {
   loadAdminIdentityLog();
   const candidate = value => value ? { label: value.label, mssv: value.mssv, distance: value.distance } : null;
   const row = {
     time: new Date().toISOString(), reason,
     best: candidate(result.best), second: candidate(result.second), margin: result.margin ?? null,
     minMargin: ADMIN_FACE_MIN_MARGIN, distanceThreshold: adminFaceMatcher?.distanceThreshold ?? 0.40
+  };
+  if (timings) {
+    row.timings = {};
+    for (const key of ['captureMs', 'detectMs', 'descriptorMs', 'matchMs', 'refineMs', 'spoofMs', 'totalMs']) {
+      row.timings[key] = Math.round(timings[key] || 0);
+    }
+  }
+  if (liveness) row.liveness = {
+    state: liveness.skipped ? 'Chưa chạy' : !liveness.ok ? 'Chưa sẵn sàng hoặc bị lỗi' : liveness.isLive ? 'Đạt' : 'Không đạt',
+    pLive: Number.isFinite(liveness.pLive) ? liveness.pLive : null
   };
   adminIdentityLatest = row;
   if (row.best) adminIdentityLastFace = row;
@@ -1338,13 +1400,15 @@ async function processAdminCameraFrame(media) {
   if (!adminCameraActive || !adminInferenceRunning || adminFaceFrameBusy) return;
   adminFaceFrameBusy = true;
   try {
-    await processAdminCameraFrameInternal(media, adminEspStreamGeneration);
+    await processAdminCameraFrameInternal(media, adminEspStreamGeneration, {
+      started: performance.now(), captureMs: 0, detectMs: 0, descriptorMs: 0, matchMs: 0, refineMs: 0, spoofMs: 0
+    });
   } finally {
     adminFaceFrameBusy = false;
   }
 }
 
-async function processAdminCameraFrameInternal(media, generation) {
+async function processAdminCameraFrameInternal(media, generation, timings) {
 
   const canvas = document.getElementById('adminCamOverlayCanvas');
   if (!canvas) return;
@@ -1368,7 +1432,9 @@ async function processAdminCameraFrameInternal(media, generation) {
     adminCaptureCanvas.width = natW;
     adminCaptureCanvas.height = natH;
   }
+  const captureStarted = performance.now();
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
+  timings.captureMs = performance.now() - captureStarted;
 
   // 1. Show detection immediately; identity and liveness still gate attendance below.
   let det = null;
@@ -1377,11 +1443,7 @@ async function processAdminCameraFrameInternal(media, generation) {
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2.5;
       ctx.strokeRect(box.x * w / natW, box.y * h / natH, box.width * w / natW, box.height * h / natH);
-      if (hudStatus) {
-        hudStatus.textContent = 'Đã thấy khuôn mặt — đang xác minh...';
-        hudStatus.style.color = 'var(--primary)';
-      }
-    }, generation);
+    }, generation, timings);
   } catch (e) { }
 
   // Guard check 2: Nếu camera đã tắt trong lúc chờ detectSingleFace -> xóa canvas và thoát ngay
@@ -1392,7 +1454,8 @@ async function processAdminCameraFrameInternal(media, generation) {
 
   // NẾU MẤT KHUÔN MẶT: RESET NGAY LẬP TỨC TIẾN TRÌNH XÁC THỰC
   if (!det) {
-    renderAdminIdentityDiagnostics({}, 'no_face');
+    timings.totalMs = performance.now() - timings.started;
+    renderAdminIdentityDiagnostics({}, 'no_face', timings);
     adminTrackingMssv = null;
     adminTrackingFrames = 0;
     adminLastUnknownFaceDataUrl = null;
@@ -1413,19 +1476,37 @@ async function processAdminCameraFrameInternal(media, generation) {
   const drawW = box.width * scaleX;
   const drawH = box.height * scaleY;
 
-  // 2. Chống giả mạo MiniFASNet-V2 (nhường 1 nhịp micro-task cho trình duyệt paint frame MJPEG trước khi chạy WASM)
-  let antiSpoofResult = { ok: true, isLive: true, pLive: 0.98 };
-  if (adminAntiSpoofEnabled && adminFasnetSession) {
+  // Reject unresolved identities before spending time on liveness. Unknown faces still
+  // need liveness for the existing quick-enrollment action.
+  const matchStarted = performance.now();
+  let identity = evaluateAdminFaceIdentity(adminFaceMatcher, det.descriptor);
+  timings.matchMs = performance.now() - matchStarted;
+  const refined = await refineAdminAmbiguousIdentity(det, identity, generation, timings);
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) return;
+  if (refined) {
+    det = refined.det;
+    identity = refined.identity;
+  }
+  const bestMatch = identity.best;
+  const needsLiveness = identity.accepted || identity.reason === 'too_far' || identity.reason === 'no_data';
+  let antiSpoofResult = { ok: false, isLive: false, skipped: true };
+  if (adminAntiSpoofEnabled && needsLiveness) {
     await new Promise(r => setTimeout(r, 0));
     if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
-    try {
-      antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
-    } catch (eFas) {
-      antiSpoofResult = { ok: true, isLive: true, pLive: 0.95 };
+    const spoofStarted = performance.now();
+    if (!adminFasnetSession) {
+      antiSpoofResult = { ok: false, isLive: false, error: 'Mô hình người thật chưa sẵn sàng.' };
+    } else {
+      try {
+        antiSpoofResult = await runMiniFasnetInference(adminCaptureCanvas, box);
+      } catch (eFas) {
+        antiSpoofResult = { ok: false, isLive: false, error: 'Kiểm tra người thật bị lỗi.' };
+      }
     }
+    timings.spoofMs = performance.now() - spoofStarted;
   }
 
   // Guard check 3: Nếu camera đã tắt trong lúc chờ suy luận MiniFASNet -> xóa canvas và thoát ngay
@@ -1434,38 +1515,42 @@ async function processAdminCameraFrameInternal(media, generation) {
     return;
   }
 
-  // 3. So khớp nhận diện danh tính bằng FaceMatcher
-  const identity = evaluateAdminFaceIdentity(adminFaceMatcher, det.descriptor);
-  const bestMatch = identity.best;
-  renderAdminIdentityDiagnostics(identity, antiSpoofResult.ok && !antiSpoofResult.isLive ? 'spoof' : identity.reason);
+  const livenessUnavailable = adminAntiSpoofEnabled && needsLiveness && !antiSpoofResult.ok;
+  timings.totalMs = performance.now() - timings.started;
+  renderAdminIdentityDiagnostics(identity, livenessUnavailable ? 'liveness_unavailable' :
+    antiSpoofResult.ok && !antiSpoofResult.isLive ? 'spoof' : identity.reason, timings, antiSpoofResult);
 
   // 4. Đánh giá kết hợp & Xác thực Đa Khung Hình Chắc Chắn
   let boxColor = '#3b82f6';
   let statusText = '';
   let progressRatio = 0;
 
-  if (antiSpoofResult.ok && !antiSpoofResult.isLive) {
-    // PHÁT HIỆN GIẢ MẠO: Reset ngay lập tức
+  if (livenessUnavailable || (antiSpoofResult.ok && !antiSpoofResult.isLive)) {
+    // Chưa xác minh được người thật hoặc phát hiện giả mạo: hủy chuỗi xác nhận.
     adminTrackingMssv = null;
     adminTrackingFrames = 0;
     adminLastUnknownFaceDataUrl = null;
     const btnQuick = document.getElementById('btnAdminQuickEnrollFromFeed');
     if (btnQuick) btnQuick.style.display = 'none';
 
-    adminConsecutiveSpoofHits++;
-    boxColor = '#dc2626';
-
-    const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
-      ? `Màn hình điện thoại (${(antiSpoofResult.pReplay * 100).toFixed(1)}%)`
-      : `Ảnh in 2D (${(antiSpoofResult.pPrint * 100).toFixed(1)}%)`;
-
-    statusText = `🚫 TỪ CHỐI: Phát hiện ảnh giả [${reason}]`;
+    if (livenessUnavailable) {
+      adminConsecutiveSpoofHits = 0;
+      boxColor = '#d97706';
+      statusText = '⚠️ Chưa xác minh được người thật — kiểm tra trạng thái MiniFASNet';
+    } else {
+      adminConsecutiveSpoofHits++;
+      boxColor = '#dc2626';
+      const reason = antiSpoofResult.pReplay >= antiSpoofResult.pPrint
+        ? `Màn hình điện thoại (${(antiSpoofResult.pReplay * 100).toFixed(1)}%)`
+        : `Ảnh in 2D (${(antiSpoofResult.pPrint * 100).toFixed(1)}%)`;
+      statusText = `🚫 TỪ CHỐI: Phát hiện ảnh giả [${reason}]`;
+    }
     if (hudStatus) {
       hudStatus.textContent = statusText;
-      hudStatus.style.color = 'var(--err)';
+      hudStatus.style.color = livenessUnavailable ? 'var(--warn)' : 'var(--err)';
     }
   } else {
-    // Khuôn mặt thật vượt qua kiểm tra chống giả mạo
+    // Chỉ danh tính hợp lệ đã vượt kiểm tra người thật mới được chốt bên dưới.
     adminConsecutiveSpoofHits = 0;
 
     if (identity.accepted && bestMatch && bestMatch.label !== 'unknown' && bestMatch.distance <= 0.40) {
@@ -1478,7 +1563,11 @@ async function processAdminCameraFrameInternal(media, generation) {
       const name = parts[1] || mssv;
       const distance = bestMatch.distance;
 
-      if (adminTrackingMssv === mssv) {
+      const recentlyConfirmed = adminLastCheckinTime[mssv] && Date.now() - adminLastCheckinTime[mssv] < 8000;
+      if (recentlyConfirmed) {
+        adminTrackingMssv = mssv;
+        adminTrackingFrames = 0;
+      } else if (adminTrackingMssv === mssv) {
         adminTrackingFrames++;
       } else {
         adminTrackingMssv = mssv;
@@ -1487,7 +1576,7 @@ async function processAdminCameraFrameInternal(media, generation) {
 
       progressRatio = Math.min(1.0, adminTrackingFrames / REQUIRED_CONFIRM_FRAMES);
 
-      if (adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES) {
+      if (recentlyConfirmed || adminTrackingFrames >= REQUIRED_CONFIRM_FRAMES) {
         // ĐÃ GIỮ ĐỦ SỐ FRAMES LIÊN TỤC (REQUIRED_CONFIRM_FRAMES) -> CHỐT ĐIỂM DANH THÀNH CÔNG!
         boxColor = '#16a34a';
         const liveInfo = antiSpoofResult.ok ? ` · LIVE: ${(antiSpoofResult.pLive * 100).toFixed(0)}%` : '';
@@ -1500,7 +1589,7 @@ async function processAdminCameraFrameInternal(media, generation) {
 
         // Cắt ảnh khuôn mặt hiện tại từ camera để lưu vào lịch sử quét cụ thể
         let capturedFaceDataUrl = '';
-        try {
+        if (!recentlyConfirmed) try {
           const cropCanvas = document.createElement('canvas');
           const pad = Math.round(box.width * 0.25);
           const cropX = Math.max(0, box.x - pad);
@@ -1515,7 +1604,7 @@ async function processAdminCameraFrameInternal(media, generation) {
         } catch (e) { }
 
         // Kích hoạt điểm danh hợp lệ
-        executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFaceDataUrl);
+        if (!recentlyConfirmed) executeFaceCheckin(mssv, name, distance, antiSpoofResult, capturedFaceDataUrl);
         // Reset tracking frames sau khi chốt điểm danh để không kích hoạt lặp lại ở frame kế tiếp
         adminTrackingFrames = 0;
       } else {
@@ -1533,7 +1622,7 @@ async function processAdminCameraFrameInternal(media, generation) {
       adminTrackingFrames = 0;
       boxColor = '#d97706';
       const rejectionMessages = {
-        ambiguous: '⚠️ Chưa phân biệt rõ khuôn mặt — hãy nhìn thẳng và quét lại',
+        ambiguous: '⚠️ Chưa phân biệt rõ hai hồ sơ — xem bảng kiểm tra danh tính',
         insufficient_identities: '⚠️ Cần ít nhất hai hồ sơ sinh viên để kiểm tra danh tính',
         invalid_data: '⚠️ Dữ liệu khuôn mặt không hợp lệ — cần kiểm tra hồ sơ',
         no_data: '⚠️ Chưa có dữ liệu khuôn mặt sinh viên',

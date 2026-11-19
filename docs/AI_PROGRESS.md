@@ -352,3 +352,10 @@ stateDiagram-v2
 
 ### TASK-065 — [VERIFYING] — 2026-11-19 — Đã lên Web GitHub
 - TLOG-076 bổsung: đã pushabe30ca; GitHub Pages run44477620521completed/success; trangadmin vàJSv18thật khớpsource đãtest sauchuẩnhóanewline. CDNFaceAPItrùngbundlebenchmark. Người dùng có thểCtrl+F5để thử; không nạpESP cho thayđổiAI này. Chờ xácnhận mặtthật, chưaDONE.
+
+### TASK-066 — [IN_PROGRESS] — 2026-11-19
+- Theo yêu cầuGraphify: đãrefreshgraph vàlầnluồngAI/HUD; đangchặnoverwritekếtquả, bỏFASthừa khiidentitychưađạt, bỏfakeLIVEkhiFASlỗi, thêmtimings/gatevàobảngcósẵn. Khôngnớingưỡng haythayfirmware/DB/còi. Chờtest/runtimebenchmark và loggatedụngthật.
+
+### TASK-066 — [VERIFYING] — 2026-11-19
+- TLOG-077: Graphify audit + xác nhận người dùng cho thấy gate ambiguity. Đã sửa HUD, giữ trạng thái success trong cooldown, so khớp trước FAS, full68 refinement chỉ cùng winner vượt nguyên ngưỡng, fail-closed khi FAS thiếu/lỗi; thêm timings trong bảng có sẵn. Không sửa hồ sơ hoặc nới ngưỡng.
+- Node12+9 nhóm, Selenium61+34checks và model thật PASS. Benchmark mẫu: clear74.7->70.7ms, ambiguous54.2->45.7ms; control cascade4lượt/1callback, không phải điểm danh người thật. Đang cập nhật GitHub v19; còn cần người dùng thử trên CAM, không DONE.

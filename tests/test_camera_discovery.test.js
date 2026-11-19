@@ -131,4 +131,16 @@ const endpoint = ip => ({ data: {device_id:'lh-navix-cam',ip}, error:null });
   assert(!e.run('adminCameraActive')); assert.equal(e.elements.adminEspImg.src,'');
   assert.equal(e.intervals.size,0);
   console.log('PASS stop during initial discovery cancels pending camera start');
+
+  e=environment();
+  e.elements.adminCamHudStatus.innerHTML='Kết quả xác minh';
+  e.run("adminCameraMode='ai';adminCameraActive=true;connectAdminEspStream('192.168.2.168');");
+  e.elements.adminEspImg.onload();
+  assert.equal(e.elements.adminCamHudStatus.innerHTML,'Kết quả xác minh');
+  e.run("startFastFrameStream('http://192.168.2.168/capture');");
+  e.snapshots[0].onload();
+  assert.equal(e.elements.adminCamHudStatus.innerHTML,'Kết quả xác minh');
+  e.run("adminCameraMode='monitor';");e.elements.adminEspImg.onload();
+  assert(e.elements.adminCamHudStatus.innerHTML.includes('Chế độ Chỉ xem'));
+  console.log('PASS MJPEG/snapshot delivery preserves AI result text while monitor status still works');
 })().catch(error => { console.error(error); process.exitCode=1; });

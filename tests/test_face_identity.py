@@ -144,6 +144,41 @@ const done = arguments[arguments.length - 1];
   runMiniFasnetInference = async () => ({ ok: true, isLive: false, pPrint: .8, pReplay: .1 });
   await frame(clear);
   check(writes.length === 0 && adminTrackingFrames === 0, 'existing spoof rejection still resets confirmation');
+
+  reset(); let fasCalls = 0;
+  runMiniFasnetInference = async () => { fasCalls++; return {ok:true,isLive:true,pLive:.9,pPrint:.05,pReplay:.05}; };
+  for (let i=0;i<4;i++) await frame(ambiguous);
+  check(fasCalls === 0 && writes.length === 0, 'ambiguous identity skips unnecessary liveness without checking in');
+  check(adminIdentityLatest.reason === 'ambiguous' && adminIdentityLatest.liveness.state === 'Chưa chạy', 'diagnostics preserve actual ambiguity gate');
+  reset(); for (let i=0;i<3;i++) await frame(clear);
+  check(fasCalls === 3 && writes.length === 0, 'accepted identities still require liveness on each confirmation');
+  await frame(clear);
+  check(fasCalls === 4 && writes.join() === 'A', 'four live and unambiguous confirmations check in once');
+  check(Number.isFinite(adminIdentityLatest.timings.detectMs) && Number.isFinite(adminIdentityLatest.timings.totalMs), 'diagnostics expose measured model-stage timings');
+
+  reset(); adminFasnetSession = null;
+  for(let i=0;i<4;i++) await frame(clear);
+  check(writes.length === 0 && adminTrackingFrames === 0 && adminIdentityLatest.reason === 'liveness_unavailable', 'missing liveness model cannot claim a real face');
+  adminFasnetSession = {};
+  runMiniFasnetInference = async () => { throw Error('fixture runtime failure'); };
+  for(let i=0;i<4;i++) await frame(clear);
+  check(writes.length === 0 && adminIdentityLatest.reason === 'liveness_unavailable', 'liveness runtime failure cannot claim a real face');
+
+  reset(); let releaseFas, startedFas;
+  const fasStarted = new Promise(resolve => { startedFas = resolve; });
+  runMiniFasnetInference = () => new Promise(resolve => { releaseFas = resolve; startedFas(); });
+  document.getElementById('adminCamHudStatus').textContent = 'Kết quả lượt trước';
+  const pendingFrame = frame(clear);
+  await fasStarted;
+  check(document.getElementById('adminCamHudStatus').textContent === 'Kết quả lượt trước', 'early detected box does not overwrite verification text while models run');
+  releaseFas({ok:true,isLive:true,pLive:.9,pPrint:.05,pReplay:.05}); await pendingFrame;
+
+  reset(); runMiniFasnetInference = async () => ({ok:true,isLive:true,pLive:.9,pPrint:.05,pReplay:.05});
+  adminLastCheckinTime.A = Date.now(); await frame(clear);
+  check(writes.length === 0 && adminTrackingFrames === 0 && document.getElementById('adminCamHudStatus').textContent.includes('ĐÃ XÁC THỰC'), 'existing checkin cooldown keeps confirmed status without another checkin');
+  runMiniFasnetInference = async () => ({ok:true,isLive:false,pPrint:.8,pReplay:.1}); await frame(clear);
+  check(writes.length === 0 && document.getElementById('adminCamHudStatus').textContent.includes('TỪ CHỐI'), 'spoof rejection overrides a recent successful identity');
+  delete adminLastCheckinTime.A;
   adminAntiSpoofEnabled = false;
   adminCameraActive = false; await frame(clear);
   check(writes.length === 0, 'stopped camera cannot check in');
