@@ -327,3 +327,11 @@ stateDiagram-v2
 ### TASK-062 — [VERIFYING] — 2026-11-18 — CAM đã nạp và có ảnh thật
 - TLOG-073: upload COM4/hash PASS; OV2640 init thành công, .168 ACTIVE. Browser thật hiện MJPEG480x320, console error/warn rỗng; đọc12/12 JPEG khác nhau trên cùng kết nối trong0.639s. Sau35s vẫn ACTIVE và /capture trả JPEG15354bytes HTTP200.
 - Hoàn tất nạp/kiểm chứng CAM; giữ VERIFYING cho Web Admin đăng nhập/hosting, Kiosk và độ ổn định dài hạn chưa thử. Source Web đã sửa IP/cache nhưng chưa push/deploy. Không thay vùng đóng băng.
+
+### TASK-063 — [IN_PROGRESS] — 2026-11-19
+- Đang triển khai CAM báo IP lên Supabase, Web/LCD cập nhật tự động. Đã đọc live get_open_session và xác nhận LCD còn .169. Không thấy USB bo trong Get-CimInstance Win32_SerialPort; kiểm phần mềm trước, phần cứng chờ kết nối.
+
+### TASK-063 — [VERIFYING] — 2026-11-19
+- TLOG-074: registry/RPC đã áp dụng lên Supabase, provision token riêng ngoài Git, migration history đã ghi nhận. Kiểm quyền/token/IP/TTL trong DB và REST thật PASS; không tạo heartbeat giả cho CAM chưa online.
+- Web tự tra IP trước start và mỗi5s, LCD nhận IP trong polling hiện hữu. Node8nhóm, C++handoff3nhóm, power7nhóm, browser regression34+51 và build CAM/Kiosk PASS. Giữ QR/layout/polling1000ms/còi.
+- Chưa thấy USB bo, chưa nạp CAM/Kiosk hoặc push/deploy Web. Cần cắm cả hai bo/đóng Serial Monitor, nạp và thử DHCP đổi IP với ảnh thật; giữ VERIFYING. Hướng dẫn: docs/CAMERA_IP_DISCOVERY.md.

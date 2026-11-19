@@ -10,3 +10,4 @@ backup_data_before_migration.sql
 js/graphify-out/cache/stat-index.json
 chromedriver/
 se-metadata.json
+esp32_cam_ai/camera_registry_secret.h

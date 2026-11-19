@@ -58,6 +58,73 @@ let enrollPendingPhoto = null; // { dataUrl, descriptor, detection }
 // IP mặc định của ESP32-CAM (đổi ở đây khi router cấp IP khác)
 const DEFAULT_ESP_CAM_IP = '192.168.2.168';
 const LEGACY_ESP_CAM_IPS = ['10.96.38.99', '192.168.1.1', '192.168.2.169'];
+let adminEspDiscoveryTimer = null;
+let adminEspDiscoveryPending = null;
+let adminEspDiscoveryAbort = null;
+let adminEspDiscoveryGeneration = 0;
+let adminEspManualIp = false;
+let adminEspStreamGeneration = 0;
+let adminCameraStartPending = false;
+
+function isPrivateCameraIp(ip) {
+  if (typeof ip !== 'string' || !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return false;
+  const parts = ip.split('.').map(Number);
+  if (parts.some(n => n > 255)) return false;
+  return parts[0] === 10 || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168);
+}
+
+function stopAdminEspDiscovery() {
+  if (adminEspDiscoveryTimer) clearInterval(adminEspDiscoveryTimer);
+  adminEspDiscoveryTimer = null;
+  adminEspDiscoveryGeneration++;
+  if (adminEspDiscoveryAbort) adminEspDiscoveryAbort.abort();
+}
+
+function startAdminEspDiscovery() {
+  if (!adminEspManualIp && !adminEspDiscoveryTimer) {
+    adminEspDiscoveryTimer = setInterval(() => { void refreshAdminEspAddress(); }, 5000);
+  }
+}
+
+async function refreshAdminEspAddress() {
+  if (adminEspManualIp || !window.supabase?.rpc) return null;
+  if (adminEspDiscoveryPending) return adminEspDiscoveryPending;
+  const generation = adminEspDiscoveryGeneration;
+  const input = document.getElementById('adminEspIpInput');
+  const previous = input ? input.value : localStorage.getItem('esp_cam_ip');
+  const controller = new AbortController();
+  adminEspDiscoveryAbort = controller;
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  adminEspDiscoveryPending = (async () => {
+    try {
+      const { data, error } = await window.supabase.rpc('get_camera_endpoint', {
+        p_device_id: 'lh-navix-cam'
+      }).abortSignal(controller.signal);
+      if (error || !data || data.device_id !== 'lh-navix-cam' || !isPrivateCameraIp(data.ip) ||
+          generation !== adminEspDiscoveryGeneration || adminEspManualIp ||
+          (input && input.value !== previous)) return null;
+      const changed = cleanEspCamIp(previous) !== data.ip;
+      if (input) input.value = data.ip;
+      localStorage.setItem('esp_cam_ip', data.ip);
+      if (changed && adminCameraActive) {
+        connectAdminEspStream(data.ip);
+        sendEspCamPower('active');
+      }
+      return data.ip;
+    } catch (_) {
+      return null; // Keep the last address and manual input available during a cloud outage.
+    } finally {
+      clearTimeout(timeout);
+      if (adminEspDiscoveryAbort === controller) adminEspDiscoveryAbort = null;
+    }
+  })();
+  try {
+    return await adminEspDiscoveryPending;
+  } finally {
+    adminEspDiscoveryPending = null;
+  }
+}
 
 function cleanEspCamIp(raw) {
   let s = (raw || '').trim();
@@ -153,15 +220,23 @@ async function initFaceCamInAdmin(isBackground = false) {
   if (ipInput) {
     ipInput.value = savedIp;
     ipInput.oninput = () => {
+      stopAdminEspDiscovery();
+      adminEspManualIp = ipInput.value.trim() !== '';
       const v = cleanEspCamIp(ipInput.value);
       localStorage.setItem('esp_cam_ip', v);
     };
     ipInput.onchange = () => {
       ipInput.value = cleanEspCamIp(ipInput.value);
       localStorage.setItem('esp_cam_ip', ipInput.value);
+      if (adminCameraActive) connectAdminEspStream(ipInput.value);
+      if (!adminEspManualIp) {
+        void refreshAdminEspAddress();
+        if (adminCameraActive) startAdminEspDiscovery();
+      }
     };
   }
   localStorage.setItem('esp_cam_ip', savedIp);
+  void refreshAdminEspAddress();
   updateAdminSoundBtn();
 
   if (window.location.protocol === 'https:') {
@@ -615,6 +690,7 @@ function toggleAdminCamera() {
 }
 
 function startFastFrameStream(captureUrl) {
+  const generation = adminEspStreamGeneration;
   if (!adminCameraActive) return;
   adminFastStreamLoopActive = true;
   const img = document.getElementById('adminEspImg');
@@ -622,7 +698,7 @@ function startFastFrameStream(captureUrl) {
 
   let isFetching = false;
   const fetchNextFrame = () => {
-    if (!adminCameraActive || !adminFastStreamLoopActive) return;
+    if (!adminCameraActive || !adminFastStreamLoopActive || generation !== adminEspStreamGeneration) return;
     if (isFetching) return;
     isFetching = true;
 
@@ -632,7 +708,7 @@ function startFastFrameStream(captureUrl) {
       isFetching = false;
       frameImg.onload = null;
       frameImg.onerror = null;
-      if (adminCameraActive && adminFastStreamLoopActive) {
+      if (generation === adminEspStreamGeneration && adminCameraActive && adminFastStreamLoopActive) {
         adminFastStreamTimer = setTimeout(fetchNextFrame, 800);
       }
     }, 3000);
@@ -640,7 +716,7 @@ function startFastFrameStream(captureUrl) {
     frameImg.onload = () => {
       clearTimeout(timer);
       isFetching = false;
-      if (adminCameraActive && adminFastStreamLoopActive && img) {
+      if (generation === adminEspStreamGeneration && adminCameraActive && adminFastStreamLoopActive && img) {
         img.src = frameImg.src;
         if (hudStatus && adminCameraActive) {
           hudStatus.innerHTML = (adminCameraMode === 'monitor')
@@ -655,7 +731,7 @@ function startFastFrameStream(captureUrl) {
     frameImg.onerror = () => {
       clearTimeout(timer);
       isFetching = false;
-      if (adminCameraActive && adminFastStreamLoopActive) {
+      if (generation === adminEspStreamGeneration && adminCameraActive && adminFastStreamLoopActive) {
         if (hudStatus) {
           hudStatus.innerHTML = `⚠️ Không thể tải luồng từ <b>${captureUrl}</b>. Hãy kiểm tra nguồn ESP32, Wi-Fi hoặc IP camera.`;
         }
@@ -670,62 +746,20 @@ function startFastFrameStream(captureUrl) {
   fetchNextFrame();
 }
 
-async function startAdminCamera(targetMode) {
-  if (adminCameraActive) return;
-  if (targetMode && (targetMode === 'ai' || targetMode === 'monitor')) {
-    adminCameraMode = targetMode;
-  }
-  adminUserManuallyStopped = false; // Reset cờ thủ công khi Admin chủ động bấm bật
-
-  // Đánh thức camera sang ACTIVE ngay (nếu đang STANDBY) để frame đầu tới nhanh hơn
-  sendEspCamPower('active');
-
-  updateAdminCameraModeUi();
-
-  // Chỉ bắt buộc nạp mô hình AI nếu đang ở chế độ 'ai'
-  if (adminCameraMode === 'ai' && !adminFaceModelsLoaded) {
-    if (!adminFaceModelsLoading) {
-      initFaceCamInAdmin(true);
-    }
-    updateAttendanceCamStatusPill('loading');
-    let waitCount = 0;
-    while (!adminFaceModelsLoaded && waitCount < 30) {
-      await new Promise(r => setTimeout(r, 200));
-      waitCount++;
-    }
-    if (!adminFaceModelsLoaded) {
-      console.warn('[FaceCam] Mô hình AI đang được tải, vui lòng chờ.');
-      return;
-    }
-  }
-
-  // Cập nhật trạng thái phiên nếu có, KHÔNG chặn camera hoạt động
-  ensureOpenSession().then(sess => {
-    updateAdminCamSessionStatus();
-    if (!sess && adminCameraMode === 'ai') {
-      console.log('[FaceCam] Đang quét tự do (Chưa có phiên điểm danh mở).');
-    }
-  });
-
+function connectAdminEspStream(rawIp) {
+  adminEspStreamGeneration++;
+  adminFastStreamLoopActive = false;
+  if (adminFastStreamTimer) clearTimeout(adminFastStreamTimer);
+  if (adminStreamReconnectTimer) clearTimeout(adminStreamReconnectTimer);
+  adminFastStreamTimer = null;
+  adminStreamReconnectTimer = null;
   const img = document.getElementById('adminEspImg');
-  const placeholder = document.getElementById('adminCamPlaceholder');
   const hudStatus = document.getElementById('adminCamHudStatus');
-
-  adminCameraSource = 'esp32';
-  adminCameraActive = true;
-  adminConsecutiveLiveHits = {};
-  adminConsecutiveSpoofHits = 0;
-  adminTrackingMssv = null;
-  adminTrackingFrames = 0;
-
-  if (placeholder) placeholder.style.display = 'none';
-
-  // Lấy IP ESP32 từ input
-  const ipInput = document.getElementById('adminEspIpInput');
-  const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
-  if (ipInput && ipInput.value !== rawIp) ipInput.value = rawIp;
-  localStorage.setItem('esp_cam_ip', rawIp);
-
+  if (img) {
+    img.onload = null;
+    img.onerror = null;
+    img.removeAttribute('src');
+  }
   const streamUrl = formatEspStreamUrl(rawIp);
   const captureUrl = formatEspCaptureUrl(rawIp);
   adminStreamMode = 'mjpeg';
@@ -802,23 +836,94 @@ async function startAdminCamera(targetMode) {
     img.src = streamUrl;
   }
 
-  updateAdminCamToggleButton();
-  updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
+}
 
-  // Khởi động AI inference loop CHỈ KHI ở chế độ 'ai'
-  if (adminCameraMode === 'ai') {
-    startAiInferenceLoop();
-  } else {
-    adminInferenceRunning = false;
-    const canvas = document.getElementById('adminCamOverlayCanvas');
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+async function startAdminCamera(targetMode) {
+  if (adminCameraActive || adminCameraStartPending) return;
+  adminCameraStartPending = true;
+  const startGeneration = adminEspDiscoveryGeneration;
+  try {
+    await refreshAdminEspAddress();
+    if (startGeneration !== adminEspDiscoveryGeneration) return;
+    if (targetMode && (targetMode === 'ai' || targetMode === 'monitor')) {
+      adminCameraMode = targetMode;
     }
+    adminUserManuallyStopped = false; // Reset cờ thủ công khi Admin chủ động bấm bật
+
+    // Đánh thức camera sang ACTIVE ngay (nếu đang STANDBY) để frame đầu tới nhanh hơn
+    sendEspCamPower('active');
+
+    updateAdminCameraModeUi();
+
+    // Chỉ bắt buộc nạp mô hình AI nếu đang ở chế độ 'ai'
+    if (adminCameraMode === 'ai' && !adminFaceModelsLoaded) {
+      if (!adminFaceModelsLoading) {
+        initFaceCamInAdmin(true);
+      }
+      updateAttendanceCamStatusPill('loading');
+      let waitCount = 0;
+      while (!adminFaceModelsLoaded && waitCount < 30) {
+        await new Promise(r => setTimeout(r, 200));
+        waitCount++;
+      }
+      if (!adminFaceModelsLoaded) {
+        console.warn('[FaceCam] Mô hình AI đang được tải, vui lòng chờ.');
+        return;
+      }
+    }
+
+    if (startGeneration !== adminEspDiscoveryGeneration) return;
+
+    // Cập nhật trạng thái phiên nếu có, KHÔNG chặn camera hoạt động
+    ensureOpenSession().then(sess => {
+      updateAdminCamSessionStatus();
+      if (!sess && adminCameraMode === 'ai') {
+        console.log('[FaceCam] Đang quét tự do (Chưa có phiên điểm danh mở).');
+      }
+    });
+
+    const placeholder = document.getElementById('adminCamPlaceholder');
+
+    adminCameraSource = 'esp32';
+    adminCameraActive = true;
+    adminConsecutiveLiveHits = {};
+    adminConsecutiveSpoofHits = 0;
+    adminTrackingMssv = null;
+    adminTrackingFrames = 0;
+
+    if (placeholder) placeholder.style.display = 'none';
+
+    // Lấy IP ESP32 từ input
+    const ipInput = document.getElementById('adminEspIpInput');
+    const rawIp = cleanEspCamIp((ipInput ? ipInput.value : '').trim() || localStorage.getItem('esp_cam_ip') || DEFAULT_ESP_CAM_IP);
+    if (ipInput && ipInput.value !== rawIp) ipInput.value = rawIp;
+    localStorage.setItem('esp_cam_ip', rawIp);
+
+    connectAdminEspStream(rawIp);
+    startAdminEspDiscovery();
+
+    updateAdminCamToggleButton();
+    updateAttendanceCamStatusPill(adminCameraMode === 'monitor' ? 'monitor' : 'active');
+
+    // Khởi động AI inference loop CHỈ KHI ở chế độ 'ai'
+    if (adminCameraMode === 'ai') {
+      startAiInferenceLoop();
+    } else {
+      adminInferenceRunning = false;
+      const canvas = document.getElementById('adminCamOverlayCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  } finally {
+    adminCameraStartPending = false;
   }
 }
 
 function stopAdminCamera() {
+  stopAdminEspDiscovery();
+  adminEspStreamGeneration++;
   adminUserManuallyStopped = true; // Ghi nhận Admin đã chủ động dừng
   adminCameraActive = false;
   adminInferenceRunning = false;

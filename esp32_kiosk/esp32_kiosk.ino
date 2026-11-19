@@ -14,7 +14,19 @@ const char* password = "tamsotam";
 const char* web_domain = "https://123001058.github.io/DIEM_DANH";
 
 // 2. Thong tin Camera ESP32-CAM noi bo (82: preview, 80: capture du phong)
-const char* esp_cam_ip = "192.168.2.169";
+char esp_cam_ip[16] = "192.168.2.168"; // Dia chi cuoi cung khi cloud tam mat ket noi.
+portMUX_TYPE camAddressMux = portMUX_INITIALIZER_UNLOCKED;
+
+static void updateCameraAddress(const char* candidate) {
+  IPAddress ip;
+  if (!candidate || !ip.fromString(candidate) ||
+      !(ip[0] == 10 || (ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31) ||
+        (ip[0] == 192 && ip[1] == 168))) return;
+  const String normalized = ip.toString();
+  portENTER_CRITICAL(&camAddressMux);
+  snprintf(esp_cam_ip, sizeof(esp_cam_ip), "%s", normalized.c_str());
+  portEXIT_CRITICAL(&camAddressMux);
+}
 
 // 3. Thong tin Supabase Cloud
 const char* supabase_url = "https://nhjkpknhybenkxwadvzv.supabase.co/rest/v1/rpc/get_open_session";
@@ -128,9 +140,9 @@ void cameraCaptureWorker(void* pvParameters) {
   const uint32_t captureTimeoutMs = 3000;
   uint32_t lastErrorLogMs = 0;
   camHttp.setTimeout(captureTimeoutMs);
-  const String camHost = String("http://") + esp_cam_ip;
-  const String captureUrl = camHost + ":80/capture";
-  const String previewUrl = camHost + ":82/stream";
+  String currentCameraIp;
+  String captureUrl;
+  String previewUrl;
   bool previewOpen = false;
   bool usedPreviewThisSession = false;
   bool previewSupported = false;
@@ -143,6 +155,25 @@ void cameraCaptureWorker(void* pvParameters) {
 
     // R4: Chi tai anh khi co phien diem danh mo.
     if (WiFi.status() == WL_CONNECTED && isSessionOpen) {
+      char latestIp[sizeof(esp_cam_ip)];
+      portENTER_CRITICAL(&camAddressMux);
+      memcpy(latestIp, esp_cam_ip, sizeof(latestIp));
+      portEXIT_CRITICAL(&camAddressMux);
+      if (currentCameraIp != latestIp) {
+        camClient.stop();
+        camHttp.end();
+        currentCameraIp = latestIp;
+        captureUrl = String("http://") + currentCameraIp + ":80/capture";
+        previewUrl = String("http://") + currentCameraIp + ":82/stream";
+        previewOpen = false;
+        previewSupported = false;
+        previewFailures = 0;
+        nextPreviewMs = millis();
+        portENTER_CRITICAL(&camMux);
+        latestReadyIdx = -1;
+        portEXIT_CRITICAL(&camMux);
+        Serial.printf("[CAM IP] LCD ket noi %s\n", currentCameraIp.c_str());
+      }
       if (!previewOpen && static_cast<int32_t>(millis() - nextPreviewMs) >= 0) {
         camClient.stop(); // Socket du phong co the van mo tren cong 80.
         camHttp.setReuse(false);
@@ -307,6 +338,10 @@ void supabasePollWorker(void* pvParameters) {
         
         JsonDocument doc;
         deserializeJson(doc, payload);
+
+        if (doc["camera"]["device_id"] == "lh-navix-cam" && doc["camera"]["ip"].is<const char*>()) {
+          updateCameraAddress(doc["camera"]["ip"].as<const char*>());
+        }
         
         if (doc["id"].is<String>() && doc["qr_token"].is<String>()) {
           isSessionOpen = true;

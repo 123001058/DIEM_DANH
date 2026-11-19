@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include "board_config.h"
+#include "camera_registry.h"
 // ===========================
 // CẤU HÌNH WIFI ĐA MẠNG
 // ===========================
@@ -117,6 +118,7 @@ void setup() {
 
   // Bật Web server stream
   startCameraServer(err == ESP_OK);
+  startCameraRegistry();
 
   Serial.println("----------------------------------------");
   Serial.print("👉 DIA CHI IP CUA ESP32: http://");
