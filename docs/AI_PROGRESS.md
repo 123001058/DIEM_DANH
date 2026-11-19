@@ -335,3 +335,17 @@ stateDiagram-v2
 - TLOG-074: registry/RPC đã áp dụng lên Supabase, provision token riêng ngoài Git, migration history đã ghi nhận. Kiểm quyền/token/IP/TTL trong DB và REST thật PASS; không tạo heartbeat giả cho CAM chưa online.
 - Web tự tra IP trước start và mỗi5s, LCD nhận IP trong polling hiện hữu. Node8nhóm, C++handoff3nhóm, power7nhóm, browser regression34+51 và build CAM/Kiosk PASS. Giữ QR/layout/polling1000ms/còi.
 - Chưa thấy USB bo, chưa nạp CAM/Kiosk hoặc push/deploy Web. Cần cắm cả hai bo/đóng Serial Monitor, nạp và thử DHCP đổi IP với ảnh thật; giữ VERIFYING. Hướng dẫn: docs/CAMERA_IP_DISCOVERY.md.
+
+### TASK-064 — [IN_PROGRESS] — 2026-11-19
+- Log mới có lỗi SCCB/I2C và cấp phát JPEG. Đã xác nhận build CAM IDE tắt PSRAM/Flash4M trong khi source dùng PSRAM; COM4 bị giữ. Đang chặn cấu hình thiếu PSRAM và build đúng OPI, chưa nạp/sửa tham số cảm biến.
+
+### TASK-064 — [DONE] — 2026-11-19
+- TLOG-075: đã chặn build PSRAMdisabled và nạp CAM COM4 đúng S3/OPI16M/CDC với core3.3.13; hashverified. Bo nhận8MBPSRAM, OV2640 initthànhcông; .169ACTIVE và12/12JPEGmớiliêntiếp PASS. Lần boot đo không lặp lỗiI2C/malloc; chưa kết luận riêng nguyên nhânSCCB trước đó hoặc ổn định dài hạn.
+- TASK-063 bổ sung KNOWN: CAM thật đã tự báo IP mới192.168.2.169 lên registry qua HTTPS, Serial/REST khớp TLOG-075. Vẫn VERIFYING vì chưa xác minh đầy đủ Web/LCD tự đổiIP/ảnh thật; không deploy Web hoặc nạp Kiosk trong lượt này.
+
+### TASK-065 — [IN_PROGRESS] — 2026-11-19
+- Đo và sửa độtrễbắtmặt WebAI, giữ ngưỡngdanh tính/chốnggiảmạo/4lượt vàcòi. Chưa đổi firmware hoặc DB; sẽ dùng benchmark modelthật và hồi quy nhận diện.
+
+### TASK-065 — [VERIFYING] — 2026-11-19
+- TLOG-076: sửa fallback416cho mặt nhỏ, khung hiện trước bướcxácminh, warmup2kíchthước trướcAIready, chặn jobchồng/kếtquảcũ. Giữ0.40/margin0.05/4lượt/FAS/còi.
+- Modelthật Chrome/WebGL/publicfixture: median khung54.6->23.7ms; total54.7->57.5ms nên không tuyên bố tăng tốc điểm danh. 320bỏsótmặt ởscale0.5, helpermới tìmđược; descriptor cùngcropdelta0. Node7+8nhóm/Selenium51+34checksPASS. Chờ cập nhậtGitHub và người dùng thửCAMthật; chưa DONE.

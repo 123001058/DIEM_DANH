@@ -274,9 +274,8 @@ async function initFaceCamInAdmin(isBackground = false) {
       faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
     ]);
+    await Promise.all([syncAdminFacesFromSupabase(false), warmupAdminFaceDetector()]);
     adminFaceModelsLoaded = true;
-
-    await syncAdminFacesFromSupabase(false);
     renderFaceStudentTable();
 
     if (hudStatus) {
@@ -748,6 +747,7 @@ function startFastFrameStream(captureUrl) {
 
 function connectAdminEspStream(rawIp) {
   adminEspStreamGeneration++;
+  adminFaceDetectorInputSize = 320;
   adminFastStreamLoopActive = false;
   if (adminFastStreamTimer) clearTimeout(adminFastStreamTimer);
   if (adminStreamReconnectTimer) clearTimeout(adminStreamReconnectTimer);
@@ -924,6 +924,7 @@ async function startAdminCamera(targetMode) {
 function stopAdminCamera() {
   stopAdminEspDiscovery();
   adminEspStreamGeneration++;
+  adminFaceDetectorInputSize = 320;
   adminUserManuallyStopped = true; // Ghi nhận Admin đã chủ động dừng
   adminCameraActive = false;
   adminInferenceRunning = false;
@@ -1133,6 +1134,41 @@ let adminTrackingFrames = 0;
 const REQUIRED_CONFIRM_FRAMES = 4; // 4 lượt xử lý liên tiếp đạt điều kiện; không bảo đảm là 4 ảnh mới từ camera.
 // Giá trị thử nghiệm, cần hiệu chỉnh bằng ca đúng/sai/người ngoài trên camera thực tế.
 const ADMIN_FACE_MIN_MARGIN = 0.05;
+let adminFaceDetectorInputSize = 320;
+let adminFaceFrameBusy = false;
+
+async function warmupAdminFaceDetector() {
+  const snapshot = document.createElement('canvas');
+  snapshot.width = 480;
+  snapshot.height = 320;
+  // Compile both input shapes during model loading, rather than on a person's first scan.
+  for (const inputSize of [320, 416]) {
+    await faceapi.detectSingleFace(snapshot,
+      new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
+  }
+}
+
+async function detectAdminFaceWithDescriptor(snapshot, onDetection, generation) {
+  let inputSize = adminFaceDetectorInputSize;
+  let detection = await faceapi.detectSingleFace(snapshot,
+    new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
+  // The wider pass can recover small faces missed by 320; retain it while tracking.
+  if (!detection && inputSize === 320) {
+    inputSize = 416;
+    detection = await faceapi.detectSingleFace(snapshot,
+      new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: 0.22 }));
+  }
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) return null;
+  adminFaceDetectorInputSize = detection ? inputSize : 320;
+  if (!detection) return null;
+  onDetection(detection.box);
+  // Give the browser a chance to paint the detected box before the remaining models.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) return null;
+  // Reuse this detection with the library's unchanged landmark/alignment/descriptor path.
+  return new faceapi.DetectSingleFaceLandmarksTask(Promise.resolve({ detection }), snapshot, true)
+    .withFaceDescriptor();
+}
 
 function evaluateAdminFaceIdentity(matcher, descriptor) {
   const result = { accepted: false, reason: 'no_data', best: null, second: null, margin: null };
@@ -1299,8 +1335,16 @@ function exportAdminIdentityLog() {
 }
 
 async function processAdminCameraFrame(media) {
-  // Guard check 1: Nếu cam đã dừng -> thoát ngay
-  if (!adminCameraActive || !adminInferenceRunning) return;
+  if (!adminCameraActive || !adminInferenceRunning || adminFaceFrameBusy) return;
+  adminFaceFrameBusy = true;
+  try {
+    await processAdminCameraFrameInternal(media, adminEspStreamGeneration);
+  } finally {
+    adminFaceFrameBusy = false;
+  }
+}
+
+async function processAdminCameraFrameInternal(media, generation) {
 
   const canvas = document.getElementById('adminCamOverlayCanvas');
   if (!canvas) return;
@@ -1326,17 +1370,22 @@ async function processAdminCameraFrame(media) {
   }
   adminCaptureCtx.drawImage(media, 0, 0, natW, natH);
 
-  // 1. Phát hiện khuôn mặt bằng Face-API Tiny (inputSize 320 tối ưu tốc độ trên luồng HVGA 480x320, giảm ~40% tải Main Thread)
+  // 1. Show detection immediately; identity and liveness still gate attendance below.
   let det = null;
   try {
-    det = await faceapi.detectSingleFace(
-      adminCaptureCanvas,
-      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.22 })
-    ).withFaceLandmarks(true).withFaceDescriptor();
+    det = await detectAdminFaceWithDescriptor(adminCaptureCanvas, box => {
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(box.x * w / natW, box.y * h / natH, box.width * w / natW, box.height * h / natH);
+      if (hudStatus) {
+        hudStatus.textContent = 'Đã thấy khuôn mặt — đang xác minh...';
+        hudStatus.style.color = 'var(--primary)';
+      }
+    }, generation);
   } catch (e) { }
 
   // Guard check 2: Nếu camera đã tắt trong lúc chờ detectSingleFace -> xóa canvas và thoát ngay
-  if (!adminCameraActive || !adminInferenceRunning) {
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
@@ -1368,7 +1417,7 @@ async function processAdminCameraFrame(media) {
   let antiSpoofResult = { ok: true, isLive: true, pLive: 0.98 };
   if (adminAntiSpoofEnabled && adminFasnetSession) {
     await new Promise(r => setTimeout(r, 0));
-    if (!adminCameraActive || !adminInferenceRunning) {
+    if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
@@ -1380,7 +1429,7 @@ async function processAdminCameraFrame(media) {
   }
 
   // Guard check 3: Nếu camera đã tắt trong lúc chờ suy luận MiniFASNet -> xóa canvas và thoát ngay
-  if (!adminCameraActive || !adminInferenceRunning) {
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
@@ -1520,12 +1569,13 @@ async function processAdminCameraFrame(media) {
   }
 
   // Guard check 4: Tuyệt đối không vẽ nếu camera đã bị tắt
-  if (!adminCameraActive || !adminInferenceRunning) {
+  if (!adminCameraActive || !adminInferenceRunning || generation !== adminEspStreamGeneration) {
     ctx.clearRect(0, 0, w, h);
     return;
   }
 
   // Vẽ bounding box trang nhã trên canvas
+  ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.strokeStyle = boxColor;
   ctx.lineWidth = 2.5;

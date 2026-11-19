@@ -1,0 +1,113 @@
+{
+  "backend": "webgl",
+  "descriptorDelta": 0,
+  "detections": [
+    {
+      "found": true,
+      "ms": 22.5,
+      "scale": 1,
+      "size": 320
+    },
+    {
+      "found": true,
+      "ms": 28.400000005960464,
+      "scale": 0.75,
+      "size": 320
+    },
+    {
+      "found": false,
+      "ms": 22.30000001192093,
+      "scale": 0.5,
+      "size": 320
+    },
+    {
+      "found": true,
+      "ms": 32.20000000298023,
+      "scale": 1,
+      "size": 416
+    },
+    {
+      "found": true,
+      "ms": 32.099999994039536,
+      "scale": 0.75,
+      "size": 416
+    },
+    {
+      "found": true,
+      "ms": 31,
+      "scale": 0.5,
+      "size": 416
+    }
+  ],
+  "detectorWarmupMs": 1575.2000000029802,
+  "smallRecoveryMs": 83.1000000089407,
+  "taskConstructor": "function",
+  "times": [
+    {
+      "firstBoxMs": 54.6000000089407,
+      "mode": "before",
+      "totalMs": 54.70000000298023
+    },
+    {
+      "firstBoxMs": 24.399999991059303,
+      "mode": "after",
+      "totalMs": 57.29999999701977
+    },
+    {
+      "firstBoxMs": 52.29999999701977,
+      "mode": "before",
+      "totalMs": 52.3999999910593
+    },
+    {
+      "firstBoxMs": 26,
+      "mode": "after",
+      "totalMs": 60.70000000298023
+    },
+    {
+      "firstBoxMs": 55.400000005960464,
+      "mode": "before",
+      "totalMs": 55.5
+    },
+    {
+      "firstBoxMs": 23.700000002980232,
+      "mode": "after",
+      "totalMs": 59.20000000298023
+    },
+    {
+      "firstBoxMs": 60.099999994039536,
+      "mode": "before",
+      "totalMs": 60.099999994039536
+    },
+    {
+      "firstBoxMs": 22.400000005960464,
+      "mode": "after",
+      "totalMs": 57.5
+    },
+    {
+      "firstBoxMs": 53.400000005960464,
+      "mode": "before",
+      "totalMs": 53.400000005960464
+    },
+    {
+      "firstBoxMs": 22.799999997019768,
+      "mode": "after",
+      "totalMs": 57
+    }
+  ],
+  "writes": 0,
+  "fixture": "https://raw.githubusercontent.com/vladmandic/face-api/master/demo/sample1.jpg",
+  "snapshot": {
+    "width": 480,
+    "height": 320,
+    "small_scale": 0.5
+  },
+  "baseline_commit": "ccaced37402aa02a1ace393ee986a5d2680600ea",
+  "scope": "Headless Chrome/WebGL, static public fixture, models warm; no live attendance or physical face accuracy claim.",
+  "faceapi_sha256": "0160f7af3a8c78cece45c7ecc765383bad74becfd438bb787cdd627b2d6f2cf6",
+  "model_sha256": {
+    "face_landmark_68_tiny_model.bin": "b98e9f2f7da76f8a6dda9741a36ed485b224b889d552de2b2c1bb16217f67bfc",
+    "face_recognition_model.bin": "b413e420d6840b2775fba32008db6f3cddb07d485967fb42cfcf379c16a8c589",
+    "tiny_face_detector_model.bin": "b7503ce7df31039b1c43316a9b865cab6a70dd748cc602d3fa28b551503c3871",
+    "minifasnet_v2.onnx": "d7b3cd9ba8a7ceb13baa8c4720902e27ca3112eff52f926c08804af6b6eecc7b"
+  }
+}

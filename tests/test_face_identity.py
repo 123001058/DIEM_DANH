@@ -99,9 +99,13 @@ const done = arguments[arguments.length - 1];
   // Run the production frame handler. Only detector output and final persistence are adapters.
   const realApi = faceapi;
   let detection = null;
-  window.faceapi = { ...realApi, detectSingleFace: () => ({
-    withFaceLandmarks: () => ({ withFaceDescriptor: async () => detection })
-  }) };
+  window.faceapi = { ...realApi,
+    detectSingleFace: async () => detection?.detection,
+    DetectSingleFaceLandmarksTask: class {
+      constructor(parent) { this.parent = parent; }
+      async withFaceDescriptor() { await this.parent; return detection; }
+    }
+  };
   const media = document.createElement('canvas'); media.width = 640; media.height = 480;
   let writes = [];
   executeFaceCheckin = (...args) => { writes.push(args[0]); };
