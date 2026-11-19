@@ -4,6 +4,11 @@
 #include <WiFiMulti.h>
 #include "board_config.h"
 #include "camera_registry.h"
+
+// Frame buffers below require PSRAM; reject the IDE default before it can be flashed.
+#ifndef BOARD_HAS_PSRAM
+#error "ESP32-CAM requires PSRAM. Select ESP32S3 Dev Module > Tools > PSRAM > OPI PSRAM for this board."
+#endif
 // ===========================
 // CẤU HÌNH WIFI ĐA MẠNG
 // ===========================
@@ -39,6 +44,12 @@ static void applySensorTuning() {
 
 // Dung chung luc khoi dong va khi phuc hoi cam bien.
 esp_err_t cameraInitPins() {
+  Serial.printf("[CAM MEM] PSRAM found=%d total=%u free=%u bytes\n",
+                psramFound(), (unsigned int)ESP.getPsramSize(), (unsigned int)ESP.getFreePsram());
+  if (!psramFound()) {
+    Serial.println("[CAM MEM] PSRAM unavailable. Check OPI PSRAM and board configuration before camera init.");
+    return ESP_ERR_NO_MEM;
+  }
   camera_config_t config = {};
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer   = LEDC_TIMER_0;
