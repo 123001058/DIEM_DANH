@@ -359,3 +359,6 @@ stateDiagram-v2
 ### TASK-066 — [VERIFYING] — 2026-11-19
 - TLOG-077: Graphify audit + xác nhận người dùng cho thấy gate ambiguity. Đã sửa HUD, giữ trạng thái success trong cooldown, so khớp trước FAS, full68 refinement chỉ cùng winner vượt nguyên ngưỡng, fail-closed khi FAS thiếu/lỗi; thêm timings trong bảng có sẵn. Không sửa hồ sơ hoặc nới ngưỡng.
 - Node12+9 nhóm, Selenium61+34checks và model thật PASS. Benchmark mẫu: clear74.7->70.7ms, ambiguous54.2->45.7ms; control cascade4lượt/1callback, không phải điểm danh người thật. Đang cập nhật GitHub v19; còn cần người dùng thử trên CAM, không DONE.
+
+### TASK-066 — [VERIFYING] — 2026-11-19 — Web v19 đã được phục vụ
+- TLOG-077: a9dcaf4 đã push; Pages run44482948020completed/success. HTML/JSv19 live khớp mã đãtest. Đã hoàn tất cập nhật phần mềm; chưa xác nhận accuracy/độtrễ trên mặt người dùng. Không nạp lại ESP hoặc sửa dữ liệu hồ sơ.
