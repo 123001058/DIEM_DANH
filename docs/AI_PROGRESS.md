@@ -349,3 +349,6 @@ stateDiagram-v2
 ### TASK-065 — [VERIFYING] — 2026-11-19
 - TLOG-076: sửa fallback416cho mặt nhỏ, khung hiện trước bướcxácminh, warmup2kíchthước trướcAIready, chặn jobchồng/kếtquảcũ. Giữ0.40/margin0.05/4lượt/FAS/còi.
 - Modelthật Chrome/WebGL/publicfixture: median khung54.6->23.7ms; total54.7->57.5ms nên không tuyên bố tăng tốc điểm danh. 320bỏsótmặt ởscale0.5, helpermới tìmđược; descriptor cùngcropdelta0. Node7+8nhóm/Selenium51+34checksPASS. Chờ cập nhậtGitHub và người dùng thửCAMthật; chưa DONE.
+
+### TASK-065 — [VERIFYING] — 2026-11-19 — Đã lên Web GitHub
+- TLOG-076 bổsung: đã pushabe30ca; GitHub Pages run44477620521completed/success; trangadmin vàJSv18thật khớpsource đãtest sauchuẩnhóanewline. CDNFaceAPItrùngbundlebenchmark. Người dùng có thểCtrl+F5để thử; không nạpESP cho thayđổiAI này. Chờ xácnhận mặtthật, chưaDONE.
